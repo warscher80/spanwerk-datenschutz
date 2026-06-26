@@ -1,0 +1,43 @@
+name: APK bauen
+
+on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - "app/**"
+      - "*.gradle"
+      - "gradle/**"
+      - "gradlew"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle ausführbar machen
+        run: chmod +x ./gradlew
+
+      - name: Debug-APK bauen
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: kickbet-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
