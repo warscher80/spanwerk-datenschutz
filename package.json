@@ -1,0 +1,18 @@
+{
+  "name": "spanwerk-kalkulation",
+  "version": "1.0.0",
+  "description": "Intelligente Kalkulations-App für Metallbaubetriebe",
+  "private": true,
+  "scripts": {
+    "copyweb": "node scripts/copyweb.mjs",
+    "sync": "npm run copyweb && cap sync android",
+    "build:apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

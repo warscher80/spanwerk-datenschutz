@@ -1,0 +1,8 @@
+{
+  "appId": "at.spanwerk.kalkulation",
+  "appName": "Spanwerk",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

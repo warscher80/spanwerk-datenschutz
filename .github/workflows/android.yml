@@ -1,0 +1,77 @@
+name: Android APK bauen
+
+# Baut die installierbare Android-APK in der Cloud und stellt sie
+# als Download bereit (Artefakt + Release "app-latest").
+
+on:
+  push:
+    branches:
+      - claude/metalwork-estimation-app-9ez1ks
+      - main
+    paths:
+      - "index.html"
+      - "datenschutz.html"
+      - "assets/**"
+      - "android/**"
+      - "scripts/**"
+      - "package.json"
+      - "capacitor.config.json"
+      - ".github/workflows/android.yml"
+  workflow_dispatch: {}   # erlaubt manuelles Starten per Knopf
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: Web-Dateien synchronisieren
+        run: npm run sync
+
+      - name: APK bauen (Debug)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: APK umbenennen
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk spanwerk.apk
+
+      - name: APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: spanwerk-apk
+          path: spanwerk.apk
+
+      - name: APK als Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-latest
+          name: Spanwerk – aktuelle App
+          body: |
+            Installierbare Android-App (Debug-Build).
+            Auf dem Handy herunterladen und öffnen. Falls "Installation blockiert"
+            erscheint: Installation aus unbekannten Quellen für den Browser erlauben.
+          files: spanwerk.apk
+          prerelease: true

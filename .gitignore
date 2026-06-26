@@ -1,0 +1,24 @@
+# Abhängigkeiten
+node_modules/
+
+# generiertes Web-Verzeichnis (aus Root-Dateien erzeugt)
+www/
+
+# Android Build-Artefakte
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+android/local.properties
+android/app/release/
+*.apk
+*.aab
+
+# generierte Capacitor-Web-Assets (werden per "npm run sync" erzeugt)
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# OS / Editor
+.DS_Store
+*.log
