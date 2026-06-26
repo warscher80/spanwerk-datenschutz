@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
 import 'engine.dart';
+import 'notify.dart';
 import 'odds.dart';
 import 'store.dart';
 import 'update.dart';
@@ -115,7 +116,49 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _boot() async {
     await _store.load();
+    await Notifier.init();
+    if (_store.remindersEnabled) await Notifier.requestPermission();
     await _selectLeague();
+  }
+
+  /// Plant eine Erinnerung ~90 Min vor dem ersten noch ungetippten Spiel.
+  void _scheduleReminders(List<FootyMatch> matches) {
+    if (_currentMode || !_store.remindersEnabled) return;
+    final now = DateTime.now();
+    final untipped = matches
+        .where((x) => x.kickoff != null && x.kickoff!.isAfter(now) && _store.get(x.id) == null)
+        .toList();
+    final id = ((_league.id.hashCode ^ (_isCup ? _roundCode : _day)) & 0x7fffffff) % 100000;
+    if (untipped.isEmpty) {
+      Notifier.cancel(id);
+      return;
+    }
+    untipped.sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
+    final when = untipped.first.kickoff!.subtract(const Duration(minutes: 90));
+    Notifier.schedule(
+      id: id,
+      whenLocal: when,
+      title: '⚽ ${_league.name}: jetzt tippen!',
+      body: '$_stageTitle startet bald – ${untipped.length} Spiele noch ohne Tipp.',
+    );
+  }
+
+  Future<void> _toggleReminders() async {
+    final on = !_store.remindersEnabled;
+    await _store.setRemindersEnabled(on);
+    if (on) {
+      await Notifier.requestPermission();
+      _scheduleReminders(_matches);
+    } else {
+      await Notifier.cancelAll();
+    }
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF114E3B),
+      content: Text(on ? '🔔 Erinnerungen aktiviert' : 'Erinnerungen ausgeschaltet'),
+      duration: const Duration(seconds: 2),
+    ));
   }
 
   /// Liga/Turnier vorbereiten: Saison setzen, Startrunde bestimmen, laden, lernen.
@@ -168,6 +211,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (learned) await _store.saveLearning();
       if (!mounted) return;
       setState(() { _matches = m; _loading = false; _updatedAt = DateTime.now(); });
+      _scheduleReminders(m);
     } catch (e) {
       if (!mounted) return;
       setState(() { if (!silent) _error = _msg(e); _loading = false; });
@@ -265,6 +309,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       n++;
     }
     if (!mounted) return;
+    _scheduleReminders(_matches); // getippte Spiele aus der Erinnerung nehmen
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       backgroundColor: const Color(0xFF114E3B),
@@ -312,10 +357,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onSelected: (v) {
               if (v == 'reset') _resetTips();
               if (v == 'auto') _autoTip();
+              if (v == 'reminders') _toggleReminders();
             },
-            itemBuilder: (c) => const [
-              PopupMenuItem(value: 'auto', child: Text('Auto-Tipp (Prognose)')),
-              PopupMenuItem(value: 'reset', child: Text('Tipps zurücksetzen')),
+            itemBuilder: (c) => [
+              const PopupMenuItem(value: 'auto', child: Text('Auto-Tipp (Prognose)')),
+              PopupMenuItem(
+                value: 'reminders',
+                child: Text(_store.remindersEnabled
+                    ? 'Erinnerungen: an ✓'
+                    : 'Erinnerungen: aus'),
+              ),
+              const PopupMenuItem(value: 'reset', child: Text('Tipps zurücksetzen')),
             ],
           ),
         ],

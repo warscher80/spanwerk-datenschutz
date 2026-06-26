@@ -103,6 +103,12 @@ class PredictionStore {
     await _prefs?.setInt('round_$leagueId', round);
   }
 
+  /// Tipp-Erinnerungen (Standard: an).
+  bool get remindersEnabled => _prefs?.getBool('reminders') ?? true;
+  Future<void> setRemindersEnabled(bool v) async {
+    await _prefs?.setBool('reminders', v);
+  }
+
   Prediction? get(int matchId) => _cache[matchId];
 
   Future<void> save(int matchId, int home, int away) async {
