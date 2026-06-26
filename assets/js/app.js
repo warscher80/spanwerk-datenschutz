@@ -163,16 +163,8 @@
           fld("Umsatzsteuer", "set-mwst", s.mwst, "%") +
         "</div>" +
       "</div>" +
-      '<div class="card" style="margin-top:16px"><h3>Maschinenstundensätze <span class="sub">€ / Stunde – werden zusätzlich zum Lohn berechnet</span></h3>' +
-        '<div class="inline">' +
-          fld("Säge / Zuschnitt", "masch-saege", s.maschinen.saege, "€/h") +
-          fld("Laser", "masch-laser", s.maschinen.laser, "€/h") +
-          fld("Abkantpresse", "masch-abkantpresse", s.maschinen.abkantpresse, "€/h") +
-        "</div><div class=\"inline\">" +
-          fld("Bohrmaschine", "masch-bohrmaschine", s.maschinen.bohrmaschine, "€/h") +
-          fld("Schweißgerät", "masch-schweissgeraet", s.maschinen.schweissgeraet, "€/h") +
-          fld("Schleifmaschine", "masch-schleifmaschine", s.maschinen.schleifmaschine, "€/h") +
-        "</div>" +
+      '<div class="card" style="margin-top:16px"><h3>Maschinen der Firma <span class="sub">Stundensatz (€/h) + Rüstkosten (€ je Auftrag) – werden zusätzlich zum Lohn berechnet</span></h3>' +
+        '<div id="maschinen-bereich"></div>' +
       "</div>" +
       '<div class="btn-row" style="margin-top:16px">' +
         '<button class="btn primary" id="btn-save-stammdaten">Stammdaten speichern</button>' +
@@ -194,9 +186,6 @@
       s.rates.montage = numv("#rate-montage"); s.rates.projektleitung = numv("#rate-projektleitung");
       s.materialAufschlag = numv("#set-materialAufschlag"); s.gemeinkosten = numv("#set-gemeinkosten");
       s.gewinn = numv("#set-gewinn"); s.verschnitt = numv("#set-verschnitt"); s.mwst = numv("#set-mwst");
-      s.maschinen.saege = numv("#masch-saege"); s.maschinen.laser = numv("#masch-laser");
-      s.maschinen.abkantpresse = numv("#masch-abkantpresse"); s.maschinen.bohrmaschine = numv("#masch-bohrmaschine");
-      s.maschinen.schweissgeraet = numv("#masch-schweissgeraet"); s.maschinen.schleifmaschine = numv("#masch-schleifmaschine");
       s.firma = {
         name: $("#firma-name").value.trim(), inhaber: $("#firma-inhaber").value.trim(),
         strasse: $("#firma-strasse").value.trim(), plzOrt: $("#firma-plzOrt").value.trim(),
@@ -230,6 +219,74 @@
         db = Store.reset(); toast("Alle Daten gelöscht."); navTo("dashboard");
       }
     };
+    renderMaschinen();
+  }
+
+  // ---- Maschinen-Verwaltung -----------------------------------
+  function schrittLabel(key) {
+    var s = SCHRITTE.filter(function (x) { return x.key === key; })[0];
+    return s ? s.label : "—";
+  }
+  function renderMaschinen() {
+    var wrap = $("#maschinen-bereich");
+    if (!wrap) return;
+    var liste = db.settings.maschinen || [];
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-maschine" type="button">+ Maschine anlegen</button></div>';
+    if (!liste.length) {
+      html += '<div class="empty">Noch keine Maschinen. Lege die Maschinen deiner Firma an.</div>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Maschine</th><th>Arbeitsschritt</th><th class="num">Stundensatz</th><th class="num">Rüstkosten</th><th class="num">Aktion</th></tr></thead><tbody>';
+      liste.forEach(function (m) {
+        html += "<tr><td><strong>" + esc(m.name) + "</strong></td>" +
+          "<td>" + esc(schrittLabel(m.schritt)) + "</td>" +
+          '<td class="num">' + fmtEUR(m.stundensatz) + "/h</td>" +
+          '<td class="num">' + fmtEUR(m.ruestkosten) + "</td>" +
+          '<td class="num"><button class="btn sm ghost" data-medit="' + m.id + '" type="button">✏️</button> ' +
+            '<button class="btn sm danger" data-mdel="' + m.id + '" type="button">🗑️</button></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+    wrap.innerHTML = html;
+    $("#btn-add-maschine").onclick = function () { maschineModal(null); };
+    $all("[data-medit]", wrap).forEach(function (b) { b.onclick = function () { maschineModal(b.dataset.medit); }; });
+    $all("[data-mdel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Maschine löschen?")) {
+          db.settings.maschinen = db.settings.maschinen.filter(function (m) { return m.id !== b.dataset.mdel; });
+          Store.save(); renderMaschinen();
+        }
+      };
+    });
+  }
+
+  function maschineModal(id) {
+    var liste = db.settings.maschinen || (db.settings.maschinen = []);
+    var m = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
+    var schrittOpt = '<option value="">— kein Arbeitsschritt —</option>' +
+      SCHRITTE.map(function (s) {
+        return '<option value="' + s.key + '"' + (m && m.schritt === s.key ? " selected" : "") + ">" + esc(s.label) + "</option>";
+      }).join("");
+    var body =
+      fld2("Maschinenname", "ma-name", m ? m.name : "", "text") +
+      '<label class="fld"><span class="lbl">Arbeitsschritt (für automatische Zuordnung)</span><select id="ma-schritt">' + schrittOpt + "</select></label>" +
+      '<div class="inline">' +
+        fld2("Stundensatz (€/h)", "ma-satz", m ? m.stundensatz : "", "number") +
+        fld2("Rüstkosten (€ je Auftrag)", "ma-ruest", m ? m.ruestkosten : 0, "number") +
+      "</div>" +
+      '<p class="hint">Die Rüstkosten werden je Auftrag einmal berechnet, sobald der zugeordnete Arbeitsschritt anfällt.</p>';
+    openModal(m ? "Maschine bearbeiten" : "Maschine anlegen", body, function () {
+      var name = $("#ma-name").value.trim();
+      if (!name) { toast("Bitte Maschinennamen angeben.", "err"); return false; }
+      var daten = {
+        name: name, schritt: $("#ma-schritt").value,
+        stundensatz: parseFloat($("#ma-satz").value) || 0,
+        ruestkosten: parseFloat($("#ma-ruest").value) || 0
+      };
+      if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestkosten = daten.ruestkosten; }
+      else { daten.id = Store.uid(); liste.push(daten); }
+      Store.save(); renderMaschinen(); toast("Maschine gespeichert.");
+      return true;
+    });
   }
 
   function fld(label, id, val, suffix) {
@@ -483,6 +540,7 @@
     html += line("Material inkl. Aufschlag", fmtEUR(kalk.materialMitAufschlag));
     html += line("Lohn / Fertigung", fmtEUR(kalk.lohn));
     if (kalk.maschinenKosten > 0) html += line("Maschinenkosten", fmtEUR(kalk.maschinenKosten));
+    if (kalk.ruestKosten > 0) html += line("Rüstkosten", fmtEUR(kalk.ruestKosten));
     html += line("Gemeinkosten", fmtEUR(kalk.gemeinkosten), "sub");
     html += line("Selbstkosten", fmtEUR(kalk.selbstkosten));
     html += line("Gewinn", fmtEUR(kalk.gewinn), "sub");

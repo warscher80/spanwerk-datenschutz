@@ -89,7 +89,7 @@
   // ---- Vollständige Kalkulation -----------------------------
   function kalkuliere(db, eingabe) {
     var s = db.settings;
-    var maschinen = s.maschinen || {};
+    var maschinen = Array.isArray(s.maschinen) ? s.maschinen : [];
     var verschnitt = (eingabe.verschnitt != null ? eingabe.verschnitt : s.verschnitt) / 100;
 
     var zeiten = berechneZeiten(db, eingabe.produktKey, eingabe.config, eingabe.manuelleZeiten);
@@ -105,24 +105,28 @@
     });
     var materialMitAufschlag = materialEK * (1 + s.materialAufschlag / 100);
 
-    // Lohn + Maschinen
-    var lohn = 0, maschinenKosten = 0, stundenGesamt = 0;
+    // Lohn + Maschinen + Rüstkosten
+    var lohn = 0, maschinenKosten = 0, ruestKosten = 0, stundenGesamt = 0;
+    var genutzt = {}; // Rüstkosten je Maschine nur einmal pro Auftrag
     var lohnZeilen = SCHRITTE.map(function (sch) {
       var h = zeiten[sch.key] || 0;
       var satz = s.rates[sch.kat] || 0;
       var lohnSumme = h * satz;
-      var mSatz = sch.maschine ? (maschinen[sch.maschine] || 0) : 0;
+      // erste Maschine, die diesem Arbeitsschritt zugeordnet ist
+      var m = maschinen.filter(function (mm) { return mm.schritt === sch.key; })[0];
+      var mSatz = m ? (parseFloat(m.stundensatz) || 0) : 0;
       var mSumme = h * mSatz;
+      if (h > 0 && m && !genutzt[m.id]) { genutzt[m.id] = true; ruestKosten += parseFloat(m.ruestkosten) || 0; }
       lohn += lohnSumme; maschinenKosten += mSumme; stundenGesamt += h;
       return {
         key: sch.key, label: sch.label, stunden: round2(h),
         satz: satz, summe: round2(lohnSumme),
-        maschine: sch.maschine || null, maschinenSatz: mSatz, maschinenSumme: round2(mSumme)
+        maschine: m ? m.name : null, maschinenSatz: mSatz, maschinenSumme: round2(mSumme)
       };
     }).filter(function (z) { return z.stunden > 0; });
 
     // Preisaufbau
-    var herstellkosten = materialMitAufschlag + lohn + maschinenKosten;
+    var herstellkosten = materialMitAufschlag + lohn + maschinenKosten + ruestKosten;
     var gemeinkosten = herstellkosten * (s.gemeinkosten / 100);
     var selbstkosten = herstellkosten + gemeinkosten;
     var gewinn = selbstkosten * (s.gewinn / 100);
@@ -130,14 +134,14 @@
     var mwst = netto * (s.mwst / 100);
     var brutto = netto + mwst;
 
-    var variableKosten = materialEK + lohn + maschinenKosten;
+    var variableKosten = materialEK + lohn + maschinenKosten + ruestKosten;
     var deckungsbeitrag = netto - variableKosten;
 
     return {
       zeiten: zeiten, stundenGesamt: round2(stundenGesamt),
       matZeilen: matZeilen, lohnZeilen: lohnZeilen,
       materialEK: round2(materialEK), materialMitAufschlag: round2(materialMitAufschlag),
-      lohn: round2(lohn), maschinenKosten: round2(maschinenKosten),
+      lohn: round2(lohn), maschinenKosten: round2(maschinenKosten), ruestKosten: round2(ruestKosten),
       herstellkosten: round2(herstellkosten), gemeinkosten: round2(gemeinkosten),
       selbstkosten: round2(selbstkosten), gewinn: round2(gewinn),
       netto: round2(netto), mwst: round2(mwst), brutto: round2(brutto),

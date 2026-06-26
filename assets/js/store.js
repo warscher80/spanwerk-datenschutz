@@ -17,11 +17,16 @@
     angebotZaehler: 1, // laufende Angebotsnummer
     // Stundenverrechnungssätze je Mitarbeitergruppe (€/h)
     rates: { cad: 65, fertigung: 58, montage: 62, projektleitung: 78 },
-    // Maschinenstundensätze (€/h) – werden zusätzlich zum Lohn berechnet
-    maschinen: {
-      saege: 22, laser: 95, abkantpresse: 70, bohrmaschine: 18,
-      schweissgeraet: 14, schleifmaschine: 10
-    },
+    // Maschinen der Firma: je Maschine ein Stundensatz (€/h) und Rüstkosten (€
+    // einmalig pro Auftrag), zugeordnet zu einem Arbeitsschritt (schritt-Key).
+    maschinen: [
+      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestkosten: 5 },
+      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestkosten: 30 },
+      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestkosten: 20 },
+      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestkosten: 3 },
+      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestkosten: 2 },
+      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestkosten: 2 }
+    ],
     materialAufschlag: 12,  // % auf Materialeinkauf
     gemeinkosten: 14,       // % auf Selbstkosten
     gewinn: 18,             // % Gewinnaufschlag
@@ -90,6 +95,19 @@
         _db = JSON.parse(raw);
         // sanfte Migration fehlender Felder
         if (!_db.settings) _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        // Migration: altes Maschinen-Objekt {key: satz} -> Liste mit Rüstkosten
+        if (_db.settings.maschinen && !Array.isArray(_db.settings.maschinen)) {
+          var alt = _db.settings.maschinen;
+          var map = {
+            saege: ["Säge", "zuschnitt"], laser: ["Laser", "lasern"],
+            abkantpresse: ["Abkantpresse", "biegen"], bohrmaschine: ["Bohrmaschine", "bohren"],
+            schweissgeraet: ["Schweißgerät", "schweissen"], schleifmaschine: ["Schleifmaschine", "schleifen"]
+          };
+          _db.settings.maschinen = Object.keys(alt).map(function (k) {
+            var m = map[k] || [k, ""];
+            return { id: "m-" + k, name: m[0], schritt: m[1], stundensatz: alt[k], ruestkosten: 0 };
+          });
+        }
         if (!_db.settings.maschinen) _db.settings.maschinen = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.maschinen));
         if (!_db.settings.firma) _db.settings.firma = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.firma));
         if (_db.settings.angebotZaehler == null) _db.settings.angebotZaehler = 1;
