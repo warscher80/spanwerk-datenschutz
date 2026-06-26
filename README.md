@@ -48,9 +48,14 @@ Die Modell-Parameter wurden per **Walk-Forward-Backtest** über 5 Ligen und 2 Sa
 | vorher (ungetunt) | 45,9 % | 1,066 |
 | **jetzt (getunt + Vorsaison-Seed)** | **47,3 %** | **1,045** |
 
-Poisson-/Dixon-Coles- und Blend-Modelle wurden gegengetestet, brachten aber keinen
-Mehrwert gegenüber dem getunten Elo-Modell. Die angezeigte **Modell-Treffsicherheit**
-in „Meine Saison" misst nur Vorhersagen der laufenden Saison.
+**Getestet & verworfen** (kein messbarer Mehrwert bzw. leicht schlechter, daher
+bewusst nicht eingebaut): Poisson/Dixon-Coles, Elo-Poisson-Blend, zwei Vorsaisons
+als Seed, getrennte Heim-/Auswärts-Ratings, pro-Team-Heimvorteil, Wahrscheinlichkeits-
+Kalibrierung (Logistik-Divisor) und Prior-Blend. Das schlanke, getunte Elo-Modell mit
+einer Vorsaison bleibt das beste.
+
+Die angezeigte **Modell-Treffsicherheit** in „Meine Saison" misst nur Vorhersagen der
+laufenden Saison.
 
 ## Projektaufbau (Flutter)
 ```
