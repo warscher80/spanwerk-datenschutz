@@ -47,7 +47,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   int _leagueIdx = 0;
   late String _season;
-  int _day = 1;
+  int _day = 1;                // Liga-Modus: Spieltag-Nummer
+  List<CupStage> _stages = []; // Turnier-Modus: gefundene Runden
+  int _stageIdx = 0;
 
   List<FootyMatch> _matches = [];
   bool _loading = true;
@@ -57,12 +59,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _autoTimer;
 
   League get _league => kLeagues[_leagueIdx];
+  bool get _isCup => _league.isCup;
+  int get _roundCode => _isCup ? (_stages.isEmpty ? 0 : _stages[_stageIdx].code) : _day;
+  bool get _canPrev => _isCup ? _stageIdx > 0 : _day > 1;
+  bool get _canNext => _isCup ? _stageIdx < _stages.length - 1 : _day < _league.maxRound;
+
+  String get _stageTitle {
+    if (_isCup) {
+      if (_stages.isEmpty) return '—';
+      final s = _stages[_stageIdx];
+      return cupStageLabel(s.code, s.count);
+    }
+    return '$_day. Spieltag';
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _season = Api.currentSeason(DateTime.now());
+    _season = Api.seasonFor(_league, DateTime.now());
     // Immer am neuesten Stand: alle 60 s im Vordergrund stillschweigend aktualisieren.
     _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       _loadDay(silent: true);
@@ -89,7 +104,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _boot() async {
     await _store.load();
-    _day = await _resolveStartRound(_league);
+    await _selectLeague();
+  }
+
+  /// Liga/Turnier vorbereiten: Saison setzen, Startrunde bestimmen, laden, lernen.
+  Future<void> _selectLeague() async {
+    setState(() { _loading = true; _error = null; _stages = []; });
+    _season = Api.seasonFor(_league, DateTime.now());
+    if (_isCup) {
+      try {
+        _stages = await Api.discoverCupRounds(_league.id, _season, _league.cupCandidates);
+      } catch (_) {
+        _stages = [];
+      }
+      _stageIdx = _stages.isEmpty ? 0 : _stages.length - 1; // jüngste Runde zuerst
+    } else {
+      _day = await _resolveStartRound(_league);
+    }
     await _loadDay();
     _startLearning();
   }
@@ -104,9 +135,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
+    final code = _roundCode;
+    if (_isCup && code == 0) {
+      setState(() { _matches = []; _loading = false; });
+      return;
+    }
     try {
-      final m = await Api.round(_league.id, _season, _day);
-      await _store.setLastRound(_league.id, _day);
+      final m = await Api.round(_league.id, _season, code);
+      if (!_isCup) await _store.setLastRound(_league.id, _day);
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
@@ -121,21 +157,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Hintergrund-Lernen: Vorsaison als Startwissen + laufende Saison einspeisen,
-  /// Quoten verfeinern. Wird auch beim Zurückkehren in die App erneut angestoßen,
-  /// damit neue Ergebnisse nachgelernt werden – die App wird so immer besser.
+  /// Hintergrund-Lernen: Vorsaison/Turnier-Runden einspeisen, Quoten verfeinern.
+  /// Wird auch beim Zurückkehren in die App erneut angestoßen, damit neue
+  /// Ergebnisse nachgelernt werden – die App wird so immer besser.
   void _startLearning() {
     _learner?.cancel();
     final learner = SeasonLearner(_store, _elo);
     _learner = learner;
-    learner.learnHistory(
-      _league, _season,
-      onProgress: (done, total) {
-        if (!mounted || _learner != learner) return;
-        final pct = ((done / total) * 100).round();
-        setState(() => _learnStatus = done >= total ? null : 'lernt … $pct %');
-      },
-    ).then((_) {
+    void onProgress(int done, int total) {
+      if (!mounted || _learner != learner) return;
+      final pct = total == 0 ? 100 : ((done / total) * 100).round();
+      setState(() => _learnStatus = done >= total ? null : 'lernt … $pct %');
+    }
+    final fut = _isCup
+        ? learner.learnCup(_league, _season, _stages.map((s) => s.code).toList(),
+            onProgress: onProgress)
+        : learner.learnHistory(_league, _season, onProgress: onProgress);
+    fut.then((_) {
       if (mounted && _learner == learner) setState(() => _learnStatus = null);
     });
   }
@@ -144,9 +182,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       'Spiele konnten nicht geladen werden.\nInternetverbindung prüfen und erneut ziehen.\n($e)';
 
   void _changeDay(int delta) {
-    final next = (_day + delta).clamp(1, _league.maxRound);
-    if (next == _day) return;
-    setState(() => _day = next);
+    if (delta < 0 ? !_canPrev : !_canNext) return;
+    setState(() {
+      if (_isCup) {
+        _stageIdx = (_stageIdx + delta).clamp(0, _stages.length - 1);
+      } else {
+        _day = (_day + delta).clamp(1, _league.maxRound);
+      }
+    });
     _loadDay();
   }
 
@@ -156,11 +199,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _leagueIdx = idx;
       _loading = true;
     });
-    () async {
-      _day = await _resolveStartRound(_league);
-      await _loadDay();
-      _startLearning();
-    }();
+    _selectLeague();
   }
 
   // ----- Punkte -----
@@ -318,30 +357,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       color: const Color(0xFF0D4634),
       child: Row(
         children: [
-          DropdownButton<int>(
-            value: _leagueIdx,
-            dropdownColor: const Color(0xFF114E3B),
-            underline: const SizedBox.shrink(),
-            iconEnabledColor: _accent,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-            items: [
-              for (var i = 0; i < kLeagues.length; i++)
-                DropdownMenuItem(value: i, child: Text(kLeagues[i].label)),
-            ],
-            onChanged: _changeLeague,
+          Flexible(
+            child: DropdownButton<int>(
+              value: _leagueIdx,
+              isExpanded: true,
+              dropdownColor: const Color(0xFF114E3B),
+              underline: const SizedBox.shrink(),
+              iconEnabledColor: _accent,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              items: [
+                for (var i = 0; i < kLeagues.length; i++)
+                  DropdownMenuItem(value: i, child: Text(kLeagues[i].label, overflow: TextOverflow.ellipsis)),
+              ],
+              onChanged: _changeLeague,
+            ),
           ),
-          const Spacer(),
           IconButton(
-            onPressed: _day > 1 ? () => _changeDay(-1) : null,
+            onPressed: _canPrev ? () => _changeDay(-1) : null,
             icon: const Icon(Icons.chevron_left),
             color: _accent,
+            visualDensity: VisualDensity.compact,
           ),
-          Text('$_day. Spieltag',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 96),
+            child: Text(_stageTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+          ),
           IconButton(
-            onPressed: _day < _league.maxRound ? () => _changeDay(1) : null,
+            onPressed: _canNext ? () => _changeDay(1) : null,
             icon: const Icon(Icons.chevron_right),
             color: _accent,
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

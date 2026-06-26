@@ -3,27 +3,85 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// Eine wählbare Liga inkl. Land und maximaler Spieltagszahl.
+/// Eine wählbare Liga oder ein Turnier.
 class League {
   final String id; // TheSportsDB idLeague
   final String name;
   final String country;
   final String flag; // Emoji
   final int maxRound;
-  const League(this.id, this.name, this.country, this.flag, this.maxRound);
+  final bool isCup; // Turnier mit Gruppen + K.o. statt fortlaufender Spieltage
+  final String? seasonOverride; // z. B. WM nutzt "2026" statt "2025-2026"
+  final List<int> cupCandidates; // mögliche Runden-Codes (Gruppen + K.o.)
+  const League(
+    this.id,
+    this.name,
+    this.country,
+    this.flag,
+    this.maxRound, {
+    this.isCup = false,
+    this.seasonOverride,
+    this.cupCandidates = const [],
+  });
 
   String get label => '$flag $name';
   String get sub => country;
 }
 
+// Runden-Codes für Turniere bei TheSportsDB: 1-3 = Gruppen-Spieltage,
+// 100/110 = Sechzehntel-/Achtelfinale (je nach Teilnehmerzahl), 125 = Viertel-,
+// 150 = Halbfinale, 160 = Spiel um Platz 3, 200 = Finale.
+const _wcCandidates = [1, 2, 3, 100, 110, 120, 125, 150, 160, 170, 180, 200];
+
 const kLeagues = <League>[
+  League('4429', 'WM 2026', 'International', '🏆', 0,
+      isCup: true, seasonOverride: '2026', cupCandidates: _wcCandidates),
   League('4331', '1. Bundesliga', 'Deutschland', '🇩🇪', 34),
   League('4399', '2. Bundesliga', 'Deutschland', '🇩🇪', 34),
   League('4621', 'Bundesliga', 'Österreich', '🇦🇹', 32),
   League('4796', '2. Liga', 'Österreich', '🇦🇹', 30),
   League('4328', 'Premier League', 'England', '🇬🇧', 38),
   League('4329', 'Championship', 'England', '🇬🇧', 46),
+  League('4332', 'Serie A', 'Italien', '🇮🇹', 38),
 ];
+
+/// Eine Turnier-Runde mit Anzahl Spiele (für Beschriftung & Navigation).
+class CupStage {
+  final int code;
+  final int count;
+  const CupStage(this.code, this.count);
+}
+
+/// Beschriftung einer Turnier-Runde (Code bzw. nach Spielanzahl).
+String cupStageLabel(int code, int count) {
+  switch (code) {
+    case 1:
+    case 2:
+    case 3:
+      return 'Gruppe · $code. Spieltag';
+    case 125:
+      return 'Viertelfinale';
+    case 150:
+      return 'Halbfinale';
+    case 160:
+      return 'Spiel um Platz 3';
+    case 200:
+      return 'Finale';
+  }
+  switch (count) {
+    case 16:
+      return 'Sechzehntelfinale';
+    case 8:
+      return 'Achtelfinale';
+    case 4:
+      return 'Viertelfinale';
+    case 2:
+      return 'Halbfinale';
+    case 1:
+      return 'Finale';
+  }
+  return 'Runde $code';
+}
 
 class Team {
   final String name;
@@ -122,6 +180,28 @@ class Api {
   static String previousSeason(String season) {
     final start = int.tryParse(season.split('-').first) ?? 0;
     return '${start - 1}-$start';
+  }
+
+  /// Saison einer Liga (Turniere haben eine feste Saison wie "2026").
+  static String seasonFor(League league, DateTime now) =>
+      league.seasonOverride ?? currentSeason(now);
+
+  /// Findet die tatsächlich vorhandenen Turnier-Runden (Gruppen + K.o.),
+  /// indem die möglichen Codes durchprobiert werden. So erscheinen K.o.-Runden
+  /// automatisch, sobald sie eingetragen sind.
+  static Future<List<CupStage>> discoverCupRounds(
+      String leagueId, String season, List<int> candidates) async {
+    final stages = <CupStage>[];
+    for (final c in candidates) {
+      try {
+        final ms = await round(leagueId, season, c);
+        if (ms.isNotEmpty) stages.add(CupStage(c, ms.length));
+      } catch (_) {
+        // Runde übersprungen
+      }
+      await Future.delayed(const Duration(milliseconds: 90));
+    }
+    return stages;
   }
 
   /// Nächster anstehender Spieltag (für „immer aktueller Stand"); null außerhalb der Saison.

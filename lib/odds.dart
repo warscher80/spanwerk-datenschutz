@@ -138,6 +138,39 @@ class SeasonLearner {
     if (_changed) await store.saveLearning();
   }
 
+  /// Turnier-Runden (Gruppen + K.o.) ins Modell einarbeiten.
+  Future<void> learnCup(
+    League league,
+    String season,
+    List<int> codes, {
+    void Function(int done, int total)? onProgress,
+  }) async {
+    _changed = false;
+    for (var i = 0; i < codes.length; i++) {
+      if (_cancelled) break;
+      final code = codes[i];
+      final key = '${league.id}|$season|$code';
+      if (store.roundLearned(key)) {
+        onProgress?.call(i + 1, codes.length);
+        continue;
+      }
+      try {
+        final matches = await Api.round(league.id, season, code);
+        var allFinished = matches.isNotEmpty;
+        for (final m in matches) {
+          if (ingestMatch(store, model, m)) _changed = true;
+          if (!m.finished) allFinished = false;
+        }
+        if (allFinished) store.markRoundLearned(key);
+      } catch (_) {
+        // Runde übersprungen
+      }
+      onProgress?.call(i + 1, codes.length);
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    if (_changed) await store.saveLearning();
+  }
+
   Future<void> _learnSeason(
     League league,
     String season, {
