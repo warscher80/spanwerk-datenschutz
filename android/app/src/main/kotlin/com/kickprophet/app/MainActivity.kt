@@ -1,4 +1,4 @@
-package at.footytipp.footy_predict
+package com.kickprophet.app
 
 import io.flutter.embedding.android.FlutterActivity
 

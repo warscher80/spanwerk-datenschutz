@@ -15,6 +15,9 @@ class PredictionStore {
   static const _ingestedKey = 'footy_ingested_v1';
   static const _roundsKey = 'footy_learned_rounds_v1';
 
+  static const _resultsKey = 'footy_results_v1';
+  static const _evalKey = 'footy_modeleval_v1';
+
   final Map<int, Prediction> _cache = {};
 
   // Lerndaten des Quoten-Modells.
@@ -22,7 +25,17 @@ class PredictionStore {
   final Set<int> _ingested = {};
   final Set<String> _learnedRounds = {};
 
+  // Echte Ergebnisse getippter Spiele (für die Saison-Statistik).
+  final Map<int, List<int>> _results = {};
+
+  // Treffsicherheit des Modells (Vorhersage vor dem Lernen).
+  int modelHits = 0;
+  int modelTotal = 0;
+
   SharedPreferences? _prefs;
+
+  Map<int, Prediction> get predictions => _cache;
+  List<int>? result(int matchId) => _results[matchId];
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
@@ -42,12 +55,24 @@ class PredictionStore {
     elo.clear();
     _ingested.clear();
     _learnedRounds.clear();
+    _results.clear();
     final e = _prefs?.getString(_eloKey);
     if (e != null) {
       (jsonDecode(e) as Map).forEach((k, v) => elo[k as String] = (v as num).toDouble());
     }
     _ingested.addAll(_prefs?.getStringList(_ingestedKey)?.map(int.parse) ?? const []);
     _learnedRounds.addAll(_prefs?.getStringList(_roundsKey) ?? const []);
+    final r = _prefs?.getString(_resultsKey);
+    if (r != null) {
+      (jsonDecode(r) as Map).forEach(
+          (k, v) => _results[int.parse(k as String)] = (v as List).cast<int>());
+    }
+    final ev = _prefs?.getString(_evalKey);
+    if (ev != null) {
+      final m = (jsonDecode(ev) as Map).cast<String, dynamic>();
+      modelHits = (m['hits'] as num?)?.toInt() ?? 0;
+      modelTotal = (m['total'] as num?)?.toInt() ?? 0;
+    }
   }
 
   // ---- Lern-Status ----
@@ -57,10 +82,19 @@ class PredictionStore {
   void markRoundLearned(String key) => _learnedRounds.add(key);
   int get teamsLearned => elo.length;
 
+  void recordResult(int matchId, int home, int away) => _results[matchId] = [home, away];
+  void addModelEval(bool hit) {
+    modelTotal++;
+    if (hit) modelHits++;
+  }
+
   Future<void> saveLearning() async {
     await _prefs?.setString(_eloKey, jsonEncode(elo));
     await _prefs?.setStringList(_ingestedKey, _ingested.map((e) => e.toString()).toList());
     await _prefs?.setStringList(_roundsKey, _learnedRounds.toList());
+    await _prefs?.setString(_resultsKey,
+        jsonEncode(_results.map((k, v) => MapEntry(k.toString(), v))));
+    await _prefs?.setString(_evalKey, jsonEncode({'hits': modelHits, 'total': modelTotal}));
   }
 
   /// Zuletzt betrachteten Spieltag je Liga merken.

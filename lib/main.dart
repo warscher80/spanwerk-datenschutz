@@ -22,7 +22,7 @@ class FootyApp extends StatelessWidget {
       brightness: Brightness.dark,
     ).copyWith(surface: _green);
     return MaterialApp(
-      title: 'Footy Predict',
+      title: 'KickProphet',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -107,11 +107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
-        if (x.finished && x.hasResult && !_store.isIngested(x.id)) {
-          _elo.learn(x.home.name, x.away.name, x.homeGoals!, x.awayGoals!);
-          _store.markIngested(x.id);
-          learned = true;
-        }
+        if (ingestMatch(_store, _elo, x)) learned = true;
       }
       if (learned) await _store.saveLearning();
       if (!mounted) return;
@@ -196,12 +192,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Füllt offene (noch nicht angestoßene) Spiele mit der Modell-Prognose.
+  Future<void> _autoTip() async {
+    final now = DateTime.now();
+    var n = 0;
+    for (final m in _matches) {
+      if (m.startedBy(now)) continue;
+      final s = _elo.expectedScore(m.home.name, m.away.name);
+      await _store.save(m.id, s[0], s[1]);
+      n++;
+    }
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF114E3B),
+      content: Text(n == 0
+          ? 'Keine offenen Spiele zum Auto-Tippen.'
+          : '🔮 $n Spiele mit der Prognose getippt.'),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  void _openStats() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D4634),
+      showDragHandle: true,
+      builder: (c) => _StatsSheet(store: _store, elo: _elo),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D4634),
-        title: const Text('⚽ Footy Predict'),
+        title: const Text('🔮 KickProphet'),
         actions: [
           Center(
             child: Container(
@@ -215,9 +241,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   style: const TextStyle(color: _accent, fontWeight: FontWeight.w800)),
             ),
           ),
+          IconButton(
+            tooltip: 'Meine Saison',
+            onPressed: _openStats,
+            icon: const Icon(Icons.bar_chart_rounded),
+          ),
           PopupMenuButton<String>(
-            onSelected: (v) { if (v == 'reset') _resetTips(); },
+            onSelected: (v) {
+              if (v == 'reset') _resetTips();
+              if (v == 'auto') _autoTip();
+            },
             itemBuilder: (c) => const [
+              PopupMenuItem(value: 'auto', child: Text('Auto-Tipp (Prognose)')),
               PopupMenuItem(value: 'reset', child: Text('Tipps zurücksetzen')),
             ],
           ),
@@ -624,6 +659,109 @@ class _Stepper extends StatelessWidget {
     return InkWell(
       onTap: on ? tap : null,
       child: Icon(icon, size: 22, color: on ? _accent : Colors.white24),
+    );
+  }
+}
+
+class _StatsSheet extends StatelessWidget {
+  final PredictionStore store;
+  final EloModel elo;
+  const _StatsSheet({required this.store, required this.elo});
+
+  @override
+  Widget build(BuildContext context) {
+    var points = 0, tips = 0, exact = 0;
+    store.predictions.forEach((id, p) {
+      final r = store.result(id);
+      if (r == null) return;
+      tips++;
+      final pts = pointsFor(
+          predHome: p.home, predAway: p.away, actualHome: r[0], actualAway: r[1]);
+      points += pts;
+      if (pts == Scoring.exact) exact++;
+    });
+    final avg = tips == 0 ? 0.0 : points / tips;
+    final exactPct = tips == 0 ? 0 : (exact / tips * 100).round();
+    final modelPct =
+        store.modelTotal == 0 ? null : (store.modelHits / store.modelTotal * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 26),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Meine Saison',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 14),
+          Row(children: [
+            _stat('$points', 'Punkte'),
+            _stat('$tips', 'Tipps gewertet'),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            _stat('$exact', 'Volltreffer'),
+            _stat('$exactPct %', 'Volltreffer-Quote'),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            _stat(avg.toStringAsFixed(2), 'Ø Punkte/Tipp'),
+            _stat('${store.teamsLearned}', 'Teams gelernt'),
+          ]),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _accent.withValues(alpha: 0.4)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.psychology_alt_rounded, color: _accent, size: 20),
+                const SizedBox(width: 8),
+                const Text('Modell-Treffsicherheit',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                const Spacer(),
+                Text(modelPct == null ? '–' : '$modelPct %',
+                    style: const TextStyle(
+                        color: _accent, fontWeight: FontWeight.w800, fontSize: 18)),
+              ]),
+              const SizedBox(height: 6),
+              Text(
+                modelPct == null
+                    ? 'Sobald Ergebnisse eingelesen sind, zeigt sich hier, wie oft die Prognose richtig lag.'
+                    : 'Anteil korrekt vorhergesagter Spiele (1/X/2) über ${store.modelTotal} ausgewertete Partien. Die Quoten lernen weiter dazu.',
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String value, String label) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF114E3B),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF1C6A50)),
+        ),
+        child: Column(children: [
+          Text(value,
+              style: const TextStyle(
+                  color: _accent, fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        ]),
+      ),
     );
   }
 }

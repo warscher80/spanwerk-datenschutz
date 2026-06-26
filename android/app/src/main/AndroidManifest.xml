@@ -2,7 +2,7 @@
     <!-- Echte Spieldaten werden online von OpenLigaDB geladen. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Footy Predict"
+        android:label="KickProphet"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'api.dart';
+import 'engine.dart';
 import 'store.dart';
 
 class MatchProbs {
@@ -67,6 +68,39 @@ class EloModel {
     double o(double prob) => max(1.01, (1 / (prob * margin)));
     return MatchOdds(o(p.home), o(p.draw), o(p.away));
   }
+
+  /// Vom Modell erwartetes Ergebnis (für den Auto-Tipp).
+  List<int> expectedScore(String home, String away) {
+    final dr = rating(home) + homeAdvantage - rating(away);
+    final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
+    final gh = (1.35 + (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
+    final ga = (1.35 - (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
+    return [gh, ga];
+  }
+}
+
+/// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,
+/// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
+/// Modell verändert wurde.
+bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m) {
+  if (!(m.finished && m.hasResult)) return false;
+  // Ergebnis getippter Spiele immer für die Statistik festhalten.
+  if (store.predictions.containsKey(m.id)) {
+    store.recordResult(m.id, m.homeGoals!, m.awayGoals!);
+  }
+  if (store.isIngested(m.id)) return false;
+
+  // Erst vorhersagen (bewerten), dann lernen.
+  final p = model.probs(m.home.name, m.away.name);
+  final predicted = p.home >= p.draw && p.home >= p.away
+      ? Tendency.home
+      : (p.away > p.home && p.away >= p.draw ? Tendency.away : Tendency.draw);
+  final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
+  store.addModelEval(predicted == actual);
+
+  model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!);
+  store.markIngested(m.id);
+  return true;
 }
 
 /// Lädt im Hintergrund vergangene Spieltage und speist die Ergebnisse ins
@@ -101,11 +135,7 @@ class SeasonLearner {
         final matches = await Api.round(league.id, season, r);
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (m.finished && m.hasResult && !store.isIngested(m.id)) {
-            model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!);
-            store.markIngested(m.id);
-            changed = true;
-          }
+          if (ingestMatch(store, model, m)) changed = true;
           if (!m.finished) allFinished = false;
         }
         // Nur abgeschlossene Spieltage als „fertig" markieren.
