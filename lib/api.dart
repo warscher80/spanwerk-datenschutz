@@ -43,6 +43,7 @@ const kLeagues = <League>[
   League('4328', 'Premier League', 'England', '🇬🇧', 38),
   League('4329', 'Championship', 'England', '🇬🇧', 46),
   League('4332', 'Serie A', 'Italien', '🇮🇹', 38),
+  League('4335', 'La Liga', 'Spanien', '🇪🇸', 38),
 ];
 
 /// Eine Turnier-Runde mit Anzahl Spiele (für Beschriftung & Navigation).
@@ -221,6 +222,43 @@ class Api {
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<List<FootyMatch>> _events(String path) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_base/$path'))
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final events = (body['events'] as List?) ?? const [];
+      return events.cast<Map<String, dynamic>>().map(FootyMatch.fromJson).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// „Aktuelle Spiele" über alle Ligen: anstehende + gerade gespielte Partien
+  /// im Zeitfenster [-2, +12] Tagen, nach Anstoß sortiert.
+  static Future<List<FootyMatch>> currentMatches(
+      List<League> leagues, DateTime now) async {
+    final byId = <int, FootyMatch>{};
+    for (final l in leagues) {
+      for (final p in ['eventsnextleague.php?id=${l.id}', 'eventspastleague.php?id=${l.id}']) {
+        for (final m in await _events(p)) {
+          byId[m.id] = m;
+        }
+        await Future.delayed(const Duration(milliseconds: 70));
+      }
+    }
+    final from = now.subtract(const Duration(days: 2));
+    final to = now.add(const Duration(days: 12));
+    final list = byId.values.where((m) {
+      final k = m.kickoff;
+      return k != null && k.isAfter(from) && k.isBefore(to);
+    }).toList()
+      ..sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
+    return list;
   }
 
   /// Alle Spiele eines Spieltags einer Liga.

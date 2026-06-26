@@ -58,13 +58,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _learnStatus; // z.B. "lernt … 60 %"
   Timer? _autoTimer;
 
-  League get _league => kLeagues[_leagueIdx];
-  bool get _isCup => _league.isCup;
+  // _leagueIdx == -1 -> „Aktuell" (ligaübergreifend aktuelle/anstehende Spiele).
+  bool get _currentMode => _leagueIdx < 0;
+  League get _league => kLeagues[_leagueIdx < 0 ? 0 : _leagueIdx];
+  bool get _isCup => !_currentMode && _league.isCup;
   int get _roundCode => _isCup ? (_stages.isEmpty ? 0 : _stages[_stageIdx].code) : _day;
-  bool get _canPrev => _isCup ? _stageIdx > 0 : _day > 1;
-  bool get _canNext => _isCup ? _stageIdx < _stages.length - 1 : _day < _league.maxRound;
+  bool get _canPrev => _currentMode ? false : (_isCup ? _stageIdx > 0 : _day > 1);
+  bool get _canNext =>
+      _currentMode ? false : (_isCup ? _stageIdx < _stages.length - 1 : _day < _league.maxRound);
 
   String get _stageTitle {
+    if (_currentMode) return 'Aktuelle Spiele';
     if (_isCup) {
       if (_stages.isEmpty) return '—';
       final s = _stages[_stageIdx];
@@ -110,6 +114,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Liga/Turnier vorbereiten: Saison setzen, Startrunde bestimmen, laden, lernen.
   Future<void> _selectLeague() async {
     setState(() { _loading = true; _error = null; _stages = []; });
+    if (_currentMode) {
+      await _loadDay();
+      return;
+    }
     _season = Api.seasonFor(_league, DateTime.now());
     if (_isCup) {
       try {
@@ -141,8 +149,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     try {
-      final m = await Api.round(_league.id, _season, code);
-      if (!_isCup) await _store.setLastRound(_league.id, _day);
+      final m = _currentMode
+          ? await Api.currentMatches(kLeagues, DateTime.now())
+          : await Api.round(_league.id, _season, code);
+      if (!_currentMode && !_isCup) await _store.setLastRound(_league.id, _day);
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
@@ -161,6 +171,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Wird auch beim Zurückkehren in die App erneut angestoßen, damit neue
   /// Ergebnisse nachgelernt werden – die App wird so immer besser.
   void _startLearning() {
+    if (_currentMode) return; // im Aktuell-Modus kein Liga-spezifisches Lernen
     _learner?.cancel();
     final learner = SeasonLearner(_store, _elo);
     _learner = learner;
@@ -366,6 +377,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               iconEnabledColor: _accent,
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
               items: [
+                const DropdownMenuItem(value: -1, child: Text('🔴 Aktuell', overflow: TextOverflow.ellipsis)),
                 for (var i = 0; i < kLeagues.length; i++)
                   DropdownMenuItem(value: i, child: Text(kLeagues[i].label, overflow: TextOverflow.ellipsis)),
               ],
@@ -564,11 +576,11 @@ class _MatchCard extends StatelessWidget {
     } else {
       status = 'Termin offen';
     }
+    final left = (match.round >= 1 && match.round < 100) ? '${match.round}. Spieltag' : '';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text('${match.round}. Spieltag',
-            style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        Text(left, style: const TextStyle(color: Colors.white38, fontSize: 11)),
         Text(status, style: TextStyle(color: col, fontSize: 11, fontWeight: FontWeight.w600)),
       ],
     );
