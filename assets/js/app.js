@@ -148,6 +148,17 @@
           fld("Umsatzsteuer", "set-mwst", s.mwst, "%") +
         "</div>" +
       "</div>" +
+      '<div class="card" style="margin-top:16px"><h3>Maschinenstundensätze <span class="sub">€ / Stunde – werden zusätzlich zum Lohn berechnet</span></h3>' +
+        '<div class="inline">' +
+          fld("Säge / Zuschnitt", "masch-saege", s.maschinen.saege, "€/h") +
+          fld("Laser", "masch-laser", s.maschinen.laser, "€/h") +
+          fld("Abkantpresse", "masch-abkantpresse", s.maschinen.abkantpresse, "€/h") +
+        "</div><div class=\"inline\">" +
+          fld("Bohrmaschine", "masch-bohrmaschine", s.maschinen.bohrmaschine, "€/h") +
+          fld("Schweißgerät", "masch-schweissgeraet", s.maschinen.schweissgeraet, "€/h") +
+          fld("Schleifmaschine", "masch-schleifmaschine", s.maschinen.schleifmaschine, "€/h") +
+        "</div>" +
+      "</div>" +
       '<div class="btn-row" style="margin-top:16px">' +
         '<button class="btn primary" id="btn-save-stammdaten">Stammdaten speichern</button>' +
         '<button class="btn ghost" id="btn-reset-stammdaten">Auf Standard zurücksetzen</button>' +
@@ -168,6 +179,9 @@
       s.rates.montage = numv("#rate-montage"); s.rates.projektleitung = numv("#rate-projektleitung");
       s.materialAufschlag = numv("#set-materialAufschlag"); s.gemeinkosten = numv("#set-gemeinkosten");
       s.gewinn = numv("#set-gewinn"); s.verschnitt = numv("#set-verschnitt"); s.mwst = numv("#set-mwst");
+      s.maschinen.saege = numv("#masch-saege"); s.maschinen.laser = numv("#masch-laser");
+      s.maschinen.abkantpresse = numv("#masch-abkantpresse"); s.maschinen.bohrmaschine = numv("#masch-bohrmaschine");
+      s.maschinen.schweissgeraet = numv("#masch-schweissgeraet"); s.maschinen.schleifmaschine = numv("#masch-schleifmaschine");
       Store.save();
       toast("Stammdaten gespeichert.");
     };
@@ -212,7 +226,7 @@
     var root = $("#page-material .content");
     var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Positionen</span></h3>';
     html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button></div>';
-    html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Aktion</th></tr></thead><tbody>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Lager</th><th class="num">Aktion</th></tr></thead><tbody>';
     db.material.forEach(function (m) {
       html += "<tr>" +
         "<td>" + esc(m.name) + (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") + "</td>" +
@@ -220,6 +234,7 @@
         "<td>" + esc(m.lieferant || "-") + "</td>" +
         '<td class="num">' + fmtEUR(m.preis) + "</td>" +
         "<td>/" + esc(m.einheit) + "</td>" +
+        '<td class="num muted">' + (m.lager != null && m.lager !== "" ? esc(m.lager) + " " + esc(m.einheit) : "—") + "</td>" +
         '<td class="num"><button class="btn sm ghost" data-edit="' + m.id + '">✏️</button> ' +
           '<button class="btn sm danger" data-del="' + m.id + '">🗑️</button></td></tr>';
     });
@@ -249,6 +264,10 @@
       '<div class="inline">' +
         fld2("Preis (netto)", "m-preis", m ? m.preis : "", "number") +
         fld2("Lieferant", "m-lieferant", m ? m.lieferant : "", "text") +
+      "</div>" +
+      '<div class="inline">' +
+        fld2("Lagerbestand (optional)", "m-lager", m && m.lager != null ? m.lager : "", "number") +
+        '<div style="flex:1"></div>' +
       "</div>";
     if (m && m.historie && m.historie.length) {
       body += '<hr class="sep"><div class="muted" style="font-size:12px;margin-bottom:6px">Preishistorie</div>';
@@ -262,15 +281,17 @@
       var name = $("#m-name").value.trim();
       if (!name) { toast("Bitte Bezeichnung angeben.", "err"); return false; }
       var preis = parseFloat($("#m-preis").value) || 0;
+      var lagerRaw = $("#m-lager").value.trim();
+      var lager = lagerRaw === "" ? null : (parseFloat(lagerRaw) || 0);
       if (m) {
         if (preis !== m.preis) m.historie.push({ datum: Store.nowISO(), preis: preis });
         m.name = name; m.typ = $("#m-typ").value.trim(); m.einheit = $("#m-einheit").value.trim() || "Stk";
-        m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.aktualisiert = Store.nowISO();
+        m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.lager = lager; m.aktualisiert = Store.nowISO();
       } else {
         db.material.push({
           id: Store.uid(), name: name, typ: $("#m-typ").value.trim(),
           einheit: $("#m-einheit").value.trim() || "Stk", preis: preis,
-          lieferant: $("#m-lieferant").value.trim(), aktualisiert: Store.nowISO(),
+          lieferant: $("#m-lieferant").value.trim(), lager: lager, aktualisiert: Store.nowISO(),
           historie: [{ datum: Store.nowISO(), preis: preis }]
         });
       }
@@ -441,6 +462,7 @@
     html += line("Material (EK inkl. Verschnitt)", fmtEUR(kalk.materialEK), "sub");
     html += line("Material inkl. Aufschlag", fmtEUR(kalk.materialMitAufschlag));
     html += line("Lohn / Fertigung", fmtEUR(kalk.lohn));
+    if (kalk.maschinenKosten > 0) html += line("Maschinenkosten", fmtEUR(kalk.maschinenKosten));
     html += line("Gemeinkosten", fmtEUR(kalk.gemeinkosten), "sub");
     html += line("Selbstkosten", fmtEUR(kalk.selbstkosten));
     html += line("Gewinn", fmtEUR(kalk.gewinn), "sub");
@@ -605,14 +627,15 @@
     if (!keys.length) {
       html += '<div class="empty">Noch keine Lerndaten. Die Faktoren entstehen automatisch aus abgeschlossenen Aufträgen mit erfassten Ist-Zeiten.</div>';
     } else {
-      html += '<p class="hint">Faktor &gt; 1,00 = tatsächlicher Aufwand höher als ursprünglich kalkuliert. Wird automatisch auf neue Kalkulationen angewendet.</p>';
-      html += '<div class="table-wrap"><table><thead><tr><th>Produkt / Schritt</th><th class="num">Faktor</th><th class="num">Aufträge</th></tr></thead><tbody>';
+      html += '<p class="hint">Segmentiert nach Produkt × Werkstoff × Größe. Faktor &gt; 1,00 = tatsächlicher Aufwand höher als ursprünglich kalkuliert. Wird automatisch auf neue Kalkulationen angewendet.</p>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Segment / Schritt</th><th class="num">Faktor</th><th class="num">Aufträge</th></tr></thead><tbody>';
+      // spezifischere Segmente (mit "|") zuerst
+      keys.sort(function (a, b) { return b.split("|").length - a.split("|").length; });
       keys.forEach(function (pk) {
-        var prod = Products.byKey(pk);
         SCHRITTE.forEach(function (s) {
           var e = faktoren[pk][s.key];
           if (!e) return;
-          html += "<tr><td>" + (prod ? prod.name : pk) + " · " + esc(s.label) + '</td><td class="num">' +
+          html += "<tr><td>" + esc(Calc.segLabel(pk)) + " · " + esc(s.label) + '</td><td class="num">' +
             e.faktor.toLocaleString("de-AT", { minimumFractionDigits: 2 }) + '</td><td class="num muted">' + e.samples + "</td></tr>";
         });
       });

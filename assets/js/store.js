@@ -9,7 +9,13 @@
 
   // ---- Standard-Stammdaten ----------------------------------
   var DEFAULT_SETTINGS = {
-    rates: { cad: 65, fertigung: 58, montage: 62, projektleitung: 78 }, // €/h
+    // Stundenverrechnungssätze je Mitarbeitergruppe (€/h)
+    rates: { cad: 65, fertigung: 58, montage: 62, projektleitung: 78 },
+    // Maschinenstundensätze (€/h) – werden zusätzlich zum Lohn berechnet
+    maschinen: {
+      saege: 22, laser: 95, abkantpresse: 70, bohrmaschine: 18,
+      schweissgeraet: 14, schleifmaschine: 10
+    },
     materialAufschlag: 12,  // % auf Materialeinkauf
     gemeinkosten: 14,       // % auf Selbstkosten
     gewinn: 18,             // % Gewinnaufschlag
@@ -32,6 +38,10 @@
     { name: "Rundstab Edelstahl 12 mm", typ: "Edelstahl", einheit: "m", preis: 4.60, lieferant: "Frankstahl" },
     { name: "Blech Stahl 2,0 mm", typ: "Stahl", einheit: "m²", preis: 28.0, lieferant: "Frankstahl" },
     { name: "Blech Edelstahl 2,0 mm", typ: "Edelstahl", einheit: "m²", preis: 96.0, lieferant: "Frankstahl" },
+    { name: "Rundrohr Aluminium 42,4 x 2,0", typ: "Aluminium", einheit: "m", preis: 12.4, lieferant: "Frankstahl" },
+    { name: "Vierkantrohr Aluminium 40 x 40 x 2,0", typ: "Aluminium", einheit: "m", preis: 14.9, lieferant: "Frankstahl" },
+    { name: "Rundstab Aluminium 12 mm", typ: "Aluminium", einheit: "m", preis: 2.6, lieferant: "Frankstahl" },
+    { name: "Blech Aluminium 2,0 mm", typ: "Aluminium", einheit: "m²", preis: 41.0, lieferant: "Frankstahl" },
     { name: "VSG-Glas 8.8.4 klar", typ: "Glas", einheit: "m²", preis: 145.0, lieferant: "Glas Müller" },
     { name: "Glasklemme Edelstahl", typ: "Beschlag", einheit: "Stk", preis: 14.5, lieferant: "MetallProfi" },
     { name: "Pfostenanker / Bodenplatte", typ: "Beschlag", einheit: "Stk", preis: 9.8, lieferant: "MetallProfi" },
@@ -49,6 +59,7 @@
         id: uid(),
         name: m.name, typ: m.typ, einheit: m.einheit,
         preis: m.preis, lieferant: m.lieferant,
+        lager: null, // optionaler Lagerbestand
         aktualisiert: nowISO(),
         historie: [{ datum: nowISO(), preis: m.preis }]
       };
@@ -73,6 +84,7 @@
         _db = JSON.parse(raw);
         // sanfte Migration fehlender Felder
         if (!_db.settings) _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        if (!_db.settings.maschinen) _db.settings.maschinen = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.maschinen));
         if (!_db.lernen) _db.lernen = { faktoren: {}, erkenntnisse: [] };
         if (!_db.material) _db.material = [];
         if (!_db.auftraege) _db.auftraege = [];
