@@ -79,6 +79,7 @@
       version: 1,
       settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
       material: mats,
+      kunden: [],
       auftraege: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
@@ -113,6 +114,7 @@
         if (_db.settings.angebotZaehler == null) _db.settings.angebotZaehler = 1;
         if (!_db.lernen) _db.lernen = { faktoren: {}, erkenntnisse: [] };
         if (!_db.material) _db.material = [];
+        if (!_db.kunden) _db.kunden = [];
         if (!_db.auftraege) _db.auftraege = [];
         return _db;
       }

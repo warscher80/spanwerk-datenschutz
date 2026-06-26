@@ -166,6 +166,9 @@
       '<div class="card" style="margin-top:16px"><h3>Maschinen der Firma <span class="sub">Stundensatz (€/h) + Rüstkosten (€ je Auftrag) – werden zusätzlich zum Lohn berechnet</span></h3>' +
         '<div id="maschinen-bereich"></div>' +
       "</div>" +
+      '<div class="card" style="margin-top:16px"><h3>Kunden <span class="sub">erscheinen als Empfänger-Anschrift auf dem Angebot</span></h3>' +
+        '<div id="kunden-bereich"></div>' +
+      "</div>" +
       '<div class="btn-row" style="margin-top:16px">' +
         '<button class="btn primary" id="btn-save-stammdaten">Stammdaten speichern</button>' +
         '<button class="btn ghost" id="btn-reset-stammdaten">Auf Standard zurücksetzen</button>' +
@@ -220,6 +223,69 @@
       }
     };
     renderMaschinen();
+    renderKunden();
+  }
+
+  // ---- Kunden-Verwaltung --------------------------------------
+  function kundeZeile(k) {
+    return [k.name, k.plzOrt].filter(Boolean).join(" · ");
+  }
+  function renderKunden() {
+    var wrap = $("#kunden-bereich");
+    if (!wrap) return;
+    var liste = db.kunden || [];
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-kunde" type="button">+ Kunde anlegen</button></div>';
+    if (!liste.length) {
+      html += '<div class="empty">Noch keine Kunden. Lege Kunden an, um sie schnell ins Angebot zu übernehmen.</div>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Kunde</th><th>Ansprechpartner</th><th>Ort</th><th class="num">Aktion</th></tr></thead><tbody>';
+      liste.forEach(function (k) {
+        html += "<tr><td><strong>" + esc(k.name) + "</strong></td>" +
+          "<td>" + esc(k.ansprechpartner || "—") + "</td>" +
+          "<td>" + esc(k.plzOrt || "—") + "</td>" +
+          '<td class="num"><button class="btn sm ghost" data-kedit="' + k.id + '" type="button">✏️</button> ' +
+            '<button class="btn sm danger" data-kdel="' + k.id + '" type="button">🗑️</button></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+    wrap.innerHTML = html;
+    $("#btn-add-kunde").onclick = function () { kundeModal(null); };
+    $all("[data-kedit]", wrap).forEach(function (b) { b.onclick = function () { kundeModal(b.dataset.kedit); }; });
+    $all("[data-kdel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Kunde löschen?")) {
+          db.kunden = db.kunden.filter(function (k) { return k.id !== b.dataset.kdel; });
+          Store.save(); renderKunden();
+        }
+      };
+    });
+  }
+
+  function kundeModal(id) {
+    var liste = db.kunden || (db.kunden = []);
+    var k = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
+    var body =
+      fld2("Name / Firma", "k-name", k ? k.name : "", "text") +
+      fld2("Ansprechpartner", "k-ap", k ? k.ansprechpartner : "", "text") +
+      fld2("Straße", "k-strasse", k ? k.strasse : "", "text") +
+      fld2("PLZ / Ort", "k-plzOrt", k ? k.plzOrt : "", "text") +
+      '<div class="inline">' +
+        fld2("Telefon", "k-tel", k ? k.tel : "", "text") +
+        fld2("E-Mail", "k-email", k ? k.email : "", "text") +
+      "</div>";
+    openModal(k ? "Kunde bearbeiten" : "Kunde anlegen", body, function () {
+      var name = $("#k-name").value.trim();
+      if (!name) { toast("Bitte Name / Firma angeben.", "err"); return false; }
+      var daten = {
+        name: name, ansprechpartner: $("#k-ap").value.trim(),
+        strasse: $("#k-strasse").value.trim(), plzOrt: $("#k-plzOrt").value.trim(),
+        tel: $("#k-tel").value.trim(), email: $("#k-email").value.trim()
+      };
+      if (k) { Object.keys(daten).forEach(function (key) { k[key] = daten[key]; }); }
+      else { daten.id = Store.uid(); liste.push(daten); }
+      Store.save(); renderKunden(); toast("Kunde gespeichert.");
+      return true;
+    });
   }
 
   // ---- Maschinen-Verwaltung -----------------------------------
@@ -573,6 +639,10 @@
     var heute = new Date();
     var gueltig = new Date(heute.getTime() + 30 * 864e5);
     var titel = auftrag ? auftrag.titel : (prod ? prod.name : "Angebot");
+    var kunde = auftrag && auftrag.kunde ? auftrag.kunde : null;
+    var anrede = (kunde && kunde.ansprechpartner)
+      ? "Sehr geehrte/r " + kunde.ansprechpartner + ","
+      : "Sehr geehrte Damen und Herren,";
 
     // Leistungsbeschreibung aus Konfiguration
     var details = [];
@@ -603,7 +673,8 @@
       '*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a2330;font-size:12px;line-height:1.5;margin:0}' +
       '.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #f5a623;padding-bottom:12px;margin-bottom:6px}' +
       '.logo{font-size:24px;font-weight:800;color:#d4820a}' +
-      '.absender{font-size:10px;color:#667;margin-bottom:26px}' +
+      '.absender{font-size:10px;color:#667;margin-bottom:8px}' +
+      '.empfaenger{margin:18px 0 26px;font-size:13px;line-height:1.5}' +
       'h1{font-size:18px;margin:18px 0 4px}.meta{color:#667;margin-bottom:18px}' +
       '.pos{margin:14px 0;padding:12px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd}' +
       '.pos b{font-size:13px}.leist{color:#445;margin-top:6px;font-size:11px}' +
@@ -618,11 +689,17 @@
         (f.tel ? "Tel: " + esc(f.tel) + "<br>" : "") + (f.email ? esc(f.email) + "<br>" : "") + (f.uid ? "UID: " + esc(f.uid) : "") +
       '</div></div>' +
       '<div class="absender">' + (absender || "") + '</div>' +
+      (kunde ? '<div class="empfaenger">' +
+        (kunde.name ? "<strong>" + esc(kunde.name) + "</strong><br>" : "") +
+        (kunde.ansprechpartner ? esc(kunde.ansprechpartner) + "<br>" : "") +
+        (kunde.strasse ? esc(kunde.strasse) + "<br>" : "") +
+        (kunde.plzOrt ? esc(kunde.plzOrt) : "") +
+        "</div>" : "") +
       '<h1>Angebot Nr. ' + esc(nummer) + '</h1>' +
       '<div class="meta">Datum: ' + heute.toLocaleDateString("de-AT") + ' &nbsp;·&nbsp; gültig bis: ' + gueltig.toLocaleDateString("de-AT") +
         (auftrag ? ' &nbsp;·&nbsp; Betreff: ' + esc(auftrag.titel) : "") +
         (auftrag && auftrag.kommission ? ' &nbsp;·&nbsp; Kommission: ' + esc(auftrag.kommission) : "") + '</div>' +
-      '<p>Sehr geehrte Damen und Herren,<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
+      '<p>' + anrede + '<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
       '<div class="pos"><b>Pos. 1 — ' + esc(prod ? prod.name : "Konstruktion") + '</b>' +
         (details.length ? '<div class="leist">' + esc(details.join(", ")) + "</div>" : "") +
         (leistung.length ? '<div class="leist">Leistungsumfang: ' + esc(leistung.join(", ")) + "</div>" : "") +
@@ -650,18 +727,25 @@
     var prod = Products.byKey(entwurf.produktKey);
     var c = entwurf.config;
     var titelvorschlag = prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") + (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "");
+    var kundenOpt = '<option value="">— kein Kunde —</option>' + (db.kunden || []).map(function (k) {
+      return '<option value="' + k.id + '">' + esc(k.name) + (k.plzOrt ? ", " + esc(k.plzOrt) : "") + "</option>";
+    }).join("");
     openModal("Angebot speichern",
-      fld2("Bezeichnung / Kunde", "a-titel", titelvorschlag.trim(), "text") +
+      fld2("Bezeichnung / Projekt", "a-titel", titelvorschlag.trim(), "text") +
+      '<label class="fld"><span class="lbl">Kunde (Empfänger auf dem Angebot)</span><select id="a-kunde">' + kundenOpt + "</select></label>" +
       fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", "", "text") +
-      '<p class="hint">Die Kommission erscheint in der Übersicht und auf dem Angebot – ideal zum Zuordnen.</p>', function () {
+      '<p class="hint">Kunden legst du in den Stammdaten an. Die Kommission erscheint in der Übersicht und auf dem Angebot.</p>', function () {
       var titel = $("#a-titel").value.trim() || titelvorschlag.trim() || "Angebot";
       var jahr = new Date().getFullYear();
       var nummer = "ANG-" + jahr + "-" + String(db.settings.angebotZaehler || 1).padStart(3, "0");
       db.settings.angebotZaehler = (db.settings.angebotZaehler || 1) + 1;
+      var kundeId = $("#a-kunde").value;
+      var kunde = kundeId ? (db.kunden || []).filter(function (k) { return k.id === kundeId; })[0] : null;
       var auftrag = {
         id: Store.uid(),
         nummer: nummer,
         titel: titel,
+        kunde: kunde ? JSON.parse(JSON.stringify(kunde)) : null,
         kommission: $("#a-kommission").value.trim(),
         produktKey: entwurf.produktKey,
         config: JSON.parse(JSON.stringify(entwurf.config)),
@@ -696,7 +780,8 @@
       var si = Calc.sollIst(a);
       var siTxt = si ? (si.abwProz > 0 ? "+" : "") + si.abwProz + " %" : "—";
       html += "<tr>" +
-        "<td><strong>" + esc(a.titel) + '</strong><br><span class="muted" style="font-size:11px">' + (a.nummer ? esc(a.nummer) + " · " : "") + fmtDate(a.erstellt) + "</span></td>" +
+        "<td><strong>" + esc(a.titel) + "</strong>" + (a.kunde && a.kunde.name ? ' <span class="muted">· ' + esc(a.kunde.name) + "</span>" : "") +
+          '<br><span class="muted" style="font-size:11px">' + (a.nummer ? esc(a.nummer) + " · " : "") + fmtDate(a.erstellt) + "</span></td>" +
         "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : '<span class="muted">—</span>') + "</td>" +
         "<td>" + (prod ? prod.icon + " " + esc(prod.name) : "-") + "</td>" +
         "<td>" + statusBadge(a.status) + "</td>" +
@@ -716,7 +801,8 @@
     var prod = Products.byKey(a.produktKey);
     var si = Calc.sollIst(a);
 
-    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) + "</div>";
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) +
+      (a.kunde && a.kunde.name ? '<br>👤 Kunde: <strong>' + esc(a.kunde.name) + "</strong>" : "") + "</div>";
     body += '<div class="btn-row" style="margin-bottom:12px"><button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot drucken / PDF</button></div>';
 
     // Kommission + Status
