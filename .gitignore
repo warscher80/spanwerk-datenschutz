@@ -20,6 +20,7 @@ android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
 
 # im CI erzeugte Versionsinfo (nur für den Build)
+assets/build-info.js
 assets/build-info.json
 version.json
 

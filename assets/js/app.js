@@ -799,21 +799,24 @@
   // ============================================================
   var REPO = "warscher80/spanwerk-datenschutz";
   var UPDATE_APK_URL = "https://github.com/" + REPO + "/releases/download/app-latest/preisschmiede.apk";
-  var UPDATE_VERSION_URL = "https://github.com/" + REPO + "/releases/download/app-latest/version.json";
+  // GitHub-API (sendet CORS-Header, funktioniert daher in der App-WebView)
+  var UPDATE_API_URL = "https://api.github.com/repos/" + REPO + "/releases/tags/app-latest";
 
   function pruefeUpdate() {
-    if (!w.fetch) return;
-    fetch("assets/build-info.json", { cache: "no-store" })
+    // Eigene Version wird vom eingebetteten build-info.js gesetzt (window.PSBUILD).
+    // Fehlt sie (z. B. Web-Vorschau), wird der Check still übersprungen.
+    var lokal = w.PSBUILD;
+    if (!lokal || typeof lokal.build !== "number" || !w.fetch) return;
+    fetch(UPDATE_API_URL, { cache: "no-store", headers: { Accept: "application/vnd.github+json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (lokal) {
-        if (!lokal || typeof lokal.build !== "number") return; // Web-Vorschau ohne Build-Info
-        return fetch(UPDATE_VERSION_URL, { cache: "no-store" })
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .then(function (remote) {
-            if (remote && typeof remote.build === "number" && remote.build > lokal.build) {
-              zeigeUpdateBanner(remote);
-            }
-          });
+      .then(function (rel) {
+        if (!rel || !rel.body) return;
+        var m = /Version\s+\d+\.\d+\.(\d+)/.exec(rel.body);
+        if (!m) return;
+        var remoteBuild = parseInt(m[1], 10);
+        if (isFinite(remoteBuild) && remoteBuild > lokal.build) {
+          zeigeUpdateBanner({ version: "1.0." + remoteBuild });
+        }
       })
       .catch(function () { /* offline o. ä. – still ignorieren, App läuft normal weiter */ });
   }
