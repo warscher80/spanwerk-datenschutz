@@ -1,4 +1,4 @@
-# Spanwerk – Kalkulations-App für Metallbau
+# Preisschmiede – Kalkulations-App für Metallbau
 
 Intelligente Kalkulations-App für Metallbaubetriebe. Berechnet aus wenigen
 Eingaben Material, Arbeitszeiten und Verkaufspreis, erzeugt fertige Angebote
@@ -17,7 +17,7 @@ Die App gibt es auch als installierbare Android-App. So kommst du an die APK:
 
 1. Auf GitHub oben auf **„Releases“** tippen (oder direkt:
    `https://github.com/warscher80/spanwerk-datenschutz/releases`).
-2. Beim Release **„Spanwerk – aktuelle App“** die Datei **`spanwerk.apk`**
+2. Beim Release **„Preisschmiede – aktuelle App“** die Datei **`preisschmiede.apk`**
    auf dem Handy herunterladen.
 3. Die heruntergeladene Datei öffnen und auf **Installieren** tippen.
 4. Erscheint „Installation blockiert“: einmalig **„Aus dieser Quelle zulassen“**

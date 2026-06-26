@@ -1,5 +1,5 @@
 /* ============================================================
-   Spanwerk – Produktkonfigurator
+   Preisschmiede – Produktkonfigurator
    Jeder Produkttyp definiert:
      - fragen:      die abgefragten Konfigurationsfelder
      - zeitmodell:  Basis-Arbeitszeiten (Erfahrungs-Startwerte in h)
@@ -426,6 +426,6 @@
 
   function byKey(k) { return PRODUKTE.find(function (p) { return p.key === k; }); }
 
-  w.Spanwerk = w.Spanwerk || {};
-  w.Spanwerk.Products = { list: PRODUKTE, byKey: byKey, SCHRITTE: SCHRITTE };
+  w.Preisschmiede = w.Preisschmiede || {};
+  w.Preisschmiede.Products = { list: PRODUKTE, byKey: byKey, SCHRITTE: SCHRITTE };
 })(window);

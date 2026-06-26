@@ -1,5 +1,5 @@
 /* ============================================================
-   Spanwerk – Kalkulations- & Lern-Engine
+   Preisschmiede – Kalkulations- & Lern-Engine
    Segmentiertes Lernen: Korrekturfaktoren werden je
    Produkttyp × Werkstoff × Größenklasse gebildet, mit
    Rückfall auf gröbere Segmente, wenn noch wenig Daten da sind.
@@ -7,7 +7,7 @@
 (function (w) {
   "use strict";
 
-  var Products = w.Spanwerk.Products;
+  var Products = w.Preisschmiede.Products;
   var SCHRITTE = Products.SCHRITTE;
 
   function round2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
@@ -268,8 +268,8 @@
     };
   }
 
-  w.Spanwerk = w.Spanwerk || {};
-  w.Spanwerk.Calc = {
+  w.Preisschmiede = w.Preisschmiede || {};
+  w.Preisschmiede.Calc = {
     kalkuliere: kalkuliere, berechneZeiten: berechneZeiten, basisZeiten: basisZeiten,
     segmentKeys: segmentKeys, groessenklasse: groessenklasse, segLabel: segLabel,
     angebotstext: angebotstext, lerneAusAuftrag: lerneAusAuftrag,

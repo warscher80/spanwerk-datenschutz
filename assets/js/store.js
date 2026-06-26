@@ -1,17 +1,17 @@
 /* ============================================================
-   Spanwerk – Datenhaltung (localStorage)
+   Preisschmiede – Datenhaltung (localStorage)
    Alle Daten bleiben lokal auf dem Gerät (siehe Datenschutz).
    ============================================================ */
 (function (w) {
   "use strict";
 
-  var KEY = "spanwerk.kalkulation.v1";
+  var KEY = "preisschmiede.kalkulation.v1";
 
   // ---- Standard-Stammdaten ----------------------------------
   var DEFAULT_SETTINGS = {
     // Firmendaten für den Angebots-Briefkopf
     firma: {
-      name: "Spanwerk", inhaber: "Nico Warscher",
+      name: "Preisschmiede", inhaber: "Nico Warscher",
       strasse: "", plzOrt: "", tel: "", email: "nicowarscher@gmx.at", uid: ""
     },
     angebotZaehler: 1, // laufende Angebotsnummer
@@ -125,8 +125,8 @@
     return _db;
   }
 
-  w.Spanwerk = w.Spanwerk || {};
-  w.Spanwerk.Store = {
+  w.Preisschmiede = w.Preisschmiede || {};
+  w.Preisschmiede.Store = {
     load: load, save: save, reset: reset,
     exportJSON: exportJSON, importJSON: importJSON,
     uid: uid, nowISO: nowISO,

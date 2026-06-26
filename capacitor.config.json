@@ -1,6 +1,6 @@
 {
-  "appId": "at.spanwerk.kalkulation",
-  "appName": "Spanwerk",
+  "appId": "at.preisschmiede.kalkulation",
+  "appName": "Preisschmiede",
   "webDir": "www",
   "android": {
     "allowMixedContent": false

@@ -1,12 +1,12 @@
 /* ============================================================
-   Spanwerk – UI / App-Steuerung
+   Preisschmiede – UI / App-Steuerung
    ============================================================ */
 (function (w, d) {
   "use strict";
 
-  var Store = w.Spanwerk.Store;
-  var Calc = w.Spanwerk.Calc;
-  var Products = w.Spanwerk.Products;
+  var Store = w.Preisschmiede.Store;
+  var Calc = w.Preisschmiede.Calc;
+  var Products = w.Preisschmiede.Products;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -211,7 +211,7 @@
     $("#btn-export").onclick = function () {
       var blob = new Blob([Store.exportJSON()], { type: "application/json" });
       var url = URL.createObjectURL(blob);
-      var a = el("a"); a.href = url; a.download = "spanwerk-backup.json"; a.click();
+      var a = el("a"); a.href = url; a.download = "preisschmiede-backup.json"; a.click();
       URL.revokeObjectURL(url);
     };
     $("#btn-import").onclick = function () { $("#file-import").click(); };
@@ -535,7 +535,7 @@
       return '<tr class="' + (strong ? "strong" : "") + '"><td>' + esc(l) + '</td><td class="r">' + esc(v) + "</td></tr>";
     }
 
-    var firmaKopf = esc(f.name || "Spanwerk");
+    var firmaKopf = esc(f.name || "Preisschmiede");
     var absender = [f.inhaber, f.strasse, f.plzOrt, f.tel, f.email].filter(Boolean).map(esc).join(" · ");
 
     var doc =
@@ -574,7 +574,7 @@
       "</table>" +
       '<div class="text">Lieferzeit nach Vereinbarung. Dieses Angebot ist 30 Tage gültig.\nWir freuen uns auf Ihren Auftrag.\n\nMit freundlichen Grüßen\n' + esc(f.inhaber || f.name || "") + "</div>" +
       '<div class="foot">' + firmaKopf + (f.email ? " · " + esc(f.email) : "") +
-        " · Erstellt mit Spanwerk. Interne Kalkulationswerte (Gewinn, Deckungsbeitrag) sind in diesem Kundendokument nicht enthalten.</div>" +
+        " · Erstellt mit Preisschmiede. Interne Kalkulationswerte (Gewinn, Deckungsbeitrag) sind in diesem Kundendokument nicht enthalten.</div>" +
       "</body></html>";
 
     var w2 = window.open("", "_blank");
@@ -748,7 +748,7 @@
     html += "</div></div>";
 
     html += '<div class="card" style="margin-top:16px"><h3>Wie die Lernfunktion arbeitet</h3>' +
-      '<p style="font-size:13px" class="muted">Bei jedem abgeschlossenen Auftrag vergleicht Spanwerk die kalkulierten Soll-Zeiten mit den erfassten Ist-Zeiten. ' +
+      '<p style="font-size:13px" class="muted">Bei jedem abgeschlossenen Auftrag vergleicht Preisschmiede die kalkulierten Soll-Zeiten mit den erfassten Ist-Zeiten. ' +
       'Pro Produkttyp und Arbeitsschritt wird ein gewichteter Korrekturfaktor gebildet. Je mehr Aufträge erfasst werden, desto genauer werden die automatischen Schätzungen für CAD, Zuschnitt, Schweißen, Montage usw. ' +
       'So nähert sich die App schrittweise dem Ziel, aus wenigen Eckdaten ein realistisches Angebot zu erzeugen.</p></div>';
 

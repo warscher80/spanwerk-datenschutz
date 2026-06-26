@@ -1,4 +1,4 @@
-package at.spanwerk.kalkulation;
+package at.preisschmiede.kalkulation;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -56,22 +56,22 @@ jobs:
           ./gradlew assembleDebug --no-daemon
 
       - name: APK umbenennen
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk spanwerk.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk preisschmiede.apk
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: spanwerk-apk
-          path: spanwerk.apk
+          name: preisschmiede-apk
+          path: preisschmiede.apk
 
       - name: APK als Release veröffentlichen
         uses: softprops/action-gh-release@v2
         with:
           tag_name: app-latest
-          name: Spanwerk – aktuelle App
+          name: Preisschmiede – aktuelle App
           body: |
             Installierbare Android-App (Debug-Build).
             Auf dem Handy herunterladen und öffnen. Falls "Installation blockiert"
             erscheint: Installation aus unbekannten Quellen für den Browser erlauben.
-          files: spanwerk.apk
+          files: preisschmiede.apk
           prerelease: true
