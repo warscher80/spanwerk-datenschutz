@@ -9,6 +9,12 @@
 
   // ---- Standard-Stammdaten ----------------------------------
   var DEFAULT_SETTINGS = {
+    // Firmendaten für den Angebots-Briefkopf
+    firma: {
+      name: "Spanwerk", inhaber: "Nico Warscher",
+      strasse: "", plzOrt: "", tel: "", email: "nicowarscher@gmx.at", uid: ""
+    },
+    angebotZaehler: 1, // laufende Angebotsnummer
     // Stundenverrechnungssätze je Mitarbeitergruppe (€/h)
     rates: { cad: 65, fertigung: 58, montage: 62, projektleitung: 78 },
     // Maschinenstundensätze (€/h) – werden zusätzlich zum Lohn berechnet
@@ -85,6 +91,8 @@
         // sanfte Migration fehlender Felder
         if (!_db.settings) _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
         if (!_db.settings.maschinen) _db.settings.maschinen = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.maschinen));
+        if (!_db.settings.firma) _db.settings.firma = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.firma));
+        if (_db.settings.angebotZaehler == null) _db.settings.angebotZaehler = 1;
         if (!_db.lernen) _db.lernen = { faktoren: {}, erkenntnisse: [] };
         if (!_db.material) _db.material = [];
         if (!_db.auftraege) _db.auftraege = [];

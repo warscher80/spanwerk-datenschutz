@@ -131,8 +131,22 @@
   // ============================================================
   function renderStammdaten() {
     var s = db.settings;
+    var f = s.firma || {};
     var root = $("#page-stammdaten .content");
     root.innerHTML =
+      '<div class="card" style="margin-bottom:16px"><h3>Firmendaten <span class="sub">erscheinen im Angebots-Briefkopf</span></h3>' +
+        '<div class="inline">' +
+          fld2("Firmenname", "firma-name", f.name, "text") +
+          fld2("Inhaber", "firma-inhaber", f.inhaber, "text") +
+        "</div><div class=\"inline\">" +
+          fld2("Straße", "firma-strasse", f.strasse, "text") +
+          fld2("PLZ / Ort", "firma-plzOrt", f.plzOrt, "text") +
+        "</div><div class=\"inline\">" +
+          fld2("Telefon", "firma-tel", f.tel, "text") +
+          fld2("E-Mail", "firma-email", f.email, "text") +
+          fld2("UID-Nr.", "firma-uid", f.uid, "text") +
+        "</div>" +
+      "</div>" +
       '<div class="grid cols-2">' +
         '<div class="card"><h3>Stundenverrechnungssätze <span class="sub">€ / Stunde</span></h3>' +
           fld("Planung / CAD", "rate-cad", s.rates.cad, "€/h") +
@@ -182,6 +196,11 @@
       s.maschinen.saege = numv("#masch-saege"); s.maschinen.laser = numv("#masch-laser");
       s.maschinen.abkantpresse = numv("#masch-abkantpresse"); s.maschinen.bohrmaschine = numv("#masch-bohrmaschine");
       s.maschinen.schweissgeraet = numv("#masch-schweissgeraet"); s.maschinen.schleifmaschine = numv("#masch-schleifmaschine");
+      s.firma = {
+        name: $("#firma-name").value.trim(), inhaber: $("#firma-inhaber").value.trim(),
+        strasse: $("#firma-strasse").value.trim(), plzOrt: $("#firma-plzOrt").value.trim(),
+        tel: $("#firma-tel").value.trim(), email: $("#firma-email").value.trim(), uid: $("#firma-uid").value.trim()
+      };
       Store.save();
       toast("Stammdaten gespeichert.");
     };
@@ -472,16 +491,95 @@
 
     html += '<div class="btn-row" style="margin-top:14px">' +
       '<button class="btn primary" id="btn-angebot" type="button">📄 Als Angebot speichern</button>' +
+      '<button class="btn" id="btn-drucken" type="button">🖨️ Angebot drucken / PDF</button>' +
       '<button class="btn" id="btn-angebotstext" type="button">📝 Angebotstext</button>' +
       "</div>";
 
     root.innerHTML = html;
     $("#btn-angebot").onclick = function () { speichereAngebot(kalk); };
+    $("#btn-drucken").onclick = function () { angebotDrucken(entwurf, kalk, null); };
     $("#btn-angebotstext").onclick = function () {
       var txt = Calc.angebotstext(Object.assign({ mwst: db.settings.mwst + " %" }, entwurf), kalk);
       openModal("Angebotstext", '<textarea style="min-height:320px">' + esc(txt) + "</textarea>" +
         '<p class="hint">Text markieren und kopieren (Strg+C).</p>', null, "Schließen");
     };
+  }
+
+  // ---- Angebot als druckbares Dokument (PDF über Drucken) ----
+  function angebotDrucken(eingabe, kalk, auftrag) {
+    var s = db.settings, f = s.firma || {};
+    var prod = Products.byKey(eingabe.produktKey);
+    var c = eingabe.config || {};
+    var nummer = auftrag && auftrag.nummer ? auftrag.nummer : "Vorschau";
+    var heute = new Date();
+    var gueltig = new Date(heute.getTime() + 30 * 864e5);
+    var titel = auftrag ? auftrag.titel : (prod ? prod.name : "Angebot");
+
+    // Leistungsbeschreibung aus Konfiguration
+    var details = [];
+    if (c.werkstoff) details.push(c.werkstoff);
+    if (c.profil) details.push(c.profil);
+    if (c.fuellung) details.push("Füllung: " + c.fuellung);
+    if (c.design && c.design !== "Standard") details.push("Design: " + c.design);
+    if (c.laenge) details.push("Länge ca. " + c.laenge + " m");
+    if (c.breite) details.push("Breite ca. " + c.breite + " m");
+    if (c.hoehe) details.push("Höhe ca. " + c.hoehe + " m");
+    if (c.gewicht) details.push("ca. " + c.gewicht + " kg");
+    if (c.stueck) details.push(c.stueck + " Stück");
+    if (c.oberflaeche && c.oberflaeche !== "Roh") details.push("Oberfläche: " + c.oberflaeche);
+
+    // Materialliste als Leistungsumfang (ohne Preise – Pauschalangebot)
+    var leistung = kalk.matZeilen.map(function (m) { return m.name + " (" + m.menge + " " + m.einheit + ")"; });
+
+    function row(l, v, strong) {
+      return '<tr class="' + (strong ? "strong" : "") + '"><td>' + esc(l) + '</td><td class="r">' + esc(v) + "</td></tr>";
+    }
+
+    var firmaKopf = esc(f.name || "Spanwerk");
+    var absender = [f.inhaber, f.strasse, f.plzOrt, f.tel, f.email].filter(Boolean).map(esc).join(" · ");
+
+    var doc =
+      '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Angebot ' + esc(nummer) + '</title><style>' +
+      '@page{size:A4;margin:20mm}' +
+      '*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a2330;font-size:12px;line-height:1.5;margin:0}' +
+      '.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #f5a623;padding-bottom:12px;margin-bottom:6px}' +
+      '.logo{font-size:24px;font-weight:800;color:#d4820a}' +
+      '.absender{font-size:10px;color:#667;margin-bottom:26px}' +
+      'h1{font-size:18px;margin:18px 0 4px}.meta{color:#667;margin-bottom:18px}' +
+      '.pos{margin:14px 0;padding:12px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd}' +
+      '.pos b{font-size:13px}.leist{color:#445;margin-top:6px;font-size:11px}' +
+      'table{width:100%;border-collapse:collapse;margin-top:14px}td{padding:5px 0}td.r{text-align:right;font-variant-numeric:tabular-nums}' +
+      'tr.strong td{font-weight:700;font-size:14px;border-top:2px solid #1a2330;padding-top:8px}' +
+      '.text{margin-top:20px;white-space:pre-line}.foot{margin-top:30px;font-size:10px;color:#889;border-top:1px solid #ddd;padding-top:8px}' +
+      '@media print{.noprint{display:none}}' +
+      '.noprint{position:fixed;top:10px;right:10px}.btn{background:#f5a623;border:none;padding:10px 18px;border-radius:6px;font-weight:700;cursor:pointer}' +
+      '</style></head><body>' +
+      '<div class="noprint"><button class="btn" onclick="window.print()">🖨️ Drucken / als PDF speichern</button></div>' +
+      '<div class="head"><div class="logo">' + firmaKopf + '</div><div style="text-align:right;font-size:11px">' +
+        (f.tel ? "Tel: " + esc(f.tel) + "<br>" : "") + (f.email ? esc(f.email) + "<br>" : "") + (f.uid ? "UID: " + esc(f.uid) : "") +
+      '</div></div>' +
+      '<div class="absender">' + (absender || "") + '</div>' +
+      '<h1>Angebot Nr. ' + esc(nummer) + '</h1>' +
+      '<div class="meta">Datum: ' + heute.toLocaleDateString("de-AT") + ' &nbsp;·&nbsp; gültig bis: ' + gueltig.toLocaleDateString("de-AT") +
+        (auftrag ? ' &nbsp;·&nbsp; Betreff: ' + esc(auftrag.titel) : "") + '</div>' +
+      '<p>Sehr geehrte Damen und Herren,<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
+      '<div class="pos"><b>Pos. 1 — ' + esc(prod ? prod.name : "Konstruktion") + '</b>' +
+        (details.length ? '<div class="leist">' + esc(details.join(", ")) + "</div>" : "") +
+        (leistung.length ? '<div class="leist">Leistungsumfang: ' + esc(leistung.join(", ")) + "</div>" : "") +
+        '<div class="leist">inkl. Material, Fertigung' + (kalk.zeiten.montage > 0 ? ", Lieferung und Montage" : " und Lieferung") + " — Arbeitszeit ca. " + fmtH(kalk.stundenGesamt) + "</div></div>" +
+      '<table>' +
+        row("Gesamtpreis netto", fmtEUR(kalk.netto)) +
+        row("zzgl. " + s.mwst + " % USt", fmtEUR(kalk.mwst)) +
+        row("Gesamtpreis brutto", fmtEUR(kalk.brutto), true) +
+      "</table>" +
+      '<div class="text">Lieferzeit nach Vereinbarung. Dieses Angebot ist 30 Tage gültig.\nWir freuen uns auf Ihren Auftrag.\n\nMit freundlichen Grüßen\n' + esc(f.inhaber || f.name || "") + "</div>" +
+      '<div class="foot">' + firmaKopf + (f.email ? " · " + esc(f.email) : "") +
+        " · Erstellt mit Spanwerk. Interne Kalkulationswerte (Gewinn, Deckungsbeitrag) sind in diesem Kundendokument nicht enthalten.</div>" +
+      "</body></html>";
+
+    var w2 = window.open("", "_blank");
+    if (!w2) { toast("Bitte Pop-ups für diese Seite erlauben.", "err"); return; }
+    w2.document.open(); w2.document.write(doc); w2.document.close();
   }
 
   function line(label, val, cls) {
@@ -495,8 +593,12 @@
     openModal("Angebot speichern", fld2("Bezeichnung / Kunde", "a-titel", titelvorschlag.trim(), "text") +
       '<p class="hint">Der Vorgang wird als Angebot gespeichert und erscheint in „Aufträge“.</p>', function () {
       var titel = $("#a-titel").value.trim() || titelvorschlag.trim() || "Angebot";
+      var jahr = new Date().getFullYear();
+      var nummer = "ANG-" + jahr + "-" + String(db.settings.angebotZaehler || 1).padStart(3, "0");
+      db.settings.angebotZaehler = (db.settings.angebotZaehler || 1) + 1;
       var auftrag = {
         id: Store.uid(),
+        nummer: nummer,
         titel: titel,
         produktKey: entwurf.produktKey,
         config: JSON.parse(JSON.stringify(entwurf.config)),
@@ -550,7 +652,8 @@
     var prod = Products.byKey(a.produktKey);
     var si = Calc.sollIst(a);
 
-    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) + "</div>";
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) + "</div>";
+    body += '<div class="btn-row" style="margin-bottom:12px"><button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot drucken / PDF</button></div>';
 
     // Status-Wechsel
     body += '<label class="fld"><span class="lbl">Status</span><select id="a-status">' +
@@ -610,6 +713,7 @@
       }
       return false;
     });
+    if ($("#btn-auf-druck")) $("#btn-auf-druck").onclick = function () { angebotDrucken(a, a.kalk, a); };
   }
 
   // ============================================================
