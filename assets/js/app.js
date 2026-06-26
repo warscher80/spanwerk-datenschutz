@@ -1,0 +1,667 @@
+/* ============================================================
+   Spanwerk – UI / App-Steuerung
+   ============================================================ */
+(function (w, d) {
+  "use strict";
+
+  var Store = w.Spanwerk.Store;
+  var Calc = w.Spanwerk.Calc;
+  var Products = w.Spanwerk.Products;
+  var SCHRITTE = Products.SCHRITTE;
+  var fmtEUR = Calc.fmtEUR;
+
+  var db = Store.load();
+
+  // aktueller Kalkulations-Entwurf
+  var entwurf = {
+    produktKey: "gelaender",
+    config: {},
+    freiePositionen: [],
+    manuelleZeiten: {},
+    letzteKalk: null
+  };
+
+  // ---------- Hilfen ----------
+  function $(sel, root) { return (root || d).querySelector(sel); }
+  function $all(sel, root) { return Array.prototype.slice.call((root || d).querySelectorAll(sel)); }
+  function el(tag, attrs, html) {
+    var e = d.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function fmtH(x) { return (x || 0).toLocaleString("de-AT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " h"; }
+  function fmtDate(iso) { try { return new Date(iso).toLocaleDateString("de-AT"); } catch (e) { return "-"; } }
+
+  function toast(msg, kind) {
+    var t = $("#toast");
+    t.textContent = msg;
+    t.className = "toast show " + (kind || "ok");
+    clearTimeout(t._tm);
+    t._tm = setTimeout(function () { t.className = "toast"; }, 2600);
+  }
+
+  // ---------- Navigation ----------
+  function navTo(page) {
+    $all(".nav li").forEach(function (li) { li.classList.toggle("active", li.dataset.page === page); });
+    $all(".page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + page); });
+    if (page === "dashboard") renderDashboard();
+    if (page === "stammdaten") renderStammdaten();
+    if (page === "material") renderMaterial();
+    if (page === "kalkulation") renderKalkulation();
+    if (page === "auftraege") renderAuftraege();
+    if (page === "lernen") renderLernen();
+    w.scrollTo(0, 0);
+  }
+
+  // ============================================================
+  //  DASHBOARD
+  // ============================================================
+  function renderDashboard() {
+    var root = $("#page-dashboard .content");
+    var auftraege = db.auftraege;
+    var angebote = auftraege.filter(function (a) { return a.status === "Angebot"; });
+    var abgeschlossen = auftraege.filter(function (a) { return a.status === "Abgeschlossen"; });
+
+    var summeNetto = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.netto : 0); }, 0);
+    var summeDB = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.deckungsbeitrag : 0); }, 0);
+    var summeGewinn = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.gewinn : 0); }, 0);
+
+    // Genauigkeit aus abgeschlossenen Aufträgen
+    var genauigkeit = "—";
+    var abwListe = abgeschlossen.map(function (a) { var si = Calc.sollIst(a); return si ? Math.abs(si.abwProz) : null; }).filter(function (x) { return x != null; });
+    if (abwListe.length) {
+      var avgAbw = Math.round(abwListe.reduce(function (s, x) { return s + x; }, 0) / abwListe.length);
+      genauigkeit = (100 - avgAbw) + " %";
+    }
+
+    var html = "";
+    html += '<div class="grid cols-4">';
+    html += stat("Aufträge / Angebote", auftraege.length + " / " + angebote.length);
+    html += stat("Auftragswert (netto)", fmtEUR(summeNetto), "accent");
+    html += stat("Deckungsbeitrag Σ", fmtEUR(summeDB), "green");
+    html += stat("Kalkulations-Genauigkeit", genauigkeit, "", abgeschlossen.length + " nachkalkuliert");
+    html += "</div>";
+
+    // Erkenntnisse
+    html += '<div class="grid cols-2" style="margin-top:16px">';
+    html += '<div class="card"><h3>🧠 Was die App gelernt hat</h3>' + erkenntnisseHTML(4) + "</div>";
+
+    // Letzte Aufträge
+    html += '<div class="card"><h3>Letzte Vorgänge</h3>';
+    if (!auftraege.length) {
+      html += '<div class="empty">Noch keine Aufträge. Lege in „Kalkulation“ deinen ersten Vorgang an.</div>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th></tr></thead><tbody>';
+      auftraege.slice().reverse().slice(0, 6).forEach(function (a) {
+        html += "<tr><td>" + esc(a.titel) + '<br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
+          "<td>" + statusBadge(a.status) + "</td>" +
+          '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
+          '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td></tr>";
+      });
+      html += "</tbody></table></div>";
+    }
+    html += "</div></div>";
+
+    root.innerHTML = html;
+  }
+
+  function stat(label, value, cls, delta) {
+    return '<div class="stat"><div class="label">' + esc(label) + '</div><div class="value ' + (cls || "") + '">' +
+      esc(value) + "</div>" + (delta ? '<div class="delta">' + esc(delta) + "</div>" : "") + "</div>";
+  }
+  function statusBadge(s) {
+    var cls = s === "Abgeschlossen" ? "abgeschlossen" : (s === "Beauftragt" ? "beauftragt" : "angebot");
+    return '<span class="badge ' + cls + '">' + esc(s) + "</span>";
+  }
+  function erkenntnisseHTML(limit) {
+    var ek = (db.lernen && db.lernen.erkenntnisse) || [];
+    if (!ek.length) {
+      return '<div class="empty">Noch keine Muster erkannt. Schließe Aufträge mit Ist-Zeiten ab, damit die App lernt.</div>';
+    }
+    return ek.slice(0, limit || 99).map(function (e) {
+      return '<div class="insight"><span class="ico">💡</span><span>' + esc(e.text) +
+        ' <span class="muted">(' + e.samples + ' Aufträge)</span></span></div>';
+    }).join("");
+  }
+
+  // ============================================================
+  //  STAMMDATEN
+  // ============================================================
+  function renderStammdaten() {
+    var s = db.settings;
+    var root = $("#page-stammdaten .content");
+    root.innerHTML =
+      '<div class="grid cols-2">' +
+        '<div class="card"><h3>Stundenverrechnungssätze <span class="sub">€ / Stunde</span></h3>' +
+          fld("Planung / CAD", "rate-cad", s.rates.cad, "€/h") +
+          fld("Fertigung", "rate-fertigung", s.rates.fertigung, "€/h") +
+          fld("Montage", "rate-montage", s.rates.montage, "€/h") +
+          fld("Projektleitung", "rate-projektleitung", s.rates.projektleitung, "€/h") +
+        "</div>" +
+        '<div class="card"><h3>Zuschläge & Kalkulation <span class="sub">in %</span></h3>' +
+          fld("Materialaufschlag", "set-materialAufschlag", s.materialAufschlag, "%") +
+          fld("Gemeinkosten", "set-gemeinkosten", s.gemeinkosten, "%") +
+          fld("Gewinnaufschlag", "set-gewinn", s.gewinn, "%") +
+          fld("Standard-Verschnitt", "set-verschnitt", s.verschnitt, "%") +
+          fld("Umsatzsteuer", "set-mwst", s.mwst, "%") +
+        "</div>" +
+      "</div>" +
+      '<div class="btn-row" style="margin-top:16px">' +
+        '<button class="btn primary" id="btn-save-stammdaten">Stammdaten speichern</button>' +
+        '<button class="btn ghost" id="btn-reset-stammdaten">Auf Standard zurücksetzen</button>' +
+      "</div>" +
+      '<hr class="sep">' +
+      '<div class="card"><h3>Daten-Verwaltung</h3>' +
+        '<p class="muted" style="font-size:13px">Alle Daten liegen ausschließlich lokal in diesem Browser. Erstelle ein Backup oder übertrage deine Daten auf ein anderes Gerät.</p>' +
+        '<div class="btn-row">' +
+          '<button class="btn" id="btn-export">⬇️ Backup exportieren</button>' +
+          '<button class="btn" id="btn-import">⬆️ Backup importieren</button>' +
+          '<button class="btn danger" id="btn-reset-all">Alle Daten löschen</button>' +
+        "</div>" +
+        '<input type="file" id="file-import" accept="application/json" style="display:none">' +
+      "</div>";
+
+    $("#btn-save-stammdaten").onclick = function () {
+      s.rates.cad = numv("#rate-cad"); s.rates.fertigung = numv("#rate-fertigung");
+      s.rates.montage = numv("#rate-montage"); s.rates.projektleitung = numv("#rate-projektleitung");
+      s.materialAufschlag = numv("#set-materialAufschlag"); s.gemeinkosten = numv("#set-gemeinkosten");
+      s.gewinn = numv("#set-gewinn"); s.verschnitt = numv("#set-verschnitt"); s.mwst = numv("#set-mwst");
+      Store.save();
+      toast("Stammdaten gespeichert.");
+    };
+    $("#btn-reset-stammdaten").onclick = function () {
+      db.settings = JSON.parse(JSON.stringify(Store.DEFAULT_SETTINGS));
+      Store.save(); renderStammdaten(); toast("Stammdaten zurückgesetzt.");
+    };
+    $("#btn-export").onclick = function () {
+      var blob = new Blob([Store.exportJSON()], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = el("a"); a.href = url; a.download = "spanwerk-backup.json"; a.click();
+      URL.revokeObjectURL(url);
+    };
+    $("#btn-import").onclick = function () { $("#file-import").click(); };
+    $("#file-import").onchange = function (ev) {
+      var f = ev.target.files[0]; if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        try { db = Store.importJSON(r.result); toast("Backup importiert."); navTo("dashboard"); }
+        catch (e) { toast("Import fehlgeschlagen: " + e.message, "err"); }
+      };
+      r.readAsText(f);
+    };
+    $("#btn-reset-all").onclick = function () {
+      if (confirm("Wirklich ALLE Daten löschen? Das kann nicht rückgängig gemacht werden.")) {
+        db = Store.reset(); toast("Alle Daten gelöscht."); navTo("dashboard");
+      }
+    };
+  }
+
+  function fld(label, id, val, suffix) {
+    var inner = '<input type="number" step="any" id="' + id + '" value="' + esc(val) + '">';
+    if (suffix) inner = '<div class="suffix-grp">' + inner + '<span class="suffix">' + suffix + "</span></div>";
+    return '<label class="fld"><span class="lbl">' + esc(label) + "</span>" + inner + "</label>";
+  }
+  function numv(sel) { return parseFloat($(sel).value) || 0; }
+
+  // ============================================================
+  //  MATERIAL
+  // ============================================================
+  function renderMaterial() {
+    var root = $("#page-material .content");
+    var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Positionen</span></h3>';
+    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button></div>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Aktion</th></tr></thead><tbody>';
+    db.material.forEach(function (m) {
+      html += "<tr>" +
+        "<td>" + esc(m.name) + (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") + "</td>" +
+        "<td>" + esc(m.typ || "-") + "</td>" +
+        "<td>" + esc(m.lieferant || "-") + "</td>" +
+        '<td class="num">' + fmtEUR(m.preis) + "</td>" +
+        "<td>/" + esc(m.einheit) + "</td>" +
+        '<td class="num"><button class="btn sm ghost" data-edit="' + m.id + '">✏️</button> ' +
+          '<button class="btn sm danger" data-del="' + m.id + '">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div></div>";
+    root.innerHTML = html;
+
+    $("#btn-add-material").onclick = function () { materialModal(null); };
+    $all("[data-edit]").forEach(function (b) { b.onclick = function () { materialModal(b.dataset.edit); }; });
+    $all("[data-del]").forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Material löschen?")) {
+          db.material = db.material.filter(function (m) { return m.id !== b.dataset.del; });
+          Store.save(); renderMaterial();
+        }
+      };
+    });
+  }
+
+  function materialModal(id) {
+    var m = id ? db.material.find(function (x) { return x.id === id; }) : null;
+    var body =
+      fld2("Bezeichnung", "m-name", m ? m.name : "", "text") +
+      '<div class="inline">' +
+        fld2("Typ", "m-typ", m ? m.typ : "Stahl", "text") +
+        fld2("Einheit", "m-einheit", m ? m.einheit : "m", "text") +
+      "</div>" +
+      '<div class="inline">' +
+        fld2("Preis (netto)", "m-preis", m ? m.preis : "", "number") +
+        fld2("Lieferant", "m-lieferant", m ? m.lieferant : "", "text") +
+      "</div>";
+    if (m && m.historie && m.historie.length) {
+      body += '<hr class="sep"><div class="muted" style="font-size:12px;margin-bottom:6px">Preishistorie</div>';
+      body += '<div class="table-wrap"><table><tbody>';
+      m.historie.slice().reverse().forEach(function (h) {
+        body += "<tr><td>" + fmtDate(h.datum) + '</td><td class="num">' + fmtEUR(h.preis) + "</td></tr>";
+      });
+      body += "</tbody></table></div>";
+    }
+    openModal(m ? "Material bearbeiten" : "Material anlegen", body, function () {
+      var name = $("#m-name").value.trim();
+      if (!name) { toast("Bitte Bezeichnung angeben.", "err"); return false; }
+      var preis = parseFloat($("#m-preis").value) || 0;
+      if (m) {
+        if (preis !== m.preis) m.historie.push({ datum: Store.nowISO(), preis: preis });
+        m.name = name; m.typ = $("#m-typ").value.trim(); m.einheit = $("#m-einheit").value.trim() || "Stk";
+        m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.aktualisiert = Store.nowISO();
+      } else {
+        db.material.push({
+          id: Store.uid(), name: name, typ: $("#m-typ").value.trim(),
+          einheit: $("#m-einheit").value.trim() || "Stk", preis: preis,
+          lieferant: $("#m-lieferant").value.trim(), aktualisiert: Store.nowISO(),
+          historie: [{ datum: Store.nowISO(), preis: preis }]
+        });
+      }
+      Store.save(); renderMaterial(); toast("Material gespeichert.");
+      return true;
+    });
+  }
+
+  function fld2(label, id, val, typ) {
+    return '<label class="fld"><span class="lbl">' + esc(label) + '</span><input type="' + (typ || "text") +
+      '" id="' + id + '" value="' + esc(val == null ? "" : val) + '"' + (typ === "number" ? ' step="any"' : "") + "></label>";
+  }
+
+  // ============================================================
+  //  KALKULATION (Produktkonfigurator)
+  // ============================================================
+  function renderKalkulation() {
+    var root = $("#page-kalkulation .content");
+    // Produktauswahl
+    var tabs = '<div class="pill-tabs">' + Products.list.map(function (p) {
+      return '<button data-prod="' + p.key + '" class="' + (entwurf.produktKey === p.key ? "active" : "") + '">' +
+        p.icon + " " + esc(p.name) + "</button>";
+    }).join("") + "</div>";
+
+    root.innerHTML =
+      tabs +
+      '<div class="grid cols-2">' +
+        '<div class="card"><h3>1 · Konfiguration</h3><div id="konfig-felder"></div></div>' +
+        '<div class="card"><h3>2 · Kalkulation</h3><div id="kalk-ergebnis"><div class="empty">Konfiguration ausfüllen und „Berechnen“ klicken.</div></div></div>' +
+      "</div>";
+
+    $all("[data-prod]").forEach(function (b) {
+      b.onclick = function () {
+        entwurf.produktKey = b.dataset.prod;
+        entwurf.config = {}; entwurf.freiePositionen = []; entwurf.manuelleZeiten = {}; entwurf.letzteKalk = null;
+        renderKalkulation();
+      };
+    });
+
+    renderKonfigFelder();
+  }
+
+  function renderKonfigFelder() {
+    var prod = Products.byKey(entwurf.produktKey);
+    var wrap = $("#konfig-felder");
+    var html = "";
+    prod.fragen.forEach(function (q) {
+      var cur = entwurf.config[q.key] != null ? entwurf.config[q.key] : (q.default != null ? q.default : "");
+      if (q.typ === "select") {
+        html += '<label class="fld"><span class="lbl">' + esc(q.label) + "</span><select data-cfg=\"" + q.key + '">' +
+          q.optionen.map(function (o) { return '<option' + (String(cur) === o ? " selected" : "") + ">" + esc(o) + "</option>"; }).join("") +
+          "</select></label>";
+      } else if (q.typ === "check") {
+        var checked = (cur === true || cur === "true" || (q.default && cur === "")) ? "checked" : "";
+        if (cur === "" && q.default) checked = "checked";
+        html += '<label class="checkrow"><input type="checkbox" data-cfg="' + q.key + '" ' + checked + '><span>' + esc(q.label) + "</span></label>";
+      } else if (q.typ === "number") {
+        html += '<label class="fld"><span class="lbl">' + esc(q.label) + (q.einheit ? " (" + q.einheit + ")" : "") +
+          '</span><input type="number" step="any" data-cfg="' + q.key + '" value="' + esc(cur) + '"></label>';
+      } else {
+        html += '<label class="fld"><span class="lbl">' + esc(q.label) + '</span><input type="text" data-cfg="' + q.key + '" value="' + esc(cur) + '"></label>';
+      }
+    });
+
+    // Freie Materialpositionen (für Sonder/Serie/Reparatur)
+    if (prod.frei) {
+      html += '<hr class="sep"><div class="lbl" style="margin-bottom:8px">Materialpositionen (manuell)</div>';
+      html += '<div id="freie-positionen"></div>';
+      html += '<button class="btn sm" id="btn-add-pos" type="button">+ Position</button>';
+      html += '<hr class="sep"><div class="lbl" style="margin-bottom:8px">Arbeitszeiten manuell überschreiben (optional, in h)</div>';
+      html += '<div class="inline" style="flex-wrap:wrap">';
+      SCHRITTE.forEach(function (s) {
+        var mv = entwurf.manuelleZeiten[s.key];
+        html += '<label class="fld" style="min-width:120px;flex:0 0 31%"><span class="lbl">' + esc(s.label) +
+          '</span><input type="number" step="any" data-zeit="' + s.key + '" value="' + (mv != null ? esc(mv) : "") + '" placeholder="auto"></label>';
+      });
+      html += "</div>";
+    }
+
+    html += '<div class="btn-row" style="margin-top:8px"><button class="btn primary" id="btn-berechnen" type="button">⚡ Berechnen</button></div>';
+    wrap.innerHTML = html;
+
+    // Events: Config-Felder
+    $all("[data-cfg]", wrap).forEach(function (inp) {
+      var ev = inp.type === "checkbox" ? "change" : "input";
+      inp.addEventListener(ev, function () {
+        entwurf.config[inp.dataset.cfg] = inp.type === "checkbox" ? inp.checked : inp.value;
+      });
+      // init in config
+      entwurf.config[inp.dataset.cfg] = inp.type === "checkbox" ? inp.checked : inp.value;
+    });
+
+    if (prod.frei) {
+      renderFreiePositionen();
+      $("#btn-add-pos").onclick = function () {
+        entwurf.freiePositionen.push({ name: "", menge: 1, einheit: "Stk", preis: 0 });
+        renderFreiePositionen();
+      };
+      $all("[data-zeit]", wrap).forEach(function (inp) {
+        inp.addEventListener("input", function () {
+          var v = parseFloat(inp.value);
+          if (isNaN(v)) delete entwurf.manuelleZeiten[inp.dataset.zeit];
+          else entwurf.manuelleZeiten[inp.dataset.zeit] = v;
+        });
+      });
+    }
+
+    $("#btn-berechnen").onclick = berechnen;
+  }
+
+  function renderFreiePositionen() {
+    var wrap = $("#freie-positionen");
+    if (!wrap) return;
+    if (!entwurf.freiePositionen.length) { wrap.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:8px">Noch keine Positionen.</div>'; return; }
+    var html = "";
+    entwurf.freiePositionen.forEach(function (p, i) {
+      html += '<div class="inline" style="margin-bottom:8px;align-items:flex-end">' +
+        '<input data-pos="' + i + '-name" placeholder="Bezeichnung" value="' + esc(p.name) + '" style="flex:2">' +
+        '<input data-pos="' + i + '-menge" type="number" step="any" placeholder="Menge" value="' + esc(p.menge) + '" style="flex:.8">' +
+        '<input data-pos="' + i + '-einheit" placeholder="Einh." value="' + esc(p.einheit) + '" style="flex:.6">' +
+        '<input data-pos="' + i + '-preis" type="number" step="any" placeholder="€/Einh." value="' + esc(p.preis) + '" style="flex:.9">' +
+        '<button class="btn sm danger" data-pos-del="' + i + '" type="button">✕</button></div>';
+    });
+    wrap.innerHTML = html;
+    $all("[data-pos]", wrap).forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        var parts = inp.dataset.pos.split("-"); var idx = +parts[0]; var key = parts[1];
+        entwurf.freiePositionen[idx][key] = (key === "menge" || key === "preis") ? parseFloat(inp.value) || 0 : inp.value;
+      });
+    });
+    $all("[data-pos-del]", wrap).forEach(function (b) {
+      b.onclick = function () { entwurf.freiePositionen.splice(+b.dataset.posDel, 1); renderFreiePositionen(); };
+    });
+  }
+
+  function berechnen() {
+    var kalk = Calc.kalkuliere(db, entwurf);
+    entwurf.letzteKalk = kalk;
+    renderKalkErgebnis(kalk);
+  }
+
+  function renderKalkErgebnis(kalk) {
+    var root = $("#kalk-ergebnis");
+    var prod = Products.byKey(entwurf.produktKey);
+    var html = "";
+
+    // Arbeitszeiten
+    html += '<div class="lbl">Arbeitszeiten (Soll, inkl. Lernfaktoren)</div>';
+    html += '<div class="table-wrap"><table><tbody>';
+    kalk.lohnZeilen.forEach(function (z) {
+      html += "<tr><td>" + esc(z.label) + '</td><td class="num">' + fmtH(z.stunden) + '</td><td class="num muted">' + z.satz + ' €/h</td><td class="num">' + fmtEUR(z.summe) + "</td></tr>";
+    });
+    html += '<tr><td><strong>Summe</strong></td><td class="num"><strong>' + fmtH(kalk.stundenGesamt) + '</strong></td><td></td><td class="num"><strong>' + fmtEUR(kalk.lohn) + "</strong></td></tr>";
+    html += "</tbody></table></div>";
+
+    // Material
+    if (kalk.matZeilen.length) {
+      html += '<div class="lbl" style="margin-top:14px">Materialliste</div>';
+      html += '<div class="table-wrap"><table><tbody>';
+      kalk.matZeilen.forEach(function (m) {
+        html += "<tr><td>" + esc(m.name) + '</td><td class="num muted">' + m.menge + " " + esc(m.einheit) + '</td><td class="num">' + fmtEUR(m.summe) + "</td></tr>";
+      });
+      html += "</tbody></table></div>";
+    }
+
+    // Preisaufbau
+    html += '<hr class="sep">';
+    html += line("Material (EK inkl. Verschnitt)", fmtEUR(kalk.materialEK), "sub");
+    html += line("Material inkl. Aufschlag", fmtEUR(kalk.materialMitAufschlag));
+    html += line("Lohn / Fertigung", fmtEUR(kalk.lohn));
+    html += line("Gemeinkosten", fmtEUR(kalk.gemeinkosten), "sub");
+    html += line("Selbstkosten", fmtEUR(kalk.selbstkosten));
+    html += line("Gewinn", fmtEUR(kalk.gewinn), "sub");
+    html += line("Verkaufspreis netto", fmtEUR(kalk.netto), "total");
+    html += line("Deckungsbeitrag", fmtEUR(kalk.deckungsbeitrag) + "  (" + kalk.deckungsbeitragProz + " %)", "sub");
+    html += line("Brutto inkl. USt", fmtEUR(kalk.brutto));
+
+    html += '<div class="btn-row" style="margin-top:14px">' +
+      '<button class="btn primary" id="btn-angebot" type="button">📄 Als Angebot speichern</button>' +
+      '<button class="btn" id="btn-angebotstext" type="button">📝 Angebotstext</button>' +
+      "</div>";
+
+    root.innerHTML = html;
+    $("#btn-angebot").onclick = function () { speichereAngebot(kalk); };
+    $("#btn-angebotstext").onclick = function () {
+      var txt = Calc.angebotstext(Object.assign({ mwst: db.settings.mwst + " %" }, entwurf), kalk);
+      openModal("Angebotstext", '<textarea style="min-height:320px">' + esc(txt) + "</textarea>" +
+        '<p class="hint">Text markieren und kopieren (Strg+C).</p>', null, "Schließen");
+    };
+  }
+
+  function line(label, val, cls) {
+    return '<div class="result-line ' + (cls || "") + '"><span>' + esc(label) + '</span><span class="v">' + esc(val) + "</span></div>";
+  }
+
+  function speichereAngebot(kalk) {
+    var prod = Products.byKey(entwurf.produktKey);
+    var c = entwurf.config;
+    var titelvorschlag = prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") + (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "");
+    openModal("Angebot speichern", fld2("Bezeichnung / Kunde", "a-titel", titelvorschlag.trim(), "text") +
+      '<p class="hint">Der Vorgang wird als Angebot gespeichert und erscheint in „Aufträge“.</p>', function () {
+      var titel = $("#a-titel").value.trim() || titelvorschlag.trim() || "Angebot";
+      var auftrag = {
+        id: Store.uid(),
+        titel: titel,
+        produktKey: entwurf.produktKey,
+        config: JSON.parse(JSON.stringify(entwurf.config)),
+        freiePositionen: JSON.parse(JSON.stringify(entwurf.freiePositionen)),
+        manuelleZeiten: JSON.parse(JSON.stringify(entwurf.manuelleZeiten)),
+        kalk: kalk,
+        status: "Angebot",
+        erstellt: Store.nowISO(),
+        ist: null
+      };
+      db.auftraege.push(auftrag);
+      Store.save();
+      toast("Angebot gespeichert.");
+      navTo("auftraege");
+      return true;
+    });
+  }
+
+  // ============================================================
+  //  AUFTRÄGE / NACHKALKULATION
+  // ============================================================
+  function renderAuftraege() {
+    var root = $("#page-auftraege .content");
+    if (!db.auftraege.length) {
+      root.innerHTML = '<div class="empty">Noch keine Aufträge. Erstelle in „Kalkulation“ ein Angebot.</div>';
+      return;
+    }
+    var html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
+      '<th>Bezeichnung</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th></tr></thead><tbody>';
+    db.auftraege.slice().reverse().forEach(function (a) {
+      var prod = Products.byKey(a.produktKey);
+      var si = Calc.sollIst(a);
+      var siTxt = si ? (si.abwProz > 0 ? "+" : "") + si.abwProz + " %" : "—";
+      html += "<tr>" +
+        "<td><strong>" + esc(a.titel) + '</strong><br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
+        "<td>" + (prod ? prod.icon + " " + esc(prod.name) : "-") + "</td>" +
+        "<td>" + statusBadge(a.status) + "</td>" +
+        '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
+        '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td>" +
+        '<td class="num ' + (si && si.abwProz > 0 ? "" : "") + '">' + siTxt + "</td>" +
+        '<td class="num"><button class="btn sm" data-auf="' + a.id + '">Öffnen</button></td></tr>';
+    });
+    html += "</tbody></table></div></div>";
+    root.innerHTML = html;
+    $all("[data-auf]").forEach(function (b) { b.onclick = function () { auftragModal(b.dataset.auf); }; });
+  }
+
+  function auftragModal(id) {
+    var a = db.auftraege.find(function (x) { return x.id === id; });
+    if (!a) return;
+    var prod = Products.byKey(a.produktKey);
+    var si = Calc.sollIst(a);
+
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) + "</div>";
+
+    // Status-Wechsel
+    body += '<label class="fld"><span class="lbl">Status</span><select id="a-status">' +
+      ["Angebot", "Beauftragt", "Abgeschlossen"].map(function (s) { return '<option' + (a.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("") +
+      "</select></label>";
+
+    // Kalkulationsübersicht
+    body += '<div class="card" style="background:var(--panel-2);margin-bottom:12px">' +
+      line("Verkaufspreis netto", fmtEUR(a.kalk.netto)) +
+      line("Deckungsbeitrag", fmtEUR(a.kalk.deckungsbeitrag) + " (" + a.kalk.deckungsbeitragProz + " %)", "sub") +
+      line("Soll-Stunden gesamt", fmtH(a.kalk.stundenGesamt), "sub") + "</div>";
+
+    // Nachkalkulation – Ist-Zeiten erfassen
+    body += '<div class="lbl" style="margin-bottom:8px">Nachkalkulation · Ist-Zeiten erfassen (h)</div>';
+    body += '<div class="table-wrap"><table><thead><tr><th>Schritt</th><th class="num">Soll</th><th class="num">Ist</th></tr></thead><tbody>';
+    SCHRITTE.forEach(function (s) {
+      var soll = a.kalk.zeiten[s.key] || 0;
+      if (soll <= 0 && !(a.ist && a.ist.zeiten && a.ist.zeiten[s.key])) return;
+      var ist = a.ist && a.ist.zeiten ? (a.ist.zeiten[s.key] || "") : "";
+      body += "<tr><td>" + esc(s.label) + '</td><td class="num muted">' + (soll ? fmtH(soll) : "—") +
+        '</td><td class="num"><input type="number" step="any" data-ist="' + s.key + '" value="' + esc(ist) + '" placeholder="' + (soll || 0) + '" style="width:90px;text-align:right"></td></tr>';
+    });
+    body += "</tbody></table></div>";
+    body += fld2("Materialverbrauch / Notiz (optional)", "a-matnote", a.ist ? (a.ist.materialKommentar || "") : "", "text");
+
+    if (si) {
+      body += '<div class="insight" style="margin-top:12px"><span class="ico">📊</span><span>Ist gesamt: <strong>' + fmtH(si.istStunden) +
+        "</strong> vs. Soll " + fmtH(si.sollStunden) + " — Abweichung <strong>" + (si.abwProz > 0 ? "+" : "") + si.abwProz + " %</strong></span></div>";
+    }
+
+    openModalWide("Auftrag: " + esc(a.titel), body, function () {
+      a.status = $("#a-status").value;
+      var istZeiten = {};
+      var hatIst = false;
+      $all("[data-ist]").forEach(function (inp) {
+        var v = parseFloat(inp.value);
+        if (!isNaN(v) && v > 0) { istZeiten[inp.dataset.ist] = v; hatIst = true; }
+      });
+      var matNote = $("#a-matnote").value.trim();
+      if (hatIst || matNote) {
+        a.ist = { zeiten: istZeiten, materialKommentar: matNote, erfasst: Store.nowISO() };
+      }
+      // Lernen, wenn abgeschlossen + Ist-Zeiten vorhanden
+      if (a.status === "Abgeschlossen" && hatIst) {
+        Calc.lerneAusAuftrag(db, a);
+        toast("Auftrag abgeschlossen — App hat dazugelernt. 🧠");
+      } else {
+        toast("Auftrag gespeichert.");
+      }
+      Store.save();
+      renderAuftraege();
+      return true;
+    }, "Löschen", function () {
+      if (confirm("Auftrag wirklich löschen?")) {
+        db.auftraege = db.auftraege.filter(function (x) { return x.id !== id; });
+        Store.save(); renderAuftraege(); return true;
+      }
+      return false;
+    });
+  }
+
+  // ============================================================
+  //  LERNEN / KI
+  // ============================================================
+  function renderLernen() {
+    var root = $("#page-lernen .content");
+    var html = '<div class="grid cols-2">';
+    html += '<div class="card"><h3>🧠 Erkannte Muster</h3>' + erkenntnisseHTML(99) + "</div>";
+
+    // Faktor-Tabelle
+    html += '<div class="card"><h3>Lern-Korrekturfaktoren</h3>';
+    var faktoren = db.lernen.faktoren || {};
+    var keys = Object.keys(faktoren);
+    if (!keys.length) {
+      html += '<div class="empty">Noch keine Lerndaten. Die Faktoren entstehen automatisch aus abgeschlossenen Aufträgen mit erfassten Ist-Zeiten.</div>';
+    } else {
+      html += '<p class="hint">Faktor &gt; 1,00 = tatsächlicher Aufwand höher als ursprünglich kalkuliert. Wird automatisch auf neue Kalkulationen angewendet.</p>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Produkt / Schritt</th><th class="num">Faktor</th><th class="num">Aufträge</th></tr></thead><tbody>';
+      keys.forEach(function (pk) {
+        var prod = Products.byKey(pk);
+        SCHRITTE.forEach(function (s) {
+          var e = faktoren[pk][s.key];
+          if (!e) return;
+          html += "<tr><td>" + (prod ? prod.name : pk) + " · " + esc(s.label) + '</td><td class="num">' +
+            e.faktor.toLocaleString("de-AT", { minimumFractionDigits: 2 }) + '</td><td class="num muted">' + e.samples + "</td></tr>";
+        });
+      });
+      html += "</tbody></table></div>";
+    }
+    html += "</div></div>";
+
+    html += '<div class="card" style="margin-top:16px"><h3>Wie die Lernfunktion arbeitet</h3>' +
+      '<p style="font-size:13px" class="muted">Bei jedem abgeschlossenen Auftrag vergleicht Spanwerk die kalkulierten Soll-Zeiten mit den erfassten Ist-Zeiten. ' +
+      'Pro Produkttyp und Arbeitsschritt wird ein gewichteter Korrekturfaktor gebildet. Je mehr Aufträge erfasst werden, desto genauer werden die automatischen Schätzungen für CAD, Zuschnitt, Schweißen, Montage usw. ' +
+      'So nähert sich die App schrittweise dem Ziel, aus wenigen Eckdaten ein realistisches Angebot zu erzeugen.</p></div>';
+
+    root.innerHTML = html;
+  }
+
+  // ============================================================
+  //  MODAL
+  // ============================================================
+  function openModal(title, bodyHTML, onOk, okLabel) {
+    _openModal(title, bodyHTML, onOk, okLabel || "Speichern", false);
+  }
+  function openModalWide(title, bodyHTML, onOk, extraLabel, onExtra) {
+    _openModal(title, bodyHTML, onOk, "Speichern", true, extraLabel, onExtra);
+  }
+  function _openModal(title, bodyHTML, onOk, okLabel, wide, extraLabel, onExtra) {
+    var bg = $("#modal-bg");
+    var foot = onOk
+      ? '<button class="btn ghost" id="modal-cancel">Abbrechen</button>' +
+        (extraLabel ? '<button class="btn danger" id="modal-extra">' + esc(extraLabel) + "</button>" : "") +
+        '<button class="btn primary" id="modal-ok">' + esc(okLabel) + "</button>"
+      : '<button class="btn primary" id="modal-cancel">' + esc(okLabel) + "</button>";
+    bg.innerHTML = '<div class="modal"><h3>' + esc(title) + "</h3><div>" + bodyHTML + "</div>" +
+      '<div class="btn-row" style="justify-content:flex-end;margin-top:16px">' + foot + "</div></div>";
+    bg.classList.add("show");
+    function close() { bg.classList.remove("show"); }
+    $("#modal-cancel").onclick = close;
+    if ($("#modal-ok")) $("#modal-ok").onclick = function () { if (onOk() !== false) close(); };
+    if ($("#modal-extra")) $("#modal-extra").onclick = function () { if (onExtra && onExtra() !== false) close(); };
+    bg.onclick = function (e) { if (e.target === bg) close(); };
+  }
+
+  // ============================================================
+  //  INIT
+  // ============================================================
+  function init() {
+    $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
+    navTo("dashboard");
+  }
+
+  if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", init);
+  else init();
+})(window, document);

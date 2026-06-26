@@ -3,41 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Datenschutzerklärung – Spanwerk</title>
-<style>
-  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;line-height:1.6;color:#1a2330}
-  h1{font-size:24px} h2{font-size:18px;margin-top:28px} small{color:#667}
-</style>
+<title>Spanwerk – Kalkulation für Metallbau</title>
+<meta name="description" content="Intelligente Kalkulations-App für Metallbaubetriebe. Funktioniert vollständig offline, alle Daten bleiben lokal.">
+<link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
-<h1>Datenschutzerklärung</h1>
-<p><small>App: Spanwerk · Stand: Juni 2026 · Verantwortlich: Nico Warscher · Kontakt: nicowarscher@gmx.at</small></p>
+<div class="app">
 
-<h2>Kurzfassung</h2>
-<p>Die App <strong>Spanwerk</strong> sammelt, speichert oder überträgt <strong>keine personenbezogenen Daten</strong>.
-Es gibt keine Konten, kein Tracking, keine Werbung und keine Weitergabe von Daten an Dritte.
-Die App funktioniert vollständig offline.</p>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>Spanwerk</h1>
+        <small>Kalkulation für Metallbau</small>
+      </div>
+    </div>
+    <ul class="nav">
+      <li data-page="dashboard" class="active"><span class="ico">📊</span> Dashboard</li>
+      <li data-page="kalkulation"><span class="ico">⚡</span> Kalkulation</li>
+      <li data-page="auftraege"><span class="ico">📁</span> Aufträge</li>
+      <li data-page="material"><span class="ico">🧱</span> Material</li>
+      <li data-page="lernen"><span class="ico">🧠</span> Lernfunktion</li>
+      <li data-page="stammdaten"><span class="ico">⚙️</span> Stammdaten</li>
+    </ul>
+    <div class="sidebar-foot">
+      Alle Daten bleiben lokal auf diesem Gerät.
+      <a href="datenschutz.html">Datenschutzerklärung</a>
+    </div>
+  </aside>
 
-<h2>Welche Daten verarbeitet die App?</h2>
-<p>Spanwerk speichert ausschließlich deine Eingaben und Favoriten (z. B. zuletzt gewählter Werkstoff,
-Durchmesser, gespeicherte Schnittdaten) <strong>lokal auf deinem Gerät</strong>. Diese Daten verlassen das
-Gerät nicht und sind für niemanden außer dir zugänglich. Du kannst sie jederzeit löschen, indem du die
-App-Daten in den Android-Einstellungen leerst oder die App deinstallierst.</p>
+  <!-- Main -->
+  <main class="main">
 
-<h2>Internet & Berechtigungen</h2>
-<p>Die App benötigt keine Internetverbindung und keine besonderen Berechtigungen
-(kein Standort, keine Kontakte, keine Kamera, kein Speicherzugriff auf persönliche Dateien).</p>
+    <section id="page-dashboard" class="page active">
+      <div class="page-head">
+        <div><h2>Dashboard</h2><p>Überblick über Angebote, Deckungsbeitrag und Gewinn je Auftrag.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
 
-<h2>Datenweitergabe an Dritte</h2>
-<p>Es findet keine Weitergabe statt. Es werden keine Analyse- oder Werbedienste eingesetzt.</p>
+    <section id="page-kalkulation" class="page">
+      <div class="page-head">
+        <div><h2>Kalkulation</h2><p>Produkt wählen, Eckdaten eingeben – die App berechnet Zeiten, Material und Verkaufspreis.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
 
-<h2>Kinder</h2>
-<p>Die App ist für alle Altersgruppen geeignet und erhebt keine Daten von Kindern oder Erwachsenen.</p>
+    <section id="page-auftraege" class="page">
+      <div class="page-head">
+        <div><h2>Aufträge & Nachkalkulation</h2><p>Ist-Zeiten erfassen, Soll/Ist vergleichen – die App lernt daraus.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
 
-<h2>Änderungen</h2>
-<p>Sollte sich an der Datenverarbeitung etwas ändern, wird diese Erklärung aktualisiert.</p>
+    <section id="page-material" class="page">
+      <div class="page-head">
+        <div><h2>Materialdatenbank</h2><p>Preise, Lieferanten und Preishistorie pflegen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
 
-<h2>Kontakt</h2>
-<p>Bei Fragen zum Datenschutz: <a href="mailto:nicowarscher@gmx.at">nicowarscher@gmx.at</a></p>
+    <section id="page-lernen" class="page">
+      <div class="page-head">
+        <div><h2>Lernfunktion (KI)</h2><p>Erkannte Muster und automatische Korrekturfaktoren aus abgeschlossenen Aufträgen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-stammdaten" class="page">
+      <div class="page-head">
+        <div><h2>Stammdaten</h2><p>Stundensätze, Zuschläge, Gewinn und Datensicherung.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modal-bg" class="modal-bg"></div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/products.js"></script>
+<script src="assets/js/calc.js"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
