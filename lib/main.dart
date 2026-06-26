@@ -1,8 +1,10 @@
 // main.dart – Footy Predict: echte Spiele tippen, Punkte sammeln (kein Echtgeld).
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'engine.dart';
+import 'odds.dart';
 import 'store.dart';
 
 void main() => runApp(const FootyApp());
@@ -38,70 +40,110 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final _store = PredictionStore();
+  late final EloModel _elo = EloModel(_store.elo);
+  SeasonLearner? _learner;
+
   int _leagueIdx = 0;
-  late int _season;
+  late String _season;
   int _day = 1;
 
   List<FootyMatch> _matches = [];
   bool _loading = true;
   String? _error;
+  DateTime? _updatedAt;
+  String? _learnStatus; // z.B. "lernt … 60 %"
+  Timer? _autoTimer;
 
   League get _league => kLeagues[_leagueIdx];
 
   @override
   void initState() {
     super.initState();
-    _season = _currentSeason();
+    WidgetsBinding.instance.addObserver(this);
+    _season = Api.currentSeason(DateTime.now());
+    // Immer am neuesten Stand: alle 60 s im Vordergrund stillschweigend aktualisieren.
+    _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _loadDay(silent: true);
+    });
     _boot();
   }
 
-  int _currentSeason() {
-    final now = DateTime.now();
-    return now.month >= 8 ? now.year : now.year - 1;
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoTimer?.cancel();
+    _learner?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Beim Zurückkehren in die App sofort aktualisieren.
+    if (state == AppLifecycleState.resumed) _loadDay(silent: true);
   }
 
   Future<void> _boot() async {
     await _store.load();
-    await _loadCurrent();
+    _day = await _resolveStartRound(_league);
+    await _loadDay();
+    _startLearning();
   }
 
-  /// Aktuellen Spieltag laden und Spieltag-Nummer daraus ableiten.
-  Future<void> _loadCurrent() async {
-    setState(() { _loading = true; _error = null; });
+  /// Aktuellen Spieltag bestimmen: laufende Saison -> nächster Spieltag,
+  /// sonst der zuletzt betrachtete.
+  Future<int> _resolveStartRound(League league) async {
+    final next = await Api.nextRound(league.id);
+    if (next != null) return next.clamp(1, league.maxRound);
+    return _store.lastRound(league.id).clamp(1, league.maxRound);
+  }
+
+  Future<void> _loadDay({bool silent = false}) async {
+    if (!silent) setState(() { _loading = true; _error = null; });
     try {
-      final m = await Api.currentMatchday(_league.shortcut);
-      _day = _parseDay(m) ?? _day;
-      setState(() { _matches = m; _loading = false; });
+      final m = await Api.round(_league.id, _season, _day);
+      await _store.setLastRound(_league.id, _day);
+      // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
+      var learned = false;
+      for (final x in m) {
+        if (x.finished && x.hasResult && !_store.isIngested(x.id)) {
+          _elo.learn(x.home.name, x.away.name, x.homeGoals!, x.awayGoals!);
+          _store.markIngested(x.id);
+          learned = true;
+        }
+      }
+      if (learned) await _store.saveLearning();
+      if (!mounted) return;
+      setState(() { _matches = m; _loading = false; _updatedAt = DateTime.now(); });
     } catch (e) {
-      setState(() { _error = _msg(e); _loading = false; });
+      if (!mounted) return;
+      setState(() { if (!silent) _error = _msg(e); _loading = false; });
     }
   }
 
-  Future<void> _loadDay() async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      final m = await Api.matchday(_league.shortcut, _season, _day);
-      setState(() { _matches = m; _loading = false; });
-    } catch (e) {
-      setState(() { _error = _msg(e); _loading = false; });
-    }
-  }
-
-  int? _parseDay(List<FootyMatch> m) {
-    for (final x in m) {
-      final match = RegExp(r'(\d+)').firstMatch(x.matchday);
-      if (match != null) return int.parse(match.group(1)!);
-    }
-    return null;
+  /// Hintergrund-Lernen: vergangene Spieltage einspeisen, Quoten verfeinern.
+  void _startLearning() {
+    _learner?.cancel();
+    final learner = SeasonLearner(_store, _elo);
+    _learner = learner;
+    learner.learnUpTo(
+      _league, _season, _league.maxRound,
+      onProgress: (done, total) {
+        if (!mounted || _learner != learner) return;
+        final pct = ((done / total) * 100).round();
+        setState(() => _learnStatus = done >= total ? null : 'lernt … $pct %');
+      },
+    ).then((_) {
+      if (mounted && _learner == learner) setState(() => _learnStatus = null);
+    });
   }
 
   String _msg(Object e) =>
       'Spiele konnten nicht geladen werden.\nInternetverbindung prüfen und erneut ziehen.\n($e)';
 
   void _changeDay(int delta) {
-    final next = (_day + delta).clamp(1, 38);
+    final next = (_day + delta).clamp(1, _league.maxRound);
     if (next == _day) return;
     setState(() => _day = next);
     _loadDay();
@@ -109,8 +151,15 @@ class _HomePageState extends State<HomePage> {
 
   void _changeLeague(int? idx) {
     if (idx == null || idx == _leagueIdx) return;
-    setState(() => _leagueIdx = idx);
-    _loadCurrent();
+    setState(() {
+      _leagueIdx = idx;
+      _loading = true;
+    });
+    () async {
+      _day = await _resolveStartRound(_league);
+      await _loadDay();
+      _startLearning();
+    }();
   }
 
   // ----- Punkte -----
@@ -178,7 +227,43 @@ class _HomePageState extends State<HomePage> {
         children: [
           _controls(),
           const _PlayMoneyBanner(),
+          _statusBar(),
           Expanded(child: _body()),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBar() {
+    String left;
+    if (_learnStatus != null) {
+      left = '🧠 $_learnStatus';
+    } else {
+      left = '${_store.teamsLearned} Teams gelernt';
+    }
+    final u = _updatedAt;
+    final right = u == null
+        ? ''
+        : 'aktualisiert ${u.hour.toString().padLeft(2, '0')}:${u.minute.toString().padLeft(2, '0')}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      color: const Color(0xFF0D4634),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(children: [
+            if (_learnStatus != null)
+              const Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: SizedBox(
+                  width: 10, height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 1.6, color: _accent),
+                ),
+              ),
+            Text(left, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+          ]),
+          Text(right, style: const TextStyle(color: Colors.white38, fontSize: 11)),
         ],
       ),
     );
@@ -198,7 +283,7 @@ class _HomePageState extends State<HomePage> {
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
             items: [
               for (var i = 0; i < kLeagues.length; i++)
-                DropdownMenuItem(value: i, child: Text(kLeagues[i].name)),
+                DropdownMenuItem(value: i, child: Text(kLeagues[i].label)),
             ],
             onChanged: _changeLeague,
           ),
@@ -211,7 +296,7 @@ class _HomePageState extends State<HomePage> {
           Text('$_day. Spieltag',
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           IconButton(
-            onPressed: _day < 38 ? () => _changeDay(1) : null,
+            onPressed: _day < _league.maxRound ? () => _changeDay(1) : null,
             icon: const Icon(Icons.chevron_right),
             color: _accent,
           ),
@@ -261,6 +346,7 @@ class _HomePageState extends State<HomePage> {
           match: _matches[i],
           now: now,
           prediction: _store.get(_matches[i].id),
+          odds: _elo.odds(_matches[i].home.name, _matches[i].away.name),
           onChanged: (h, a) async {
             await _store.save(_matches[i].id, h, a);
             setState(() {});
@@ -292,12 +378,14 @@ class _MatchCard extends StatelessWidget {
   final FootyMatch match;
   final DateTime now;
   final Prediction? prediction;
+  final MatchOdds odds;
   final Future<void> Function(int home, int away) onChanged;
 
   const _MatchCard({
     required this.match,
     required this.now,
     required this.prediction,
+    required this.odds,
     required this.onChanged,
   });
 
@@ -327,10 +415,50 @@ class _MatchCard extends StatelessWidget {
               Expanded(child: _Crest(team: match.away, alignEnd: true)),
             ],
           ),
+          const SizedBox(height: 10),
+          _oddsRow(),
           if (match.finished && match.hasResult) _resultRow(ph, pa),
         ],
       ),
     );
+  }
+
+  Widget _oddsRow() {
+    // Tipp-Tendenz zur Hervorhebung der „empfohlenen" (niedrigsten) Quote.
+    final lowest = [odds.home, odds.draw, odds.away].reduce((a, b) => a < b ? a : b);
+    Widget cell(String label, double value) {
+      final fav = value == lowest;
+      return Expanded(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: fav ? _accent.withValues(alpha: 0.16) : const Color(0xFF0B3D2E),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: fav ? _accent : const Color(0xFF1C6A50),
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+              const SizedBox(height: 2),
+              Text(value.toStringAsFixed(2),
+                  style: TextStyle(
+                    color: fav ? _accent : Colors.white,
+                    fontWeight: FontWeight.w800, fontSize: 15,
+                  )),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      cell('1', odds.home),
+      cell('X', odds.draw),
+      cell('2', odds.away),
+    ]);
   }
 
   Widget _topRow() {
@@ -349,7 +477,7 @@ class _MatchCard extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(match.matchday,
+        Text('${match.round}. Spieltag',
             style: const TextStyle(color: Colors.white38, fontSize: 11)),
         Text(status, style: TextStyle(color: col, fontSize: 11, fontWeight: FontWeight.w600)),
       ],
@@ -448,7 +576,7 @@ class _Crest extends StatelessWidget {
   }
 
   Widget _logo() {
-    final url = team.bitmapIcon;
+    final url = team.badge;
     final fallback = CircleAvatar(
       radius: 16,
       backgroundColor: const Color(0xFF0B3D2E),

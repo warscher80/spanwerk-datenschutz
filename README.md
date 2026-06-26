@@ -1,60 +1,71 @@
-# Footy Predict ⚽ – Tippspiel auf echte Fußballspiele
+# Footy Predict ⚽ – Tippspiel mit lernenden Quoten
 
-Eine Android-App (Flutter), in der du **echte Begegnungen** der Bundesliga & Co. tippst
-und **Punkte** sammelst – wie bei Kicktipp. **Kein Echtgeld, kein Konto, keine Werbung.**
+Eine Android-App (Flutter), in der du **echte Spiele** aus Deutschland, Österreich und
+England tippst, **faire Quoten** siehst und **Punkte** sammelst. **Kein Echtgeld, kein
+Konto, keine Werbung.** Die App bleibt automatisch am neuesten Stand und ihre Quoten
+**lernen aus jedem echten Ergebnis dazu**.
 
-> ⚠️ **Tippspiel um Punkte, kein Glücksspiel.** Es gibt keine Einzahlungen und keine
-> Geldgewinne. Eine echte Geld-Wett-App bräuchte eine Glücksspiel-/Buchmacher-Lizenz,
-> Alters-/Identitätsprüfung und Zahlungsabwicklung und ist ohne diese nicht zulässig.
+> ⚠️ **Tippspiel um Punkte, kein Glücksspiel.** Keine Einzahlungen, keine Geldgewinne.
+> Die Quoten sind ein berechnetes Stärke-Modell, keine Buchmacher-Wettangebote.
+
+## Ligen (1. + 2. Liga je Land)
+| Land | 1. Liga | 2. Liga |
+|------|---------|---------|
+| 🇩🇪 Deutschland | 1. Bundesliga | 2. Bundesliga |
+| 🇦🇹 Österreich | Bundesliga | 2. Liga |
+| 🇬🇧 England | Premier League | Championship |
 
 ## Funktionen
-- **Echte Spiele** live von [OpenLigaDB](https://www.openligadb.de/) (gratis, ohne API-Key)
-- Ligen: **1. Bundesliga, 2. Bundesliga, 3. Liga**, Spieltag-für-Spieltag durchblättern
-- Pro Spiel einen **Ergebnis-Tipp** abgeben (Heim:Auswärts)
-- **Punkte-System** (Kicktipp-Stil): Volltreffer 5 · Tordifferenz 3 · Tendenz 2
-- Nach Spielende automatischer **Abgleich mit dem echten Endstand** + Punkte
-- Tipps werden **nur lokal** gespeichert (kein Server, kein Tracking)
-- Vereinslogos, Anstoßzeiten, „Zum Aktualisieren ziehen"
+- **Echte Spiele, Wappen, Anstoßzeiten & Ergebnisse** via [TheSportsDB](https://www.thesportsdb.com/)
+- **Lernende 1/X/2-Quoten:** ein Elo-Modell schätzt die Teamstärken aus echten
+  Resultaten – je mehr Spiele einfließen, desto genauer die Quoten
+- **Immer aktuell:** automatische Aktualisierung alle 60 s, beim App-Start und beim
+  Zurückkehren in die App; Sprung auf den nächsten anstehenden Spieltag
+- Pro Spiel einen **Ergebnis-Tipp**; **Punkte** wie bei Kicktipp
+  (Volltreffer 5 · Tordifferenz 3 · Tendenz 2) mit automatischem Abgleich
+- Hintergrund-**Lernfortschritt** sichtbar, Status „aktualisiert HH:MM"
+- Alles **nur lokal** gespeichert (kein Server, kein Tracking)
+
+## Wie die Quoten „dazulernen"
+1. Beim Öffnen einer Liga lädt die App im Hintergrund die bisherigen Spieltage.
+2. Jedes echte Ergebnis aktualisiert die Elo-Ratings der beiden Teams
+   (Heimvorteil + Gewichtung nach Tordifferenz).
+3. Aus dem Rating-Unterschied werden Sieg-/Remis-/Niederlage-Wahrscheinlichkeiten
+   und daraus faire Quoten (inkl. kleiner Marge) berechnet.
+4. Ratings und bereits verarbeitete Spiele werden lokal gespeichert – die App
+   „vergisst" nicht und wird mit der Zeit treffsicherer.
 
 ## Projektaufbau (Flutter)
 ```
 lib/
-  main.dart      – Oberfläche (Spieltag, Tipp-Eingabe, Punkte)
-  api.dart       – echte Spieldaten von OpenLigaDB
-  engine.dart    – Punkte-Auswertung (reine Logik)
-  store.dart     – lokale Speicherung der Tipps
-test/
-  widget_test.dart – Tests der Punkte-Logik
+  main.dart    – Oberfläche (Ligen, Spieltag, Tipps, Quoten, Auto-Update)
+  api.dart     – echte Spieldaten (TheSportsDB)
+  odds.dart    – lernendes Elo-Quoten-Modell + Hintergrund-Lerner
+  engine.dart  – Punkte-Auswertung (reine Logik)
+  store.dart   – lokale Speicherung (Tipps + Lerndaten)
+test/          – Tests für Punkte- und Quoten-Logik
 ```
 
 ## APK selbst bauen
-
-### Per GitHub Actions (einfachster Weg)
-Bei jedem Push baut der Workflow **„APK bauen"** automatisch einen Release-APK.
+### Per GitHub Actions
+Bei jedem Push baut der Workflow **„APK bauen"** einen Release-APK.
 Unter **Actions → APK bauen → Artifacts → `footy-predict-apk`** herunterladen.
-Kann auch manuell über *Run workflow* gestartet werden.
 
 ### Lokal
 Voraussetzungen: [Flutter SDK](https://docs.flutter.dev/get-started/install) (stable),
 Android SDK, JDK 17.
-
 ```bash
 flutter pub get
-flutter test            # Punkte-Logik prüfen
+flutter test
 flutter build apk --release
 # Ergebnis: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Auf ein Gerät bringen:
-
-```bash
-flutter install            # bei angeschlossenem Gerät
-# oder die .apk aufs Handy kopieren und „aus unbekannter Quelle" installieren
-```
-
-> Hinweis: Der Release-APK wird standardmäßig mit dem **Debug-Schlüssel** signiert –
-> ideal zum Sideloaden auf dein eigenes Gerät. Für den Play Store müsste ein eigener
-> Release-Keystore eingerichtet werden.
+> Hinweis: Der Release-APK wird mit dem Debug-Schlüssel signiert (ideal zum Sideloaden
+> aufs eigene Gerät). Für den Play Store wäre ein eigener Release-Keystore nötig.
+>
+> Datenquelle: TheSportsDB mit öffentlichem Gratis-Test-Key. Bei sehr starker Nutzung
+> kann ein eigener (kostenpflichtiger) Key sinnvoll sein.
 
 ---
 Die Datei `index.html` im Repo-Root ist die separat gehostete Datenschutzerklärung.

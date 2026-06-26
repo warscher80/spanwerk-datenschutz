@@ -11,7 +11,17 @@ class Prediction {
 
 class PredictionStore {
   static const _key = 'footy_predictions_v1';
+  static const _eloKey = 'footy_elo_v1';
+  static const _ingestedKey = 'footy_ingested_v1';
+  static const _roundsKey = 'footy_learned_rounds_v1';
+
   final Map<int, Prediction> _cache = {};
+
+  // Lerndaten des Quoten-Modells.
+  final Map<String, double> elo = {};
+  final Set<int> _ingested = {};
+  final Set<String> _learnedRounds = {};
+
   SharedPreferences? _prefs;
 
   Future<void> load() async {
@@ -25,6 +35,38 @@ class PredictionStore {
         _cache[int.parse(id)] = Prediction(p['h'] as int, p['a'] as int);
       });
     }
+    _loadLearning();
+  }
+
+  void _loadLearning() {
+    elo.clear();
+    _ingested.clear();
+    _learnedRounds.clear();
+    final e = _prefs?.getString(_eloKey);
+    if (e != null) {
+      (jsonDecode(e) as Map).forEach((k, v) => elo[k as String] = (v as num).toDouble());
+    }
+    _ingested.addAll(_prefs?.getStringList(_ingestedKey)?.map(int.parse) ?? const []);
+    _learnedRounds.addAll(_prefs?.getStringList(_roundsKey) ?? const []);
+  }
+
+  // ---- Lern-Status ----
+  bool isIngested(int matchId) => _ingested.contains(matchId);
+  void markIngested(int matchId) => _ingested.add(matchId);
+  bool roundLearned(String key) => _learnedRounds.contains(key);
+  void markRoundLearned(String key) => _learnedRounds.add(key);
+  int get teamsLearned => elo.length;
+
+  Future<void> saveLearning() async {
+    await _prefs?.setString(_eloKey, jsonEncode(elo));
+    await _prefs?.setStringList(_ingestedKey, _ingested.map((e) => e.toString()).toList());
+    await _prefs?.setStringList(_roundsKey, _learnedRounds.toList());
+  }
+
+  /// Zuletzt betrachteten Spieltag je Liga merken.
+  int lastRound(String leagueId) => _prefs?.getInt('round_$leagueId') ?? 1;
+  Future<void> setLastRound(String leagueId, int round) async {
+    await _prefs?.setInt('round_$leagueId', round);
   }
 
   Prediction? get(int matchId) => _cache[matchId];

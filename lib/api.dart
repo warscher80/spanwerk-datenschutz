@@ -1,69 +1,68 @@
-// api.dart – Echte Fußballdaten von OpenLigaDB (gratis, ohne API-Key).
-// Liefert Spieltage mit Begegnungen, Anstoßzeiten, Wappen und Endergebnissen.
+// api.dart – Echte Fußballdaten von TheSportsDB (gratis Test-Key "123").
+// Deckt Deutschland, Österreich und England (jeweils 1. + 2. Liga) ab.
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// Eine wählbare Liga.
+/// Eine wählbare Liga inkl. Land und maximaler Spieltagszahl.
 class League {
-  final String shortcut; // z.B. "bl1"
+  final String id; // TheSportsDB idLeague
   final String name;
-  const League(this.shortcut, this.name);
+  final String country;
+  final String flag; // Emoji
+  final int maxRound;
+  const League(this.id, this.name, this.country, this.flag, this.maxRound);
+
+  String get label => '$flag $name';
+  String get sub => country;
 }
 
 const kLeagues = <League>[
-  League('bl1', '1. Bundesliga'),
-  League('bl2', '2. Bundesliga'),
-  League('bl3', '3. Liga'),
+  League('4331', '1. Bundesliga', 'Deutschland', '🇩🇪', 34),
+  League('4399', '2. Bundesliga', 'Deutschland', '🇩🇪', 34),
+  League('4621', 'Bundesliga', 'Österreich', '🇦🇹', 32),
+  League('4796', '2. Liga', 'Österreich', '🇦🇹', 30),
+  League('4328', 'Premier League', 'England', '🇬🇧', 38),
+  League('4329', 'Championship', 'England', '🇬🇧', 46),
 ];
 
 class Team {
   final String name;
-  final String? iconUrl;
-  const Team(this.name, this.iconUrl);
+  final String? badge;
+  const Team(this.name, this.badge);
 
   String get shortName {
     var n = name
-        .replaceAll(RegExp(r'^(1\.|FC|SV|SC|VfB|VfL|TSG|BV|Borussia)\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\bFC\b|\bAFC\b|\bSV\b|\bSC\b|\bSK\b|\bTSV\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     return n.isEmpty ? name : n;
   }
 
-  /// Kürzel für den Fallback-Kreis, wenn kein (Bitmap-)Logo geladen werden kann.
   String get initials {
     final parts = shortName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, parts.first.length.clamp(0, 3)).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
-  /// OpenLigaDB liefert oft SVG-Wappen – die kann Image.network nicht rendern.
-  /// Nur direkt anzeigbare Rasterformate zurückgeben.
-  String? get bitmapIcon {
-    final u = iconUrl;
-    if (u == null) return null;
-    final lower = u.toLowerCase();
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif')) {
-      return u;
+    if (parts.length == 1) {
+      final p = parts.first;
+      return p.substring(0, p.length.clamp(0, 3)).toUpperCase();
     }
-    return null;
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 }
 
 class FootyMatch {
   final int id;
-  final DateTime? kickoff;
-  final String matchday; // "12. Spieltag"
+  final DateTime? kickoff; // lokale Zeit
+  final int round;
   final Team home;
   final Team away;
   final bool finished;
-  final int? homeGoals; // Endergebnis, null wenn noch nicht gespielt
+  final int? homeGoals;
   final int? awayGoals;
 
   const FootyMatch({
     required this.id,
     required this.kickoff,
-    required this.matchday,
+    required this.round,
     required this.home,
     required this.away,
     required this.finished,
@@ -72,45 +71,37 @@ class FootyMatch {
   });
 
   bool get hasResult => homeGoals != null && awayGoals != null;
-
-  /// Spiel hat (laut Anstoßzeit) bereits begonnen.
   bool startedBy(DateTime now) => kickoff != null && !now.isBefore(kickoff!);
 
-  factory FootyMatch.fromJson(Map<String, dynamic> j) {
-    Team team(String key) {
-      final t = j[key] as Map<String, dynamic>?;
-      return Team(
-        (t?['teamName'] ?? 'Team') as String,
-        t?['teamIconUrl'] as String?,
-      );
-    }
+  static const _finishedStates = {'FT', 'AET', 'PEN', 'Match Finished', 'AP'};
 
-    int? hg, ag;
-    final results = (j['matchResults'] as List?) ?? const [];
-    // "Endergebnis" hat die höchste resultOrderID.
-    Map<String, dynamic>? endResult;
-    for (final r in results.cast<Map<String, dynamic>>()) {
-      if (endResult == null ||
-          (r['resultOrderID'] ?? 0) > (endResult['resultOrderID'] ?? 0)) {
-        endResult = r;
-      }
-    }
-    if (endResult != null) {
-      hg = endResult['pointsTeam1'] as int?;
-      ag = endResult['pointsTeam2'] as int?;
-    }
+  factory FootyMatch.fromJson(Map<String, dynamic> j) {
+    int? toInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
 
     DateTime? kickoff;
-    final dt = j['matchDateTime'] as String?;
-    if (dt != null) kickoff = DateTime.tryParse(dt);
+    final ts = j['strTimestamp'] as String?;
+    if (ts != null && ts.isNotEmpty) {
+      // Zeitstempel ist UTC ohne Offset -> als UTC interpretieren, dann lokal.
+      kickoff = DateTime.tryParse(ts.endsWith('Z') ? ts : '${ts}Z')?.toLocal();
+    }
+    kickoff ??= () {
+      final d = j['dateEvent'] as String?;
+      return d == null ? null : DateTime.tryParse(d);
+    }();
+
+    final status = (j['strStatus'] ?? '').toString();
+    final hg = toInt(j['intHomeScore']);
+    final ag = toInt(j['intAwayScore']);
+    final finished = _finishedStates.contains(status) ||
+        (hg != null && ag != null && status.isEmpty == false && status != 'NS');
 
     return FootyMatch(
-      id: j['matchID'] as int,
+      id: int.parse(j['idEvent'].toString()),
       kickoff: kickoff,
-      matchday: (j['group']?['groupName'] ?? '') as String,
-      home: team('team1'),
-      away: team('team2'),
-      finished: (j['matchIsFinished'] ?? false) as bool,
+      round: int.tryParse((j['intRound'] ?? '0').toString()) ?? 0,
+      home: Team((j['strHomeTeam'] ?? 'Heim').toString(), j['strHomeTeamBadge'] as String?),
+      away: Team((j['strAwayTeam'] ?? 'Gast').toString(), j['strAwayTeamBadge'] as String?),
+      finished: finished,
       homeGoals: hg,
       awayGoals: ag,
     );
@@ -118,17 +109,44 @@ class FootyMatch {
 }
 
 class Api {
-  static const _base = 'https://api.openligadb.de';
+  // Öffentlicher Gratis-Test-Key von TheSportsDB.
+  static const _base = 'https://www.thesportsdb.com/api/v1/json/123';
 
-  static Future<List<FootyMatch>> _get(String path) async {
-    final res = await http
-        .get(Uri.parse('$_base/$path'))
-        .timeout(const Duration(seconds: 15));
+  /// Aktuelle Saison im Format "2025-2026" (Spielbetrieb startet im August).
+  static String currentSeason(DateTime now) {
+    final start = now.month >= 8 ? now.year : now.year - 1;
+    return '$start-${start + 1}';
+  }
+
+  /// Nächster anstehender Spieltag (für „immer aktueller Stand"); null außerhalb der Saison.
+  static Future<int?> nextRound(String leagueId) async {
+    try {
+      final uri = Uri.parse('$_base/eventsnextleague.php?id=$leagueId');
+      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final events = (body['events'] as List?) ?? const [];
+      int? minRound;
+      for (final e in events.cast<Map<String, dynamic>>()) {
+        final r = int.tryParse((e['intRound'] ?? '').toString());
+        if (r != null && (minRound == null || r < minRound)) minRound = r;
+      }
+      return minRound;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Alle Spiele eines Spieltags einer Liga.
+  static Future<List<FootyMatch>> round(String leagueId, String season, int round) async {
+    final uri = Uri.parse('$_base/eventsround.php?id=$leagueId&r=$round&s=$season');
+    final res = await http.get(uri).timeout(const Duration(seconds: 15));
     if (res.statusCode != 200) {
       throw Exception('Server antwortet mit ${res.statusCode}');
     }
-    final data = jsonDecode(res.body) as List;
-    final matches = data
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final events = (body['events'] as List?) ?? const [];
+    final matches = events
         .cast<Map<String, dynamic>>()
         .map(FootyMatch.fromJson)
         .toList();
@@ -139,12 +157,4 @@ class Api {
     });
     return matches;
   }
-
-  /// Aktueller/nächster Spieltag der laufenden Saison.
-  static Future<List<FootyMatch>> currentMatchday(String league) =>
-      _get('getmatchdata/$league');
-
-  /// Konkreter Spieltag einer Saison (Saison als Startjahr, z.B. 2025 = 2025/26).
-  static Future<List<FootyMatch>> matchday(String league, int season, int day) =>
-      _get('getmatchdata/$league/$season/$day');
 }
