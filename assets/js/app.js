@@ -486,6 +486,15 @@
     var prod = Products.byKey(entwurf.produktKey);
     var wrap = $("#konfig-felder");
     var html = "";
+    // Untergruppe / Variante (benutzerdefiniert, je Produkt)
+    var ugs = (db.untergruppen && db.untergruppen[entwurf.produktKey]) || [];
+    var curUg = entwurf.config.untergruppe || "";
+    html += '<label class="fld"><span class="lbl">Untergruppe / Variante</span>' +
+      '<select data-cfg="untergruppe">' +
+        '<option value="">— keine —</option>' +
+        ugs.map(function (u) { return "<option" + (curUg === u ? " selected" : "") + ">" + esc(u) + "</option>"; }).join("") +
+      "</select></label>" +
+      '<button class="btn sm ghost" id="btn-add-ug" type="button" style="margin:-6px 0 14px">+ Untergruppe anlegen</button>';
     prod.fragen.forEach(function (q) {
       var cur = entwurf.config[q.key] != null ? entwurf.config[q.key] : (q.default != null ? q.default : "");
       if (q.typ === "select") {
@@ -547,7 +556,26 @@
       });
     }
 
+    $("#btn-add-ug").onclick = function () { untergruppeAnlegen(entwurf.produktKey); };
     $("#btn-berechnen").onclick = berechnen;
+  }
+
+  // Neue Untergruppe für ein Produkt anlegen
+  function untergruppeAnlegen(produktKey) {
+    var prod = Products.byKey(produktKey);
+    openModal("Untergruppe für " + esc(prod.name) + " anlegen",
+      fld2("Bezeichnung der Untergruppe", "ug-name", "", "text") +
+      '<p class="hint">Beispiel Zaun: „Doppelstabmattenzaun", „Maschendrahtzaun". Die Untergruppe erscheint in der Auswahl und auf dem Angebot.</p>', function () {
+      var name = $("#ug-name").value.trim();
+      if (!name) { toast("Bitte Bezeichnung angeben.", "err"); return false; }
+      db.untergruppen[produktKey] = db.untergruppen[produktKey] || [];
+      if (db.untergruppen[produktKey].indexOf(name) < 0) db.untergruppen[produktKey].push(name);
+      entwurf.config.untergruppe = name;
+      Store.save();
+      renderKonfigFelder();
+      toast("Untergruppe angelegt.");
+      return true;
+    });
   }
 
   function renderFreiePositionen() {
@@ -653,7 +681,9 @@
     if (c.stueck) details.push(c.stueck + " Stück");
     if (c.oberflaeche && c.oberflaeche !== "Roh") details.push("Oberfläche: " + c.oberflaeche);
     var leistung = ((pos.kalk && pos.kalk.matZeilen) || []).map(function (m) { return m.name + " (" + m.menge + " " + m.einheit + ")"; });
-    return { prod: Products.byKey(pos.produktKey), details: details, leistung: leistung };
+    var prod = Products.byKey(pos.produktKey);
+    var titel = c.untergruppe ? c.untergruppe : (prod ? prod.name : "Konstruktion");
+    return { prod: prod, titel: titel, details: details, leistung: leistung };
   }
 
   // ---- Angebot als druckbares Dokument (eine oder mehrere Positionen) ----
@@ -676,7 +706,7 @@
     var posHtml = positionen.map(function (p, i) {
       var b = positionsBeschreibung(p);
       var hatMontage = p.kalk.zeiten && p.kalk.zeiten.montage > 0;
-      return '<div class="pos"><div style="display:flex;justify-content:space-between"><b>Pos. ' + (i + 1) + " — " + esc(b.prod ? b.prod.name : "Konstruktion") +
+      return '<div class="pos"><div style="display:flex;justify-content:space-between"><b>Pos. ' + (i + 1) + " — " + esc(b.titel) +
         "</b><b>" + fmtEUR(p.kalk.netto) + "</b></div>" +
         (b.details.length ? '<div class="leist">' + esc(b.details.join(", ")) + "</div>" : "") +
         (b.leistung.length ? '<div class="leist">Leistungsumfang: ' + esc(b.leistung.join(", ")) + "</div>" : "") +
@@ -738,7 +768,8 @@
   // ---- Position aus dem aktuellen Entwurf erzeugen ----------
   function positionLabel(produktKey, c) {
     var prod = Products.byKey(produktKey);
-    return (prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") +
+    var basis = c.untergruppe ? c.untergruppe : prod.name;
+    return (basis + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") +
       (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "")).trim();
   }
   function aktuellePosition(kalk) {

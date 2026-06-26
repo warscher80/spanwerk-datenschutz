@@ -80,6 +80,8 @@
       settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
       material: mats,
       kunden: [],
+      // benutzerdefinierte Untergruppen je Produkt, z. B. { zaun: ["Doppelstabmattenzaun", ...] }
+      untergruppen: {},
       auftraege: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
@@ -115,6 +117,7 @@
         if (!_db.lernen) _db.lernen = { faktoren: {}, erkenntnisse: [] };
         if (!_db.material) _db.material = [];
         if (!_db.kunden) _db.kunden = [];
+        if (!_db.untergruppen) _db.untergruppen = {};
         if (!_db.auftraege) _db.auftraege = [];
         // Migration: Einzelpositions-Aufträge -> positionen-Array
         _db.auftraege.forEach(function (a) {
