@@ -76,6 +76,7 @@ a { color: var(--accent-2); }
 .nav .ico { font-size: 17px; width: 20px; text-align: center; }
 .sidebar-foot { margin-top: 24px; padding: 0 10px; font-size: 11px; color: var(--muted); }
 .sidebar-foot a { display: block; margin-top: 6px; }
+.app-version { font-weight: 700; color: var(--accent); margin-bottom: 8px; font-size: 12px; }
 
 /* ---------- Main ---------- */
 .main { padding: 26px 30px 60px; max-width: 1180px; }
