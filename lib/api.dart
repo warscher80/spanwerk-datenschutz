@@ -1,5 +1,6 @@
 // api.dart – Echte Fußballdaten von TheSportsDB (gratis Test-Key "123").
-// Deckt Deutschland, Österreich und England (jeweils 1. + 2. Liga) ab.
+// Deckt Deutschland, Österreich, England, Italien, Spanien und die WM ab.
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -200,7 +201,18 @@ class Api {
       } catch (_) {
         // Runde übersprungen
       }
-      await Future.delayed(const Duration(milliseconds: 90));
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
+    // Fallback: sollte die Erkennung leer bleiben (z. B. Drosselung), die
+    // Gruppen-Spieltage 1–3 direkt erzwingen, damit Turniere nie leer wirken.
+    if (stages.isEmpty) {
+      for (final c in const [1, 2, 3]) {
+        try {
+          final ms = await round(leagueId, season, c);
+          if (ms.isNotEmpty) stages.add(CupStage(c, ms.length));
+        } catch (_) {}
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
     }
     return stages;
   }
@@ -226,13 +238,7 @@ class Api {
 
   static Future<List<FootyMatch>> _events(String path) async {
     try {
-      final res = await http
-          .get(Uri.parse('$_base/$path'))
-          .timeout(const Duration(seconds: 12));
-      if (res.statusCode != 200) return const [];
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      final events = (body['events'] as List?) ?? const [];
-      return events.cast<Map<String, dynamic>>().map(FootyMatch.fromJson).toList();
+      return _parseEvents(await _getJson(path, retries: 2));
     } catch (_) {
       return const [];
     }
@@ -261,24 +267,43 @@ class Api {
     return list;
   }
 
-  /// Alle Spiele eines Spieltags einer Liga.
-  static Future<List<FootyMatch>> round(String leagueId, String season, int round) async {
-    final uri = Uri.parse('$_base/eventsround.php?id=$leagueId&r=$round&s=$season');
-    final res = await http.get(uri).timeout(const Duration(seconds: 15));
-    if (res.statusCode != 200) {
-      throw Exception('Server antwortet mit ${res.statusCode}');
+  /// Robuster GET mit Wiederholungen/Backoff. Wichtig am Gratis-Limit (429)
+  /// und im mobilen Netz – sonst bleibt die Liste bei einem Aussetzer leer.
+  static Future<Map<String, dynamic>> _getJson(String path,
+      {int retries = 4}) async {
+    final uri = Uri.parse('$_base/$path');
+    for (var a = 0; a < retries; a++) {
+      try {
+        final res = await http.get(uri).timeout(const Duration(seconds: 15));
+        if (res.statusCode == 200) {
+          return jsonDecode(res.body) as Map<String, dynamic>;
+        }
+        if (res.statusCode == 429 || res.statusCode >= 500) {
+          await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
+          continue;
+        }
+        throw Exception('Server ${res.statusCode}');
+      } on TimeoutException {
+        await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
+      }
     }
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    throw Exception('Keine Antwort vom Server');
+  }
+
+  static List<FootyMatch> _parseEvents(Map<String, dynamic> body) {
     final events = (body['events'] as List?) ?? const [];
-    final matches = events
-        .cast<Map<String, dynamic>>()
-        .map(FootyMatch.fromJson)
-        .toList();
+    final matches =
+        events.cast<Map<String, dynamic>>().map(FootyMatch.fromJson).toList();
     matches.sort((a, b) {
       final ka = a.kickoff, kb = b.kickoff;
       if (ka == null || kb == null) return 0;
       return ka.compareTo(kb);
     });
     return matches;
+  }
+
+  /// Alle Spiele eines Spieltags einer Liga.
+  static Future<List<FootyMatch>> round(String leagueId, String season, int round) async {
+    return _parseEvents(await _getJson('eventsround.php?id=$leagueId&r=$round&s=$season'));
   }
 }
