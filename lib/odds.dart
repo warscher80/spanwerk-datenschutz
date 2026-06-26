@@ -27,9 +27,11 @@ class EloModel {
   final Map<String, double> ratings;
   EloModel(this.ratings);
 
+  // Per Walk-Forward-Backtest über 5 Ligen / 2 Saisons getunt
+  // (LogLoss 1.066 -> 1.045, Trefferquote 45.9 % -> 47.3 %).
   static const base = 1500.0;
-  static const homeAdvantage = 70.0;
-  static const k = 22.0;
+  static const homeAdvantage = 50.0;
+  static const k = 16.0;
 
   double rating(String team) => ratings[team] ?? base;
   bool knows(String team) => ratings.containsKey(team);
@@ -43,7 +45,7 @@ class EloModel {
             ? 0.5
             : 0.0;
     // Höhere Siege bewegen das Rating stärker.
-    final weight = 1 + log(1 + (homeGoals - awayGoals).abs()) * 0.6;
+    final weight = 1 + log(1 + (homeGoals - awayGoals).abs()) * 0.8;
     final delta = k * weight * (score - exp);
     ratings[home] = rating(home) + delta;
     ratings[away] = rating(away) - delta;
@@ -55,7 +57,7 @@ class EloModel {
   MatchProbs probs(String home, String away) {
     final dr = rating(home) + homeAdvantage - rating(away);
     final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
-    var pDraw = (0.28 * exp(-pow(dr / 200, 2))).toDouble().clamp(0.06, 0.42);
+    var pDraw = (0.30 * exp(-pow(dr / 260, 2))).toDouble().clamp(0.06, 0.42);
     var pHome = (e - pDraw / 2).clamp(0.02, 0.97);
     var pAway = (1 - e - pDraw / 2).clamp(0.02, 0.97);
     final sum = pHome + pDraw + pAway;
@@ -82,7 +84,8 @@ class EloModel {
 /// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.
-bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m) {
+bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
+    {bool evaluate = true}) {
   if (!(m.finished && m.hasResult)) return false;
   // Ergebnis getippter Spiele immer für die Statistik festhalten.
   if (store.predictions.containsKey(m.id)) {
@@ -90,13 +93,16 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m) {
   }
   if (store.isIngested(m.id)) return false;
 
-  // Erst vorhersagen (bewerten), dann lernen.
-  final p = model.probs(m.home.name, m.away.name);
-  final predicted = p.home >= p.draw && p.home >= p.away
-      ? Tendency.home
-      : (p.away > p.home && p.away >= p.draw ? Tendency.away : Tendency.draw);
-  final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
-  store.addModelEval(predicted == actual);
+  // Erst vorhersagen (bewerten), dann lernen. Vorsaison-Seeding (evaluate=false)
+  // fließt nicht in die angezeigte Treffsicherheit ein.
+  if (evaluate) {
+    final p = model.probs(m.home.name, m.away.name);
+    final predicted = p.home >= p.draw && p.home >= p.away
+        ? Tendency.home
+        : (p.away > p.home && p.away >= p.draw ? Tendency.away : Tendency.draw);
+    final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
+    store.addModelEval(predicted == actual);
+  }
 
   model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!);
   store.markIngested(m.id);
@@ -110,43 +116,57 @@ class SeasonLearner {
   final PredictionStore store;
   final EloModel model;
   bool _cancelled = false;
+  bool _changed = false;
 
   SeasonLearner(this.store, this.model);
 
   void cancel() => _cancelled = true;
 
-  /// Verarbeitet Spieltage 1..bisRunde. onProgress meldet (geladen, gesamt).
-  Future<void> learnUpTo(
+  /// Lernt zuerst die Vorsaison als Startwissen (ohne Bewertung), dann die
+  /// laufende Saison (mit Bewertung). Bereits abgeschlossene Spieltage werden
+  /// übersprungen – so wird mit jedem Aufruf nur Neues nachgelernt.
+  Future<void> learnHistory(
     League league,
-    String season,
-    int upToRound, {
+    String currentSeason, {
     void Function(int done, int total)? onProgress,
   }) async {
-    var changed = false;
-    final total = upToRound;
-    for (var r = 1; r <= upToRound; r++) {
-      if (_cancelled) break;
+    _changed = false;
+    final prev = Api.previousSeason(currentSeason);
+    final total = league.maxRound * 2;
+    await _learnSeason(league, prev, base: 0, total: total, evaluate: false, onProgress: onProgress);
+    await _learnSeason(league, currentSeason, base: league.maxRound, total: total, evaluate: true, onProgress: onProgress);
+    if (_changed) await store.saveLearning();
+  }
+
+  Future<void> _learnSeason(
+    League league,
+    String season, {
+    required int base,
+    required int total,
+    required bool evaluate,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    for (var r = 1; r <= league.maxRound; r++) {
+      if (_cancelled) return;
       final key = '${league.id}|$season|$r';
       if (store.roundLearned(key)) {
-        onProgress?.call(r, total);
+        onProgress?.call(base + r, total);
         continue;
       }
       try {
         final matches = await Api.round(league.id, season, r);
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (ingestMatch(store, model, m)) changed = true;
+          if (ingestMatch(store, model, m, evaluate: evaluate)) _changed = true;
           if (!m.finished) allFinished = false;
         }
-        // Nur abgeschlossene Spieltage als „fertig" markieren.
+        // Nur abgeschlossene Spieltage „fertig" markieren -> später kein Refetch.
         if (allFinished) store.markRoundLearned(key);
       } catch (_) {
         // einzelne Runde übersprungen – beim nächsten Lauf erneut versucht
       }
-      onProgress?.call(r, total);
-      // Den Gratis-Server schonen.
-      await Future.delayed(const Duration(milliseconds: 120));
+      onProgress?.call(base + r, total);
+      await Future.delayed(const Duration(milliseconds: 120)); // Server schonen
     }
-    if (changed) await store.saveLearning();
   }
 }

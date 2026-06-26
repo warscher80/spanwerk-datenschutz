@@ -118,6 +118,12 @@ class Api {
     return '$start-${start + 1}';
   }
 
+  /// Vorherige Saison, z. B. "2025-2026" -> "2024-2025".
+  static String previousSeason(String season) {
+    final start = int.tryParse(season.split('-').first) ?? 0;
+    return '${start - 1}-$start';
+  }
+
   /// Nächster anstehender Spieltag (für „immer aktueller Stand"); null außerhalb der Saison.
   static Future<int?> nextRound(String leagueId) async {
     try {

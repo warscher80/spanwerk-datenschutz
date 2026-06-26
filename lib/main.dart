@@ -80,8 +80,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Beim Zurückkehren in die App sofort aktualisieren.
-    if (state == AppLifecycleState.resumed) _loadDay(silent: true);
+    // Beim Zurückkehren in die App aktualisieren und neue Ergebnisse nachlernen.
+    if (state == AppLifecycleState.resumed) {
+      _loadDay(silent: true);
+      _startLearning();
+    }
   }
 
   Future<void> _boot() async {
@@ -118,13 +121,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Hintergrund-Lernen: vergangene Spieltage einspeisen, Quoten verfeinern.
+  /// Hintergrund-Lernen: Vorsaison als Startwissen + laufende Saison einspeisen,
+  /// Quoten verfeinern. Wird auch beim Zurückkehren in die App erneut angestoßen,
+  /// damit neue Ergebnisse nachgelernt werden – die App wird so immer besser.
   void _startLearning() {
     _learner?.cancel();
     final learner = SeasonLearner(_store, _elo);
     _learner = learner;
-    learner.learnUpTo(
-      _league, _season, _league.maxRound,
+    learner.learnHistory(
+      _league, _season,
       onProgress: (done, total) {
         if (!mounted || _learner != learner) return;
         final pct = ((done / total) * 100).round();
@@ -274,7 +279,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_learnStatus != null) {
       left = '🧠 $_learnStatus';
     } else {
-      left = '${_store.teamsLearned} Teams gelernt';
+      final acc = _store.modelTotal == 0
+          ? ''
+          : ' · Modell ${(_store.modelHits / _store.modelTotal * 100).round()} %';
+      left = '${_store.teamsLearned} Teams gelernt$acc';
     }
     final u = _updatedAt;
     final right = u == null

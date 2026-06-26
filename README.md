@@ -28,14 +28,29 @@ bleibt automatisch am neuesten Stand. **Kein Echtgeld, kein Konto, keine Werbung
 - Alles **nur lokal** gespeichert (kein Server, kein Tracking)
 
 ## Wie die Quoten „dazulernen"
-1. Beim Öffnen einer Liga lädt die App im Hintergrund die bisherigen Spieltage.
+1. Beim Öffnen einer Liga lädt die App im Hintergrund zuerst die **Vorsaison als
+   Startwissen**, dann die laufende Saison.
 2. Vor dem Lernen sagt das Modell jedes Spiel voraus (für die Treffsicherheit),
    danach aktualisiert das echte Ergebnis die Elo-Ratings beider Teams
    (Heimvorteil + Gewichtung nach Tordifferenz).
 3. Aus dem Rating-Unterschied entstehen Sieg-/Remis-/Niederlage-Wahrscheinlichkeiten
    und daraus faire Quoten (inkl. kleiner Marge).
-4. Ratings, verarbeitete Spiele und Ergebnisse werden lokal gespeichert – die App
-   „vergisst" nicht und wird mit der Zeit treffsicherer.
+4. Ratings, verarbeitete Spiele und Ergebnisse werden lokal gespeichert. Bei jedem
+   Start und bei jeder Rückkehr in die App werden **neue Ergebnisse nachgelernt** –
+   abgeschlossene Spieltage werden dabei nicht erneut geladen.
+
+### Genauigkeit (datenbasiert getunt)
+Die Modell-Parameter wurden per **Walk-Forward-Backtest** über 5 Ligen und 2 Saisons
+(echte Ergebnisse, nur Vergangenheit → Vorhersage → dann lernen) optimiert:
+
+| Modell | Trefferquote (1/X/2) | LogLoss |
+|--------|----------------------|---------|
+| vorher (ungetunt) | 45,9 % | 1,066 |
+| **jetzt (getunt + Vorsaison-Seed)** | **47,3 %** | **1,045** |
+
+Poisson-/Dixon-Coles- und Blend-Modelle wurden gegengetestet, brachten aber keinen
+Mehrwert gegenüber dem getunten Elo-Modell. Die angezeigte **Modell-Treffsicherheit**
+in „Meine Saison" misst nur Vorhersagen der laufenden Saison.
 
 ## Projektaufbau (Flutter)
 ```
