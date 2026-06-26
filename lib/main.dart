@@ -1,11 +1,13 @@
-// main.dart – Footy Predict: echte Spiele tippen, Punkte sammeln (kein Echtgeld).
+// main.dart – KickProphet: echte Spiele tippen, Punkte sammeln (kein Echtgeld).
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
 import 'engine.dart';
 import 'odds.dart';
 import 'store.dart';
+import 'update.dart';
 
 void main() => runApp(const FootyApp());
 
@@ -57,6 +59,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   DateTime? _updatedAt;
   String? _learnStatus; // z.B. "lernt … 60 %"
   Timer? _autoTimer;
+  UpdateInfo? _update; // gesetzt, wenn eine neuere App-Version verfügbar ist
 
   // _leagueIdx == -1 -> „Aktuell" (ligaübergreifend aktuelle/anstehende Spiele).
   bool get _currentMode => _leagueIdx < 0;
@@ -87,6 +90,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _loadDay(silent: true);
     });
     _boot();
+    // Im Hintergrund auf eine neuere App-Version prüfen.
+    checkForUpdate().then((u) {
+      if (mounted && u != null) setState(() => _update = u);
+    });
   }
 
   @override
@@ -315,6 +322,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       body: Column(
         children: [
+          if (_update != null) _updateBanner(_update!),
           _controls(),
           const _PlayMoneyBanner(),
           _statusBar(),
@@ -322,6 +330,61 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Widget _updateBanner(UpdateInfo u) {
+    return Material(
+      color: _accent,
+      child: InkWell(
+        onTap: () => _downloadUpdate(u),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.system_update, color: _green, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Update verfügbar: v${u.versionName}',
+                        style: const TextStyle(color: _green, fontWeight: FontWeight.w800, fontSize: 13)),
+                    if (u.notes.isNotEmpty)
+                      Text(u.notes,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: _green, fontSize: 11)),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => _downloadUpdate(u),
+                style: TextButton.styleFrom(
+                  backgroundColor: _green,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                ),
+                child: const Text('Laden', style: TextStyle(color: _accent, fontWeight: FontWeight.w800)),
+              ),
+              IconButton(
+                onPressed: () => setState(() => _update = null),
+                icon: const Icon(Icons.close, color: _green, size: 18),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadUpdate(UpdateInfo u) async {
+    final uri = Uri.tryParse(u.url);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Konnte den Download nicht öffnen.'),
+      ));
+    }
   }
 
   Widget _statusBar() {
