@@ -116,6 +116,17 @@
         if (!_db.material) _db.material = [];
         if (!_db.kunden) _db.kunden = [];
         if (!_db.auftraege) _db.auftraege = [];
+        // Migration: Einzelpositions-Aufträge -> positionen-Array
+        _db.auftraege.forEach(function (a) {
+          if (!a.positionen) {
+            a.positionen = [{
+              produktKey: a.produktKey, config: a.config,
+              freiePositionen: a.freiePositionen, manuelleZeiten: a.manuelleZeiten,
+              kalk: a.kalk, ist: a.ist || null,
+              label: null
+            }];
+          }
+        });
         return _db;
       }
     } catch (e) { console.warn("Konnte Daten nicht laden:", e); }

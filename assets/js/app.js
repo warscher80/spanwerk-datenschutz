@@ -21,6 +21,9 @@
     letzteKalk: null
   };
 
+  // gesammelte Positionen für ein Angebot mit mehreren Positionen
+  var sammlung = [];
+
   // ---------- Hilfen ----------
   function $(sel, root) { return (root || d).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || d).querySelectorAll(sel)); }
@@ -460,11 +463,13 @@
     }).join("") + "</div>";
 
     root.innerHTML =
+      '<div id="sammlung-panel"></div>' +
       tabs +
       '<div class="grid cols-2">' +
         '<div class="card"><h3>1 · Konfiguration</h3><div id="konfig-felder"></div></div>' +
         '<div class="card"><h3>2 · Kalkulation</h3><div id="kalk-ergebnis"><div class="empty">Konfiguration ausfüllen und „Berechnen“ klicken.</div></div></div>' +
       "</div>";
+    renderSammlung();
 
     $all("[data-prod]").forEach(function (b) {
       b.onclick = function () {
@@ -616,13 +621,16 @@
 
     html += '<div class="btn-row" style="margin-top:14px">' +
       '<button class="btn primary" id="btn-angebot" type="button">📄 Als Angebot speichern</button>' +
-      '<button class="btn" id="btn-drucken" type="button">🖨️ Angebot drucken / PDF</button>' +
-      '<button class="btn" id="btn-angebotstext" type="button">📝 Angebotstext</button>' +
-      "</div>";
+      '<button class="btn" id="btn-add-position" type="button">➕ Position sammeln</button>' +
+      '<button class="btn" id="btn-drucken" type="button">🖨️ Drucken / PDF</button>' +
+      '<button class="btn" id="btn-angebotstext" type="button">📝 Text</button>' +
+      "</div>" +
+      '<p class="hint">„Position sammeln" fügt diese Position einem Angebot mit mehreren Positionen hinzu.</p>';
 
     root.innerHTML = html;
     $("#btn-angebot").onclick = function () { speichereAngebot(kalk); };
-    $("#btn-drucken").onclick = function () { angebotDrucken(entwurf, kalk, null); };
+    $("#btn-add-position").onclick = function () { positionHinzufuegen(kalk); };
+    $("#btn-drucken").onclick = function () { angebotDrucken([aktuellePosition(kalk)], null); };
     $("#btn-angebotstext").onclick = function () {
       var txt = Calc.angebotstext(Object.assign({ mwst: db.settings.mwst + " %" }, entwurf), kalk);
       openModal("Angebotstext", '<textarea style="min-height:320px">' + esc(txt) + "</textarea>" +
@@ -630,21 +638,9 @@
     };
   }
 
-  // ---- Angebot als druckbares Dokument (PDF über Drucken) ----
-  function angebotDrucken(eingabe, kalk, auftrag) {
-    var s = db.settings, f = s.firma || {};
-    var prod = Products.byKey(eingabe.produktKey);
-    var c = eingabe.config || {};
-    var nummer = auftrag && auftrag.nummer ? auftrag.nummer : "Vorschau";
-    var heute = new Date();
-    var gueltig = new Date(heute.getTime() + 30 * 864e5);
-    var titel = auftrag ? auftrag.titel : (prod ? prod.name : "Angebot");
-    var kunde = auftrag && auftrag.kunde ? auftrag.kunde : null;
-    var anrede = (kunde && kunde.ansprechpartner)
-      ? "Sehr geehrte/r " + kunde.ansprechpartner + ","
-      : "Sehr geehrte Damen und Herren,";
-
-    // Leistungsbeschreibung aus Konfiguration
+  // ---- Leistungsbeschreibung einer Position (für PDF) -------
+  function positionsBeschreibung(pos) {
+    var c = pos.config || {};
     var details = [];
     if (c.werkstoff) details.push(c.werkstoff);
     if (c.profil) details.push(c.profil);
@@ -656,16 +652,36 @@
     if (c.gewicht) details.push("ca. " + c.gewicht + " kg");
     if (c.stueck) details.push(c.stueck + " Stück");
     if (c.oberflaeche && c.oberflaeche !== "Roh") details.push("Oberfläche: " + c.oberflaeche);
+    var leistung = ((pos.kalk && pos.kalk.matZeilen) || []).map(function (m) { return m.name + " (" + m.menge + " " + m.einheit + ")"; });
+    return { prod: Products.byKey(pos.produktKey), details: details, leistung: leistung };
+  }
 
-    // Materialliste als Leistungsumfang (ohne Preise – Pauschalangebot)
-    var leistung = kalk.matZeilen.map(function (m) { return m.name + " (" + m.menge + " " + m.einheit + ")"; });
+  // ---- Angebot als druckbares Dokument (eine oder mehrere Positionen) ----
+  function angebotDrucken(positionen, auftrag) {
+    var s = db.settings, f = s.firma || {};
+    var nummer = auftrag && auftrag.nummer ? auftrag.nummer : "Vorschau";
+    var heute = new Date();
+    var gueltig = new Date(heute.getTime() + 30 * 864e5);
+    var kunde = auftrag && auftrag.kunde ? auftrag.kunde : null;
+    var anrede = (kunde && kunde.ansprechpartner) ? "Sehr geehrte/r " + kunde.ansprechpartner + "," : "Sehr geehrte Damen und Herren,";
+    var gesamt = Calc.aggregiere(positionen.map(function (p) { return p.kalk; }));
+    var mehrere = positionen.length > 1;
 
     function row(l, v, strong) {
       return '<tr class="' + (strong ? "strong" : "") + '"><td>' + esc(l) + '</td><td class="r">' + esc(v) + "</td></tr>";
     }
-
     var firmaKopf = esc(f.name || "Preisschmiede");
     var absender = [f.inhaber, f.strasse, f.plzOrt, f.tel, f.email].filter(Boolean).map(esc).join(" · ");
+
+    var posHtml = positionen.map(function (p, i) {
+      var b = positionsBeschreibung(p);
+      var hatMontage = p.kalk.zeiten && p.kalk.zeiten.montage > 0;
+      return '<div class="pos"><div style="display:flex;justify-content:space-between"><b>Pos. ' + (i + 1) + " — " + esc(b.prod ? b.prod.name : "Konstruktion") +
+        "</b><b>" + fmtEUR(p.kalk.netto) + "</b></div>" +
+        (b.details.length ? '<div class="leist">' + esc(b.details.join(", ")) + "</div>" : "") +
+        (b.leistung.length ? '<div class="leist">Leistungsumfang: ' + esc(b.leistung.join(", ")) + "</div>" : "") +
+        '<div class="leist">inkl. Material, Fertigung' + (hatMontage ? ", Lieferung und Montage" : " und Lieferung") + "</div></div>";
+    }).join("");
 
     var doc =
       '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Angebot ' + esc(nummer) + '</title><style>' +
@@ -676,8 +692,7 @@
       '.absender{font-size:10px;color:#667;margin-bottom:8px}' +
       '.empfaenger{margin:18px 0 26px;font-size:13px;line-height:1.5}' +
       'h1{font-size:18px;margin:18px 0 4px}.meta{color:#667;margin-bottom:18px}' +
-      '.pos{margin:14px 0;padding:12px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd}' +
-      '.pos b{font-size:13px}.leist{color:#445;margin-top:6px;font-size:11px}' +
+      '.pos{margin:10px 0;padding:10px 0;border-top:1px solid #ddd}.pos b{font-size:13px}.leist{color:#445;margin-top:5px;font-size:11px}' +
       'table{width:100%;border-collapse:collapse;margin-top:14px}td{padding:5px 0}td.r{text-align:right;font-variant-numeric:tabular-nums}' +
       'tr.strong td{font-weight:700;font-size:14px;border-top:2px solid #1a2330;padding-top:8px}' +
       '.text{margin-top:20px;white-space:pre-line}.foot{margin-top:30px;font-size:10px;color:#889;border-top:1px solid #ddd;padding-top:8px}' +
@@ -700,14 +715,11 @@
         (auftrag ? ' &nbsp;·&nbsp; Betreff: ' + esc(auftrag.titel) : "") +
         (auftrag && auftrag.kommission ? ' &nbsp;·&nbsp; Kommission: ' + esc(auftrag.kommission) : "") + '</div>' +
       '<p>' + anrede + '<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
-      '<div class="pos"><b>Pos. 1 — ' + esc(prod ? prod.name : "Konstruktion") + '</b>' +
-        (details.length ? '<div class="leist">' + esc(details.join(", ")) + "</div>" : "") +
-        (leistung.length ? '<div class="leist">Leistungsumfang: ' + esc(leistung.join(", ")) + "</div>" : "") +
-        '<div class="leist">inkl. Material, Fertigung' + (kalk.zeiten.montage > 0 ? ", Lieferung und Montage" : " und Lieferung") + " — Arbeitszeit ca. " + fmtH(kalk.stundenGesamt) + "</div></div>" +
+      posHtml +
       '<table>' +
-        row("Gesamtpreis netto", fmtEUR(kalk.netto)) +
-        row("zzgl. " + s.mwst + " % USt", fmtEUR(kalk.mwst)) +
-        row("Gesamtpreis brutto", fmtEUR(kalk.brutto), true) +
+        row(mehrere ? "Summe netto" : "Gesamtpreis netto", fmtEUR(gesamt.netto)) +
+        row("zzgl. " + s.mwst + " % USt", fmtEUR(gesamt.mwst)) +
+        row("Gesamtpreis brutto", fmtEUR(gesamt.brutto), true) +
       "</table>" +
       '<div class="text">Lieferzeit nach Vereinbarung. Dieses Angebot ist 30 Tage gültig.\nWir freuen uns auf Ihren Auftrag.\n\nMit freundlichen Grüßen\n' + esc(f.inhaber || f.name || "") + "</div>" +
       '<div class="foot">' + firmaKopf + (f.email ? " · " + esc(f.email) : "") +
@@ -723,41 +735,88 @@
     return '<div class="result-line ' + (cls || "") + '"><span>' + esc(label) + '</span><span class="v">' + esc(val) + "</span></div>";
   }
 
+  // ---- Position aus dem aktuellen Entwurf erzeugen ----------
+  function positionLabel(produktKey, c) {
+    var prod = Products.byKey(produktKey);
+    return (prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") +
+      (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "")).trim();
+  }
+  function aktuellePosition(kalk) {
+    return {
+      produktKey: entwurf.produktKey,
+      config: JSON.parse(JSON.stringify(entwurf.config)),
+      freiePositionen: JSON.parse(JSON.stringify(entwurf.freiePositionen)),
+      manuelleZeiten: JSON.parse(JSON.stringify(entwurf.manuelleZeiten)),
+      kalk: kalk,
+      label: positionLabel(entwurf.produktKey, entwurf.config),
+      ist: null
+    };
+  }
+
+  // ---- Positionssammlung (Angebot mit mehreren Positionen) ----
+  function positionHinzufuegen(kalk) {
+    sammlung.push(aktuellePosition(kalk));
+    toast("Position hinzugefügt (" + sammlung.length + " gesamt).");
+    renderSammlung();
+  }
+  function renderSammlung() {
+    var wrap = $("#sammlung-panel");
+    if (!wrap) return;
+    if (!sammlung.length) { wrap.innerHTML = ""; return; }
+    var gesamt = Calc.aggregiere(sammlung.map(function (p) { return p.kalk; }));
+    var html = '<div class="card" style="border-left:3px solid var(--accent);margin-bottom:16px"><h3>🧾 Angebot mit ' + sammlung.length + ' Position' + (sammlung.length > 1 ? "en" : "") + "</h3>";
+    html += '<div class="table-wrap"><table><tbody>';
+    sammlung.forEach(function (p, i) {
+      html += "<tr><td>" + (i + 1) + ". " + esc(p.label) + '</td><td class="num">' + fmtEUR(p.kalk.netto) +
+        '</td><td class="num"><button class="btn sm danger" data-samdel="' + i + '" type="button">✕</button></td></tr>';
+    });
+    html += '<tr><td><strong>Summe netto</strong></td><td class="num"><strong>' + fmtEUR(gesamt.netto) + '</strong></td><td></td></tr>';
+    html += "</tbody></table></div>";
+    html += '<div class="btn-row" style="margin-top:10px">' +
+      '<button class="btn primary" id="btn-save-sammlung" type="button">📄 Angebot speichern (' + sammlung.length + " Pos.)</button>" +
+      '<button class="btn" id="btn-print-sammlung" type="button">🖨️ Vorschau drucken</button>' +
+      '<button class="btn ghost" id="btn-clear-sammlung" type="button">Verwerfen</button></div></div>';
+    wrap.innerHTML = html;
+    $all("[data-samdel]", wrap).forEach(function (b) { b.onclick = function () { sammlung.splice(+b.dataset.samdel, 1); renderSammlung(); }; });
+    $("#btn-save-sammlung").onclick = function () { speichereAuftrag(sammlung.slice()); };
+    $("#btn-print-sammlung").onclick = function () { angebotDrucken(sammlung, null); };
+    $("#btn-clear-sammlung").onclick = function () { if (confirm("Alle gesammelten Positionen verwerfen?")) { sammlung = []; renderSammlung(); } };
+  }
+
+  // ---- Angebot speichern (eine Einzelposition) --------------
   function speichereAngebot(kalk) {
-    var prod = Products.byKey(entwurf.produktKey);
-    var c = entwurf.config;
-    var titelvorschlag = prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") + (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "");
+    speichereAuftrag([aktuellePosition(kalk)]);
+  }
+
+  // ---- Auftrag mit beliebig vielen Positionen speichern -----
+  function speichereAuftrag(positionen) {
+    if (!positionen.length) return;
+    var titelvorschlag = positionen.length === 1 ? positionen[0].label : positionen.length + " Positionen";
     var kundenOpt = '<option value="">— kein Kunde —</option>' + (db.kunden || []).map(function (k) {
       return '<option value="' + k.id + '">' + esc(k.name) + (k.plzOrt ? ", " + esc(k.plzOrt) : "") + "</option>";
     }).join("");
     openModal("Angebot speichern",
-      fld2("Bezeichnung / Projekt", "a-titel", titelvorschlag.trim(), "text") +
+      fld2("Bezeichnung / Projekt", "a-titel", titelvorschlag, "text") +
       '<label class="fld"><span class="lbl">Kunde (Empfänger auf dem Angebot)</span><select id="a-kunde">' + kundenOpt + "</select></label>" +
       fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", "", "text") +
-      '<p class="hint">Kunden legst du in den Stammdaten an. Die Kommission erscheint in der Übersicht und auf dem Angebot.</p>', function () {
-      var titel = $("#a-titel").value.trim() || titelvorschlag.trim() || "Angebot";
+      '<p class="hint">' + positionen.length + ' Position' + (positionen.length > 1 ? "en" : "") + '. Kunden legst du in den Stammdaten an.</p>', function () {
+      var titel = $("#a-titel").value.trim() || titelvorschlag || "Angebot";
       var jahr = new Date().getFullYear();
       var nummer = "ANG-" + jahr + "-" + String(db.settings.angebotZaehler || 1).padStart(3, "0");
       db.settings.angebotZaehler = (db.settings.angebotZaehler || 1) + 1;
       var kundeId = $("#a-kunde").value;
       var kunde = kundeId ? (db.kunden || []).filter(function (k) { return k.id === kundeId; })[0] : null;
       var auftrag = {
-        id: Store.uid(),
-        nummer: nummer,
-        titel: titel,
+        id: Store.uid(), nummer: nummer, titel: titel,
         kunde: kunde ? JSON.parse(JSON.stringify(kunde)) : null,
         kommission: $("#a-kommission").value.trim(),
-        produktKey: entwurf.produktKey,
-        config: JSON.parse(JSON.stringify(entwurf.config)),
-        freiePositionen: JSON.parse(JSON.stringify(entwurf.freiePositionen)),
-        manuelleZeiten: JSON.parse(JSON.stringify(entwurf.manuelleZeiten)),
-        kalk: kalk,
-        status: "Angebot",
-        erstellt: Store.nowISO(),
-        ist: null
+        positionen: JSON.parse(JSON.stringify(positionen)),
+        kalk: Calc.aggregiere(positionen.map(function (p) { return p.kalk; })),
+        status: "Angebot", erstellt: Store.nowISO()
       };
       db.auftraege.push(auftrag);
       Store.save();
+      sammlung = [];
       toast("Angebot gespeichert.");
       navTo("auftraege");
       return true;
@@ -776,14 +835,13 @@
     var html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
       '<th>Bezeichnung</th><th>Kommission</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th></tr></thead><tbody>';
     db.auftraege.slice().reverse().forEach(function (a) {
-      var prod = Products.byKey(a.produktKey);
       var si = Calc.sollIst(a);
       var siTxt = si ? (si.abwProz > 0 ? "+" : "") + si.abwProz + " %" : "—";
       html += "<tr>" +
         "<td><strong>" + esc(a.titel) + "</strong>" + (a.kunde && a.kunde.name ? ' <span class="muted">· ' + esc(a.kunde.name) + "</span>" : "") +
           '<br><span class="muted" style="font-size:11px">' + (a.nummer ? esc(a.nummer) + " · " : "") + fmtDate(a.erstellt) + "</span></td>" +
         "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : '<span class="muted">—</span>') + "</td>" +
-        "<td>" + (prod ? prod.icon + " " + esc(prod.name) : "-") + "</td>" +
+        "<td>" + auftragProduktLabel(a) + "</td>" +
         "<td>" + statusBadge(a.status) + "</td>" +
         '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
         '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td>" +
@@ -795,13 +853,30 @@
     $all("[data-auf]").forEach(function (b) { b.onclick = function () { auftragModal(b.dataset.auf); }; });
   }
 
+  // Positionen eines Auftrags (setzt a.positionen bei Altdaten)
+  function auftragPositionen(a) {
+    if (!a.positionen || !a.positionen.length) {
+      a.positionen = [{
+        produktKey: a.produktKey, config: a.config, freiePositionen: a.freiePositionen,
+        manuelleZeiten: a.manuelleZeiten, kalk: a.kalk, ist: a.ist || null, label: a.titel
+      }];
+    }
+    return a.positionen;
+  }
+  function auftragProduktLabel(a) {
+    var pos = auftragPositionen(a);
+    if (pos.length > 1) return "🧾 " + pos.length + " Positionen";
+    var prod = Products.byKey(pos[0].produktKey);
+    return prod ? prod.icon + " " + esc(prod.name) : "-";
+  }
+
   function auftragModal(id) {
     var a = db.auftraege.find(function (x) { return x.id === id; });
     if (!a) return;
-    var prod = Products.byKey(a.produktKey);
+    var positionen = auftragPositionen(a);
     var si = Calc.sollIst(a);
 
-    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) +
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + auftragProduktLabel(a) + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) +
       (a.kunde && a.kunde.name ? '<br>👤 Kunde: <strong>' + esc(a.kunde.name) + "</strong>" : "") + "</div>";
     body += '<div class="btn-row" style="margin-bottom:12px"><button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot drucken / PDF</button></div>';
 
@@ -813,24 +888,30 @@
       "</select></label>" +
       "</div>";
 
-    // Kalkulationsübersicht
+    // Kalkulationsübersicht (Gesamt)
     body += '<div class="card" style="background:var(--panel-2);margin-bottom:12px">' +
       line("Verkaufspreis netto", fmtEUR(a.kalk.netto)) +
       line("Deckungsbeitrag", fmtEUR(a.kalk.deckungsbeitrag) + " (" + a.kalk.deckungsbeitragProz + " %)", "sub") +
       line("Soll-Stunden gesamt", fmtH(a.kalk.stundenGesamt), "sub") + "</div>";
 
-    // Nachkalkulation – Ist-Zeiten erfassen
+    // Nachkalkulation – Ist-Zeiten erfassen (je Position)
     body += '<div class="lbl" style="margin-bottom:8px">Nachkalkulation · Ist-Zeiten erfassen (h)</div>';
-    body += '<div class="table-wrap"><table><thead><tr><th>Schritt</th><th class="num">Soll</th><th class="num">Ist</th></tr></thead><tbody>';
-    SCHRITTE.forEach(function (s) {
-      var soll = a.kalk.zeiten[s.key] || 0;
-      if (soll <= 0 && !(a.ist && a.ist.zeiten && a.ist.zeiten[s.key])) return;
-      var ist = a.ist && a.ist.zeiten ? (a.ist.zeiten[s.key] || "") : "";
-      body += "<tr><td>" + esc(s.label) + '</td><td class="num muted">' + (soll ? fmtH(soll) : "—") +
-        '</td><td class="num"><input type="number" step="any" data-ist="' + s.key + '" value="' + esc(ist) + '" placeholder="' + (soll || 0) + '" style="width:90px;text-align:right"></td></tr>';
+    positionen.forEach(function (p, pi) {
+      if (positionen.length > 1) {
+        body += '<div style="font-weight:700;color:var(--accent);font-size:13px;margin:12px 0 6px">' + (pi + 1) + ". " + esc(p.label || (Products.byKey(p.produktKey) || {}).name || "Position") + "</div>";
+      }
+      var zeiten = (p.kalk && p.kalk.zeiten) || {};
+      body += '<div class="table-wrap"><table><thead><tr><th>Schritt</th><th class="num">Soll</th><th class="num">Ist</th></tr></thead><tbody>';
+      SCHRITTE.forEach(function (s) {
+        var soll = zeiten[s.key] || 0;
+        var istV = p.ist && p.ist.zeiten ? (p.ist.zeiten[s.key] || "") : "";
+        if (soll <= 0 && istV === "") return;
+        body += "<tr><td>" + esc(s.label) + '</td><td class="num muted">' + (soll ? fmtH(soll) : "—") +
+          '</td><td class="num"><input type="number" step="any" data-ist="' + pi + ":" + s.key + '" value="' + esc(istV) + '" placeholder="' + (soll || 0) + '" style="width:88px;text-align:right"></td></tr>';
+      });
+      body += "</tbody></table></div>";
     });
-    body += "</tbody></table></div>";
-    body += fld2("Materialverbrauch / Notiz (optional)", "a-matnote", a.ist ? (a.ist.materialKommentar || "") : "", "text");
+    body += fld2("Materialverbrauch / Notiz (optional)", "a-matnote", a.materialKommentar || "", "text");
 
     if (si) {
       body += '<div class="insight" style="margin-top:12px"><span class="ico">📊</span><span>Ist gesamt: <strong>' + fmtH(si.istStunden) +
@@ -840,17 +921,18 @@
     openModalWide("Auftrag: " + esc(a.titel), body, function () {
       a.status = $("#a-status").value;
       a.kommission = $("#a-kommission").value.trim();
-      var istZeiten = {};
-      var hatIst = false;
+      var istProPos = {};
       $all("[data-ist]").forEach(function (inp) {
         var v = parseFloat(inp.value);
-        if (!isNaN(v) && v > 0) { istZeiten[inp.dataset.ist] = v; hatIst = true; }
+        if (isNaN(v) || v <= 0) return;
+        var parts = inp.dataset.ist.split(":"); var pi = parts[0], key = parts[1];
+        (istProPos[pi] = istProPos[pi] || {})[key] = v;
       });
-      var matNote = $("#a-matnote").value.trim();
-      if (hatIst || matNote) {
-        a.ist = { zeiten: istZeiten, materialKommentar: matNote, erfasst: Store.nowISO() };
-      }
-      // Lernen, wenn abgeschlossen + Ist-Zeiten vorhanden
+      var hatIst = false;
+      positionen.forEach(function (p, pi) {
+        if (istProPos[pi]) { p.ist = { zeiten: istProPos[pi], erfasst: Store.nowISO() }; hatIst = true; }
+      });
+      a.materialKommentar = $("#a-matnote").value.trim();
       if (a.status === "Abgeschlossen" && hatIst) {
         Calc.lerneAusAuftrag(db, a);
         toast("Auftrag abgeschlossen — App hat dazugelernt. 🧠");
@@ -867,7 +949,7 @@
       }
       return false;
     });
-    if ($("#btn-auf-druck")) $("#btn-auf-druck").onclick = function () { angebotDrucken(a, a.kalk, a); };
+    if ($("#btn-auf-druck")) $("#btn-auf-druck").onclick = function () { angebotDrucken(positionen, a); };
   }
 
   // ============================================================

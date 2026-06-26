@@ -195,17 +195,39 @@
   //  Produkt|Werkstoff|Größe, Produkt|Werkstoff, Produkt.
   //  Verhältnis = Ist / Basiszeit (unkorrigiert) je Arbeitsschritt.
   // ============================================================
-  function lerneAusAuftrag(db, auftrag) {
-    if (!auftrag || !auftrag.ist || !auftrag.ist.zeiten) return;
-    db.lernen = db.lernen || { faktoren: {}, erkenntnisse: [] };
-    var F = db.lernen.faktoren;
-    var basis = basisZeiten(auftrag.produktKey, auftrag.config, auftrag.manuelleZeiten);
-    var keys = segmentKeys(auftrag.produktKey, auftrag.config);
-    var ebenen = [keys.spez, keys.mat, keys.allg];
+  // Positionsliste eines Auftrags (mit Fallback auf Einzelposition)
+  function posListe(auftrag) {
+    if (auftrag.positionen && auftrag.positionen.length) return auftrag.positionen;
+    return [{
+      produktKey: auftrag.produktKey, config: auftrag.config,
+      manuelleZeiten: auftrag.manuelleZeiten, kalk: auftrag.kalk, ist: auftrag.ist
+    }];
+  }
 
+  // Mehrere Positions-Kalkulationen zu einer Gesamtsumme aggregieren
+  function aggregiere(kalks) {
+    var felder = ["netto", "brutto", "mwst", "deckungsbeitrag", "materialEK",
+      "materialMitAufschlag", "lohn", "maschinenKosten", "ruestKosten",
+      "herstellkosten", "gemeinkosten", "selbstkosten", "gewinn", "stundenGesamt"];
+    var sum = {};
+    felder.forEach(function (f) { sum[f] = 0; });
+    kalks.forEach(function (k) { felder.forEach(function (f) { sum[f] += (k[f] || 0); }); });
+    felder.forEach(function (f) { sum[f] = round2(sum[f]); });
+    sum.deckungsbeitragProz = sum.netto > 0 ? Math.round(sum.deckungsbeitrag / sum.netto * 100) : 0;
+    sum.matZeilen = []; sum.lohnZeilen = []; sum.zeiten = {};
+    return sum;
+  }
+
+  // Lernen aus einer einzelnen Position
+  function lerneAusPosition(db, pos) {
+    if (!pos || !pos.ist || !pos.ist.zeiten) return;
+    var F = db.lernen.faktoren;
+    var basis = basisZeiten(pos.produktKey, pos.config, pos.manuelleZeiten);
+    var keys = segmentKeys(pos.produktKey, pos.config);
+    var ebenen = [keys.spez, keys.mat, keys.allg];
     SCHRITTE.forEach(function (s) {
       var b = basis[s.key] || 0;
-      var ist = auftrag.ist.zeiten[s.key] || 0;
+      var ist = pos.ist.zeiten[s.key] || 0;
       if (b <= 0 || ist <= 0) return;
       var v = ist / b;
       if (!isFinite(v) || v <= 0) return;
@@ -216,6 +238,12 @@
         F[k][s.key] = { faktor: round2(neu), samples: e.samples + 1 };
       });
     });
+  }
+
+  function lerneAusAuftrag(db, auftrag) {
+    if (!auftrag) return;
+    db.lernen = db.lernen || { faktoren: {}, erkenntnisse: [] };
+    posListe(auftrag).forEach(function (p) { lerneAusPosition(db, p); });
     erkenntnisseAktualisieren(db);
   }
 
@@ -257,13 +285,16 @@
     return out;
   }
 
-  // ---- Soll/Ist-Abweichung eines Auftrags -------------------
+  // ---- Soll/Ist-Abweichung eines Auftrags (über alle Positionen) ----
   function sollIst(auftrag) {
-    if (!auftrag.ist || !auftrag.ist.zeiten) return null;
+    var positionen = posListe(auftrag);
+    var hatIst = positionen.some(function (p) { return p.ist && p.ist.zeiten; });
+    if (!hatIst) return null;
     var sollH = 0, istH = 0;
-    SCHRITTE.forEach(function (s) {
-      sollH += auftrag.kalk.zeiten[s.key] || 0;
-      istH += auftrag.ist.zeiten[s.key] || 0;
+    positionen.forEach(function (p) {
+      var z = (p.kalk && p.kalk.zeiten) || {};
+      var iz = (p.ist && p.ist.zeiten) || {};
+      SCHRITTE.forEach(function (s) { sollH += z[s.key] || 0; istH += iz[s.key] || 0; });
     });
     return {
       sollStunden: round2(sollH), istStunden: round2(istH),
@@ -277,7 +308,7 @@
     kalkuliere: kalkuliere, berechneZeiten: berechneZeiten, basisZeiten: basisZeiten,
     segmentKeys: segmentKeys, groessenklasse: groessenklasse, segLabel: segLabel,
     angebotstext: angebotstext, lerneAusAuftrag: lerneAusAuftrag,
-    erkenntnisseAktualisieren: erkenntnisseAktualisieren,
+    erkenntnisseAktualisieren: erkenntnisseAktualisieren, aggregiere: aggregiere,
     sollIst: sollIst, fmtEUR: fmtEUR, round2: round2
   };
 })(window);
