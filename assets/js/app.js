@@ -95,7 +95,8 @@
     } else {
       html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th></tr></thead><tbody>';
       auftraege.slice().reverse().slice(0, 6).forEach(function (a) {
-        html += "<tr><td>" + esc(a.titel) + '<br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
+        html += "<tr><td>" + esc(a.titel) + (a.kommission ? ' <span class="tag">' + esc(a.kommission) + "</span>" : "") +
+          '<br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
           "<td>" + statusBadge(a.status) + "</td>" +
           '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
           '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td></tr>";
@@ -561,7 +562,8 @@
       '<div class="absender">' + (absender || "") + '</div>' +
       '<h1>Angebot Nr. ' + esc(nummer) + '</h1>' +
       '<div class="meta">Datum: ' + heute.toLocaleDateString("de-AT") + ' &nbsp;·&nbsp; gültig bis: ' + gueltig.toLocaleDateString("de-AT") +
-        (auftrag ? ' &nbsp;·&nbsp; Betreff: ' + esc(auftrag.titel) : "") + '</div>' +
+        (auftrag ? ' &nbsp;·&nbsp; Betreff: ' + esc(auftrag.titel) : "") +
+        (auftrag && auftrag.kommission ? ' &nbsp;·&nbsp; Kommission: ' + esc(auftrag.kommission) : "") + '</div>' +
       '<p>Sehr geehrte Damen und Herren,<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
       '<div class="pos"><b>Pos. 1 — ' + esc(prod ? prod.name : "Konstruktion") + '</b>' +
         (details.length ? '<div class="leist">' + esc(details.join(", ")) + "</div>" : "") +
@@ -590,8 +592,10 @@
     var prod = Products.byKey(entwurf.produktKey);
     var c = entwurf.config;
     var titelvorschlag = prod.name + (c.werkstoff ? " " + c.werkstoff : "") + (c.laenge ? " " + c.laenge + "m" : "") + (c.bezeichnung ? " " + c.bezeichnung : "") + (c.stueck ? " (" + c.stueck + " Stk)" : "");
-    openModal("Angebot speichern", fld2("Bezeichnung / Kunde", "a-titel", titelvorschlag.trim(), "text") +
-      '<p class="hint">Der Vorgang wird als Angebot gespeichert und erscheint in „Aufträge“.</p>', function () {
+    openModal("Angebot speichern",
+      fld2("Bezeichnung / Kunde", "a-titel", titelvorschlag.trim(), "text") +
+      fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", "", "text") +
+      '<p class="hint">Die Kommission erscheint in der Übersicht und auf dem Angebot – ideal zum Zuordnen.</p>', function () {
       var titel = $("#a-titel").value.trim() || titelvorschlag.trim() || "Angebot";
       var jahr = new Date().getFullYear();
       var nummer = "ANG-" + jahr + "-" + String(db.settings.angebotZaehler || 1).padStart(3, "0");
@@ -600,6 +604,7 @@
         id: Store.uid(),
         nummer: nummer,
         titel: titel,
+        kommission: $("#a-kommission").value.trim(),
         produktKey: entwurf.produktKey,
         config: JSON.parse(JSON.stringify(entwurf.config)),
         freiePositionen: JSON.parse(JSON.stringify(entwurf.freiePositionen)),
@@ -627,13 +632,14 @@
       return;
     }
     var html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
-      '<th>Bezeichnung</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th></tr></thead><tbody>';
+      '<th>Bezeichnung</th><th>Kommission</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th></tr></thead><tbody>';
     db.auftraege.slice().reverse().forEach(function (a) {
       var prod = Products.byKey(a.produktKey);
       var si = Calc.sollIst(a);
       var siTxt = si ? (si.abwProz > 0 ? "+" : "") + si.abwProz + " %" : "—";
       html += "<tr>" +
-        "<td><strong>" + esc(a.titel) + '</strong><br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
+        "<td><strong>" + esc(a.titel) + '</strong><br><span class="muted" style="font-size:11px">' + (a.nummer ? esc(a.nummer) + " · " : "") + fmtDate(a.erstellt) + "</span></td>" +
+        "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : '<span class="muted">—</span>') + "</td>" +
         "<td>" + (prod ? prod.icon + " " + esc(prod.name) : "-") + "</td>" +
         "<td>" + statusBadge(a.status) + "</td>" +
         '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
@@ -655,10 +661,13 @@
     var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + (prod ? prod.icon + " " + prod.name : "") + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) + "</div>";
     body += '<div class="btn-row" style="margin-bottom:12px"><button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot drucken / PDF</button></div>';
 
-    // Status-Wechsel
-    body += '<label class="fld"><span class="lbl">Status</span><select id="a-status">' +
-      ["Angebot", "Beauftragt", "Abgeschlossen"].map(function (s) { return '<option' + (a.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("") +
-      "</select></label>";
+    // Kommission + Status
+    body += '<div class="inline">' +
+      fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", a.kommission || "", "text") +
+      '<label class="fld"><span class="lbl">Status</span><select id="a-status">' +
+        ["Angebot", "Beauftragt", "Abgeschlossen"].map(function (s) { return '<option' + (a.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("") +
+      "</select></label>" +
+      "</div>";
 
     // Kalkulationsübersicht
     body += '<div class="card" style="background:var(--panel-2);margin-bottom:12px">' +
@@ -686,6 +695,7 @@
 
     openModalWide("Auftrag: " + esc(a.titel), body, function () {
       a.status = $("#a-status").value;
+      a.kommission = $("#a-kommission").value.trim();
       var istZeiten = {};
       var hatIst = false;
       $all("[data-ist]").forEach(function (inp) {

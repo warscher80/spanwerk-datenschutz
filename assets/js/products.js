@@ -422,7 +422,52 @@
     material: function () { return []; }
   };
 
-  var PRODUKTE = [GELAENDER, TREPPE, BALKON, ZAUN, STAHLBAU, EDELSTAHLBAU, SONDER, SERIE, REPARATUR];
+  // ----------------------------------------------------------------
+  // BLECHARBEITEN (Zuschnitt, Lasern, Kanten, Schweißen)
+  // ----------------------------------------------------------------
+  var BLECHARBEITEN = {
+    key: "blecharbeiten", name: "Blecharbeiten", icon: "🔲",
+    fragen: [
+      { key: "werkstoff", label: "Werkstoff", typ: "select", optionen: WERKSTOFFE },
+      { key: "staerke", label: "Blechstärke", typ: "number", einheit: "mm", default: 2 },
+      { key: "flaeche", label: "Blechfläche gesamt", typ: "number", einheit: "m²", default: 2 },
+      { key: "stueck", label: "Anzahl Teile", typ: "number", einheit: "Stk", default: 1 },
+      { key: "kantungen", label: "Kantungen je Teil", typ: "number", einheit: "Stk", default: 4 },
+      { key: "lasern", label: "Lasern / CNC-Zuschnitt", typ: "check", default: true },
+      { key: "schweissen", label: "Schweißen", typ: "check" },
+      { key: "bohren", label: "Bohren / Gewinde", typ: "check" },
+      { key: "oberflaeche", label: "Oberfläche", typ: "select", optionen: OBERFLAECHEN },
+      { key: "montage", label: "Montage erforderlich", typ: "check" },
+      { key: "entfernung", label: "Entfernung Baustelle (einfach)", typ: "number", einheit: "km", default: 10 }
+    ],
+    zeitmodell: function (c) {
+      var A = num(c.flaeche, 2), n = num(c.stueck, 1), st = num(c.staerke, 2);
+      var kant = num(c.kantungen, 4), ws = c.werkstoff || "Stahl";
+      var ruest = 0.4 + Math.log10(n + 1) * 0.3;          // degressiv je Stückzahl
+      var dick = 1 + Math.max(0, st - 2) * 0.08;            // dickeres Blech = mehr Aufwand
+      var t = leer();
+      t.cad = 0.5 + A * 0.15 + n * 0.04;
+      if (bool(c.lasern)) t.lasern = (ruest * 0.4 + A * 0.3 + n * 0.05) * dick;
+      else t.zuschnitt = (A * 0.25 + n * 0.05) * dick * wfak(ws, "zuschnitt");
+      t.biegen = kant * n * 0.05 * dick * wfak(ws, "biegen");
+      t.bohren = bool(c.bohren) ? n * 0.06 : 0;
+      t.schweissen = bool(c.schweissen) ? A * 0.45 * dick * wfak(ws, "schweissen") : 0;
+      t.schleifen = (A * 0.18 + n * 0.05) * wfak(ws, "schleifen"); // Entgraten/Finish
+      t.oberflaeche = oberflaecheZeit((c.oberflaeche || "Roh").toLowerCase(), A * 1.5);
+      if (bool(c.montage)) t.montage = 0.5 + A * 0.25 + n * 0.05;
+      t.verpackung = 0.3 + A * 0.05 + n * 0.01;
+      t.transport = bool(c.montage) ? Math.max(0.4, num(c.entfernung, 10) / 45) : 0.3;
+      return t;
+    },
+    material: function (c, M) {
+      var A = num(c.flaeche, 2), ws = c.werkstoff || "Stahl", pos = [];
+      var blech = findM(M, blechName(ws));
+      if (blech) pos.push({ ref: blech, name: blech.name, menge: round1(A), einheit: "m²" });
+      return pos;
+    }
+  };
+
+  var PRODUKTE = [GELAENDER, TREPPE, BALKON, ZAUN, STAHLBAU, EDELSTAHLBAU, BLECHARBEITEN, SONDER, SERIE, REPARATUR];
 
   function byKey(k) { return PRODUKTE.find(function (p) { return p.key === k; }); }
 
