@@ -896,8 +896,8 @@
   // ============================================================
   function init() {
     $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
-    var ver = $("#app-version");
-    if (ver) ver.textContent = (w.PSBUILD && w.PSBUILD.version) ? "Version " + w.PSBUILD.version : "Web-Version";
+    var vtext = (w.PSBUILD && w.PSBUILD.version) ? "Version " + w.PSBUILD.version : "Web-Version";
+    $all(".app-version").forEach(function (e) { e.textContent = vtext; });
     navTo("dashboard");
     pruefeUpdate();
   }

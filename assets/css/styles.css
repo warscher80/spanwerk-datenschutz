@@ -205,6 +205,54 @@ tr:last-child td { border-bottom: none; }
 }
 .update-banner .ub-actions { display: flex; gap: 8px; }
 
+/* ---------- Mobile-Topbar (nur am Handy) ---------- */
+.topbar-mobile { display: none; }
+
+/* ---------- Handy-Layout ---------- */
+@media (max-width: 760px) {
+  .app { display: block; }
+
+  .topbar-mobile {
+    display: flex; align-items: center; gap: 10px;
+    position: sticky; top: 0; z-index: 60;
+    background: linear-gradient(180deg, #131922, #0d1219);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+  .topbar-mobile .logo {
+    width: 30px; height: 30px; border-radius: 8px; font-size: 15px;
+    display: grid; place-items: center; font-weight: 800; color: #1a1208;
+    background: linear-gradient(135deg, var(--accent), #d4820a);
+  }
+  .topbar-mobile strong { font-size: 16px; }
+  .topbar-mobile .app-version { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--accent); }
+
+  .sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    height: auto; width: auto; padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+    border-right: none; border-top: 1px solid var(--border);
+    overflow: visible; z-index: 60;
+  }
+  .brand, .sidebar-foot { display: none; }
+  .nav { display: flex; margin: 0; }
+  .nav li {
+    flex: 1; min-width: 0; flex-direction: column; gap: 2px; align-items: center;
+    padding: 7px 2px; border-radius: 9px; text-align: center;
+  }
+  .nav li .ico { font-size: 19px; width: auto; }
+  .nav-txt { font-size: 10px; line-height: 1.1; white-space: nowrap; }
+
+  .main { padding: 16px 14px 84px; max-width: none; }
+  .page-head { margin-bottom: 16px; }
+  .page-head h2 { font-size: 19px; }
+  .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }
+  .card { padding: 14px; }
+  .inline { gap: 8px; }
+  .pill-tabs button { font-size: 12px; padding: 6px 11px; }
+  .modal { padding: 16px; }
+  .update-banner { left: 10px; right: 10px; transform: none; bottom: 78px; max-width: none; }
+}
+
 .muted { color: var(--muted); }
 .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:5px; background:var(--panel-2); border:1px solid var(--border); color:var(--muted); margin-right:4px; }
