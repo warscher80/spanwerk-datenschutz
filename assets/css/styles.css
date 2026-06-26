@@ -193,6 +193,17 @@ tr:last-child td { border-bottom: none; }
 .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; max-width: 560px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); }
 .modal h3 { margin-top: 0; }
 
+/* ---------- Update-Banner ---------- */
+.update-banner {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  box-shadow: var(--shadow); border-radius: 12px; padding: 12px 18px;
+  z-index: 120; max-width: 92vw; font-size: 14px; font-weight: 600;
+}
+.update-banner .ub-actions { display: flex; gap: 8px; }
+
 .muted { color: var(--muted); }
 .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .tag { display:inline-block; font-size:11px; padding:1px 7px; border-radius:5px; background:var(--panel-2); border:1px solid var(--border); color:var(--muted); margin-right:4px; }

@@ -782,11 +782,51 @@
   }
 
   // ============================================================
+  //  UPDATE-PRÜFUNG
+  //  Vergleicht die eingebettete Build-Nummer (assets/build-info.json)
+  //  mit der neuesten veröffentlichten Version (version.json im Release).
+  //  Ist eine neuere Version verfügbar, erscheint ein Hinweis-Banner.
+  // ============================================================
+  var REPO = "warscher80/spanwerk-datenschutz";
+  var UPDATE_APK_URL = "https://github.com/" + REPO + "/releases/download/app-latest/preisschmiede.apk";
+  var UPDATE_VERSION_URL = "https://github.com/" + REPO + "/releases/download/app-latest/version.json";
+
+  function pruefeUpdate() {
+    if (!w.fetch) return;
+    fetch("assets/build-info.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (lokal) {
+        if (!lokal || typeof lokal.build !== "number") return; // Web-Vorschau ohne Build-Info
+        return fetch(UPDATE_VERSION_URL, { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (remote) {
+            if (remote && typeof remote.build === "number" && remote.build > lokal.build) {
+              zeigeUpdateBanner(remote);
+            }
+          });
+      })
+      .catch(function () { /* offline o. ä. – still ignorieren, App läuft normal weiter */ });
+  }
+
+  function zeigeUpdateBanner(remote) {
+    if ($("#update-banner")) return;
+    var b = el("div", { id: "update-banner", class: "update-banner" });
+    b.innerHTML = '<span>🔄 Neue Version verfügbar' + (remote.version ? " (" + esc(remote.version) + ")" : "") + "</span>" +
+      '<div class="ub-actions">' +
+        '<a class="btn primary sm" href="' + UPDATE_APK_URL + '" target="_blank" rel="noopener">Jetzt aktualisieren</a>' +
+        '<button class="btn ghost sm" id="update-later">Später</button>' +
+      "</div>";
+    d.body.appendChild(b);
+    $("#update-later").onclick = function () { b.remove(); };
+  }
+
+  // ============================================================
   //  INIT
   // ============================================================
   function init() {
     $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
     navTo("dashboard");
+    pruefeUpdate();
   }
 
   if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", init);

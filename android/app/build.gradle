@@ -7,8 +7,10 @@ android {
         applicationId "at.preisschmiede.kalkulation"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Versionsnummer kommt aus dem Build (-Pvcode / -Pvname), damit jede
+        // neue APK als Update erkannt wird; lokal Standard 1 / "1.0".
+        versionCode project.hasProperty('vcode') ? project.vcode.toInteger() : 1
+        versionName project.hasProperty('vname') ? project.vname : "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +18,22 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Fester Signatur-Schlüssel: alle Builds sind gleich signiert, damit
+    // Updates ohne Deinstallation (ohne Datenverlust) installiert werden können.
+    signingConfigs {
+        appsign {
+            storeFile file('preisschmiede.keystore')
+            storePassword 'preisschmiede'
+            keyAlias 'preisschmiede'
+            keyPassword 'preisschmiede'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.appsign
+        }
         release {
+            signingConfig signingConfigs.appsign
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

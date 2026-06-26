@@ -46,6 +46,17 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm install
 
+      - name: Versionsinfo erzeugen
+        run: |
+          BUILD=${{ github.run_number }}
+          VERSION="1.0.${BUILD}"
+          DATUM=$(date +%Y-%m-%d)
+          echo "{\"build\": ${BUILD}, \"version\": \"${VERSION}\", \"datum\": \"${DATUM}\"}" > assets/build-info.json
+          cp assets/build-info.json version.json
+          echo "VCODE=${BUILD}" >> $GITHUB_ENV
+          echo "VNAME=${VERSION}" >> $GITHUB_ENV
+          cat assets/build-info.json
+
       - name: Web-Dateien synchronisieren
         run: npm run sync
 
@@ -53,7 +64,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon -Pvcode=${{ env.VCODE }} -Pvname=${{ env.VNAME }}
 
       - name: APK umbenennen
         run: cp android/app/build/outputs/apk/debug/app-debug.apk preisschmiede.apk
@@ -75,8 +86,11 @@ jobs:
           tag_name: app-latest
           name: Preisschmiede – aktuelle App
           body: |
-            Installierbare Android-App (Debug-Build).
+            Installierbare Android-App, Version 1.0.${{ github.run_number }}.
             Auf dem Handy herunterladen und öffnen. Falls "Installation blockiert"
             erscheint: Installation aus unbekannten Quellen für den Browser erlauben.
-          files: preisschmiede.apk
+            Eine bereits installierte Preisschmiede-App wird ohne Datenverlust aktualisiert.
+          files: |
+            preisschmiede.apk
+            version.json
           prerelease: true
