@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
-  "apkUrl": "https://github.com/warscher80/spanwerk-datenschutz/raw/main/Maschinenstundensatz-1.1.apk",
-  "notes": "Automatische Update-Prüfung hinzugefügt."
+  "versionCode": 3,
+  "versionName": "1.2",
+  "apkUrl": "https://github.com/warscher80/spanwerk-datenschutz/raw/main/Maschinenstundensatz-1.2.apk",
+  "notes": "Neues App-Icon, Handy-Optimierung und automatische Updates."
 }
