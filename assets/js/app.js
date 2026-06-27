@@ -24,6 +24,9 @@
   // gesammelte Positionen für ein Angebot mit mehreren Positionen
   var sammlung = [];
 
+  // Suche / Filter in der Auftragsliste
+  var auftragFilter = { suche: "", status: "" };
+
   // ---------- Hilfen ----------
   function $(sel, root) { return (root || d).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || d).querySelectorAll(sel)); }
@@ -789,6 +792,95 @@
     w2.document.open(); w2.document.write(doc); w2.document.close();
   }
 
+  // ---- internes Druckgerüst (Arbeitszettel / Bestellliste) ----
+  function oeffneDruck(title, innerHtml, extraStyle) {
+    var f = db.settings.firma || {};
+    var firmaKopf = esc(f.name || "Preisschmiede");
+    var doc = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>' + esc(title) + "</title><style>" +
+      "@page{size:A4;margin:16mm}*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a2330;font-size:12px;line-height:1.45;margin:0}" +
+      "h1{font-size:19px;margin:0 0 2px}.sub{color:#667;margin-bottom:14px;font-size:12px}" +
+      "table{width:100%;border-collapse:collapse;margin:8px 0}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}th{background:#f3f5f8;font-size:11px;text-transform:uppercase;letter-spacing:.4px}" +
+      "td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}.posh{font-weight:700;font-size:13px;margin:16px 0 4px;color:#111}" +
+      ".head{display:flex;justify-content:space-between;border-bottom:3px solid #f5a623;padding-bottom:8px;margin-bottom:12px}.logo{font-size:20px;font-weight:800;color:#d4820a}" +
+      ".foot{margin-top:24px;font-size:10px;color:#889;border-top:1px solid #ddd;padding-top:6px}" +
+      "@media print{.noprint{display:none}}.noprint{position:fixed;top:10px;right:10px}.btn{background:#f5a623;border:none;padding:10px 18px;border-radius:6px;font-weight:700;cursor:pointer}" +
+      (extraStyle || "") + '</style></head><body>' +
+      '<div class="noprint"><button class="btn" onclick="window.print()">🖨️ Drucken / als PDF speichern</button></div>' +
+      '<div class="head"><div class="logo">' + firmaKopf + '</div><div style="font-size:11px;text-align:right">' + esc(title) + "</div></div>" +
+      innerHtml +
+      '<div class="foot">' + firmaKopf + " · Erstellt mit Preisschmiede</div></body></html>";
+    var w2 = window.open("", "_blank");
+    if (!w2) { toast("Bitte Pop-ups für diese Seite erlauben.", "err"); return; }
+    w2.document.open(); w2.document.write(doc); w2.document.close();
+  }
+
+  function auftragKopfText(a) {
+    return (a.nummer ? esc(a.nummer) + " · " : "") + esc(a.titel) +
+      (a.kommission ? " · Kommission: " + esc(a.kommission) : "") +
+      (a.kunde && a.kunde.name ? " · " + esc(a.kunde.name) : "") +
+      " · " + new Date().toLocaleDateString("de-AT");
+  }
+
+  // ---- Arbeitszettel / Fertigungsauftrag --------------------
+  function arbeitszettelDrucken(a) {
+    var positionen = auftragPositionen(a);
+    var html = '<h1>Arbeitszettel</h1><div class="sub">' + auftragKopfText(a) + "</div>";
+    positionen.forEach(function (p, i) {
+      var b = positionsBeschreibung(p);
+      html += '<div class="posh">Pos. ' + (i + 1) + " — " + esc(b.titel) + "</div>";
+      if (b.details.length) html += '<div style="font-size:11px;color:#445;margin-bottom:4px">' + esc(b.details.join(", ")) + "</div>";
+      html += '<table><thead><tr><th>Arbeitsschritt</th><th class="r">Soll (h)</th><th class="r">Ist (h)</th><th>erledigt</th></tr></thead><tbody>';
+      var hat = false;
+      SCHRITTE.forEach(function (s) {
+        var soll = (p.kalk.zeiten && p.kalk.zeiten[s.key]) || 0;
+        if (soll <= 0) return;
+        hat = true;
+        html += "<tr><td>" + esc(s.label) + '</td><td class="r">' + soll.toLocaleString("de-AT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) +
+          '</td><td class="r">_______</td><td>☐</td></tr>';
+      });
+      if (!hat) html += '<tr><td colspan="4" style="color:#889">keine Soll-Zeiten</td></tr>';
+      html += "</tbody></table>";
+      if (b.leistung.length) html += '<div style="font-size:11px;color:#445">Material: ' + esc(b.leistung.join(", ")) + "</div>";
+    });
+    oeffneDruck("Arbeitszettel " + (a.nummer || ""), html);
+  }
+
+  // Material aller Positionen zusammenfassen (für Bestellliste)
+  function sammleMaterial(positionen) {
+    var verschnitt = (db.settings.verschnitt || 0) / 100;
+    var map = {};
+    positionen.forEach(function (p) {
+      ((p.kalk && p.kalk.matZeilen) || []).forEach(function (m) {
+        if (!map[m.name]) {
+          var ref = db.material.filter(function (x) { return x.name === m.name; })[0];
+          map[m.name] = { name: m.name, menge: 0, einheit: m.einheit, lieferant: (ref && ref.lieferant) || "—" };
+        }
+        map[m.name].menge += m.menge * (1 + verschnitt);
+      });
+    });
+    return Object.keys(map).map(function (k) { return map[k]; });
+  }
+
+  // ---- Materialbestellliste (nach Lieferant) ----------------
+  function bestelllisteDrucken(a) {
+    var positionen = auftragPositionen(a);
+    var mats = sammleMaterial(positionen);
+    var html = '<h1>Materialbestellliste</h1><div class="sub">' + auftragKopfText(a) + " · Mengen inkl. Verschnitt</div>";
+    if (!mats.length) { html += "<p>Keine Materialpositionen in diesem Auftrag.</p>"; oeffneDruck("Bestellliste", html); return; }
+    var nachLief = {};
+    mats.forEach(function (m) { (nachLief[m.lieferant] = nachLief[m.lieferant] || []).push(m); });
+    Object.keys(nachLief).sort().forEach(function (lief) {
+      html += '<div class="posh">Lieferant: ' + esc(lief) + "</div>";
+      html += '<table><thead><tr><th>Material</th><th class="r">Menge</th><th>Einheit</th><th>bestellt</th></tr></thead><tbody>';
+      nachLief[lief].forEach(function (m) {
+        html += "<tr><td>" + esc(m.name) + '</td><td class="r">' + m.menge.toLocaleString("de-AT", { maximumFractionDigits: 1 }) +
+          "</td><td>" + esc(m.einheit) + "</td><td>☐</td></tr>";
+      });
+      html += "</tbody></table>";
+    });
+    oeffneDruck("Bestellliste " + (a.nummer || ""), html);
+  }
+
   function line(label, val, cls) {
     return '<div class="result-line ' + (cls || "") + '"><span>' + esc(label) + '</span><span class="v">' + esc(val) + "</span></div>";
   }
@@ -891,9 +983,37 @@
       root.innerHTML = '<div class="empty">Noch keine Aufträge. Erstelle in „Kalkulation“ ein Angebot.</div>';
       return;
     }
-    var html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
-      '<th>Bezeichnung</th><th>Kommission</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th></tr></thead><tbody>';
-    db.auftraege.slice().reverse().forEach(function (a) {
+    var statusOpt = [["", "Alle Status"], ["Angebot", "Angebot"], ["Beauftragt", "Beauftragt"], ["Abgeschlossen", "Abgeschlossen"]]
+      .map(function (o) { return '<option value="' + o[0] + '"' + (auftragFilter.status === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("");
+    root.innerHTML = '<div class="card">' +
+      '<div class="inline" style="margin-bottom:14px">' +
+        '<input id="auf-suche" placeholder="🔍 Suche: Bezeichnung, Kunde, Kommission, Nr." value="' + esc(auftragFilter.suche) + '" style="flex:2">' +
+        '<select id="auf-status" style="flex:1;max-width:180px">' + statusOpt + "</select>" +
+      "</div>" +
+      '<div class="table-wrap"><table><thead><tr>' +
+        '<th>Bezeichnung</th><th>Kommission</th><th>Produkt</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Soll/Ist</th><th></th>' +
+      '</tr></thead><tbody id="auf-tbody"></tbody></table></div></div>';
+    $("#auf-suche").addEventListener("input", function () { auftragFilter.suche = this.value; renderAuftragsZeilen(); });
+    $("#auf-status").addEventListener("change", function () { auftragFilter.status = this.value; renderAuftragsZeilen(); });
+    renderAuftragsZeilen();
+  }
+
+  function renderAuftragsZeilen() {
+    var tbody = $("#auf-tbody");
+    if (!tbody) return;
+    var suche = (auftragFilter.suche || "").toLowerCase().trim();
+    var gefiltert = db.auftraege.filter(function (a) {
+      if (auftragFilter.status && a.status !== auftragFilter.status) return false;
+      if (!suche) return true;
+      var hay = [a.titel, a.nummer, a.kommission, a.kunde && a.kunde.name].filter(Boolean).join(" ").toLowerCase();
+      return hay.indexOf(suche) >= 0;
+    });
+    if (!gefiltert.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">Keine Treffer.</td></tr>';
+      return;
+    }
+    var html = "";
+    gefiltert.slice().reverse().forEach(function (a) {
       var si = Calc.sollIst(a);
       var siTxt = si ? (si.abwProz > 0 ? "+" : "") + si.abwProz + " %" : "—";
       html += "<tr>" +
@@ -904,12 +1024,24 @@
         "<td>" + statusBadge(a.status) + "</td>" +
         '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
         '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td>" +
-        '<td class="num ' + (si && si.abwProz > 0 ? "" : "") + '">' + siTxt + "</td>" +
+        '<td class="num">' + siTxt + "</td>" +
         '<td class="num"><button class="btn sm" data-auf="' + a.id + '">Öffnen</button></td></tr>';
     });
-    html += "</tbody></table></div></div>";
-    root.innerHTML = html;
-    $all("[data-auf]").forEach(function (b) { b.onclick = function () { auftragModal(b.dataset.auf); }; });
+    tbody.innerHTML = html;
+    $all("[data-auf]", tbody).forEach(function (b) { b.onclick = function () { auftragModal(b.dataset.auf); }; });
+  }
+
+  // ---- Auftrag als Vorlage duplizieren ----------------------
+  function dupliziereAuftrag(a) {
+    var positionen = auftragPositionen(a);
+    var p0 = positionen[0];
+    entwurf.produktKey = p0.produktKey;
+    entwurf.config = JSON.parse(JSON.stringify(p0.config || {}));
+    entwurf.freiePositionen = JSON.parse(JSON.stringify(p0.freiePositionen || []));
+    entwurf.manuelleZeiten = JSON.parse(JSON.stringify(p0.manuelleZeiten || {}));
+    sammlung = positionen.slice(1).map(function (p) { var c = JSON.parse(JSON.stringify(p)); c.ist = null; return c; });
+    toast("Auftrag als Vorlage geladen — anpassen und speichern.");
+    navTo("kalkulation");
   }
 
   // Positionen eines Auftrags (setzt a.positionen bei Altdaten)
@@ -937,7 +1069,12 @@
 
     var body = '<div class="muted" style="font-size:12px;margin-bottom:10px">' + (a.nummer ? "<strong>" + esc(a.nummer) + "</strong> · " : "") + auftragProduktLabel(a) + " · " + fmtDate(a.erstellt) + " · " + statusBadge(a.status) +
       (a.kunde && a.kunde.name ? '<br>👤 Kunde: <strong>' + esc(a.kunde.name) + "</strong>" : "") + "</div>";
-    body += '<div class="btn-row" style="margin-bottom:12px"><button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot drucken / PDF</button></div>';
+    body += '<div class="btn-row" style="margin-bottom:12px">' +
+      '<button class="btn sm" id="btn-auf-druck" type="button">🖨️ Angebot</button>' +
+      '<button class="btn sm" id="btn-auf-zettel" type="button">🛠️ Arbeitszettel</button>' +
+      '<button class="btn sm" id="btn-auf-bestell" type="button">📦 Bestellliste</button>' +
+      '<button class="btn sm" id="btn-auf-dup" type="button">📋 Duplizieren</button>' +
+      "</div>";
 
     // Kommission + Status
     body += '<div class="inline">' +
@@ -1009,6 +1146,9 @@
       return false;
     });
     if ($("#btn-auf-druck")) $("#btn-auf-druck").onclick = function () { angebotDrucken(positionen, a); };
+    if ($("#btn-auf-zettel")) $("#btn-auf-zettel").onclick = function () { arbeitszettelDrucken(a); };
+    if ($("#btn-auf-bestell")) $("#btn-auf-bestell").onclick = function () { bestelllisteDrucken(a); };
+    if ($("#btn-auf-dup")) $("#btn-auf-dup").onclick = function () { $("#modal-bg").classList.remove("show"); dupliziereAuftrag(a); };
   }
 
   // ============================================================
