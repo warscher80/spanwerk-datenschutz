@@ -61,18 +61,30 @@
     w.scrollTo(0, 0);
   }
 
+  // Rabatt mindert Netto, Deckungsbeitrag und Gewinn um denselben Betrag
+  function auftragRabattBetrag(a) { return (a.kalk ? a.kalk.netto : 0) * (a.rabatt || 0) / 100; }
+  function auftragNetto(a) { return (a.kalk ? a.kalk.netto : 0) - auftragRabattBetrag(a); }
+  function auftragDB(a) { return (a.kalk ? a.kalk.deckungsbeitrag : 0) - auftragRabattBetrag(a); }
+  function auftragGewinn(a) { return (a.kalk ? a.kalk.gewinn : 0) - auftragRabattBetrag(a); }
+
   // ============================================================
-  //  DASHBOARD
+  //  DASHBOARD / AUSWERTUNG
   // ============================================================
   function renderDashboard() {
     var root = $("#page-dashboard .content");
     var auftraege = db.auftraege;
     var angebote = auftraege.filter(function (a) { return a.status === "Angebot"; });
     var abgeschlossen = auftraege.filter(function (a) { return a.status === "Abgeschlossen"; });
+    var beauftragt = auftraege.filter(function (a) { return a.status === "Beauftragt" || a.status === "Abgeschlossen"; });
 
-    var summeNetto = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.netto : 0); }, 0);
-    var summeDB = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.deckungsbeitrag : 0); }, 0);
-    var summeGewinn = auftraege.reduce(function (s, a) { return s + (a.kalk ? a.kalk.gewinn : 0); }, 0);
+    var summeNetto = auftraege.reduce(function (s, a) { return s + auftragNetto(a); }, 0);
+    var umsatz = beauftragt.reduce(function (s, a) { return s + auftragNetto(a); }, 0);
+    var summeDB = auftraege.reduce(function (s, a) { return s + auftragDB(a); }, 0);
+    var gewinnUmsatz = beauftragt.reduce(function (s, a) { return s + auftragGewinn(a); }, 0);
+    var erfolg = auftraege.length ? Math.round(beauftragt.length / auftraege.length * 100) : 0;
+    // Ø Deckungsbeitrag % über Aufträge mit Netto
+    var dbProzListe = auftraege.map(function (a) { var n = auftragNetto(a); return n > 0 ? auftragDB(a) / n * 100 : null; }).filter(function (x) { return x != null; });
+    var avgDBproz = dbProzListe.length ? Math.round(dbProzListe.reduce(function (s, x) { return s + x; }, 0) / dbProzListe.length) : 0;
 
     // Genauigkeit aus abgeschlossenen Aufträgen
     var genauigkeit = "—";
@@ -85,8 +97,14 @@
     var html = "";
     html += '<div class="grid cols-4">';
     html += stat("Aufträge / Angebote", auftraege.length + " / " + angebote.length);
-    html += stat("Auftragswert (netto)", fmtEUR(summeNetto), "accent");
+    html += stat("Angebotswert (netto)", fmtEUR(summeNetto), "accent", "alle Vorgänge");
+    html += stat("Umsatz (beauftragt)", fmtEUR(umsatz), "green", beauftragt.length + " Aufträge");
+    html += stat("Erfolgsquote", erfolg + " %", "", "beauftragt / alle");
+    html += "</div>";
+    html += '<div class="grid cols-4" style="margin-top:16px">';
     html += stat("Deckungsbeitrag Σ", fmtEUR(summeDB), "green");
+    html += stat("Gewinn (beauftragt)", fmtEUR(gewinnUmsatz), "accent");
+    html += stat("Ø Deckungsbeitrag", avgDBproz + " %");
     html += stat("Kalkulations-Genauigkeit", genauigkeit, "", abgeschlossen.length + " nachkalkuliert");
     html += "</div>";
 
@@ -104,8 +122,8 @@
         html += "<tr><td>" + esc(a.titel) + (a.kommission ? ' <span class="tag">' + esc(a.kommission) + "</span>" : "") +
           '<br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
           "<td>" + statusBadge(a.status) + "</td>" +
-          '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
-          '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td></tr>";
+          '<td class="num">' + fmtEUR(auftragNetto(a)) + "</td>" +
+          '<td class="num">' + fmtEUR(auftragDB(a)) + "</td></tr>";
       });
       html += "</tbody></table></div>";
     }
@@ -727,6 +745,10 @@
     var anrede = (kunde && kunde.ansprechpartner) ? "Sehr geehrte/r " + kunde.ansprechpartner + "," : "Sehr geehrte Damen und Herren,";
     var gesamt = Calc.aggregiere(positionen.map(function (p) { return p.kalk; }));
     var mehrere = positionen.length > 1;
+    var rabatt = auftrag && auftrag.rabatt ? auftrag.rabatt : 0;
+    var nettoEnd = gesamt.netto * (1 - rabatt / 100);
+    var mwstEnd = nettoEnd * s.mwst / 100;
+    var bruttoEnd = nettoEnd + mwstEnd;
 
     function row(l, v, strong) {
       return '<tr class="' + (strong ? "strong" : "") + '"><td>' + esc(l) + '</td><td class="r">' + esc(v) + "</td></tr>";
@@ -778,9 +800,10 @@
       '<p>' + anrede + '<br>vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:</p>' +
       posHtml +
       '<table>' +
-        row(mehrere ? "Summe netto" : "Gesamtpreis netto", fmtEUR(gesamt.netto)) +
-        row("zzgl. " + s.mwst + " % USt", fmtEUR(gesamt.mwst)) +
-        row("Gesamtpreis brutto", fmtEUR(gesamt.brutto), true) +
+        (rabatt ? row("Zwischensumme netto", fmtEUR(gesamt.netto)) + row("abzgl. Rabatt " + rabatt + " %", "− " + fmtEUR(gesamt.netto - nettoEnd)) : "") +
+        row(rabatt ? "Endpreis netto" : (mehrere ? "Summe netto" : "Gesamtpreis netto"), fmtEUR(nettoEnd)) +
+        row("zzgl. " + s.mwst + " % USt", fmtEUR(mwstEnd)) +
+        row("Gesamtpreis brutto", fmtEUR(bruttoEnd), true) +
       "</table>" +
       '<div class="text">Lieferzeit nach Vereinbarung. Dieses Angebot ist 30 Tage gültig.\nWir freuen uns auf Ihren Auftrag.\n\nMit freundlichen Grüßen\n' + esc(f.inhaber || f.name || "") + "</div>" +
       '<div class="foot">' + firmaKopf + (f.email ? " · " + esc(f.email) : "") +
@@ -949,7 +972,10 @@
     openModal("Angebot speichern",
       fld2("Bezeichnung / Projekt", "a-titel", titelvorschlag, "text") +
       '<label class="fld"><span class="lbl">Kunde (Empfänger auf dem Angebot)</span><select id="a-kunde">' + kundenOpt + "</select></label>" +
-      fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", "", "text") +
+      '<div class="inline">' +
+        fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", "", "text") +
+        fld2("Rabatt (%)", "a-rabatt", "0", "number") +
+      "</div>" +
       '<p class="hint">' + positionen.length + ' Position' + (positionen.length > 1 ? "en" : "") + '. Kunden legst du in den Stammdaten an.</p>', function () {
       var titel = $("#a-titel").value.trim() || titelvorschlag || "Angebot";
       var jahr = new Date().getFullYear();
@@ -961,6 +987,7 @@
         id: Store.uid(), nummer: nummer, titel: titel,
         kunde: kunde ? JSON.parse(JSON.stringify(kunde)) : null,
         kommission: $("#a-kommission").value.trim(),
+        rabatt: parseFloat($("#a-rabatt").value) || 0,
         positionen: JSON.parse(JSON.stringify(positionen)),
         kalk: Calc.aggregiere(positionen.map(function (p) { return p.kalk; })),
         status: "Angebot", erstellt: Store.nowISO()
@@ -1022,8 +1049,8 @@
         "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : '<span class="muted">—</span>') + "</td>" +
         "<td>" + auftragProduktLabel(a) + "</td>" +
         "<td>" + statusBadge(a.status) + "</td>" +
-        '<td class="num">' + fmtEUR(a.kalk ? a.kalk.netto : 0) + "</td>" +
-        '<td class="num">' + fmtEUR(a.kalk ? a.kalk.deckungsbeitrag : 0) + "</td>" +
+        '<td class="num">' + fmtEUR(auftragNetto(a)) + (a.rabatt ? ' <span class="muted" style="font-size:10px">−' + a.rabatt + "%</span>" : "") + "</td>" +
+        '<td class="num">' + fmtEUR(auftragDB(a)) + "</td>" +
         '<td class="num">' + siTxt + "</td>" +
         '<td class="num"><button class="btn sm" data-auf="' + a.id + '">Öffnen</button></td></tr>';
     });
@@ -1076,19 +1103,31 @@
       '<button class="btn sm" id="btn-auf-dup" type="button">📋 Duplizieren</button>' +
       "</div>";
 
-    // Kommission + Status
+    // Timer-Leiste (wenn eine Zeiterfassung für diesen Auftrag läuft)
+    if (db.aktiverTimer && db.aktiverTimer.auftragId === a.id) {
+      body += '<div class="insight" style="border-left-color:var(--green);margin-bottom:12px"><span class="ico">⏱</span><span>Zeit läuft: <strong>' +
+        esc(schrittLabel(db.aktiverTimer.schritt)) + '</strong> — <span id="timer-live" style="font-variant-numeric:tabular-nums">00:00:00</span></span></div>';
+    }
+
+    // Kommission + Rabatt + Status
     body += '<div class="inline">' +
       fld2("Kommission (Auftrags-Nr. / Baustelle)", "a-kommission", a.kommission || "", "text") +
+      fld2("Rabatt (%)", "a-rabatt", a.rabatt || 0, "number") +
       '<label class="fld"><span class="lbl">Status</span><select id="a-status">' +
         ["Angebot", "Beauftragt", "Abgeschlossen"].map(function (s) { return '<option' + (a.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("") +
       "</select></label>" +
       "</div>";
 
-    // Kalkulationsübersicht (Gesamt)
+    // Kalkulationsübersicht (Gesamt, inkl. Rabatt)
+    var rab = a.rabatt || 0;
+    var nettoEnd = auftragNetto(a);
     body += '<div class="card" style="background:var(--panel-2);margin-bottom:12px">' +
-      line("Verkaufspreis netto", fmtEUR(a.kalk.netto)) +
-      line("Deckungsbeitrag", fmtEUR(a.kalk.deckungsbeitrag) + " (" + a.kalk.deckungsbeitragProz + " %)", "sub") +
-      line("Soll-Stunden gesamt", fmtH(a.kalk.stundenGesamt), "sub") + "</div>";
+      line(rab ? "Verkaufspreis netto (Liste)" : "Verkaufspreis netto", fmtEUR(a.kalk.netto)) +
+      (rab ? line("abzgl. Rabatt " + rab + " %", "−" + fmtEUR(auftragRabattBetrag(a)), "sub") + line("Endpreis netto", fmtEUR(nettoEnd)) : "") +
+      line("Deckungsbeitrag", fmtEUR(auftragDB(a)), "sub") +
+      line("Soll-Stunden gesamt", fmtH(a.kalk.stundenGesamt), "sub") +
+      (nettoEnd < a.kalk.selbstkosten ? '<div class="result-line" style="color:var(--red)"><span>⚠️ Unter Selbstkosten!</span><span class="v">' + fmtEUR(a.kalk.selbstkosten) + "</span></div>" : "") +
+      "</div>";
 
     // Nachkalkulation – Ist-Zeiten erfassen (je Position)
     body += '<div class="lbl" style="margin-bottom:8px">Nachkalkulation · Ist-Zeiten erfassen (h)</div>';
@@ -1097,13 +1136,15 @@
         body += '<div style="font-weight:700;color:var(--accent);font-size:13px;margin:12px 0 6px">' + (pi + 1) + ". " + esc(p.label || (Products.byKey(p.produktKey) || {}).name || "Position") + "</div>";
       }
       var zeiten = (p.kalk && p.kalk.zeiten) || {};
-      body += '<div class="table-wrap"><table><thead><tr><th>Schritt</th><th class="num">Soll</th><th class="num">Ist</th></tr></thead><tbody>';
+      body += '<div class="table-wrap"><table><thead><tr><th>Schritt</th><th class="num">Soll</th><th class="num">Ist</th><th class="num">Timer</th></tr></thead><tbody>';
       SCHRITTE.forEach(function (s) {
         var soll = zeiten[s.key] || 0;
         var istV = p.ist && p.ist.zeiten ? (p.ist.zeiten[s.key] || "") : "";
         if (soll <= 0 && istV === "") return;
+        var laeuft = db.aktiverTimer && db.aktiverTimer.auftragId === a.id && db.aktiverTimer.posIndex === pi && db.aktiverTimer.schritt === s.key;
         body += "<tr><td>" + esc(s.label) + '</td><td class="num muted">' + (soll ? fmtH(soll) : "—") +
-          '</td><td class="num"><input type="number" step="any" data-ist="' + pi + ":" + s.key + '" value="' + esc(istV) + '" placeholder="' + (soll || 0) + '" style="width:88px;text-align:right"></td></tr>';
+          '</td><td class="num"><input type="number" step="any" data-ist="' + pi + ":" + s.key + '" value="' + esc(istV) + '" placeholder="' + (soll || 0) + '" style="width:80px;text-align:right"></td>' +
+          '<td class="num"><button class="btn sm ' + (laeuft ? "danger" : "ghost") + '" data-timer="' + pi + ":" + s.key + '" type="button">' + (laeuft ? "⏹ Stopp" : "▶") + "</button></td></tr>";
       });
       body += "</tbody></table></div>";
     });
@@ -1117,6 +1158,7 @@
     openModalWide("Auftrag: " + esc(a.titel), body, function () {
       a.status = $("#a-status").value;
       a.kommission = $("#a-kommission").value.trim();
+      a.rabatt = parseFloat($("#a-rabatt").value) || 0;
       var istProPos = {};
       $all("[data-ist]").forEach(function (inp) {
         var v = parseFloat(inp.value);
@@ -1149,6 +1191,54 @@
     if ($("#btn-auf-zettel")) $("#btn-auf-zettel").onclick = function () { arbeitszettelDrucken(a); };
     if ($("#btn-auf-bestell")) $("#btn-auf-bestell").onclick = function () { bestelllisteDrucken(a); };
     if ($("#btn-auf-dup")) $("#btn-auf-dup").onclick = function () { $("#modal-bg").classList.remove("show"); dupliziereAuftrag(a); };
+    $all("[data-timer]").forEach(function (b) {
+      b.onclick = function () {
+        var parts = b.dataset.timer.split(":");
+        timerKlick(a, +parts[0], parts[1]);
+      };
+    });
+    tickTimer();
+  }
+
+  // ---- Zeiterfassung (Timer, nur einer gleichzeitig) --------
+  function istAusDomSpeichern(a) {
+    var positionen = auftragPositionen(a);
+    $all("[data-ist]").forEach(function (inp) {
+      var v = parseFloat(inp.value);
+      var parts = inp.dataset.ist.split(":"); var pi = +parts[0], key = parts[1];
+      var p = positionen[pi]; if (!p) return;
+      if (!isNaN(v) && v > 0) { p.ist = p.ist || { zeiten: {}, erfasst: Store.nowISO() }; p.ist.zeiten[key] = v; }
+    });
+  }
+  function timerBuchen() {
+    var t = db.aktiverTimer; if (!t) return;
+    var a = db.auftraege.filter(function (x) { return x.id === t.auftragId; })[0];
+    var dauerH = (Date.now() - new Date(t.startISO).getTime()) / 3600000;
+    if (a) {
+      var p = auftragPositionen(a)[t.posIndex];
+      if (p) { p.ist = p.ist || { zeiten: {}, erfasst: Store.nowISO() }; p.ist.zeiten[t.schritt] = Calc.round2((p.ist.zeiten[t.schritt] || 0) + dauerH); }
+    }
+    db.aktiverTimer = null;
+  }
+  function timerKlick(a, pi, key) {
+    istAusDomSpeichern(a);
+    var t = db.aktiverTimer;
+    var selbe = t && t.auftragId === a.id && t.posIndex === pi && t.schritt === key;
+    if (t) timerBuchen();           // laufenden Timer immer zuerst buchen
+    if (!selbe) {                   // war es ein anderer Schritt -> neuen Timer starten
+      db.aktiverTimer = { auftragId: a.id, posIndex: pi, schritt: key, startISO: new Date().toISOString() };
+    }
+    Store.save();
+    $("#modal-bg").classList.remove("show");
+    auftragModal(a.id);
+  }
+  function tickTimer() {
+    var el = $("#timer-live");
+    if (!el || !db.aktiverTimer) return;
+    var sek = Math.max(0, Math.floor((Date.now() - new Date(db.aktiverTimer.startISO).getTime()) / 1000));
+    var h = Math.floor(sek / 3600), m = Math.floor((sek % 3600) / 60), s = sek % 60;
+    function p2(n) { return (n < 10 ? "0" : "") + n; }
+    el.textContent = p2(h) + ":" + p2(m) + ":" + p2(s);
   }
 
   // ============================================================
@@ -1267,6 +1357,7 @@
     $all(".app-version").forEach(function (e) { e.textContent = vtext; });
     navTo("dashboard");
     pruefeUpdate();
+    setInterval(tickTimer, 1000); // Live-Anzeige der Zeiterfassung
   }
 
   if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", init);
