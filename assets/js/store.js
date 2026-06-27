@@ -95,12 +95,14 @@
 
   function load() {
     if (_db) return _db;
+    var raw = null;
     try {
-      var raw = w.localStorage.getItem(KEY);
+      raw = w.localStorage.getItem(KEY);
       if (raw) {
         _db = JSON.parse(raw);
+        if (!_db || typeof _db !== "object") throw new Error("Datenformat ungültig");
         // sanfte Migration fehlender Felder
-        if (!_db.settings) _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        if (!_db.settings || typeof _db.settings !== "object") _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
         // Migration: altes Maschinen-Objekt {key: satz} -> Liste mit Rüstkosten
         if (_db.settings.maschinen && !Array.isArray(_db.settings.maschinen)) {
           var alt = _db.settings.maschinen;
@@ -117,11 +119,13 @@
         if (!_db.settings.maschinen) _db.settings.maschinen = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.maschinen));
         if (!_db.settings.firma) _db.settings.firma = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.firma));
         if (_db.settings.angebotZaehler == null) _db.settings.angebotZaehler = 1;
-        if (!_db.lernen) _db.lernen = { faktoren: {}, erkenntnisse: [] };
-        if (!_db.material) _db.material = [];
-        if (!_db.kunden) _db.kunden = [];
-        if (!_db.untergruppen) _db.untergruppen = {};
-        if (!_db.auftraege) _db.auftraege = [];
+        if (!_db.lernen || typeof _db.lernen !== "object") _db.lernen = { faktoren: {}, erkenntnisse: [] };
+        if (!_db.lernen.faktoren) _db.lernen.faktoren = {};
+        if (!_db.lernen.erkenntnisse) _db.lernen.erkenntnisse = [];
+        if (!Array.isArray(_db.material)) _db.material = [];
+        if (!Array.isArray(_db.kunden)) _db.kunden = [];
+        if (!_db.untergruppen || typeof _db.untergruppen !== "object") _db.untergruppen = {};
+        if (!Array.isArray(_db.auftraege)) _db.auftraege = [];
         // Migration: Einzelpositions-Aufträge -> positionen-Array
         _db.auftraege.forEach(function (a) {
           if (!a.positionen) {
@@ -135,7 +139,11 @@
         });
         return _db;
       }
-    } catch (e) { console.warn("Konnte Daten nicht laden:", e); }
+    } catch (e) {
+      // Beschädigte Daten nicht verwerfen, sondern für eine spätere Rettung sichern
+      console.warn("Daten beschädigt – starte mit leerer Datenbank:", e);
+      try { if (raw) w.localStorage.setItem(KEY + ".backup", raw); } catch (_) {}
+    }
     _db = fresh();
     save();
     return _db;

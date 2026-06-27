@@ -216,7 +216,7 @@
       "herstellkosten", "gemeinkosten", "selbstkosten", "gewinn", "stundenGesamt"];
     var sum = {};
     felder.forEach(function (f) { sum[f] = 0; });
-    kalks.forEach(function (k) { felder.forEach(function (f) { sum[f] += (k[f] || 0); }); });
+    kalks.forEach(function (k) { if (!k) return; felder.forEach(function (f) { sum[f] += (k[f] || 0); }); });
     felder.forEach(function (f) { sum[f] = round2(sum[f]); });
     sum.deckungsbeitragProz = sum.netto > 0 ? Math.round(sum.deckungsbeitrag / sum.netto * 100) : 0;
     sum.matZeilen = []; sum.lohnZeilen = []; sum.zeiten = {};

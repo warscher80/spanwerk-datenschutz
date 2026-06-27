@@ -49,15 +49,23 @@
   }
 
   // ---------- Navigation ----------
+  var RENDERER = {
+    dashboard: function () { renderDashboard(); }, stammdaten: function () { renderStammdaten(); },
+    material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
+    auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); }
+  };
   function navTo(page) {
     $all(".nav li").forEach(function (li) { li.classList.toggle("active", li.dataset.page === page); });
     $all(".page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + page); });
-    if (page === "dashboard") renderDashboard();
-    if (page === "stammdaten") renderStammdaten();
-    if (page === "material") renderMaterial();
-    if (page === "kalkulation") renderKalkulation();
-    if (page === "auftraege") renderAuftraege();
-    if (page === "lernen") renderLernen();
+    try {
+      if (RENDERER[page]) RENDERER[page]();
+    } catch (e) {
+      // Eine fehlerhafte Seite darf die App nicht lahmlegen
+      console.error("Render-Fehler (" + page + "):", e);
+      var c = $("#page-" + page + " .content");
+      if (c) c.innerHTML = '<div class="empty">Diese Ansicht konnte nicht geladen werden. Die übrigen Funktionen sind weiter nutzbar.</div>';
+      toast("Hinweis: Eine Ansicht hatte ein Problem und wurde übersprungen.", "err");
+    }
     w.scrollTo(0, 0);
   }
 
@@ -1300,9 +1308,15 @@
       '<div class="btn-row" style="justify-content:flex-end;margin-top:16px">' + foot + "</div></div>";
     bg.classList.add("show");
     function close() { bg.classList.remove("show"); }
+    function safe(fn) {
+      return function () {
+        try { if (fn() !== false) close(); }
+        catch (e) { console.error("Aktion fehlgeschlagen:", e); toast("Aktion fehlgeschlagen — bitte Eingaben prüfen.", "err"); }
+      };
+    }
     $("#modal-cancel").onclick = close;
-    if ($("#modal-ok")) $("#modal-ok").onclick = function () { if (onOk() !== false) close(); };
-    if ($("#modal-extra")) $("#modal-extra").onclick = function () { if (onExtra && onExtra() !== false) close(); };
+    if ($("#modal-ok")) $("#modal-ok").onclick = safe(onOk);
+    if ($("#modal-extra")) $("#modal-extra").onclick = safe(onExtra || function () {});
     bg.onclick = function (e) { if (e.target === bg) close(); };
   }
 
@@ -1352,14 +1366,19 @@
   //  INIT
   // ============================================================
   function init() {
+    // Globale Fehlerabfangung: Die App soll nie komplett einfrieren
+    w.addEventListener("error", function (ev) { console.error("Fehler abgefangen:", ev.error || ev.message); });
+    w.addEventListener("unhandledrejection", function (ev) { console.error("Hintergrund-Fehler abgefangen:", ev.reason); });
+
     $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
     var vtext = (w.PSBUILD && w.PSBUILD.version) ? "Version " + w.PSBUILD.version : "Web-Version";
     $all(".app-version").forEach(function (e) { e.textContent = vtext; });
     navTo("dashboard");
-    pruefeUpdate();
-    setInterval(tickTimer, 1000); // Live-Anzeige der Zeiterfassung
+    try { pruefeUpdate(); } catch (e) { console.error(e); }
+    setInterval(function () { try { tickTimer(); } catch (e) { /* Timer-Tick darf nie stören */ } }, 1000);
   }
 
-  if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", init);
-  else init();
+  function start() { try { init(); } catch (e) { console.error("Start-Fehler:", e); } }
+  if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", start);
+  else start();
 })(window, document);
