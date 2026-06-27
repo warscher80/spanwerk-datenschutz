@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stoppuhr-Gehaeuse (Ring) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:pathData="M54,36 a25,25 0 1,0 0.01,0 z" />
+    <!-- Krone / Startknopf oben -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M49,23 h10 v9 h-10 z" />
+    <!-- kleiner Seitenknopf -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M67,29 l7,7 -5,5 -7,-7 z" />
+    <!-- Zeiger (Stunde) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,61 L54,48" />
+    <!-- Zeiger (Sekunde) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M54,61 L65,68" />
+    <!-- Mittelpunkt -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M50,61 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 z" />
+</vector>
