@@ -149,9 +149,12 @@
     return _db;
   }
 
+  var _onSave = null;
+  function onSave(cb) { _onSave = cb; }
   function save() {
     try { w.localStorage.setItem(KEY, JSON.stringify(_db)); }
     catch (e) { console.warn("Speichern fehlgeschlagen:", e); }
+    if (_onSave) { try { _onSave(); } catch (e) {} }
   }
 
   function reset() {
@@ -172,7 +175,7 @@
 
   w.Preisschmiede = w.Preisschmiede || {};
   w.Preisschmiede.Store = {
-    load: load, save: save, reset: reset,
+    load: load, save: save, reset: reset, onSave: onSave,
     exportJSON: exportJSON, importJSON: importJSON,
     uid: uid, nowISO: nowISO,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS

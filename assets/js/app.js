@@ -209,12 +209,15 @@
       '<div class="card"><h3>Daten-Verwaltung</h3>' +
         '<p class="muted" style="font-size:13px">Alle Daten liegen ausschließlich lokal in diesem Browser. Erstelle ein Backup oder übertrage deine Daten auf ein anderes Gerät.</p>' +
         '<div class="btn-row">' +
+          '<button class="btn primary" id="btn-sync">📡 Geräte-Sync (WLAN)</button>' +
           '<button class="btn" id="btn-export">⬇️ Backup exportieren</button>' +
           '<button class="btn" id="btn-import">⬆️ Backup importieren</button>' +
           '<button class="btn danger" id="btn-reset-all">Alle Daten löschen</button>' +
         "</div>" +
+        '<p class="hint">Geräte-Sync: PC und Handy im selben WLAN verbinden und alle Daten übertragen.</p>' +
         '<input type="file" id="file-import" accept="application/json" style="display:none">' +
       "</div>";
+    $("#btn-sync").onclick = syncModal;
 
     $("#btn-save-stammdaten").onclick = function () {
       s.rates.cad = numv("#rate-cad"); s.rates.fertigung = numv("#rate-fertigung");
@@ -1321,6 +1324,120 @@
   }
 
   // ============================================================
+  //  GERÄTE-SYNC (PC ↔ Handy über lokales WLAN)
+  // ============================================================
+  function normAddr(a) { return (a || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, ""); }
+  function schliesseModal() { $("#modal-bg").classList.remove("show"); }
+
+  function zeichneQR(el, text) {
+    if (!el) return;
+    if (!w.qrcode) { el.innerHTML = '<div class="muted">QR nicht verfügbar.</div>'; return; }
+    try {
+      var qr = w.qrcode(0, "M"); qr.addData(text); qr.make();
+      el.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2 });
+      var svg = el.querySelector("svg");
+      if (svg) { svg.removeAttribute("width"); svg.removeAttribute("height"); svg.style.cssText = "width:220px;height:220px;background:#fff;padding:10px;border-radius:10px"; }
+    } catch (e) { el.innerHTML = '<div class="muted">QR konnte nicht erzeugt werden.</div>'; }
+  }
+
+  function syncModal() {
+    if (w.electronAPI && w.electronAPI.isDesktop) syncModalPC();
+    else syncModalHandy();
+  }
+
+  // PC-Seite (Electron): startet den WLAN-Server und zeigt QR + Adresse
+  function syncModalPC() {
+    try { w.electronAPI.setData(Store.exportJSON()); } catch (e) {}
+    w.electronAPI.startServer().then(function (info) {
+      var ips = (info && info.ips) || [];
+      var port = (info && info.port) || 8765;
+      if (!ips.length) {
+        openModal("Geräte-Sync", '<div class="empty">Keine WLAN-Verbindung gefunden. Bitte den PC mit dem Netzwerk verbinden.</div>', null, "Schließen");
+        return;
+      }
+      var addr = ips[0] + ":" + port;
+      var body = '<p>PC und Handy müssen im <strong>selben WLAN</strong> sein. Am Handy: Stammdaten → Geräte-Sync → „Mit PC verbinden" und diesen Code scannen.</p>' +
+        '<div id="qr-box" style="text-align:center;margin:14px 0"></div>' +
+        '<div style="text-align:center;font-size:17px;font-weight:700">' + esc(addr) + "</div>" +
+        (ips.length > 1 ? '<p class="hint" style="text-align:center">Alternative Adressen: ' + ips.slice(1).map(function (i) { return esc(i + ":" + port); }).join(", ") + "</p>" : "") +
+        '<p class="hint">Der PC bleibt empfangsbereit, solange dieses Fenster offen ist. Eine Firewall-Abfrage bitte zulassen.</p>';
+      openModal("📡 Geräte-Sync – dieser PC", body, null, "Fertig");
+      zeichneQR($("#qr-box"), "http://" + addr);
+    }).catch(function (e) { toast("Server-Start fehlgeschlagen: " + (e && e.message || e), "err"); });
+  }
+
+  // Handy-Seite: Adresse scannen/eingeben, Daten holen oder senden
+  function syncModalHandy() {
+    var last = "";
+    try { last = w.localStorage.getItem("ps.sync.addr") || ""; } catch (e) {}
+    var body = "<p>Daten mit dem PC abgleichen – beide im <strong>selben WLAN</strong>. Am PC: Stammdaten → Geräte-Sync.</p>" +
+      fld2("PC-Adresse (z. B. 192.168.0.10:8765)", "sync-addr", last, "text") +
+      '<div class="btn-row" style="margin-bottom:8px"><button class="btn sm" id="sync-scan" type="button">📷 QR-Code scannen</button></div>' +
+      '<div id="scan-box" style="text-align:center"></div>' +
+      '<hr class="sep">' +
+      '<div class="btn-row">' +
+        '<button class="btn primary" id="sync-pull" type="button">⬇️ Daten vom PC holen</button>' +
+        '<button class="btn" id="sync-push" type="button">⬆️ Daten an PC senden</button>' +
+      "</div>" +
+      '<p class="hint">„Holen" überschreibt die Daten auf diesem Gerät, „Senden" die auf dem PC.</p>';
+    openModal("📡 Geräte-Sync", body, null, "Schließen");
+    $("#sync-scan").onclick = function () { starteScan($("#scan-box"), $("#sync-addr")); };
+    $("#sync-pull").onclick = function () { syncPull($("#sync-addr").value); };
+    $("#sync-push").onclick = function () { syncPush($("#sync-addr").value); };
+  }
+
+  function syncPull(addr) {
+    addr = normAddr(addr);
+    if (!addr) { toast("Bitte PC-Adresse eingeben oder scannen.", "err"); return; }
+    if (!confirm("Daten vom PC holen? Die Daten auf DIESEM Gerät werden überschrieben.")) return;
+    try { w.localStorage.setItem("ps.sync.addr", addr); } catch (e) {}
+    fetch("http://" + addr + "/pull", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
+      .then(function (text) { db = Store.importJSON(text); toast("Daten vom PC übernommen. ✅"); schliesseModal(); navTo("dashboard"); })
+      .catch(function (e) { toast("Holen fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN? Adresse korrekt?", "err"); });
+  }
+
+  function syncPush(addr) {
+    addr = normAddr(addr);
+    if (!addr) { toast("Bitte PC-Adresse eingeben oder scannen.", "err"); return; }
+    if (!confirm("Daten an den PC senden? Die Daten auf dem PC werden überschrieben.")) return;
+    try { w.localStorage.setItem("ps.sync.addr", addr); } catch (e) {}
+    fetch("http://" + addr + "/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: Store.exportJSON() })
+      .then(function (r) { if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
+      .then(function () { toast("Daten an PC gesendet. ✅"); })
+      .catch(function (e) { toast("Senden fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN?", "err"); });
+  }
+
+  // QR-Scan per Kamera (jsQR); manuelle Eingabe bleibt als Rückfallebene
+  var _scanStop = false;
+  function starteScan(box, addrInput) {
+    if (!w.jsQR || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast("Kamera nicht verfügbar – bitte Adresse manuell eingeben.", "err"); return;
+    }
+    box.innerHTML = '<video id="scan-video" playsinline muted style="width:100%;max-width:300px;border-radius:8px;background:#000"></video><canvas id="scan-canvas" style="display:none"></canvas>';
+    var video = $("#scan-video", box), canvas = $("#scan-canvas", box), cx = canvas.getContext("2d");
+    var stream = null; _scanStop = false;
+    function ende() { _scanStop = true; if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); box.innerHTML = ""; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (s) {
+      stream = s; video.srcObject = s; video.setAttribute("playsinline", true); video.play();
+      function tick() {
+        if (_scanStop) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          cx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          try {
+            var img = cx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = w.jsQR(img.data, img.width, img.height);
+            if (code && code.data) { addrInput.value = normAddr(code.data); toast("Code erkannt: " + addrInput.value); ende(); return; }
+          } catch (e) {}
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }).catch(function () { toast("Kamerazugriff nicht möglich – bitte Adresse manuell eingeben.", "err"); });
+  }
+
+  // ============================================================
   //  UPDATE-PRÜFUNG
   //  Vergleicht die eingebettete Build-Nummer (assets/build-info.json)
   //  mit der neuesten veröffentlichten Version (version.json im Release).
@@ -1373,6 +1490,20 @@
     $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
     var vtext = (w.PSBUILD && w.PSBUILD.version) ? "Version " + w.PSBUILD.version : "Web-Version";
     $all(".app-version").forEach(function (e) { e.textContent = vtext; });
+    // Desktop (Electron): Daten an den Sync-Server spiegeln und Empfang verarbeiten
+    if (w.electronAPI && w.electronAPI.isDesktop) {
+      try {
+        Store.onSave(function () { try { w.electronAPI.setData(Store.exportJSON()); } catch (e) {} });
+        w.electronAPI.setData(Store.exportJSON());
+        w.electronAPI.onPush(function (json) {
+          if (confirm("Ein Gerät möchte Daten an diesen PC übertragen. Vorhandene Daten überschreiben?")) {
+            try { db = Store.importJSON(json); toast("Daten vom Gerät übernommen. ✅"); navTo("dashboard"); }
+            catch (e) { toast("Empfang fehlgeschlagen: " + (e && e.message || e), "err"); }
+          }
+        });
+      } catch (e) { console.error(e); }
+    }
+
     navTo("dashboard");
     try { pruefeUpdate(); } catch (e) { console.error(e); }
     setInterval(function () { try { tickTimer(); } catch (e) { /* Timer-Tick darf nie stören */ } }, 1000);

@@ -3,6 +3,6 @@
   "appName": "Preisschmiede",
   "webDir": "www",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": true
   }
 }

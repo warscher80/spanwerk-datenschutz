@@ -16,7 +16,7 @@
   "build": {
     "appId": "at.preisschmiede.kalkulation",
     "productName": "Preisschmiede",
-    "files": ["main.js", "app/**/*", "icon.png"],
+    "files": ["main.js", "preload.js", "app/**/*", "icon.png"],
     "win": {
       "target": "nsis",
       "icon": "icon.png",
