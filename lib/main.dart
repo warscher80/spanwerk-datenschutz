@@ -564,6 +564,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           now: now,
           prediction: _store.get(_matches[i].id),
           odds: _elo.odds(_matches[i].home.name, _matches[i].away.name),
+          probs: _elo.probs(_matches[i].home.name, _matches[i].away.name),
           onChanged: (h, a) async {
             await _store.save(_matches[i].id, h, a);
             setState(() {});
@@ -596,6 +597,7 @@ class _MatchCard extends StatelessWidget {
   final DateTime now;
   final Prediction? prediction;
   final MatchOdds odds;
+  final MatchProbs probs;
   final Future<void> Function(int home, int away) onChanged;
 
   const _MatchCard({
@@ -603,6 +605,7 @@ class _MatchCard extends StatelessWidget {
     required this.now,
     required this.prediction,
     required this.odds,
+    required this.probs,
     required this.onChanged,
   });
 
@@ -633,8 +636,72 @@ class _MatchCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          _predictionBanner(),
+          const SizedBox(height: 10),
           _oddsRow(),
           if (match.finished && match.hasResult) _resultRow(ph, pa),
+        ],
+      ),
+    );
+  }
+
+  /// Klare Ansage: wer gewinnt – plus Sicherheit in %.
+  Widget _predictionBanner() {
+    final values = [probs.home, probs.draw, probs.away];
+    final maxp = values.reduce((a, b) => a > b ? a : b);
+    final idx = values.indexOf(maxp); // 0 = Heim, 1 = Remis, 2 = Gast
+    final who = idx == 0
+        ? '${match.home.shortName} gewinnt'
+        : idx == 2
+            ? '${match.away.shortName} gewinnt'
+            : 'Unentschieden';
+    final conf = (maxp * 100).round();
+    final qualifier = idx == 1
+        ? 'ausgeglichen'
+        : conf >= 60
+            ? 'klarer Tipp'
+            : conf >= 45
+                ? 'leichter Favorit'
+                : 'offenes Spiel';
+
+    Widget trailing = Text('$conf %',
+        style: const TextStyle(color: _accent, fontWeight: FontWeight.w800, fontSize: 16));
+    if (match.finished && match.hasResult) {
+      final actual = tendencyOf(match.homeGoals!, match.awayGoals!);
+      final predicted =
+          idx == 0 ? Tendency.home : (idx == 2 ? Tendency.away : Tendency.draw);
+      final hit = predicted == actual;
+      trailing = Text(hit ? '✓ getroffen' : '✗ daneben',
+          style: TextStyle(
+            color: hit ? _accent : const Color(0xFFFF6B6B),
+            fontWeight: FontWeight.w800, fontSize: 12,
+          ));
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: _accent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _accent.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Text('🔮', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(who,
+                    style: const TextStyle(
+                        color: _accent, fontWeight: FontWeight.w800, fontSize: 15)),
+                Text('Prognose · $qualifier',
+                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+          trailing,
         ],
       ),
     );
