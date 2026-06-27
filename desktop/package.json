@@ -1,0 +1,33 @@
+{
+  "name": "preisschmiede-desktop",
+  "version": "1.0.0",
+  "description": "Preisschmiede – Kalkulation für Metallbau (Desktop)",
+  "main": "main.js",
+  "author": "Nico Warscher",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.7.6",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "at.preisschmiede.kalkulation",
+    "productName": "Preisschmiede",
+    "files": ["main.js", "app/**/*", "icon.png"],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png",
+      "artifactName": "preisschmiede-setup.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Preisschmiede"
+    }
+  }
+}

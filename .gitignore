@@ -24,6 +24,12 @@ assets/build-info.js
 assets/build-info.json
 version.json
 
+# Desktop-Build (Electron)
+desktop/node_modules/
+desktop/dist/
+desktop/app/
+*.exe
+
 # OS / Editor
 .DS_Store
 *.log

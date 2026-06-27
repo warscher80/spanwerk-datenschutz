@@ -1,7 +1,7 @@
-name: Android APK bauen
+name: Apps bauen (Android + Windows)
 
-# Baut die installierbare Android-APK in der Cloud und stellt sie
-# als Download bereit (Artefakt + Release "app-latest").
+# Baut die installierbare Android-APK und das Windows-Programm in der Cloud
+# und stellt beide als Download bereit (Release "app-latest").
 
 on:
   push:
@@ -14,6 +14,7 @@ on:
       - "assets/**"
       - "android/**"
       - "scripts/**"
+      - "desktop/**"
       - "package.json"
       - "capacitor.config.json"
       - ".github/workflows/android.yml"
@@ -88,11 +89,51 @@ jobs:
           tag_name: app-latest
           name: Preisschmiede – aktuelle App
           body: |
-            Installierbare Android-App, Version 1.0.${{ github.run_number }}.
-            Auf dem Handy herunterladen und öffnen. Falls "Installation blockiert"
-            erscheint: Installation aus unbekannten Quellen für den Browser erlauben.
-            Eine bereits installierte Preisschmiede-App wird ohne Datenverlust aktualisiert.
+            Preisschmiede, Version 1.0.${{ github.run_number }}.
+
+            📱 Android: preisschmiede.apk herunterladen und öffnen. Falls
+            "Installation blockiert": Installation aus unbekannten Quellen für den
+            Browser erlauben. Updates installieren sich ohne Datenverlust.
+
+            💻 Windows: preisschmiede-setup.exe herunterladen und ausführen.
+            Eventuelle SmartScreen-Warnung mit "Weitere Informationen" → "Trotzdem
+            ausführen" bestätigen (unsignierter Build).
           files: |
             preisschmiede.apk
             version.json
           prerelease: true
+
+  desktop:
+    name: Windows-Programm bauen
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Versionsinfo + Web-Dateien bereitstellen
+        shell: bash
+        run: |
+          BUILD=${{ github.run_number }}
+          echo "window.PSBUILD = {\"build\": ${BUILD}, \"version\": \"1.0.${BUILD}\", \"datum\": \"$(date +%Y-%m-%d)\"};" > assets/build-info.js
+          mkdir -p desktop/app
+          cp -r index.html datenschutz.html assets desktop/app/
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+        working-directory: desktop
+
+      - name: Windows-Programm bauen (.exe)
+        run: npm run dist
+        working-directory: desktop
+
+      - name: .exe ins Release laden
+        shell: bash
+        run: gh release upload app-latest desktop/dist/preisschmiede-setup.exe --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
