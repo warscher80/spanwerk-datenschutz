@@ -1,4 +1,5 @@
-// notify.dart – Lokale Tipp-Erinnerungen (kein Server, keine Daten nach außen).
+// notify.dart – Lokale Benachrichtigungen (nur Android; im Browser deaktiviert).
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -8,7 +9,7 @@ class Notifier {
   static bool _ready = false;
 
   static Future<void> init() async {
-    if (_ready) return;
+    if (kIsWeb || _ready) return;
     tzdata.initializeTimeZones();
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     await _plugin.initialize(const InitializationSettings(android: android));
@@ -17,6 +18,7 @@ class Notifier {
 
   /// Fragt (Android 13+) die Benachrichtigungserlaubnis ab.
   static Future<bool> requestPermission() async {
+    if (kIsWeb) return false;
     final impl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     final granted = await impl?.requestNotificationsPermission();
