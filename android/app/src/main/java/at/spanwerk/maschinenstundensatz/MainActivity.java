@@ -20,6 +20,9 @@ public class MainActivity extends Activity {
         web.loadUrl("file:///android_asset/maschinenstundensatz.html");
 
         setContentView(web);
+
+        // Beim Start im Hintergrund auf eine neuere Version prüfen.
+        new Updater(this).checkInBackground();
     }
 
     @Override

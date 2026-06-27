@@ -25,8 +25,18 @@ Gerät nicht und sind für niemanden außer dir zugänglich. Du kannst sie jeder
 App-Daten in den Android-Einstellungen leerst oder die App deinstallierst.</p>
 
 <h2>Internet & Berechtigungen</h2>
-<p>Die App benötigt keine Internetverbindung und keine besonderen Berechtigungen
-(kein Standort, keine Kontakte, keine Kamera, kein Speicherzugriff auf persönliche Dateien).</p>
+<p>Für die eigentliche Nutzung (Schnittdaten, Maschinenstundensatz-Berechnung) benötigt die App
+keine Internetverbindung. Sie verwendet das Internet ausschließlich für eine optionale
+<strong>Update-Prüfung</strong> beim Start (siehe nächster Abschnitt) und fordert keine besonderen
+Berechtigungen wie Standort, Kontakte, Kamera oder Zugriff auf persönliche Dateien an.</p>
+
+<h2>Update-Prüfung</h2>
+<p>Beim Start prüft die App, ob eine neuere Version verfügbar ist. Dazu wird eine kleine
+Versions-Datei von GitHub (github.com bzw. github.io) abgerufen. Dabei werden <strong>keine
+personenbezogenen Daten übertragen</strong>; technisch bedingt kann GitHub als Server die
+IP-Adresse im Rahmen des Verbindungsaufbaus verarbeiten. Es findet kein Tracking statt. Lädst du
+ein Update herunter, holt die App die neue Installationsdatei ebenfalls von GitHub. Besteht keine
+Internetverbindung, funktioniert die App normal weiter – die Prüfung wird dann übersprungen.</p>
 
 <h2>Datenweitergabe an Dritte</h2>
 <p>Es findet keine Weitergabe statt. Es werden keine Analyse- oder Werbedienste eingesetzt.</p>
