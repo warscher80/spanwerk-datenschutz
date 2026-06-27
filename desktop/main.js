@@ -39,6 +39,11 @@ function createWindow() {
   });
 }
 
+// Externen Link (Update-Download o. ä.) im Standardbrowser öffnen.
+ipcMain.on("open-external", function (_e, url) {
+  if (typeof url === "string" && /^https?:/i.test(url)) { try { shell.openExternal(url); } catch (e) {} }
+});
+
 // ---- Geräte-Sync (lokaler WLAN-Server) ----
 ipcMain.on("sync-set-data", function (_e, json) { if (typeof json === "string") cachedData = json; });
 

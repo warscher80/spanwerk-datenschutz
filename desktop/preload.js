@@ -11,5 +11,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // wenn ein Handy Daten sendet (POST /push)
   onPush: function (cb) { ipcRenderer.on("sync-push", function (_e, json) { cb(json); }); },
   // wenn ein Handy Daten abholt (GET /pull) – für Status-Rückmeldung
-  onClient: function (cb) { ipcRenderer.on("sync-client", function () { cb(); }); }
+  onClient: function (cb) { ipcRenderer.on("sync-client", function () { cb(); }); },
+  // externen Link (z. B. Update-Download) im Standardbrowser öffnen
+  openExternal: function (url) { ipcRenderer.send("open-external", url); }
 });

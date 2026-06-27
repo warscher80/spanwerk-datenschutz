@@ -1445,8 +1445,14 @@
   // ============================================================
   var REPO = "warscher80/spanwerk-datenschutz";
   var UPDATE_APK_URL = "https://github.com/" + REPO + "/releases/download/app-latest/preisschmiede.apk";
+  var UPDATE_EXE_URL = "https://github.com/" + REPO + "/releases/download/app-latest/preisschmiede-setup.exe";
   // GitHub-API (sendet CORS-Header, funktioniert daher in der App-WebView)
   var UPDATE_API_URL = "https://api.github.com/repos/" + REPO + "/releases/tags/app-latest";
+
+  // Am PC (Electron) das Windows-Setup anbieten, am Handy die Android-APK.
+  function istDesktop() { return !!(w.electronAPI && w.electronAPI.isDesktop); }
+  function updateDownloadURL() { return istDesktop() ? UPDATE_EXE_URL : UPDATE_APK_URL; }
+  function updateDownloadLabel() { return istDesktop() ? "Windows-Update laden" : "Jetzt aktualisieren"; }
 
   function pruefeUpdate() {
     // Eigene Version wird vom eingebetteten build-info.js gesetzt (window.PSBUILD).
@@ -1472,10 +1478,17 @@
     var b = el("div", { id: "update-banner", class: "update-banner" });
     b.innerHTML = '<span>🔄 Neue Version verfügbar' + (remote.version ? " (" + esc(remote.version) + ")" : "") + "</span>" +
       '<div class="ub-actions">' +
-        '<a class="btn primary sm" href="' + UPDATE_APK_URL + '" target="_blank" rel="noopener">Jetzt aktualisieren</a>' +
+        '<a class="btn primary sm" id="update-download" href="' + updateDownloadURL() + '" target="_blank" rel="noopener">' + updateDownloadLabel() + "</a>" +
         '<button class="btn ghost sm" id="update-later">Später</button>' +
       "</div>";
     d.body.appendChild(b);
+    // Am PC den Download im Standardbrowser öffnen (Electron blockt target=_blank sonst).
+    if (istDesktop() && w.electronAPI && w.electronAPI.openExternal) {
+      $("#update-download").onclick = function (ev) {
+        ev.preventDefault();
+        try { w.electronAPI.openExternal(updateDownloadURL()); } catch (e) {}
+      };
+    }
     $("#update-later").onclick = function () { b.remove(); };
   }
 
