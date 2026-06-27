@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a2330">
+<meta name="color-scheme" content="light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zeiterfassung">
+<title>Zeiterfassung – Spanwerk</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --ink:#1a2330; --muted:#667; --line:#e2e7ee;
+    --accent:#1f6feb; --accent-soft:#e8f0fe; --good:#0f8a4f; --good-soft:#e6f5ec;
+    --warn:#b8860b; --warn-bg:#fff7e6; --run:#0f8a4f; --run-soft:#e6f5ec;
+    --danger:#c1352b;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);
+    margin:0;padding:0 0 calc(40px + env(safe-area-inset-bottom));line-height:1.5;color:var(--ink);
+    -webkit-tap-highlight-color:rgba(31,111,235,.15)}
+  header{max-width:760px;margin:0 auto;
+    padding:calc(22px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 6px
+            calc(18px + env(safe-area-inset-left))}
+  h1{font-size:23px;margin:0 0 4px}
+  small{color:var(--muted)}
+  main{max-width:760px;margin:0 auto;
+    padding:0 calc(18px + env(safe-area-inset-right)) 0 calc(18px + env(safe-area-inset-left))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin:14px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .card h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+    margin:0 0 12px;font-weight:600}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .field{flex:1 1 160px;min-width:0}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  .field input,.field select{width:100%;padding:11px 12px;border:1px solid var(--line);
+    border-radius:8px;font-size:16px;background:#fff;color:var(--ink);min-height:46px}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:11px 14px;font-size:15px;cursor:pointer;color:var(--ink);min-height:46px;
+    -webkit-appearance:none}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{color:#fff;opacity:.92}
+  .btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+  .btn.sm{min-height:0;padding:6px 10px;font-size:13px;border-radius:7px}
+
+  /* Status / laufende Tätigkeit */
+  .status{background:var(--ink);color:#fff;border:0}
+  .status h2{color:#aebdd4}
+  .status.live{background:linear-gradient(135deg,#0f8a4f,#0c6e40)}
+  .status .lbl{font-size:14px;color:#cfe6da;margin-bottom:2px}
+  .status.idle .lbl{color:#aebdd4}
+  .status .big{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .status .act{font-size:17px;font-weight:600;margin-top:2px}
+
+  /* Tätigkeiten-Liste */
+  .acts{display:flex;flex-direction:column;gap:8px}
+  .act-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;background:#fff}
+  .act-row.running{border-color:var(--run);background:var(--run-soft)}
+  .act-main{flex:1;min-width:0}
+  .act-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act-time{font-size:20px;font-variant-numeric:tabular-nums;margin-top:1px}
+  .act-row.running .act-time{color:var(--run)}
+  .act-sub{margin-top:4px;display:flex;gap:14px}
+  .act-sub a{font-size:12px;color:var(--muted);cursor:pointer;text-decoration:none;border-bottom:1px dotted var(--muted)}
+  .act-sub a:hover{color:var(--danger);border-color:var(--danger)}
+  .play{flex:0 0 auto;width:64px;height:46px;border-radius:9px;border:0;cursor:pointer;
+    font-size:14px;font-weight:600;color:#fff;background:var(--accent);-webkit-appearance:none}
+  .play.pause{background:var(--warn)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .chip{border:1px dashed var(--line);background:#fbfcfe;border-radius:18px;padding:7px 12px;
+    font-size:13px;cursor:pointer;color:var(--accent);-webkit-appearance:none}
+  .chip:hover{border-color:var(--accent);border-style:solid}
+  .addbar{display:flex;gap:8px;margin-top:12px}
+  .addbar input{flex:1}
+
+  /* Zusammenfassung */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  table.bd td,table.bd th{padding:7px 0;border-bottom:1px solid var(--line);text-align:left}
+  table.bd th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600}
+  table.bd td.num,table.bd th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.bd tr:last-child td{border-bottom:0}
+  table.bd .tot td{font-weight:700;border-top:2px solid var(--line);padding-top:9px}
+  .empty{color:var(--muted);font-size:14px;padding:6px 0}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
+  .toolbar .btn{flex:1}
+  @media print{.toolbar,.play,.act-sub,.addbar,.chips,.status,#projTools{display:none}
+    body{background:#fff} .card{box-shadow:none;border-color:#ccc}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Zeiterfassung</h1>
+  <small>Spanwerk · für die Nachkalkulation · läuft offline · alles nur lokal gespeichert</small>
+</header>
+
+<main>
+  <!-- AUFTRAG -->
+  <section class="card">
+    <h2>Auftrag</h2>
+    <div class="row">
+      <div class="field" style="flex:2 1 220px">
+        <label for="projSel">Aktueller Auftrag</label>
+        <select id="projSel"></select>
+      </div>
+      <div class="field" style="flex:1 1 130px">
+        <label for="projRate">Stundensatz (€/h, optional)</label>
+        <input id="projRate" type="number" min="0" step="any" inputmode="decimal" placeholder="z. B. 65">
+      </div>
+    </div>
+    <div class="toolbar" id="projTools">
+      <button class="btn primary" id="newProjBtn" type="button">+ Neuer Auftrag</button>
+      <button class="btn" id="renProjBtn" type="button">Umbenennen</button>
+      <button class="btn danger" id="delProjBtn" type="button">Löschen</button>
+    </div>
+    <div class="hint">Der Stundensatz (z. B. aus dem Maschinenstundensatz-Rechner) rechnet die
+      erfasste Zeit automatisch in Kosten um.</div>
+  </section>
+
+  <!-- STATUS -->
+  <section class="card status idle" id="statusCard">
+    <div class="lbl" id="statusLbl">Keine Tätigkeit läuft</div>
+    <div class="big" id="statusTime">00:00:00</div>
+    <div class="act" id="statusAct"></div>
+  </section>
+
+  <!-- TÄTIGKEITEN -->
+  <section class="card">
+    <h2>Tätigkeiten</h2>
+    <div class="acts" id="acts"></div>
+    <div class="chips" id="chips"></div>
+    <div class="addbar">
+      <input id="newActInput" type="text" placeholder="Eigene Tätigkeit hinzufügen" enterkeyhint="done">
+      <button class="btn" id="addActBtn" type="button">Hinzufügen</button>
+    </div>
+  </section>
+
+  <!-- NACHKALKULATION -->
+  <section class="card">
+    <h2>Nachkalkulation</h2>
+    <table class="bd" id="summary"></table>
+  </section>
+
+  <div class="toolbar">
+    <button class="btn" id="copyBtn" type="button">Kopieren</button>
+    <button class="btn" id="csvBtn" type="button">CSV exportieren</button>
+    <button class="btn" id="printBtn" type="button">Drucken / PDF</button>
+  </div>
+</main>
+
+<script>
+(function(){
+  var KEY='spanwerk-zeit-v1';
+  var CATALOG=['CAD','Materialbeschaffung','Zuschnitt','Entgraten','Bohren','Fräsen',
+    'Schweißnahtvorbereitung','Schweißen','Schleifen','Putzen','Richten','Montage',
+    'Lackieren / Beschichten','Qualitätskontrolle','Verpacken','Lieferung'];
+  var DEFAULTS=['CAD','Materialbeschaffung','Zuschnitt','Entgraten','Bohren','Fräsen',
+    'Schweißnahtvorbereitung','Schleifen','Putzen'];
+
+  var state={activeId:null,projects:[]};
+  var ticker=null;
+
+  function $(id){return document.getElementById(id);}
+  function genId(){return 'id'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);}
+  function pad(n){return (n<10?'0':'')+n;}
+  function now(){return Date.now();}
+
+  function fmt(sec){
+    sec=Math.max(0,Math.floor(sec));
+    var h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+    return pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function decH(sec){return (sec/3600);}
+  function eur(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+  function hrs(sec){return decH(sec).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' h';}
+
+  function elapsed(a){return a.sec+(a.startedAt?Math.floor((now()-a.startedAt)/1000):0);}
+
+  function activeProj(){
+    for(var i=0;i<state.projects.length;i++) if(state.projects[i].id===state.activeId) return state.projects[i];
+    return null;
+  }
+  function findRunning(){
+    for(var i=0;i<state.projects.length;i++){
+      var p=state.projects[i];
+      for(var j=0;j<p.activities.length;j++) if(p.activities[j].startedAt) return {proj:p,act:p.activities[j]};
+    }
+    return null;
+  }
+  function stopRunning(){
+    var r=findRunning();
+    if(r){ r.act.sec=elapsed(r.act); r.act.startedAt=null; }
+  }
+
+  function newProject(name){
+    var p={id:genId(),name:name,rate:'',createdAt:now(),
+      activities:DEFAULTS.map(function(n){return {id:genId(),name:n,sec:0,startedAt:null};})};
+    state.projects.push(p);
+    state.activeId=p.id;
+    return p;
+  }
+
+  /* ---- Aktionen ---- */
+  function startAct(actId){
+    var p=activeProj(); if(!p) return;
+    var target=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) target=p.activities[i];
+    if(!target) return;
+    if(target.startedAt){ // läuft -> pausieren
+      target.sec=elapsed(target); target.startedAt=null;
+    } else {
+      stopRunning();          // nur eine Tätigkeit gleichzeitig
+      target.startedAt=now();
+    }
+    save(); render();
+  }
+  function resetAct(actId){
+    var p=activeProj(); if(!p) return;
+    for(var i=0;i<p.activities.length;i++){
+      if(p.activities[i].id===actId){
+        if(!confirm('Zeit für "'+p.activities[i].name+'" auf 0 setzen?')) return;
+        p.activities[i].sec=0; p.activities[i].startedAt=null;
+      }
+    }
+    save(); render();
+  }
+  function removeAct(actId){
+    var p=activeProj(); if(!p) return;
+    for(var i=0;i<p.activities.length;i++){
+      if(p.activities[i].id===actId){
+        var a=p.activities[i];
+        if(elapsed(a)>0 && !confirm('"'+a.name+'" inkl. erfasster Zeit entfernen?')) return;
+        p.activities.splice(i,1); break;
+      }
+    }
+    save(); render();
+  }
+  function addAct(name){
+    var p=activeProj(); if(!p) return;
+    name=(name||'').trim(); if(!name) return;
+    for(var i=0;i<p.activities.length;i++)
+      if(p.activities[i].name.toLowerCase()===name.toLowerCase()){ render(); return; }
+    p.activities.push({id:genId(),name:name,sec:0,startedAt:null});
+    save(); render();
+  }
+
+  /* ---- Rendering ---- */
+  function render(){
+    // Auftrags-Dropdown
+    var sel=$('projSel'); sel.innerHTML='';
+    if(state.projects.length===0){
+      var o=document.createElement('option'); o.value=''; o.textContent='— noch kein Auftrag —'; sel.appendChild(o);
+    }
+    state.projects.forEach(function(p){
+      var o=document.createElement('option'); o.value=p.id; o.textContent=p.name;
+      if(p.id===state.activeId) o.selected=true; sel.appendChild(o);
+    });
+    var p=activeProj();
+    $('projRate').value=p?p.rate:'';
+    $('projRate').disabled=!p;
+    $('renProjBtn').disabled=!p; $('delProjBtn').disabled=!p;
+
+    renderActs();
+    renderStatus();
+    renderSummary();
+    ensureTicker();
+  }
+
+  function renderActs(){
+    var box=$('acts'), chips=$('chips'); box.innerHTML=''; chips.innerHTML='';
+    var p=activeProj();
+    if(!p){ box.innerHTML='<div class="empty">Lege oben einen Auftrag an, um Zeiten zu erfassen.</div>';
+      $('newActInput').disabled=true; $('addActBtn').disabled=true; return; }
+    $('newActInput').disabled=false; $('addActBtn').disabled=false;
+
+    p.activities.forEach(function(a){
+      var run=!!a.startedAt;
+      var row=document.createElement('div'); row.className='act-row'+(run?' running':'');
+      var main=document.createElement('div'); main.className='act-main';
+      var nm=document.createElement('div'); nm.className='act-name'; nm.textContent=a.name;
+      var tm=document.createElement('div'); tm.className='act-time'; tm.id='t_'+a.id; tm.textContent=fmt(elapsed(a));
+      var sub=document.createElement('div'); sub.className='act-sub';
+      var rs=document.createElement('a'); rs.textContent='Reset'; rs.onclick=function(){resetAct(a.id);};
+      var rm=document.createElement('a'); rm.textContent='Entfernen'; rm.onclick=function(){removeAct(a.id);};
+      sub.appendChild(rs); sub.appendChild(rm);
+      main.appendChild(nm); main.appendChild(tm); main.appendChild(sub);
+      var btn=document.createElement('button'); btn.className='play'+(run?' pause':'');
+      btn.textContent=run?'Pause':'Start'; btn.onclick=function(){startAct(a.id);};
+      row.appendChild(main); row.appendChild(btn); box.appendChild(row);
+    });
+
+    // Schnell-Hinzufügen-Chips für Katalog-Tätigkeiten, die noch fehlen
+    var have={}; p.activities.forEach(function(a){have[a.name.toLowerCase()]=1;});
+    CATALOG.forEach(function(n){
+      if(have[n.toLowerCase()]) return;
+      var c=document.createElement('button'); c.className='chip'; c.textContent='+ '+n;
+      c.onclick=function(){addAct(n);}; chips.appendChild(c);
+    });
+  }
+
+  function renderStatus(){
+    var card=$('statusCard'), r=findRunning();
+    if(r && activeProj() && r.proj.id===state.activeId){
+      card.className='card status live';
+      $('statusLbl').textContent='Läuft – '+r.proj.name;
+      $('statusTime').textContent=fmt(elapsed(r.act));
+      $('statusAct').textContent=r.act.name;
+    } else if(r){
+      card.className='card status live';
+      $('statusLbl').textContent='Läuft in anderem Auftrag: '+r.proj.name;
+      $('statusTime').textContent=fmt(elapsed(r.act));
+      $('statusAct').textContent=r.act.name;
+    } else {
+      card.className='card status idle';
+      $('statusLbl').textContent='Keine Tätigkeit läuft';
+      $('statusTime').textContent='00:00:00';
+      $('statusAct').textContent='';
+    }
+  }
+
+  function renderSummary(){
+    var t=$('summary'), p=activeProj();
+    if(!p){ t.innerHTML='<tr><td class="empty">—</td></tr>'; return; }
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)||rate<0) rate=0;
+    var withCost=rate>0;
+    var html='<tr><th>Tätigkeit</th><th class="num">Zeit</th><th class="num">Stunden</th>'+
+      (withCost?'<th class="num">Kosten</th>':'')+'</tr>';
+    var totSec=0, rows=0;
+    p.activities.forEach(function(a){
+      var s=elapsed(a); if(s<=0) return; rows++; totSec+=s;
+      html+='<tr><td>'+esc(a.name)+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+hrs(s)+'</td>'+
+        (withCost?'<td class="num">'+eur(decH(s)*rate)+'</td>':'')+'</tr>';
+    });
+    if(rows===0){
+      t.innerHTML='<tr><td class="empty">Noch keine Zeit erfasst. Tippe oben bei einer Tätigkeit auf „Start".</td></tr>';
+      return;
+    }
+    html+='<tr class="tot"><td>Gesamt</td><td class="num">'+fmt(totSec)+'</td><td class="num">'+hrs(totSec)+'</td>'+
+      (withCost?'<td class="num">'+eur(decH(totSec)*rate)+'</td>':'')+'</tr>';
+    t.innerHTML=html;
+  }
+
+  function esc(s){return (''+s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+  /* nur die Zeitfelder ticken lassen (ohne Re-Render -> Eingabe-Fokus bleibt) */
+  function tick(){
+    var r=findRunning();
+    if(r){
+      var el=document.getElementById('t_'+r.act.id);
+      if(el) el.textContent=fmt(elapsed(r.act));
+      if(activeProj() && r.proj.id===state.activeId) $('statusTime').textContent=fmt(elapsed(r.act));
+    }
+  }
+  function ensureTicker(){
+    if(ticker) return;
+    ticker=setInterval(function(){ if(findRunning()) tick(); },1000);
+  }
+
+  /* ---- Persistenz ---- */
+  function save(){ try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){} }
+  function load(){
+    var d; try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+    if(d && d.projects) state=d;
+  }
+
+  /* ---- Export ---- */
+  function summaryRows(){
+    var p=activeProj(); if(!p) return [];
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var out=[]; p.activities.forEach(function(a){
+      var s=elapsed(a); if(s<=0) return;
+      out.push({name:a.name,sec:s,h:decH(s),cost:rate>0?decH(s)*rate:null});
+    });
+    return out;
+  }
+  function buildCSV(){
+    var p=activeProj(); if(!p) return '';
+    var rows=summaryRows();
+    var head=['Auftrag','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)'];
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var lines=[head.join(';')]; var totSec=0,totCost=0;
+    rows.forEach(function(r){
+      totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
+      lines.push([q(p.name),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):''].join(';'));
+    });
+    lines.push([q(p.name),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):''].join(';'));
+    return lines.join('\r\n');
+  }
+  function deci(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});}
+  function q(s){return '"'+(''+s).replace(/"/g,'""')+'"';}
+  function buildText(){
+    var p=activeProj(); if(!p) return 'Kein Auftrag.';
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var rows=summaryRows(); var lines=['Nachkalkulation – '+p.name,''];
+    var totSec=0,totCost=0;
+    rows.forEach(function(r){ totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
+      lines.push(r.name+': '+fmt(r.sec)+' ('+hrs(r.sec)+')'+(r.cost!=null?' = '+eur(r.cost):'')); });
+    lines.push('');
+    lines.push('Gesamt: '+fmt(totSec)+' ('+hrs(totSec)+')'+(rate>0?' = '+eur(totCost):''));
+    return lines.join('\n');
+  }
+  function download(name,text){
+    try{
+      var blob=new Blob([text],{type:'text/csv;charset=utf-8'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a'); a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    }catch(e){ alert('Export wird hier nicht unterstützt. Nutze „Kopieren".'); }
+  }
+  function copyText(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){flash('Kopiert!');},function(){legacyCopy(text);});
+    } else legacyCopy(text);
+  }
+  function legacyCopy(text){
+    var ta=document.createElement('textarea'); ta.value=text;
+    ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy'); flash('Kopiert!');}catch(e){alert(text);}
+    document.body.removeChild(ta);
+  }
+  function flash(msg){
+    var b=$('copyBtn'), old=b.textContent; b.textContent=msg;
+    setTimeout(function(){b.textContent=old;},1200);
+  }
+
+  /* ---- Events ---- */
+  $('projSel').addEventListener('change',function(){ state.activeId=this.value||null; save(); render(); });
+  $('projRate').addEventListener('input',function(){ var p=activeProj(); if(p){p.rate=this.value; save(); renderSummary();} });
+  $('newProjBtn').addEventListener('click',function(){
+    var n=prompt('Name des Auftrags (z. B. „Treppe Müller"):',''); if(n===null) return;
+    n=n.trim(); if(!n) return; newProject(n); save(); render();
+  });
+  $('renProjBtn').addEventListener('click',function(){
+    var p=activeProj(); if(!p) return;
+    var n=prompt('Auftrag umbenennen:',p.name); if(n===null) return; n=n.trim(); if(!n) return;
+    p.name=n; save(); render();
+  });
+  $('delProjBtn').addEventListener('click',function(){
+    var p=activeProj(); if(!p) return;
+    if(!confirm('Auftrag „'+p.name+'" mit allen erfassten Zeiten löschen?')) return;
+    state.projects=state.projects.filter(function(x){return x.id!==p.id;});
+    state.activeId=state.projects.length?state.projects[0].id:null;
+    save(); render();
+  });
+  $('addActBtn').addEventListener('click',function(){ addAct($('newActInput').value); $('newActInput').value=''; });
+  $('newActInput').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ addAct(this.value); this.value=''; }
+  });
+  $('copyBtn').addEventListener('click',function(){ if(activeProj()) copyText(buildText()); });
+  $('csvBtn').addEventListener('click',function(){
+    var p=activeProj(); if(!p) return;
+    var safe=p.name.replace(/[^\wäöüÄÖÜß \-]+/g,'').trim().replace(/\s+/g,'_')||'auftrag';
+    download('Zeiterfassung_'+safe+'.csv','﻿'+buildCSV());
+  });
+  $('printBtn').addEventListener('click',function(){ window.print(); });
+
+  // beim Verlassen/Pausieren der App Zustand sichern (Timer läuft über Zeitstempel weiter)
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) save(); });
+  window.addEventListener('beforeunload',save);
+
+  /* ---- Start ---- */
+  load();
+  if(state.projects.length===0){ newProject('Treppe (Beispiel)'); save(); }
+  if(!activeProj() && state.projects.length) state.activeId=state.projects[0].id;
+  render();
+})();
+</script>
+</body>
+</html>
