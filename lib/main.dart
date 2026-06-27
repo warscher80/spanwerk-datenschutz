@@ -121,25 +121,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _selectLeague();
   }
 
-  /// Plant eine Erinnerung ~90 Min vor dem ersten noch ungetippten Spiel.
+  /// Plant eine Benachrichtigung ~90 Min vor dem ersten anstehenden Spiel.
   void _scheduleReminders(List<FootyMatch> matches) {
     if (_currentMode || !_store.remindersEnabled) return;
     final now = DateTime.now();
-    final untipped = matches
-        .where((x) => x.kickoff != null && x.kickoff!.isAfter(now) && _store.get(x.id) == null)
+    final upcoming = matches
+        .where((x) => x.kickoff != null && x.kickoff!.isAfter(now))
         .toList();
     final id = ((_league.id.hashCode ^ (_isCup ? _roundCode : _day)) & 0x7fffffff) % 100000;
-    if (untipped.isEmpty) {
+    if (upcoming.isEmpty) {
       Notifier.cancel(id);
       return;
     }
-    untipped.sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
-    final when = untipped.first.kickoff!.subtract(const Duration(minutes: 90));
+    upcoming.sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
+    final when = upcoming.first.kickoff!.subtract(const Duration(minutes: 90));
     Notifier.schedule(
       id: id,
       whenLocal: when,
-      title: '⚽ ${_league.name}: jetzt tippen!',
-      body: '$_stageTitle startet bald – ${untipped.length} Spiele noch ohne Tipp.',
+      title: '⚽ ${_league.name}: bald geht\'s los',
+      body: '$_stageTitle – ${upcoming.length} Spiele anstehend. Prognosen ansehen!',
     );
   }
 
@@ -264,68 +264,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _selectLeague();
   }
 
-  // ----- Punkte -----
-  int get _totalPoints {
-    var sum = 0;
-    for (final m in _matches) {
-      final p = _store.get(m.id);
-      if (p != null && m.finished && m.hasResult) {
-        sum += pointsFor(
-          predHome: p.home, predAway: p.away,
-          actualHome: m.homeGoals!, actualAway: m.awayGoals!,
-        );
-      }
-    }
-    return sum;
-  }
-
-  Future<void> _resetTips() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF114E3B),
-        title: const Text('Alle Tipps löschen?'),
-        content: const Text('Deine gespeicherten Tipps werden entfernt.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Löschen')),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await _store.clear();
-      setState(() {});
-    }
-  }
-
-  /// Füllt offene (noch nicht angestoßene) Spiele mit der Modell-Prognose.
-  Future<void> _autoTip() async {
-    final now = DateTime.now();
-    var n = 0;
-    for (final m in _matches) {
-      if (m.startedBy(now)) continue;
-      final s = _elo.expectedScore(m.home.name, m.away.name);
-      await _store.save(m.id, s[0], s[1]);
-      n++;
-    }
-    if (!mounted) return;
-    _scheduleReminders(_matches); // getippte Spiele aus der Erinnerung nehmen
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: const Color(0xFF114E3B),
-      content: Text(n == 0
-          ? 'Keine offenen Spiele zum Auto-Tippen.'
-          : '🔮 $n Spiele mit der Prognose getippt.'),
-      duration: const Duration(seconds: 2),
-    ));
-  }
-
   void _openStats() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0D4634),
       showDragHandle: true,
-      builder: (c) => _StatsSheet(store: _store, elo: _elo),
+      builder: (c) => _StatsSheet(store: _store),
     );
   }
 
@@ -336,38 +280,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF0D4634),
         title: const Text('🔮 KickProphet'),
         actions: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _accent.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('$_totalPoints Pkt',
-                  style: const TextStyle(color: _accent, fontWeight: FontWeight.w800)),
-            ),
-          ),
           IconButton(
-            tooltip: 'Meine Saison',
+            tooltip: 'Trefferquote',
             onPressed: _openStats,
-            icon: const Icon(Icons.bar_chart_rounded),
+            icon: const Icon(Icons.insights_rounded),
           ),
           PopupMenuButton<String>(
             onSelected: (v) {
-              if (v == 'reset') _resetTips();
-              if (v == 'auto') _autoTip();
               if (v == 'reminders') _toggleReminders();
             },
             itemBuilder: (c) => [
-              const PopupMenuItem(value: 'auto', child: Text('Auto-Tipp (Prognose)')),
               PopupMenuItem(
                 value: 'reminders',
                 child: Text(_store.remindersEnabled
-                    ? 'Erinnerungen: an ✓'
-                    : 'Erinnerungen: aus'),
+                    ? 'Benachrichtigungen: an ✓'
+                    : 'Benachrichtigungen: aus'),
               ),
-              const PopupMenuItem(value: 'reset', child: Text('Tipps zurücksetzen')),
             ],
           ),
         ],
@@ -562,13 +490,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         itemBuilder: (c, i) => _MatchCard(
           match: _matches[i],
           now: now,
-          prediction: _store.get(_matches[i].id),
           odds: _elo.odds(_matches[i].home.name, _matches[i].away.name),
           probs: _elo.probs(_matches[i].home.name, _matches[i].away.name),
-          onChanged: (h, a) async {
-            await _store.save(_matches[i].id, h, a);
-            setState(() {});
-          },
         ),
       ),
     );
@@ -584,7 +507,7 @@ class _PlayMoneyBanner extends StatelessWidget {
       color: _accent,
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: const Text(
-        'Tippspiel um Punkte · echte Spiele · kein Echtgeld',
+        'Prognosen aus echten Spielen · keine Wetten, kein Echtgeld',
         textAlign: TextAlign.center,
         style: TextStyle(color: _green, fontSize: 11, fontWeight: FontWeight.w700),
       ),
@@ -595,27 +518,20 @@ class _PlayMoneyBanner extends StatelessWidget {
 class _MatchCard extends StatelessWidget {
   final FootyMatch match;
   final DateTime now;
-  final Prediction? prediction;
   final MatchOdds odds;
   final MatchProbs probs;
-  final Future<void> Function(int home, int away) onChanged;
 
   const _MatchCard({
     required this.match,
     required this.now,
-    required this.prediction,
     required this.odds,
     required this.probs,
-    required this.onChanged,
   });
 
   bool get locked => match.startedBy(now);
 
   @override
   Widget build(BuildContext context) {
-    final ph = prediction?.home ?? 0;
-    final pa = prediction?.away ?? 0;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -631,7 +547,7 @@ class _MatchCard extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _Crest(team: match.home, alignEnd: false)),
-              _scoreInput(ph, pa),
+              _center(),
               Expanded(child: _Crest(team: match.away, alignEnd: true)),
             ],
           ),
@@ -639,9 +555,27 @@ class _MatchCard extends StatelessWidget {
           _predictionBanner(),
           const SizedBox(height: 10),
           _oddsRow(),
-          if (match.finished && match.hasResult) _resultRow(ph, pa),
         ],
       ),
+    );
+  }
+
+  /// Mitte der Karte: Endstand (beendet) oder „vs" (anstehend).
+  Widget _center() {
+    if (match.finished && match.hasResult) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${match.homeGoals}:${match.awayGoals}',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const Text('Endstand', style: TextStyle(color: Colors.white38, fontSize: 10)),
+        ]),
+      );
+    }
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 14),
+      child: Text('vs',
+          style: TextStyle(color: Colors.white38, fontWeight: FontWeight.w700, fontSize: 13)),
     );
   }
 
@@ -656,13 +590,17 @@ class _MatchCard extends StatelessWidget {
             ? '${match.away.shortName} gewinnt'
             : 'Unentschieden';
     final conf = (maxp * 100).round();
+    // Einordnung nach echter Treffsicherheit (75%+ ≈ 3 von 4 richtig).
     final qualifier = idx == 1
         ? 'ausgeglichen'
-        : conf >= 60
-            ? 'klarer Tipp'
-            : conf >= 45
-                ? 'leichter Favorit'
-                : 'offenes Spiel';
+        : conf >= 75
+            ? '🔒 sehr sicher'
+            : conf >= 65
+                ? '⭐ ziemlich sicher'
+                : conf >= 50
+                    ? 'leichter Favorit'
+                    : 'offenes Spiel';
+    final sure = idx != 1 && conf >= 65;
 
     Widget trailing = Text('$conf %',
         style: const TextStyle(color: _accent, fontWeight: FontWeight.w800, fontSize: 16));
@@ -681,13 +619,16 @@ class _MatchCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: _accent.withValues(alpha: 0.14),
+        color: _accent.withValues(alpha: sure ? 0.24 : 0.14),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _accent.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: _accent.withValues(alpha: sure ? 0.95 : 0.5),
+          width: sure ? 1.6 : 1,
+        ),
       ),
       child: Row(
         children: [
-          const Text('🔮', style: TextStyle(fontSize: 16)),
+          Text(sure ? '🎯' : '🔮', style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -768,65 +709,6 @@ class _MatchCard extends StatelessWidget {
     );
   }
 
-  Widget _scoreInput(int ph, int pa) {
-    return Column(
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Stepper(value: ph, enabled: !locked, onChanged: (v) => onChanged(v, pa)),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Text(':', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            ),
-            _Stepper(value: pa, enabled: !locked, onChanged: (v) => onChanged(ph, v)),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(locked ? 'dein Tipp' : 'tippen',
-            style: const TextStyle(color: Colors.white38, fontSize: 10)),
-      ],
-    );
-  }
-
-  Widget _resultRow(int ph, int pa) {
-    final pts = pointsFor(
-      predHome: ph, predAway: pa,
-      actualHome: match.homeGoals!, actualAway: match.awayGoals!,
-    );
-    final hasTip = prediction != null;
-    final win = pts > 0;
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.only(top: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFF1C6A50))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('Endstand ${match.homeGoals}:${match.awayGoals}',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          if (hasTip)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: (win ? _accent : const Color(0xFFFF6B6B)).withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('${pointsLabel(pts)} · +$pts',
-                  style: TextStyle(
-                    color: win ? _accent : const Color(0xFFFF6B6B),
-                    fontWeight: FontWeight.w800, fontSize: 12,
-                  )),
-            )
-          else
-            const Text('kein Tipp', style: TextStyle(color: Colors.white38, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
   String _fmtDate(DateTime d) {
     const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     String two(int n) => n < 10 ? '0$n' : '$n';
@@ -878,59 +760,12 @@ class _Crest extends StatelessWidget {
   }
 }
 
-class _Stepper extends StatelessWidget {
-  final int value;
-  final bool enabled;
-  final ValueChanged<int> onChanged;
-  const _Stepper({required this.value, required this.enabled, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _btn(Icons.keyboard_arrow_up, enabled && value < 19, () => onChanged(value + 1)),
-        Container(
-          width: 30, height: 30, alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B3D2E),
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: const Color(0xFF1C6A50)),
-          ),
-          child: Text('$value',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-        ),
-        _btn(Icons.keyboard_arrow_down, enabled && value > 0, () => onChanged(value - 1)),
-      ],
-    );
-  }
-
-  Widget _btn(IconData icon, bool on, VoidCallback tap) {
-    return InkWell(
-      onTap: on ? tap : null,
-      child: Icon(icon, size: 22, color: on ? _accent : Colors.white24),
-    );
-  }
-}
-
 class _StatsSheet extends StatelessWidget {
   final PredictionStore store;
-  final EloModel elo;
-  const _StatsSheet({required this.store, required this.elo});
+  const _StatsSheet({required this.store});
 
   @override
   Widget build(BuildContext context) {
-    var points = 0, tips = 0, exact = 0;
-    store.predictions.forEach((id, p) {
-      final r = store.result(id);
-      if (r == null) return;
-      tips++;
-      final pts = pointsFor(
-          predHome: p.home, predAway: p.away, actualHome: r[0], actualAway: r[1]);
-      points += pts;
-      if (pts == Scoring.exact) exact++;
-    });
-    final avg = tips == 0 ? 0.0 : points / tips;
-    final exactPct = tips == 0 ? 0 : (exact / tips * 100).round();
     final modelPct =
         store.modelTotal == 0 ? null : (store.modelHits / store.modelTotal * 100).round();
 
@@ -940,22 +775,17 @@ class _StatsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Meine Saison',
+          const Text('Trefferquote',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 14),
           Row(children: [
-            _stat('$points', 'Punkte'),
-            _stat('$tips', 'Tipps gewertet'),
+            _stat(modelPct == null ? '–' : '$modelPct %', 'Prognosen richtig'),
+            _stat('${store.modelTotal}', 'Spiele ausgewertet'),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            _stat('$exact', 'Volltreffer'),
-            _stat('$exactPct %', 'Volltreffer-Quote'),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            _stat(avg.toStringAsFixed(2), 'Ø Punkte/Tipp'),
             _stat('${store.teamsLearned}', 'Teams gelernt'),
+            _stat('${store.modelHits}', 'Treffer'),
           ]),
           const SizedBox(height: 18),
           Container(
@@ -967,22 +797,20 @@ class _StatsSheet extends StatelessWidget {
               border: Border.all(color: _accent.withValues(alpha: 0.4)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.psychology_alt_rounded, color: _accent, size: 20),
-                const SizedBox(width: 8),
-                const Text('Modell-Treffsicherheit',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                const Spacer(),
-                Text(modelPct == null ? '–' : '$modelPct %',
-                    style: const TextStyle(
-                        color: _accent, fontWeight: FontWeight.w800, fontSize: 18)),
+              Row(children: const [
+                Icon(Icons.psychology_alt_rounded, color: _accent, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('So liest du die Prognose',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
               ]),
               const SizedBox(height: 6),
-              Text(
-                modelPct == null
-                    ? 'Sobald Ergebnisse eingelesen sind, zeigt sich hier, wie oft die Prognose richtig lag.'
-                    : 'Anteil korrekt vorhergesagter Spiele (1/X/2) über ${store.modelTotal} ausgewertete Partien. Die Quoten lernen weiter dazu.',
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              const Text(
+                'Je höher die Sicherheit, desto öfter stimmt die Prognose: bei "75 %+" '
+                'liegt das Modell rund 3 von 4 Mal richtig. Es lernt aus jedem echten '
+                'Ergebnis weiter dazu. Garantien gibt es im Fußball aber nie. 😉',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
               ),
             ]),
           ),
