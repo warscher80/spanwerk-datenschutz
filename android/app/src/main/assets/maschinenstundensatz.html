@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maschinenstundensatz – Spanwerk</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --ink:#1a2330; --muted:#667; --line:#e2e7ee;
+    --accent:#1f6feb; --accent-soft:#e8f0fe; --good:#0f8a4f; --warn:#b8860b;
+    --warn-bg:#fff7e6;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);
+    margin:0;padding:0 0 60px;line-height:1.5;color:var(--ink)}
+  header{max-width:760px;margin:0 auto;padding:26px 18px 6px}
+  h1{font-size:23px;margin:0 0 4px}
+  small{color:var(--muted)}
+  main{max-width:760px;margin:0 auto;padding:0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 16px 6px;margin:14px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .card h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+    margin:0 0 12px;font-weight:600}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{flex:1 1 160px;margin-bottom:12px;min-width:0}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  .field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--line);
+    border-radius:8px;font-size:15px;background:#fff;color:var(--ink)}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  .hint{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px}
+  .seg button{flex:1;border:0;background:#fff;padding:10px 8px;font-size:14px;cursor:pointer;color:var(--ink)}
+  .seg button.active{background:var(--accent);color:#fff;font-weight:600}
+  .note{background:var(--warn-bg);border:1px solid #f0e0b8;border-radius:8px;
+    padding:10px 12px;font-size:13px;color:#5a4a1a;margin:4px 0 12px}
+  .result{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(244,246,249,0),var(--bg) 22%);
+    padding-top:8px;margin-top:8px;z-index:5}
+  .result .card{background:var(--ink);color:#fff;border:0}
+  .result h2{color:#aebdd4}
+  .big{font-size:34px;font-weight:700;margin:2px 0 2px}
+  .big span{font-size:17px;font-weight:500;color:#aebdd4}
+  .sub{font-size:13px;color:#aebdd4;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  table.bd td{padding:6px 0;border-bottom:1px solid var(--line)}
+  table.bd td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.bd tr:last-child td{border-bottom:0}
+  table.bd .tot td{font-weight:700;border-top:2px solid var(--line);padding-top:9px}
+  .pct{color:var(--muted);font-size:12px;margin-left:6px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
+  .toolbar button{border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:9px 14px;font-size:14px;cursor:pointer;color:var(--ink)}
+  .toolbar button:hover{border-color:var(--accent);color:var(--accent)}
+  .checkline{display:flex;align-items:center;gap:8px;font-size:14px;margin:2px 0 12px}
+  .checkline input{width:18px;height:18px}
+  @media print{.toolbar,.result{position:static} body{background:#fff}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Maschinenstundensatz-Rechner</h1>
+  <small>Spanwerk · läuft offline · Eingaben werden nur lokal gespeichert</small>
+</header>
+
+<main>
+  <!-- MASCHINE -->
+  <section class="card">
+    <h2>Maschine</h2>
+    <div class="field">
+      <label for="name">Bezeichnung</label>
+      <input id="name" type="text" placeholder="z. B. CNC-Fräse DMG">
+    </div>
+
+    <div class="seg" id="modeSeg">
+      <button type="button" data-mode="neu" class="active">Neue Maschine</button>
+      <button type="button" data-mode="abgeschrieben">Abgeschrieben (Buchwert 1 €)</button>
+    </div>
+    <div class="hint">Bei abgeschriebenen Maschinen ist der buchhalterische Wert ~0, der Wert für die
+      Kalkulation aber nicht: Wer den Ersatz finanzieren will, setzt trotzdem eine kalkulatorische
+      Abschreibung auf den heutigen Wiederbeschaffungswert an.</div>
+
+    <div class="row">
+      <div class="field">
+        <label for="awert" id="awertLbl">Anschaffungswert (€)</label>
+        <input id="awert" type="number" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="nutzung">Nutzungsdauer (Jahre)</label>
+        <input id="nutzung" type="number" min="1" step="any" placeholder="z. B. 10">
+      </div>
+      <div class="field">
+        <label for="restwert">Restwert am Ende (€)</label>
+        <input id="restwert" type="number" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+
+    <div class="checkline" id="kalkLine" style="display:none">
+      <input id="kalkAbschr" type="checkbox">
+      <label for="kalkAbschr" style="margin:0">Kalkulatorische Abschreibung &amp; Zinsen
+        trotzdem ansetzen (für Ersatzbeschaffung)</label>
+    </div>
+    <div class="note" id="kalkNote" style="display:none">
+      Hinweis: Buchhalterisch ist die Maschine abgeschrieben. Ohne Häkchen rechnet die App nur
+      die laufenden Kosten – der Stundensatz wird dadurch deutlich günstiger. Mit Häkchen werden
+      Abschreibung und Zinsen auf den oben eingegebenen Wiederbeschaffungswert angesetzt.
+    </div>
+  </section>
+
+  <!-- AUSLASTUNG -->
+  <section class="card">
+    <h2>Auslastung</h2>
+    <div class="row">
+      <div class="field">
+        <label for="tage">Arbeitstage / Jahr</label>
+        <input id="tage" type="number" min="0" step="any" value="220">
+      </div>
+      <div class="field">
+        <label for="stdtag">Stunden / Tag</label>
+        <input id="stdtag" type="number" min="0" step="any" value="8">
+      </div>
+      <div class="field">
+        <label for="ausl">Auslastungsgrad (%)</label>
+        <input id="ausl" type="number" min="1" max="100" step="any" value="80">
+      </div>
+    </div>
+    <div class="hint" id="hHint"></div>
+  </section>
+
+  <!-- KOSTEN -->
+  <section class="card">
+    <h2>Kosten</h2>
+    <div class="row">
+      <div class="field">
+        <label for="zins">Kalk. Zinssatz (%/Jahr)</label>
+        <input id="zins" type="number" min="0" step="any" value="5">
+      </div>
+      <div class="field">
+        <label for="wartung">Instandhaltung / Wartung (€/Jahr)</label>
+        <input id="wartung" type="number" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="kw">Anschlussleistung (kW)</label>
+        <input id="kw" type="number" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="last">Lastfaktor (%)</label>
+        <input id="last" type="number" min="0" max="100" step="any" value="70">
+      </div>
+      <div class="field">
+        <label for="strom">Strompreis (€/kWh)</label>
+        <input id="strom" type="number" min="0" step="any" value="0.30">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="flaeche">Stellfläche (m²)</label>
+        <input id="flaeche" type="number" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="qm">Raumkosten (€/m²/Monat)</label>
+        <input id="qm" type="number" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="werkzeug">Werkzeug / Hilfsstoffe (€/Jahr)</label>
+        <input id="werkzeug" type="number" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="sonst">Versicherung / Sonstiges (€/Jahr)</label>
+        <input id="sonst" type="number" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+  </section>
+
+  <!-- BEDIENER (optional) -->
+  <section class="card">
+    <h2>Bediener (optional)</h2>
+    <div class="row">
+      <div class="field">
+        <label for="lohn">Stundenlohn inkl. Lohnnebenkosten (€/h)</label>
+        <input id="lohn" type="number" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="lohnant">Bedienungsanteil (%)</label>
+        <input id="lohnant" type="number" min="0" max="100" step="any" value="100">
+      </div>
+    </div>
+    <div class="hint">Bei Mehrmaschinenbedienung z. B. 50 %. Wird separat ausgewiesen.</div>
+  </section>
+
+  <!-- ERGEBNIS -->
+  <div class="result">
+    <section class="card">
+      <h2 id="resName">Maschinenstundensatz</h2>
+      <div class="big" id="rate">– <span>€/h</span></div>
+      <div class="sub" id="rateSub"></div>
+      <table class="bd" id="bd"></table>
+    </section>
+  </div>
+
+  <div class="toolbar">
+    <button type="button" id="resetBtn">Zurücksetzen</button>
+    <button type="button" id="printBtn">Drucken / PDF</button>
+  </div>
+</main>
+
+<script>
+(function(){
+  var KEY='spanwerk-msr-v1';
+  var ids=['name','awert','nutzung','restwert','kalkAbschr','tage','stdtag','ausl',
+    'zins','wartung','kw','last','strom','flaeche','qm','werkzeug','sonst','lohn','lohnant'];
+  var mode='neu';
+
+  function $(id){return document.getElementById(id);}
+  function num(id){var v=parseFloat($(id).value);return isNaN(v)?0:v;}
+  function eur(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+  function eurH(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €/h';}
+
+  function setMode(m){
+    mode=m;
+    var btns=$('modeSeg').querySelectorAll('button');
+    for(var i=0;i<btns.length;i++)btns[i].classList.toggle('active',btns[i].dataset.mode===m);
+    var abg=(m==='abgeschrieben');
+    $('kalkLine').style.display=abg?'flex':'none';
+    $('kalkNote').style.display=abg?'block':'none';
+    $('awertLbl').textContent=abg?'Wiederbeschaffungswert heute (€)':'Anschaffungswert (€)';
+    calc();
+  }
+
+  function calc(){
+    var H=num('tage')*num('stdtag')*num('ausl')/100; // produktive Maschinenstunden/Jahr
+    $('hHint').textContent=H>0?('= '+H.toLocaleString('de-DE',{maximumFractionDigits:0})+
+      ' produktive Maschinenstunden pro Jahr'):'Bitte Auslastung eingeben.';
+
+    var wert=num('awert'), rest=num('restwert'), jahre=num('nutzung');
+    var abg=(mode==='abgeschrieben'), useKalk=(!abg)||$('kalkAbschr').checked;
+
+    var abschr = (useKalk && jahre>0) ? Math.max(0,(wert-rest))/jahre : 0;
+    var zinsen = useKalk ? ((wert+rest)/2)*num('zins')/100 : 0;
+    var energie = num('kw')*H*num('last')/100*num('strom');
+    var raum = num('flaeche')*num('qm')*12;
+    var wartung = num('wartung');
+    var werkzeug = num('werkzeug');
+    var sonst = num('sonst');
+
+    var items=[
+      ['Kalk. Abschreibung', abschr],
+      ['Kalk. Zinsen', zinsen],
+      ['Energie / Strom', energie],
+      ['Raumkosten', raum],
+      ['Instandhaltung / Wartung', wartung],
+      ['Werkzeug / Hilfsstoffe', werkzeug],
+      ['Versicherung / Sonstiges', sonst]
+    ];
+    var total=items.reduce(function(s,x){return s+x[1];},0);
+    var rate = H>0 ? total/H : 0;
+
+    var lohnRate = num('lohn')*num('lohnant')/100;
+    var fullRate = rate + lohnRate;
+
+    // Ergebnisanzeige
+    var nm=$('name').value.trim();
+    $('resName').textContent = nm?('Maschinenstundensatz · '+nm):'Maschinenstundensatz';
+    $('rate').innerHTML = (H>0?eur(rate).replace(' €',''):'–')+' <span>€/h</span>';
+    var subParts=[];
+    subParts.push('Maschinenkosten '+eur(total)+'/Jahr bei '+
+      H.toLocaleString('de-DE',{maximumFractionDigits:0})+' h');
+    if(abg && !useKalk) subParts.push('ohne kalk. Abschreibung');
+    $('rateSub').textContent=subParts.join(' · ');
+
+    // Aufschlüsselung
+    var html='';
+    items.forEach(function(x){
+      if(x[1]<=0) return;
+      var ph=H>0?(x[1]/H):0;
+      var pct=total>0?Math.round(x[1]/total*100):0;
+      html+='<tr><td>'+x[0]+'<span class="pct">'+pct+'%</span></td><td>'+eurH(ph)+'</td></tr>';
+    });
+    html+='<tr class="tot"><td>Maschinenstundensatz</td><td>'+eurH(rate)+'</td></tr>';
+    if(lohnRate>0){
+      html+='<tr><td>Bedienerlohn</td><td>'+eurH(lohnRate)+'</td></tr>';
+      html+='<tr class="tot"><td>Gesamt inkl. Lohn</td><td>'+eurH(fullRate)+'</td></tr>';
+    }
+    $('bd').innerHTML=html;
+    save();
+  }
+
+  function save(){
+    var d={mode:mode};
+    ids.forEach(function(id){var el=$(id);d[id]=el.type==='checkbox'?el.checked:el.value;});
+    try{localStorage.setItem(KEY,JSON.stringify(d));}catch(e){}
+  }
+  function load(){
+    var d;try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+    if(!d)return;
+    ids.forEach(function(id){
+      if(d[id]===undefined)return;
+      var el=$(id);
+      if(el.type==='checkbox')el.checked=d[id];else el.value=d[id];
+    });
+    if(d.mode)mode=d.mode;
+  }
+
+  // Events
+  $('modeSeg').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(b)setMode(b.dataset.mode);
+  });
+  ids.forEach(function(id){
+    $(id).addEventListener('input',calc);
+    $(id).addEventListener('change',calc);
+  });
+  $('resetBtn').addEventListener('click',function(){
+    if(!confirm('Alle Eingaben zurücksetzen?'))return;
+    try{localStorage.removeItem(KEY);}catch(e){}
+    location.reload();
+  });
+  $('printBtn').addEventListener('click',function(){window.print();});
+
+  load();
+  setMode(mode);
+})();
+</script>
+</body>
+</html>
