@@ -95,13 +95,17 @@
     var zeiten = berechneZeiten(db, eingabe.produktKey, eingabe.config, eingabe.manuelleZeiten);
     var positionen = materialPositionen(db, eingabe.produktKey, eingabe.config, eingabe.freiePositionen);
 
-    // Material
-    var materialEK = 0;
+    // Material (optional gewichtsbasiert: €/kg × kg je Einheit)
+    var materialEK = 0, gesamtGewicht = 0;
     var matZeilen = positionen.map(function (p) {
-      var ep = p.frei ? p.preis : (p.ref ? p.ref.preis : 0);
+      var ref = p.ref;
+      var kgEinheit = (ref && ref.kgProEinheit) ? ref.kgProEinheit : 0;
+      var ep = p.frei ? p.preis
+        : (ref ? ((ref.preisProKg && ref.kgProEinheit) ? ref.preisProKg * ref.kgProEinheit : ref.preis) : 0);
       var summe = ep * p.menge * (1 + verschnitt);
-      materialEK += summe;
-      return { name: p.name, menge: round2(p.menge), einheit: p.einheit, ep: round2(ep), summe: round2(summe) };
+      var gewicht = kgEinheit * p.menge;
+      materialEK += summe; gesamtGewicht += gewicht;
+      return { name: p.name, menge: round2(p.menge), einheit: p.einheit, ep: round2(ep), summe: round2(summe), gewicht: round2(gewicht) };
     });
     var materialMitAufschlag = materialEK * (1 + s.materialAufschlag / 100);
 
@@ -141,6 +145,7 @@
       zeiten: zeiten, stundenGesamt: round2(stundenGesamt),
       matZeilen: matZeilen, lohnZeilen: lohnZeilen,
       materialEK: round2(materialEK), materialMitAufschlag: round2(materialMitAufschlag),
+      gesamtGewicht: round2(gesamtGewicht),
       lohn: round2(lohn), maschinenKosten: round2(maschinenKosten), ruestKosten: round2(ruestKosten),
       herstellkosten: round2(herstellkosten), gemeinkosten: round2(gemeinkosten),
       selbstkosten: round2(selbstkosten), gewinn: round2(gewinn),
@@ -207,7 +212,7 @@
   // Mehrere Positions-Kalkulationen zu einer Gesamtsumme aggregieren
   function aggregiere(kalks) {
     var felder = ["netto", "brutto", "mwst", "deckungsbeitrag", "materialEK",
-      "materialMitAufschlag", "lohn", "maschinenKosten", "ruestKosten",
+      "materialMitAufschlag", "gesamtGewicht", "lohn", "maschinenKosten", "ruestKosten",
       "herstellkosten", "gemeinkosten", "selbstkosten", "gewinn", "stundenGesamt"];
     var sum = {};
     felder.forEach(function (f) { sum[f] = 0; });
@@ -285,6 +290,24 @@
     return out;
   }
 
+  // ---- Erfahrung: auf wie vielen echten Aufträgen beruht die Schätzung? ----
+  function erfahrung(db, produktKey, config) {
+    var F = (db.lernen && db.lernen.faktoren) || {};
+    var keys = segmentKeys(produktKey, config);
+    function maxSamples(k) {
+      var seg = F[k]; if (!seg) return 0;
+      var m = 0;
+      Object.keys(seg).forEach(function (s) { if (seg[s].samples > m) m = seg[s].samples; });
+      return m;
+    }
+    var spez = maxSamples(keys.spez), mat = maxSamples(keys.mat), allg = maxSamples(keys.allg);
+    var samples = Math.max(spez, mat, allg);
+    var ebene = spez >= 2 ? "genau auf dieses Segment (Werkstoff & Größe)"
+      : (mat >= 1 ? "auf diesen Werkstoff" : (allg > 0 ? "auf dieses Produkt" : ""));
+    var stufe = samples === 0 ? "standard" : (samples < 3 ? "lernend" : "sicher");
+    return { samples: samples, stufe: stufe, ebene: ebene };
+  }
+
   // ---- Soll/Ist-Abweichung eines Auftrags (über alle Positionen) ----
   function sollIst(auftrag) {
     var positionen = posListe(auftrag);
@@ -309,6 +332,6 @@
     segmentKeys: segmentKeys, groessenklasse: groessenklasse, segLabel: segLabel,
     angebotstext: angebotstext, lerneAusAuftrag: lerneAusAuftrag,
     erkenntnisseAktualisieren: erkenntnisseAktualisieren, aggregiere: aggregiere,
-    sollIst: sollIst, fmtEUR: fmtEUR, round2: round2
+    erfahrung: erfahrung, sollIst: sollIst, fmtEUR: fmtEUR, round2: round2
   };
 })(window);

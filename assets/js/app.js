@@ -412,6 +412,11 @@
         fld2("Lieferant", "m-lieferant", m ? m.lieferant : "", "text") +
       "</div>" +
       '<div class="inline">' +
+        fld2("Gewicht (kg je Einheit)", "m-kg", m && m.kgProEinheit != null ? m.kgProEinheit : "", "number") +
+        fld2("Preis pro kg (optional)", "m-preisProKg", m && m.preisProKg != null ? m.preisProKg : "", "number") +
+      "</div>" +
+      '<p class="hint">Sind Gewicht und „Preis pro kg" gesetzt, wird der Materialpreis daraus berechnet (genauer bei schwankenden Stahlpreisen). Sonst gilt der Preis je Einheit.</p>' +
+      '<div class="inline">' +
         fld2("Lagerbestand (optional)", "m-lager", m && m.lager != null ? m.lager : "", "number") +
         '<div style="flex:1"></div>' +
       "</div>";
@@ -429,16 +434,21 @@
       var preis = parseFloat($("#m-preis").value) || 0;
       var lagerRaw = $("#m-lager").value.trim();
       var lager = lagerRaw === "" ? null : (parseFloat(lagerRaw) || 0);
+      var kgRaw = $("#m-kg").value.trim();
+      var kg = kgRaw === "" ? null : (parseFloat(kgRaw) || 0);
+      var ppkRaw = $("#m-preisProKg").value.trim();
+      var ppk = ppkRaw === "" ? null : (parseFloat(ppkRaw) || 0);
       if (m) {
         if (preis !== m.preis) m.historie.push({ datum: Store.nowISO(), preis: preis });
         m.name = name; m.typ = $("#m-typ").value.trim(); m.einheit = $("#m-einheit").value.trim() || "Stk";
-        m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.lager = lager; m.aktualisiert = Store.nowISO();
+        m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.lager = lager;
+        m.kgProEinheit = kg; m.preisProKg = ppk; m.aktualisiert = Store.nowISO();
       } else {
         db.material.push({
           id: Store.uid(), name: name, typ: $("#m-typ").value.trim(),
           einheit: $("#m-einheit").value.trim() || "Stk", preis: preis,
-          lieferant: $("#m-lieferant").value.trim(), lager: lager, aktualisiert: Store.nowISO(),
-          historie: [{ datum: Store.nowISO(), preis: preis }]
+          lieferant: $("#m-lieferant").value.trim(), kgProEinheit: kg, preisProKg: ppk, lager: lager,
+          aktualisiert: Store.nowISO(), historie: [{ datum: Store.nowISO(), preis: preis }]
         });
       }
       Store.save(); renderMaterial(); toast("Material gespeichert.");
@@ -528,14 +538,14 @@
       html += "</div>";
     }
 
-    html += '<div class="btn-row" style="margin-top:8px"><button class="btn primary" id="btn-berechnen" type="button">⚡ Berechnen</button></div>';
     wrap.innerHTML = html;
 
-    // Events: Config-Felder
+    // Events: Config-Felder (Sofort-Berechnung bei jeder Änderung)
     $all("[data-cfg]", wrap).forEach(function (inp) {
       var ev = inp.type === "checkbox" ? "change" : "input";
       inp.addEventListener(ev, function () {
         entwurf.config[inp.dataset.cfg] = inp.type === "checkbox" ? inp.checked : inp.value;
+        liveBerechnen();
       });
       // init in config
       entwurf.config[inp.dataset.cfg] = inp.type === "checkbox" ? inp.checked : inp.value;
@@ -545,19 +555,20 @@
       renderFreiePositionen();
       $("#btn-add-pos").onclick = function () {
         entwurf.freiePositionen.push({ name: "", menge: 1, einheit: "Stk", preis: 0 });
-        renderFreiePositionen();
+        renderFreiePositionen(); liveBerechnen();
       };
       $all("[data-zeit]", wrap).forEach(function (inp) {
         inp.addEventListener("input", function () {
           var v = parseFloat(inp.value);
           if (isNaN(v)) delete entwurf.manuelleZeiten[inp.dataset.zeit];
           else entwurf.manuelleZeiten[inp.dataset.zeit] = v;
+          liveBerechnen();
         });
       });
     }
 
     $("#btn-add-ug").onclick = function () { untergruppeAnlegen(entwurf.produktKey); };
-    $("#btn-berechnen").onclick = berechnen;
+    liveBerechnen(); // Ergebnis sofort anzeigen
   }
 
   // Neue Untergruppe für ein Produkt anlegen
@@ -596,10 +607,11 @@
       inp.addEventListener("input", function () {
         var parts = inp.dataset.pos.split("-"); var idx = +parts[0]; var key = parts[1];
         entwurf.freiePositionen[idx][key] = (key === "menge" || key === "preis") ? parseFloat(inp.value) || 0 : inp.value;
+        liveBerechnen();
       });
     });
     $all("[data-pos-del]", wrap).forEach(function (b) {
-      b.onclick = function () { entwurf.freiePositionen.splice(+b.dataset.posDel, 1); renderFreiePositionen(); };
+      b.onclick = function () { entwurf.freiePositionen.splice(+b.dataset.posDel, 1); renderFreiePositionen(); liveBerechnen(); };
     });
   }
 
@@ -608,11 +620,26 @@
     entwurf.letzteKalk = kalk;
     renderKalkErgebnis(kalk);
   }
+  var _liveTimer = null;
+  function liveBerechnen() {
+    clearTimeout(_liveTimer);
+    _liveTimer = setTimeout(berechnen, 160);
+  }
 
   function renderKalkErgebnis(kalk) {
     var root = $("#kalk-ergebnis");
     var prod = Products.byKey(entwurf.produktKey);
     var html = "";
+
+    // Erfahrungs-Anzeige (auf wie vielen echten Aufträgen beruht die Schätzung?)
+    var erf = Calc.erfahrung(db, entwurf.produktKey, entwurf.config);
+    if (erf.samples === 0) {
+      html += '<div class="insight" style="border-left-color:var(--muted)"><span class="ico">📋</span><span>Schätzung beruht auf <strong>Standardwerten</strong>. Schließe Aufträge mit Ist-Zeiten ab — dann wird die App genauer.</span></div>';
+    } else {
+      var stufeTxt = erf.stufe === "sicher" ? "gut abgesichert" : "erste Erfahrungswerte";
+      html += '<div class="insight"><span class="ico">🧠</span><span>Erfahrung: beruht auf <strong>' + erf.samples + " nachkalkulierten Auftrag" + (erf.samples > 1 ? "en" : "") +
+        "</strong> (" + erf.ebene + ") — <strong>" + stufeTxt + "</strong>.</span></div>";
+    }
 
     // Arbeitszeiten
     html += '<div class="lbl">Arbeitszeiten (Soll, inkl. Lernfaktoren)</div>';
@@ -636,6 +663,7 @@
     // Preisaufbau
     html += '<hr class="sep">';
     html += line("Material (EK inkl. Verschnitt)", fmtEUR(kalk.materialEK), "sub");
+    if (kalk.gesamtGewicht > 0) html += line("Materialgewicht gesamt", kalk.gesamtGewicht.toLocaleString("de-AT", { maximumFractionDigits: 1 }) + " kg", "sub");
     html += line("Material inkl. Aufschlag", fmtEUR(kalk.materialMitAufschlag));
     html += line("Lohn / Fertigung", fmtEUR(kalk.lohn));
     if (kalk.maschinenKosten > 0) html += line("Maschinenkosten", fmtEUR(kalk.maschinenKosten));
