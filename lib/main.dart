@@ -206,7 +206,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
-        if (ingestMatch(_store, _elo, x)) learned = true;
+        if (ingestMatch(_store, _elo, x, neutral: _isCup)) learned = true;
       }
       if (learned) await _store.saveLearning();
       if (!mounted) return;
@@ -490,8 +490,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         itemBuilder: (c, i) => _MatchCard(
           match: _matches[i],
           now: now,
-          odds: _elo.odds(_matches[i].home.name, _matches[i].away.name),
-          probs: _elo.probs(_matches[i].home.name, _matches[i].away.name),
+          probs: _elo.probs(_matches[i].home.name, _matches[i].away.name, neutral: _isCup),
         ),
       ),
     );
@@ -518,13 +517,11 @@ class _PlayMoneyBanner extends StatelessWidget {
 class _MatchCard extends StatelessWidget {
   final FootyMatch match;
   final DateTime now;
-  final MatchOdds odds;
   final MatchProbs probs;
 
   const _MatchCard({
     required this.match,
     required this.now,
-    required this.odds,
     required this.probs,
   });
 
@@ -554,7 +551,7 @@ class _MatchCard extends StatelessWidget {
           const SizedBox(height: 10),
           _predictionBanner(),
           const SizedBox(height: 10),
-          _oddsRow(),
+          _probRow(),
         ],
       ),
     );
@@ -648,29 +645,29 @@ class _MatchCard extends StatelessWidget {
     );
   }
 
-  Widget _oddsRow() {
-    // Tipp-Tendenz zur Hervorhebung der „empfohlenen" (niedrigsten) Quote.
-    final lowest = [odds.home, odds.draw, odds.away].reduce((a, b) => a < b ? a : b);
-    Widget cell(String label, double value) {
-      final fav = value == lowest;
+  /// Die drei Wahrscheinlichkeiten (Sieg / Remis / Sieg) in Prozent.
+  Widget _probRow() {
+    final highest = [probs.home, probs.draw, probs.away].reduce((a, b) => a > b ? a : b);
+    Widget cell(String label, double p) {
+      final top = p == highest;
       return Expanded(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 3),
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
           decoration: BoxDecoration(
-            color: fav ? _accent.withValues(alpha: 0.16) : const Color(0xFF0B3D2E),
+            color: top ? _accent.withValues(alpha: 0.16) : const Color(0xFF0B3D2E),
             borderRadius: BorderRadius.circular(9),
-            border: Border.all(
-              color: fav ? _accent : const Color(0xFF1C6A50),
-            ),
+            border: Border.all(color: top ? _accent : const Color(0xFF1C6A50)),
           ),
           child: Column(
             children: [
-              Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+              Text(label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white54, fontSize: 11)),
               const SizedBox(height: 2),
-              Text(value.toStringAsFixed(2),
+              Text('${(p * 100).round()} %',
                   style: TextStyle(
-                    color: fav ? _accent : Colors.white,
+                    color: top ? _accent : Colors.white,
                     fontWeight: FontWeight.w800, fontSize: 15,
                   )),
             ],
@@ -680,9 +677,9 @@ class _MatchCard extends StatelessWidget {
     }
 
     return Row(children: [
-      cell('1', odds.home),
-      cell('X', odds.draw),
-      cell('2', odds.away),
+      cell(match.home.shortName, probs.home),
+      cell('Remis', probs.draw),
+      cell(match.away.shortName, probs.away),
     ]);
   }
 

@@ -37,8 +37,11 @@ class EloModel {
   bool knows(String team) => ratings.containsKey(team);
 
   /// Ein echtes Ergebnis ins Modell einarbeiten (nullsummen-symmetrisch).
-  void learn(String home, String away, int homeGoals, int awayGoals) {
-    final exp = _expectedHome(rating(home), rating(away));
+  /// Bei [neutral] (z. B. WM/Turnier auf neutralem Platz) zählt kein Heimvorteil.
+  void learn(String home, String away, int homeGoals, int awayGoals,
+      {bool neutral = false}) {
+    final hfa = neutral ? 0.0 : homeAdvantage;
+    final exp = 1 / (1 + pow(10, -(rating(home) + hfa - rating(away)) / 400));
     final score = homeGoals > awayGoals
         ? 1.0
         : homeGoals == awayGoals
@@ -51,11 +54,9 @@ class EloModel {
     ratings[away] = rating(away) - delta;
   }
 
-  double _expectedHome(double rh, double ra) =>
-      1 / (1 + pow(10, -(rh + homeAdvantage - ra) / 400));
-
-  MatchProbs probs(String home, String away) {
-    final dr = rating(home) + homeAdvantage - rating(away);
+  MatchProbs probs(String home, String away, {bool neutral = false}) {
+    final hfa = neutral ? 0.0 : homeAdvantage;
+    final dr = rating(home) + hfa - rating(away);
     final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
     var pDraw = (0.30 * exp(-pow(dr / 260, 2))).toDouble().clamp(0.06, 0.42);
     var pHome = (e - pDraw / 2).clamp(0.02, 0.97);
@@ -65,15 +66,17 @@ class EloModel {
   }
 
   /// Faire Quoten inkl. kleiner Marge (Standard 6 %).
-  MatchOdds odds(String home, String away, {double margin = 1.06}) {
-    final p = probs(home, away);
+  MatchOdds odds(String home, String away,
+      {double margin = 1.06, bool neutral = false}) {
+    final p = probs(home, away, neutral: neutral);
     double o(double prob) => max(1.01, (1 / (prob * margin)));
     return MatchOdds(o(p.home), o(p.draw), o(p.away));
   }
 
   /// Vom Modell erwartetes Ergebnis (für den Auto-Tipp).
-  List<int> expectedScore(String home, String away) {
-    final dr = rating(home) + homeAdvantage - rating(away);
+  List<int> expectedScore(String home, String away, {bool neutral = false}) {
+    final hfa = neutral ? 0.0 : homeAdvantage;
+    final dr = rating(home) + hfa - rating(away);
     final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
     final gh = (1.35 + (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
     final ga = (1.35 - (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
@@ -85,7 +88,7 @@ class EloModel {
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.
 bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
-    {bool evaluate = true}) {
+    {bool evaluate = true, bool neutral = false}) {
   if (!(m.finished && m.hasResult)) return false;
   // Ergebnis getippter Spiele immer für die Statistik festhalten.
   if (store.predictions.containsKey(m.id)) {
@@ -96,7 +99,7 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
   // Erst vorhersagen (bewerten), dann lernen. Vorsaison-Seeding (evaluate=false)
   // fließt nicht in die angezeigte Treffsicherheit ein.
   if (evaluate) {
-    final p = model.probs(m.home.name, m.away.name);
+    final p = model.probs(m.home.name, m.away.name, neutral: neutral);
     final predicted = p.home >= p.draw && p.home >= p.away
         ? Tendency.home
         : (p.away > p.home && p.away >= p.draw ? Tendency.away : Tendency.draw);
@@ -104,7 +107,7 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
     store.addModelEval(predicted == actual);
   }
 
-  model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!);
+  model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!, neutral: neutral);
   store.markIngested(m.id);
   return true;
 }
@@ -158,7 +161,7 @@ class SeasonLearner {
         final matches = await Api.round(league.id, season, code);
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (ingestMatch(store, model, m)) _changed = true;
+          if (ingestMatch(store, model, m, neutral: true)) _changed = true;
           if (!m.finished) allFinished = false;
         }
         if (allFinished) store.markRoundLearned(key);
