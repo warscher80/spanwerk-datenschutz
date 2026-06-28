@@ -117,7 +117,7 @@
   <section class="card">
     <h2>Auftrag</h2>
     <div class="field" id="projSelField">
-      <label for="projSel">Auftrag wählen</label>
+      <label for="projSel" id="projSelLabel">Auftrag wählen</label>
       <select id="projSel"></select>
     </div>
     <div class="field">
@@ -307,7 +307,9 @@
     $('projRate').value=p?p.rate:'';
     $('projName').disabled=!p; $('projClient').disabled=!p; $('projRate').disabled=!p;
     $('delProjBtn').disabled=!p;
-    $('projSelField').style.display=state.projects.length>1?'block':'none';
+    var n=state.projects.length, idx=0;
+    for(var k=0;k<n;k++) if(state.projects[k].id===state.activeId) idx=k;
+    $('projSelLabel').textContent = n>0 ? ('Auftrag '+(idx+1)+' von '+n) : 'Auftrag wählen';
 
     renderActs();
     renderStatus();
