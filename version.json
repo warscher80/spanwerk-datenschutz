@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "1.7.0",
+  "versionCode": 12,
+  "versionName": "1.7.1",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Nur noch Sieg-Wahrscheinlichkeiten in % + faire WM-Prognosen (neutraler Platz)"
+  "notes": "Bei gleicher Wahrscheinlichkeit beider Teams: Prognose Unentschieden (X)"
 }

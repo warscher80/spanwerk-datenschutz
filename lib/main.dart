@@ -576,17 +576,28 @@ class _MatchCard extends StatelessWidget {
     );
   }
 
+  /// Vorhergesagter Ausgang (0 = Heim, 1 = Remis, 2 = Gast).
+  /// Bei gleicher Wahrscheinlichkeit für beide Teams -> Unentschieden (X).
+  int _predictedIdx() {
+    final rh = (probs.home * 100).round();
+    final rd = (probs.draw * 100).round();
+    final ra = (probs.away * 100).round();
+    if (rh == ra && rh >= rd) return 1;
+    final values = [probs.home, probs.draw, probs.away];
+    final maxp = values.reduce((a, b) => a > b ? a : b);
+    return values.indexOf(maxp);
+  }
+
   /// Klare Ansage: wer gewinnt – plus Sicherheit in %.
   Widget _predictionBanner() {
     final values = [probs.home, probs.draw, probs.away];
-    final maxp = values.reduce((a, b) => a > b ? a : b);
-    final idx = values.indexOf(maxp); // 0 = Heim, 1 = Remis, 2 = Gast
+    final idx = _predictedIdx();
     final who = idx == 0
         ? '${match.home.shortName} gewinnt'
         : idx == 2
             ? '${match.away.shortName} gewinnt'
             : 'Unentschieden';
-    final conf = (maxp * 100).round();
+    final conf = (values[idx] * 100).round();
     // Einordnung nach echter Treffsicherheit (75%+ ≈ 3 von 4 richtig).
     final qualifier = idx == 1
         ? 'ausgeglichen'
@@ -647,9 +658,9 @@ class _MatchCard extends StatelessWidget {
 
   /// Die drei Wahrscheinlichkeiten (Sieg / Remis / Sieg) in Prozent.
   Widget _probRow() {
-    final highest = [probs.home, probs.draw, probs.away].reduce((a, b) => a > b ? a : b);
-    Widget cell(String label, double p) {
-      final top = p == highest;
+    final pick = _predictedIdx(); // hervorgehobener Ausgang (X bei Gleichstand)
+    Widget cell(String label, double p, int i) {
+      final top = i == pick;
       return Expanded(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -677,9 +688,9 @@ class _MatchCard extends StatelessWidget {
     }
 
     return Row(children: [
-      cell(match.home.shortName, probs.home),
-      cell('Remis', probs.draw),
-      cell(match.away.shortName, probs.away),
+      cell(match.home.shortName, probs.home, 0),
+      cell('Remis', probs.draw, 1),
+      cell(match.away.shortName, probs.away, 2),
     ]);
   }
 
