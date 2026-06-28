@@ -2,7 +2,7 @@ name: footy_predict
 description: "Footy Predict – Tippspiel auf echte Fußballspiele (Punkte, kein Echtgeld)."
 publish_to: 'none'
 
-version: 1.9.3+20
+version: 1.9.4+21
 
 environment:
   sdk: ^3.12.2

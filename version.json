@@ -1,6 +1,6 @@
 {
-  "versionCode": 20,
-  "versionName": "1.9.3",
+  "versionCode": 21,
+  "versionName": "1.9.4",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Aktuell zeigt jetzt ALLE noch nicht gespielten Spiele (inkl. alle WM-K.o.-Partien)"
+  "notes": "Aktualisieren loescht die Liste nicht mehr bei kurzer Drosselung"
 }

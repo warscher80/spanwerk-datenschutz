@@ -163,7 +163,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Liga/Turnier vorbereiten: Saison setzen, Startrunde bestimmen, laden, lernen.
   Future<void> _selectLeague() async {
-    setState(() { _loading = true; _error = null; _stages = []; });
+    setState(() { _loading = true; _error = null; _stages = []; _matches = []; });
     if (_currentMode) {
       await _loadDay();
       return;
@@ -204,6 +204,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       if (learned) await _store.saveLearning();
       if (!mounted) return;
+      // Leeres Ergebnis (meist kurze Drosselung) darf eine bestehende Liste
+      // nicht löschen – nur den Zeitstempel aktualisieren.
+      if (m.isEmpty && _matches.isNotEmpty) {
+        setState(() { _loading = false; _updatedAt = DateTime.now(); });
+        return;
+      }
       setState(() { _matches = m; _loading = false; _updatedAt = DateTime.now(); });
       _scheduleReminders(m);
     } catch (e) {
@@ -240,6 +246,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _changeDay(int delta) {
     if (delta < 0 ? !_canPrev : !_canNext) return;
     setState(() {
+      _matches = [];
       if (_isCup) {
         _stageIdx = (_stageIdx + delta).clamp(0, _stages.length - 1);
       } else {
@@ -254,6 +261,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() {
       _leagueIdx = idx;
       _loading = true;
+      _matches = [];
     });
     _store.setLastLeagueIdx(idx);
     _selectLeague();
