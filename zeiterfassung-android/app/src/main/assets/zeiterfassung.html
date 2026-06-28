@@ -89,9 +89,20 @@
   table.bd tr:last-child td{border-bottom:0}
   table.bd .tot td{font-weight:700;border-top:2px solid var(--line);padding-top:9px}
   .empty{color:var(--muted);font-size:14px;padding:6px 0}
+  .sumhead{font-size:14px;color:var(--muted);margin:-2px 0 10px}
+  .sumhead b{color:var(--ink)}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
   .toolbar .btn{flex:1}
-  @media print{.toolbar,.play,.act-sub,.addbar,.chips,.status,#projTools{display:none}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,22,35,.5);
+    z-index:50;align-items:center;justify-content:center;padding:24px}
+  .modal-overlay.show{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:360px;width:100%;padding:20px;
+    box-shadow:0 12px 40px rgba(10,18,35,.3)}
+  .modal-msg{font-size:15px;line-height:1.45;margin-bottom:18px;color:var(--ink)}
+  .modal-btns{display:flex;gap:10px}
+  .modal-btns .btn{flex:1}
+  .btn.primary-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  @media print{.toolbar,.play,.act-sub,.addbar,.chips,.status,#projTools,.modal-overlay{display:none}
     body{background:#fff} .card{box-shadow:none;border-color:#ccc}}
 </style>
 </head>
@@ -105,23 +116,30 @@
   <!-- AUFTRAG -->
   <section class="card">
     <h2>Auftrag</h2>
+    <div class="field" id="projSelField">
+      <label for="projSel">Auftrag wählen</label>
+      <select id="projSel"></select>
+    </div>
+    <div class="field">
+      <label for="projName">Bezeichnung</label>
+      <input id="projName" type="text" placeholder="z. B. Treppe Müller" enterkeyhint="done">
+    </div>
     <div class="row">
-      <div class="field" style="flex:2 1 220px">
-        <label for="projSel">Aktueller Auftrag</label>
-        <select id="projSel"></select>
+      <div class="field" style="flex:2 1 200px">
+        <label for="projClient">Auftraggeber</label>
+        <input id="projClient" type="text" placeholder="z. B. Familie Müller / Baustelle XY" enterkeyhint="done">
       </div>
-      <div class="field" style="flex:1 1 130px">
-        <label for="projRate">Stundensatz (€/h, optional)</label>
+      <div class="field" style="flex:1 1 120px">
+        <label for="projRate">Stundensatz (€/h)</label>
         <input id="projRate" type="number" min="0" step="any" inputmode="decimal" placeholder="z. B. 65">
       </div>
     </div>
     <div class="toolbar" id="projTools">
       <button class="btn primary" id="newProjBtn" type="button">+ Neuer Auftrag</button>
-      <button class="btn" id="renProjBtn" type="button">Umbenennen</button>
-      <button class="btn danger" id="delProjBtn" type="button">Löschen</button>
+      <button class="btn danger" id="delProjBtn" type="button">Auftrag löschen</button>
     </div>
-    <div class="hint">Der Stundensatz (z. B. aus dem Maschinenstundensatz-Rechner) rechnet die
-      erfasste Zeit automatisch in Kosten um.</div>
+    <div class="hint">Bezeichnung und Auftraggeber kannst du direkt in den Feldern ändern. Der Stundensatz
+      (z. B. aus dem Maschinenstundensatz-Rechner) rechnet die erfasste Zeit automatisch in Kosten um.</div>
   </section>
 
   <!-- STATUS -->
@@ -145,6 +163,7 @@
   <!-- NACHKALKULATION -->
   <section class="card">
     <h2>Nachkalkulation</h2>
+    <div id="sumHead" class="sumhead"></div>
     <table class="bd" id="summary"></table>
   </section>
 
@@ -154,6 +173,17 @@
     <button class="btn" id="printBtn" type="button">Drucken / PDF</button>
   </div>
 </main>
+
+<!-- Eigener Bestätigungs-Dialog (funktioniert auch in der App-WebView) -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal">
+    <div class="modal-msg" id="confirmMsg"></div>
+    <div class="modal-btns">
+      <button class="btn" id="confirmNo" type="button">Abbrechen</button>
+      <button class="btn danger primary-danger" id="confirmYes" type="button">Ja</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -200,11 +230,22 @@
   }
 
   function newProject(name){
-    var p={id:genId(),name:name,rate:'',createdAt:now(),
+    var p={id:genId(),name:name,client:'',rate:'',createdAt:now(),
       activities:DEFAULTS.map(function(n){return {id:genId(),name:n,sec:0,startedAt:null};})};
     state.projects.push(p);
     state.activeId=p.id;
     return p;
+  }
+
+  /* Eigener Bestätigungs-Dialog (prompt/confirm sind in der App-WebView aus) */
+  function askConfirm(msg,onYes){
+    $('confirmMsg').textContent=msg;
+    var ov=$('confirmOverlay');
+    function close(){ ov.classList.remove('show'); $('confirmYes').onclick=null; $('confirmNo').onclick=null; }
+    $('confirmYes').onclick=function(){ close(); onYes(); };
+    $('confirmNo').onclick=function(){ close(); };
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.classList.add('show');
   }
 
   /* ---- Aktionen ---- */
@@ -223,24 +264,22 @@
   }
   function resetAct(actId){
     var p=activeProj(); if(!p) return;
-    for(var i=0;i<p.activities.length;i++){
-      if(p.activities[i].id===actId){
-        if(!confirm('Zeit für "'+p.activities[i].name+'" auf 0 setzen?')) return;
-        p.activities[i].sec=0; p.activities[i].startedAt=null;
-      }
-    }
-    save(); render();
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    var apply=function(){ a.sec=0; a.startedAt=null; save(); render(); };
+    if(elapsed(a)>0) askConfirm('Zeit für „'+a.name+'" auf 0 setzen?',apply); else apply();
   }
   function removeAct(actId){
     var p=activeProj(); if(!p) return;
-    for(var i=0;i<p.activities.length;i++){
-      if(p.activities[i].id===actId){
-        var a=p.activities[i];
-        if(elapsed(a)>0 && !confirm('"'+a.name+'" inkl. erfasster Zeit entfernen?')) return;
-        p.activities.splice(i,1); break;
-      }
-    }
-    save(); render();
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    var apply=function(){
+      p.activities=p.activities.filter(function(x){return x.id!==actId;});
+      save(); render();
+    };
+    if(elapsed(a)>0) askConfirm('„'+a.name+'" inkl. erfasster Zeit entfernen?',apply); else apply();
   }
   function addAct(name){
     var p=activeProj(); if(!p) return;
@@ -263,9 +302,12 @@
       if(p.id===state.activeId) o.selected=true; sel.appendChild(o);
     });
     var p=activeProj();
+    $('projName').value=p?p.name:'';
+    $('projClient').value=p?(p.client||''):'';
     $('projRate').value=p?p.rate:'';
-    $('projRate').disabled=!p;
-    $('renProjBtn').disabled=!p; $('delProjBtn').disabled=!p;
+    $('projName').disabled=!p; $('projClient').disabled=!p; $('projRate').disabled=!p;
+    $('delProjBtn').disabled=!p;
+    $('projSelField').style.display=state.projects.length>1?'block':'none';
 
     renderActs();
     renderStatus();
@@ -326,8 +368,10 @@
   }
 
   function renderSummary(){
-    var t=$('summary'), p=activeProj();
-    if(!p){ t.innerHTML='<tr><td class="empty">—</td></tr>'; return; }
+    var t=$('summary'), head=$('sumHead'), p=activeProj();
+    if(!p){ t.innerHTML='<tr><td class="empty">—</td></tr>'; head.innerHTML=''; return; }
+    head.innerHTML='Auftrag: <b>'+esc(p.name||'—')+'</b>'+
+      (p.client?(' · Auftraggeber: <b>'+esc(p.client)+'</b>'):'');
     var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)||rate<0) rate=0;
     var withCost=rate>0;
     var html='<tr><th>Tätigkeit</th><th class="num">Zeit</th><th class="num">Stunden</th>'+
@@ -383,14 +427,15 @@
   function buildCSV(){
     var p=activeProj(); if(!p) return '';
     var rows=summaryRows();
-    var head=['Auftrag','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)'];
+    var head=['Auftrag','Auftraggeber','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)'];
     var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var cl=p.client||'';
     var lines=[head.join(';')]; var totSec=0,totCost=0;
     rows.forEach(function(r){
       totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
-      lines.push([q(p.name),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):''].join(';'));
+      lines.push([q(p.name),q(cl),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):''].join(';'));
     });
-    lines.push([q(p.name),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):''].join(';'));
+    lines.push([q(p.name),q(cl),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):''].join(';'));
     return lines.join('\r\n');
   }
   function deci(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});}
@@ -398,7 +443,10 @@
   function buildText(){
     var p=activeProj(); if(!p) return 'Kein Auftrag.';
     var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
-    var rows=summaryRows(); var lines=['Nachkalkulation – '+p.name,''];
+    var rows=summaryRows();
+    var lines=['Nachkalkulation – '+p.name];
+    if(p.client) lines.push('Auftraggeber: '+p.client);
+    lines.push('');
     var totSec=0,totCost=0;
     rows.forEach(function(r){ totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
       lines.push(r.name+': '+fmt(r.sec)+' ('+hrs(r.sec)+')'+(r.cost!=null?' = '+eur(r.cost):'')); });
@@ -433,22 +481,26 @@
 
   /* ---- Events ---- */
   $('projSel').addEventListener('change',function(){ state.activeId=this.value||null; save(); render(); });
+  $('projName').addEventListener('input',function(){
+    var p=activeProj(); if(!p) return;
+    p.name=this.value;
+    var sel=$('projSel');                       // Auswahl-Eintrag live mitführen
+    for(var i=0;i<sel.options.length;i++) if(sel.options[i].value===p.id) sel.options[i].textContent=p.name||'(ohne Name)';
+    save(); renderSummary(); renderStatus();
+  });
+  $('projClient').addEventListener('input',function(){ var p=activeProj(); if(p){p.client=this.value; save(); renderSummary();} });
   $('projRate').addEventListener('input',function(){ var p=activeProj(); if(p){p.rate=this.value; save(); renderSummary();} });
   $('newProjBtn').addEventListener('click',function(){
-    var n=prompt('Name des Auftrags (z. B. „Treppe Müller"):',''); if(n===null) return;
-    n=n.trim(); if(!n) return; newProject(n); save(); render();
-  });
-  $('renProjBtn').addEventListener('click',function(){
-    var p=activeProj(); if(!p) return;
-    var n=prompt('Auftrag umbenennen:',p.name); if(n===null) return; n=n.trim(); if(!n) return;
-    p.name=n; save(); render();
+    newProject('Neuer Auftrag'); save(); render();
+    var f=$('projName'); f.focus(); try{f.select();}catch(e){}
   });
   $('delProjBtn').addEventListener('click',function(){
     var p=activeProj(); if(!p) return;
-    if(!confirm('Auftrag „'+p.name+'" mit allen erfassten Zeiten löschen?')) return;
-    state.projects=state.projects.filter(function(x){return x.id!==p.id;});
-    state.activeId=state.projects.length?state.projects[0].id:null;
-    save(); render();
+    askConfirm('Auftrag „'+(p.name||'ohne Name')+'" mit allen erfassten Zeiten löschen?',function(){
+      state.projects=state.projects.filter(function(x){return x.id!==p.id;});
+      state.activeId=state.projects.length?state.projects[0].id:null;
+      save(); render();
+    });
   });
   $('addActBtn').addEventListener('click',function(){ addAct($('newActInput').value); $('newActInput').value=''; });
   $('newActInput').addEventListener('keydown',function(e){

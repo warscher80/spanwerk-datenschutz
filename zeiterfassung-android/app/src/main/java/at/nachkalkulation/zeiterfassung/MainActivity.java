@@ -2,6 +2,7 @@ package at.nachkalkulation.zeiterfassung;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
@@ -17,6 +18,8 @@ public class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true); // localStorage fuer gespeicherte Zeiten
+        // Aktiviert JS-Dialoge (alert/confirm/prompt) in der WebView.
+        web.setWebChromeClient(new WebChromeClient());
         web.loadUrl("file:///android_asset/zeiterfassung.html");
 
         setContentView(web);

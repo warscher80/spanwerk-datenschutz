@@ -1,6 +1,6 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0",
-  "apkUrl": "https://github.com/warscher80/spanwerk-datenschutz/raw/main/Zeiterfassung-1.0.apk",
-  "notes": "Erste Version: Zeiterfassung fuer die Nachkalkulation."
+  "versionCode": 2,
+  "versionName": "1.1",
+  "apkUrl": "https://github.com/warscher80/spanwerk-datenschutz/raw/main/Zeiterfassung-1.1.apk",
+  "notes": "Auftragsname direkt bearbeitbar, neues Feld Auftraggeber, zuverlaessige Dialoge."
 }
