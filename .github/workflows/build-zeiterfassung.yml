@@ -56,31 +56,25 @@ jobs:
           name: Zeiterfassung-${{ steps.ver.outputs.name }}
           path: zeiterfassung-android/Zeiterfassung-${{ steps.ver.outputs.name }}.apk
 
-      - name: GitHub-Release mit APK erstellen
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: zeiterfassung-android/Zeiterfassung-${{ steps.ver.outputs.name }}.apk
-
-      - name: zeiterfassung-version.json auf main aktualisieren
+      - name: APK + version.json auf main veroeffentlichen
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: .
         run: |
           VN="${{ steps.ver.outputs.name }}"
           VC="${{ steps.ver.outputs.code }}"
-          TAG="${GITHUB_REF_NAME}"
-          cat > zeiterfassung-version.json <<EOF
-          {
-            "versionCode": $VC,
-            "versionName": "$VN",
-            "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Zeiterfassung-${VN}.apk",
-            "notes": "Neue Version $VN."
-          }
-          EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout main
-          git add zeiterfassung-version.json
+          cp "zeiterfassung-android/Zeiterfassung-$VN.apk" "Zeiterfassung-$VN.apk"
+          cat > zeiterfassung-version.json <<EOF
+          {
+            "versionCode": $VC,
+            "versionName": "$VN",
+            "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/raw/main/Zeiterfassung-${VN}.apk",
+            "notes": "Neue Version $VN."
+          }
+          EOF
+          git add "Zeiterfassung-$VN.apk" zeiterfassung-version.json
           git commit -m "Zeiterfassung $VN veroeffentlichen" || echo "nichts zu committen"
           git push origin main

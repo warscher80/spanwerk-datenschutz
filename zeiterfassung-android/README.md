@@ -33,9 +33,10 @@ die fertige APK unter dem Lauf als *Artifact* zum Download bereit.
    git tag zeiterfassung-v1.1
    git push origin zeiterfassung-v1.1
    ```
-4. Der Workflow baut die signierte APK, erstellt ein **GitHub-Release** mit der
-   Datei `Zeiterfassung-<versionName>.apk` und aktualisiert automatisch
-   `zeiterfassung-version.json` im Projektwurzelverzeichnis.
+4. Der Workflow baut die signierte APK, legt sie als
+   `Zeiterfassung-<versionName>.apk` ins Projektwurzelverzeichnis und
+   aktualisiert automatisch `zeiterfassung-version.json` (committet beides nach
+   `main`).
 
 Beim nächsten Start einer älteren installierten App erscheint dann das Update.
 
