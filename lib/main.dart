@@ -276,6 +276,103 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  /// „Wer gewinnt die WM?" – Titelchancen aus tausenden Simulationen.
+  void _openWinnerOdds() {
+    // K.o.-Spiele (Runden ≥ 4; Gruppen sind 1–3); erste K.o.-Runde = meiste Teams.
+    final ko = _matches.where((m) => m.round >= 4).toList();
+    if (ko.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: Color(0xFF114E3B),
+        content: Text('Titelchancen gibt es ab dem Achtelfinale.'),
+      ));
+      return;
+    }
+    final firstNo = ko.map((m) => m.round).reduce((a, b) => a > b ? a : b);
+    final games = ko.where((m) => m.round == firstNo).map((m) {
+      String? w;
+      if (m.finished && m.hasResult && m.homeGoals != m.awayGoals) {
+        w = m.homeGoals! > m.awayGoals! ? m.home.name : m.away.name;
+      }
+      return KoGame(m.home.name, m.away.name, w);
+    }).toList();
+
+    final chances = titleChances(games, _elo)
+        .entries
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D4634),
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.92,
+        builder: (c, ctrl) => ListView(
+          controller: ctrl,
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+          children: [
+            const Text('🏆 Wer gewinnt die WM?',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text('Aus ${(12000).toString()} Simulationen ab dem ${_koLabel(firstNo)}',
+                style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            const SizedBox(height: 14),
+            for (final e in chances)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(e.key,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  ),
+                  SizedBox(
+                    width: 140,
+                    child: Stack(alignment: Alignment.centerLeft, children: [
+                      Container(height: 18, decoration: BoxDecoration(
+                        color: const Color(0xFF0B3D2E), borderRadius: BorderRadius.circular(6))),
+                      FractionallySizedBox(
+                        widthFactor: e.value.clamp(0.02, 1.0),
+                        child: Container(height: 18, decoration: BoxDecoration(
+                          color: _accent.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(6))),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 46,
+                    child: Text('${(e.value * 100).toStringAsFixed(e.value >= 0.1 ? 0 : 1)} %',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(color: _accent, fontWeight: FontWeight.w800)),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 10),
+            const Text(
+              'Schätzung des lernenden Modells. Nach der ersten K.o.-Runde wird die '
+              'Auslosung zufällig angenommen (der genaue Turnierbaum liegt nicht vor).',
+              style: TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _koLabel(int round) {
+    switch (round) {
+      case 32: return 'Sechzehntelfinale';
+      case 16: return 'Achtelfinale';
+      case 8: return 'Viertelfinale';
+      case 4: return 'Halbfinale';
+      default: return 'K.o.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -283,6 +380,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF0D4634),
         title: const Text('🔮 KickProphet'),
         actions: [
+          if (_isCup)
+            IconButton(
+              tooltip: 'Wer gewinnt die WM?',
+              onPressed: _openWinnerOdds,
+              icon: const Icon(Icons.emoji_events_rounded),
+            ),
           IconButton(
             tooltip: 'Trefferquote',
             onPressed: _openStats,

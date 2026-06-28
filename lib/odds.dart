@@ -112,6 +112,44 @@ class EloModel {
   }
 }
 
+/// Ein K.o.-Spiel für die Turnier-Simulation (Sieger ggf. schon bekannt).
+class KoGame {
+  final String a;
+  final String b;
+  final String? winner; // bei bereits beendetem Spiel
+  const KoGame(this.a, this.b, this.winner);
+}
+
+/// Monte-Carlo: simuliert das Turnier ab der ersten K.o.-Runde und liefert je
+/// Team die Titel-Wahrscheinlichkeit. Beendete Spiele zählen mit echtem Sieger;
+/// nach der ersten Runde werden die Paarungen zufällig gezogen (Schätzung, da
+/// der genaue Turnierbaum nicht vorliegt).
+Map<String, double> titleChances(List<KoGame> firstRound, EloModel model,
+    {int sims = 12000}) {
+  if (firstRound.isEmpty) return {};
+  final rnd = Random();
+  final wins = <String, int>{};
+  String play(String a, String b) {
+    final pa = 1 / (1 + pow(10, -(model.rating(a) - model.rating(b)) / 400));
+    return rnd.nextDouble() < pa ? a : b;
+  }
+
+  for (var s = 0; s < sims; s++) {
+    var teams = <String>[for (final g in firstRound) g.winner ?? play(g.a, g.b)];
+    while (teams.length > 1) {
+      teams.shuffle(rnd);
+      final next = <String>[];
+      for (var i = 0; i + 1 < teams.length; i += 2) {
+        next.add(play(teams[i], teams[i + 1]));
+      }
+      if (teams.length.isOdd) next.add(teams.last);
+      teams = next;
+    }
+    wins[teams.first] = (wins[teams.first] ?? 0) + 1;
+  }
+  return wins.map((k, v) => MapEntry(k, v / sims));
+}
+
 /// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.
