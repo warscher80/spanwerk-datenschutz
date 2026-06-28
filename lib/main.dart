@@ -169,14 +169,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     _season = Api.seasonFor(_league, DateTime.now());
-    if (_isCup) {
-      try {
-        _stages = await Api.discoverCupRounds(_league.id, _season, _league.cupCandidates);
-      } catch (_) {
-        _stages = [];
-      }
-      _stageIdx = _stages.isEmpty ? 0 : _stages.length - 1; // jüngste Runde zuerst
-    } else {
+    if (!_isCup) {
       _day = await _resolveStartRound(_league);
     }
     await _loadDay();
@@ -193,17 +186,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
-    if (_isCup && _stages.isEmpty) {
-      setState(() { _matches = []; _loading = false; });
-      return;
-    }
     try {
       final List<FootyMatch> m;
       if (_currentMode) {
         m = await Api.currentMatches(kLeagues, DateTime.now());
       } else if (_isCup) {
-        // Turnier: ALLE Spiele (Gruppe + K.o.) in einer Liste.
-        m = await Api.allCupMatches(_league.id, _season, _stages);
+        // Turnier: ALLE Spiele (Gruppe + K.o.) direkt über die Runden-Codes.
+        m = await Api.allCupMatches(_league.id, _season, _league.cupCandidates);
       } else {
         m = await Api.round(_league.id, _season, _day);
       }
@@ -237,7 +226,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       setState(() => _learnStatus = done >= total ? null : 'lernt … $pct %');
     }
     final fut = _isCup
-        ? learner.learnCup(_league, _season, _stages.map((s) => s.code).toList(),
+        ? learner.learnCup(_league, _season, _league.cupCandidates,
             onProgress: onProgress)
         : learner.learnHistory(_league, _season, onProgress: onProgress);
     fut.then((_) {

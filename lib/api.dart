@@ -325,18 +325,28 @@ class Api {
     return matches;
   }
 
+  // Abgeschlossene Runden (alle Spiele beendet) ändern sich nicht mehr ->
+  // einmal pro Sitzung cachen, schont den geteilten Gratis-Key.
+  static final Map<String, List<FootyMatch>> _finishedCache = {};
+
   /// Alle Spiele eines Spieltags einer Liga.
   static Future<List<FootyMatch>> round(String leagueId, String season, int round) async {
-    return _parseEvents(await _getJson('eventsround.php?id=$leagueId&r=$round&s=$season'));
+    final key = '$leagueId|$season|$round';
+    final cached = _finishedCache[key];
+    if (cached != null) return cached;
+    final m = _parseEvents(await _getJson('eventsround.php?id=$leagueId&r=$round&s=$season'));
+    if (m.isNotEmpty && m.every((x) => x.finished)) _finishedCache[key] = m;
+    return m;
   }
 
-  /// Alle Spiele eines Turniers (alle gefundenen Runden zusammen), nach Anstoß sortiert.
+  /// Alle Spiele eines Turniers: probiert direkt alle möglichen Runden-Codes
+  /// und nimmt jede Runde mit Spielen. Robust – ohne separate Erkennungsstufe.
   static Future<List<FootyMatch>> allCupMatches(
-      String leagueId, String season, List<CupStage> stages) async {
+      String leagueId, String season, List<int> candidates) async {
     final byId = <int, FootyMatch>{};
-    for (final s in stages) {
+    for (final c in candidates) {
       try {
-        for (final m in await round(leagueId, season, s.code)) {
+        for (final m in await round(leagueId, season, c)) {
           byId[m.id] = m;
         }
       } catch (_) {
