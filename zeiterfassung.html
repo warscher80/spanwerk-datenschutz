@@ -36,9 +36,11 @@
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .field{flex:1 1 160px;min-width:0}
   .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
-  .field input,.field select{width:100%;padding:11px 12px;border:1px solid var(--line);
+  .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);
     border-radius:8px;font-size:16px;background:#fff;color:var(--ink);min-height:46px}
-  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);
+  .field textarea{min-height:62px;resize:vertical;line-height:1.4;
+    font-family:inherit;-webkit-appearance:none}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);
     box-shadow:0 0 0 3px var(--accent-soft)}
   .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
   .btn{border:1px solid var(--line);background:#fff;border-radius:8px;
@@ -133,6 +135,10 @@
         <label for="projRate">Stundensatz (€/h)</label>
         <input id="projRate" type="number" min="0" step="any" inputmode="decimal" placeholder="z. B. 65">
       </div>
+    </div>
+    <div class="field">
+      <label for="projNote">Notiz</label>
+      <textarea id="projNote" rows="2" placeholder="z. B. Maße, Material, Besonderheiten, Liefertermin …"></textarea>
     </div>
     <div class="toolbar" id="projTools">
       <button class="btn primary" id="newProjBtn" type="button">+ Neuer Auftrag</button>
@@ -230,7 +236,7 @@
   }
 
   function newProject(name){
-    var p={id:genId(),name:name,client:'',rate:'',createdAt:now(),
+    var p={id:genId(),name:name,client:'',note:'',rate:'',createdAt:now(),
       activities:DEFAULTS.map(function(n){return {id:genId(),name:n,sec:0,startedAt:null};})};
     state.projects.push(p);
     state.activeId=p.id;
@@ -304,8 +310,9 @@
     var p=activeProj();
     $('projName').value=p?p.name:'';
     $('projClient').value=p?(p.client||''):'';
+    $('projNote').value=p?(p.note||''):'';
     $('projRate').value=p?p.rate:'';
-    $('projName').disabled=!p; $('projClient').disabled=!p; $('projRate').disabled=!p;
+    $('projName').disabled=!p; $('projClient').disabled=!p; $('projNote').disabled=!p; $('projRate').disabled=!p;
     $('delProjBtn').disabled=!p;
     var n=state.projects.length, idx=0;
     for(var k=0;k<n;k++) if(state.projects[k].id===state.activeId) idx=k;
@@ -429,15 +436,15 @@
   function buildCSV(){
     var p=activeProj(); if(!p) return '';
     var rows=summaryRows();
-    var head=['Auftrag','Auftraggeber','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)'];
+    var head=['Auftrag','Auftraggeber','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)','Notiz'];
     var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
-    var cl=p.client||'';
+    var cl=p.client||'', nt=p.note||'';
     var lines=[head.join(';')]; var totSec=0,totCost=0;
     rows.forEach(function(r){
       totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
-      lines.push([q(p.name),q(cl),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):''].join(';'));
+      lines.push([q(p.name),q(cl),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):'',q(nt)].join(';'));
     });
-    lines.push([q(p.name),q(cl),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):''].join(';'));
+    lines.push([q(p.name),q(cl),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):'',q(nt)].join(';'));
     return lines.join('\r\n');
   }
   function deci(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});}
@@ -448,6 +455,7 @@
     var rows=summaryRows();
     var lines=['Nachkalkulation – '+p.name];
     if(p.client) lines.push('Auftraggeber: '+p.client);
+    if(p.note) lines.push('Notiz: '+p.note);
     lines.push('');
     var totSec=0,totCost=0;
     rows.forEach(function(r){ totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
@@ -491,6 +499,7 @@
     save(); renderSummary(); renderStatus();
   });
   $('projClient').addEventListener('input',function(){ var p=activeProj(); if(p){p.client=this.value; save(); renderSummary();} });
+  $('projNote').addEventListener('input',function(){ var p=activeProj(); if(p){p.note=this.value; save();} });
   $('projRate').addEventListener('input',function(){ var p=activeProj(); if(p){p.rate=this.value; save(); renderSummary();} });
   $('newProjBtn').addEventListener('click',function(){
     newProject('Neuer Auftrag'); save(); render();
