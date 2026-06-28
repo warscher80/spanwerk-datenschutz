@@ -7,6 +7,7 @@
   var Store = w.Preisschmiede.Store;
   var Calc = w.Preisschmiede.Calc;
   var Products = w.Preisschmiede.Products;
+  var Datanorm = w.Preisschmiede.Datanorm;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -403,11 +404,13 @@
   function renderMaterial() {
     var root = $("#page-material .content");
     var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Positionen</span></h3>';
-    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button></div>';
+    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button> <button class="btn sm" id="btn-import-datanorm">📥 DATANORM / Preisliste importieren</button></div>';
     html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Lager</th><th class="num">Aktion</th></tr></thead><tbody>';
     db.material.forEach(function (m) {
       html += "<tr>" +
-        "<td>" + esc(m.name) + (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") + "</td>" +
+        "<td>" + esc(m.name) +
+          (m.artikelnummer ? ' <span class="tag muted">Nr. ' + esc(m.artikelnummer) + "</span>" : "") +
+          (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") + "</td>" +
         "<td>" + esc(m.typ || "-") + "</td>" +
         "<td>" + esc(m.lieferant || "-") + "</td>" +
         '<td class="num">' + fmtEUR(m.preis) + "</td>" +
@@ -420,6 +423,7 @@
     root.innerHTML = html;
 
     $("#btn-add-material").onclick = function () { materialModal(null); };
+    var bImp = $("#btn-import-datanorm"); if (bImp) bImp.onclick = datanormImportModal;
     $all("[data-edit]").forEach(function (b) { b.onclick = function () { materialModal(b.dataset.edit); }; });
     $all("[data-del]").forEach(function (b) {
       b.onclick = function () {
@@ -491,6 +495,105 @@
   function fld2(label, id, val, typ) {
     return '<label class="fld"><span class="lbl">' + esc(label) + '</span><input type="' + (typ || "text") +
       '" id="' + id + '" value="' + esc(val == null ? "" : val) + '"' + (typ === "number" ? ' step="any"' : "") + "></label>";
+  }
+
+  // ---- DATANORM-/Preislisten-Import (PC & Handy, komplett offline) ----
+  function datanormImportModal() {
+    if (!Datanorm) { toast("Import-Modul nicht geladen.", "err"); return; }
+    var geparst = null; // Ergebnis des letzten Einlesens
+    var body =
+      '<p class="hint">Datei vom Stahlhändler (DATANORM 4.0, z. B. von Frankstahl / thesteel.com) wählen. ' +
+      'Artikel werden über die <strong>Artikelnummer</strong> abgeglichen: vorhandene Preise werden aktualisiert ' +
+      '(Preishistorie bleibt erhalten), neue Artikel werden angelegt. Alles geschieht lokal auf dem Gerät.</p>' +
+      '<label class="fld"><span class="lbl">DATANORM-Datei</span>' +
+        '<input type="file" id="dn-file" accept=".001,.002,.003,.004,.005,.dat,.dn,.txt,.csv,.print,text/plain"></label>' +
+      '<div class="inline">' +
+        '<label class="fld"><span class="lbl">Preis-Nachkommastellen</span><select id="dn-nk">' +
+          '<option value="2">2 (Standard / Cent)</option><option value="4">4</option>' +
+          '<option value="3">3</option><option value="0">0 (ganze €)</option></select></label>' +
+        '<label class="fld"><span class="lbl">Zeichensatz</span><select id="dn-enc">' +
+          '<option value="ISO-8859-1">Westeuropäisch (Standard)</option><option value="UTF-8">UTF-8</option>' +
+        "</select></label>" +
+      "</div>" +
+      fld2("Lieferant", "dn-lieferant", "Frankstahl", "text") +
+      '<div class="btn-row" style="margin:10px 0"><button class="btn sm" id="dn-read" type="button">📄 Datei einlesen & Vorschau</button></div>' +
+      '<div id="dn-vorschau"></div>';
+
+    openModal("Material-Datei importieren (DATANORM)", body, function () {
+      if (!geparst || !geparst.artikel.length) { toast("Bitte zuerst eine Datei einlesen.", "err"); return false; }
+      var lief = ($("#dn-lieferant").value || "").trim() || "Frankstahl";
+      var res = mergeDatanorm(geparst.artikel, lief);
+      renderMaterial();
+      toast(res.neu + " neu, " + res.akt + " aktualisiert" + (res.unv ? ", " + res.unv + " unverändert" : "") + ".", "ok");
+      return true;
+    }, "Übernehmen");
+
+    var btn = $("#dn-read");
+    if (btn) btn.onclick = function () {
+      var inp = $("#dn-file");
+      if (!inp || !inp.files || !inp.files[0]) { toast("Bitte eine Datei wählen.", "err"); return; }
+      var nk = parseInt($("#dn-nk").value, 10); if (!(nk >= 0)) nk = 2;
+      var enc = $("#dn-enc").value || "ISO-8859-1";
+      var rd = new FileReader();
+      rd.onload = function () {
+        try {
+          geparst = Datanorm.parse(String(rd.result || ""), { nachkomma: nk });
+          zeigeDatanormVorschau(geparst);
+        } catch (e) { console.error(e); toast("Datei konnte nicht gelesen werden.", "err"); }
+      };
+      rd.onerror = function () { toast("Datei konnte nicht gelesen werden.", "err"); };
+      try { rd.readAsText(inp.files[0], enc); } catch (e) { rd.readAsText(inp.files[0]); }
+    };
+  }
+
+  function zeigeDatanormVorschau(g) {
+    var v = $("#dn-vorschau"); if (!v) return;
+    var n = g.artikel.length;
+    if (!n) {
+      v.innerHTML = '<p class="hint" style="color:#c0392b">Keine Artikel erkannt. Stimmt das Format/der Zeichensatz? ' +
+        "DATANORM-Sätze müssen mit A/B/P beginnen und per Semikolon getrennt sein.</p>";
+      return;
+    }
+    var mitKg = g.artikel.filter(function (a) { return a.kg != null; }).length;
+    var rows = g.artikel.slice(0, 12).map(function (a) {
+      return "<tr><td>" + esc(a.artikelnummer) + "</td><td>" + esc(a.name) + '</td><td class="num">' + fmtEUR(a.preis) +
+        "</td><td>/" + esc(a.einheit) + '</td><td class="num">' + (a.kg != null ? esc(a.kg) : "—") + "</td></tr>";
+    }).join("");
+    v.innerHTML =
+      '<div class="hint" style="margin:6px 0">Erkannt: <strong>' + n + "</strong> Artikel (" + mitKg + " mit Gewicht). " +
+        "Vorschau der ersten " + Math.min(12, n) + ":</div>" +
+      '<div class="table-wrap"><table><thead><tr><th>Art.-Nr.</th><th>Bezeichnung</th><th class="num">Preis</th><th>Einh.</th><th class="num">kg</th></tr></thead><tbody>' +
+        rows + "</tbody></table></div>" +
+      '<p class="hint">Stimmen die Preise? Liegen sie um Faktor 10/100 daneben, „Preis-Nachkommastellen" anpassen und erneut einlesen. ' +
+      'Sind Umlaute zerstückelt, den Zeichensatz wechseln. Mit „Übernehmen" werden die Daten gespeichert.</p>';
+  }
+
+  function mergeDatanorm(liste, lieferant) {
+    var neu = 0, akt = 0, unv = 0;
+    liste.forEach(function (a) {
+      if (!a.artikelnummer) return;
+      var preis = Math.round((a.preis || 0) * 100) / 100;
+      var m = db.material.find(function (x) { return x.artikelnummer && x.artikelnummer === a.artikelnummer; });
+      if (m) {
+        var changed = false;
+        if (preis > 0 && preis !== m.preis) { m.historie.push({ datum: Store.nowISO(), preis: preis }); m.preis = preis; changed = true; }
+        if (a.name && a.name !== m.name) { m.name = a.name; changed = true; }
+        if (a.einheit && a.einheit !== m.einheit) { m.einheit = a.einheit; changed = true; }
+        if (a.kg != null && a.kg !== m.kgProEinheit) { m.kgProEinheit = a.kg; changed = true; }
+        if (changed) { m.lieferant = lieferant || m.lieferant; m.aktualisiert = Store.nowISO(); akt++; } else { unv++; }
+      } else {
+        db.material.push({
+          id: Store.uid(), artikelnummer: a.artikelnummer, name: a.name,
+          typ: a.warengruppe || "", einheit: a.einheit || "Stk", preis: preis,
+          lieferant: lieferant || "Frankstahl", kgProEinheit: a.kg != null ? a.kg : null,
+          preisProKg: null, lager: null, aktualisiert: Store.nowISO(),
+          historie: [{ datum: Store.nowISO(), preis: preis }]
+        });
+        neu++;
+      }
+    });
+    Store.save();
+    return { neu: neu, akt: akt, unv: unv };
   }
 
   // ============================================================
