@@ -184,17 +184,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return _store.lastRound(league.id).clamp(1, league.maxRound);
   }
 
+  Future<List<FootyMatch>> _fetchMatches() {
+    if (_currentMode) return Api.currentMatches(kLeagues, DateTime.now());
+    if (_isCup) return Api.allCupMatches(_league.id, _season, _league.cupCandidates);
+    return Api.round(_league.id, _season, _day);
+  }
+
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
     try {
-      final List<FootyMatch> m;
-      if (_currentMode) {
-        m = await Api.currentMatches(kLeagues, DateTime.now());
-      } else if (_isCup) {
-        // Turnier: ALLE Spiele (Gruppe + K.o.) direkt über die Runden-Codes.
-        m = await Api.allCupMatches(_league.id, _season, _league.cupCandidates);
-      } else {
-        m = await Api.round(_league.id, _season, _day);
+      var m = await _fetchMatches();
+      // Leerer Erstabruf ist meist nur Drosselung -> einmal nachfassen.
+      if (m.isEmpty && !silent) {
+        await Future.delayed(const Duration(milliseconds: 1200));
+        m = await _fetchMatches();
       }
       if (!_currentMode && !_isCup) await _store.setLastRound(_league.id, _day);
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.

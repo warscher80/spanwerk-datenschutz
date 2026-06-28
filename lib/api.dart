@@ -254,19 +254,21 @@ class Api {
     for (final l in leagues) {
       final pool = <FootyMatch>[];
 
-      // Turniere: alle Runden direkt laden (sonst fehlen die K.o.-Spiele).
+      // Turniere: nur die K.o.-Runden laden (Gruppenphase ist gespielt; spart
+      // Anfragen und liefert genau die noch offenen Partien).
       if (l.isCup) {
-        pool.addAll(await allCupMatches(l.id, seasonFor(l, now), l.cupCandidates));
+        final ko = l.cupCandidates.where((c) => c > 3).toList();
+        pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko));
         for (final m in pool) {
           byId[m.id] = m;
         }
+        await Future.delayed(const Duration(milliseconds: 200));
         continue;
       }
 
       // Nächste Spiele dieser Liga (liefert auch die aktuelle Runden-Nummer).
       final next = await _events('eventsnextleague.php?id=${l.id}');
-      await Future.delayed(const Duration(milliseconds: 70));
-
+      await Future.delayed(const Duration(milliseconds: 200));
       if (next.isNotEmpty) {
         pool.addAll(next);
         // kompletten aktuellen Spieltag nachladen (sonst nur 1–2 Spiele)
@@ -278,13 +280,10 @@ class Api {
           try {
             pool.addAll(await round(l.id, seasonFor(l, now), r));
           } catch (_) {}
-          await Future.delayed(const Duration(milliseconds: 70));
+          await Future.delayed(const Duration(milliseconds: 200));
         }
-      } else {
-        // Außerhalb der Saison: zuletzt gespielte Partien
-        pool.addAll(await _events('eventspastleague.php?id=${l.id}'));
-        await Future.delayed(const Duration(milliseconds: 70));
       }
+      // (Kein eventspast: „Aktuell" zeigt ohnehin nur noch nicht gespielte Spiele.)
       for (final m in pool) {
         byId[m.id] = m;
       }
@@ -363,7 +362,7 @@ class Api {
       } catch (_) {
         // einzelne Runde übersprungen
       }
-      await Future.delayed(const Duration(milliseconds: 80));
+      await Future.delayed(const Duration(milliseconds: 150));
     }
     final list = byId.values.toList()
       ..sort((a, b) {

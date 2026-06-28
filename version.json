@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "1.10.0",
+  "versionCode": 23,
+  "versionName": "1.10.1",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Neu: 'Wer gewinnt die WM?' - Titelchancen aus tausenden Simulationen (Pokal-Symbol)"
+  "notes": "Aktuell stabiler: weniger Anfragen, entzerrt, Wiederholversuch bei Drosselung"
 }
