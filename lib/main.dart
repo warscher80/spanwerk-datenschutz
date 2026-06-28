@@ -114,6 +114,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _store.load();
     await Notifier.init();
     if (_store.remindersEnabled) await Notifier.requestPermission();
+    // Dort öffnen, wo der Nutzer zuletzt war.
+    final saved = _store.lastLeagueIdx;
+    if (saved >= -1 && saved < kLeagues.length) _leagueIdx = saved;
+    _season = Api.seasonFor(_league, DateTime.now());
     await _selectLeague();
   }
 
@@ -262,6 +266,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _leagueIdx = idx;
       _loading = true;
     });
+    _store.setLastLeagueIdx(idx);
     _selectLeague();
   }
 
@@ -637,7 +642,7 @@ class _MatchCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(sure ? '🎯' : '🔮', style: const TextStyle(fontSize: 16)),
+          Text(sure ? '🎯' : '🔮', style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -645,7 +650,7 @@ class _MatchCard extends StatelessWidget {
               children: [
                 Text(who,
                     style: const TextStyle(
-                        color: _accent, fontWeight: FontWeight.w800, fontSize: 15)),
+                        color: _accent, fontWeight: FontWeight.w800, fontSize: 18)),
                 Text('Prognose · $qualifier',
                     style: const TextStyle(color: Colors.white54, fontSize: 11)),
               ],
@@ -778,7 +783,12 @@ class _StatsSheet extends StatelessWidget {
     final modelPct =
         store.modelTotal == 0 ? null : (store.modelHits / store.modelTotal * 100).round();
 
-    return Padding(
+    // Stärkste Teams laut Modell (gelernte Ratings).
+    final ranking = store.elo.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = ranking.take(10).toList();
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 26),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -823,6 +833,30 @@ class _StatsSheet extends StatelessWidget {
               ),
             ]),
           ),
+          if (top.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Stärkste Teams (laut Modell)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 10),
+            for (var i = 0; i < top.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  SizedBox(
+                    width: 26,
+                    child: Text('${i + 1}.',
+                        style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.w700)),
+                  ),
+                  Expanded(
+                    child: Text(top[i].key,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  ),
+                  Text('${top[i].value.round()}',
+                      style: const TextStyle(color: _accent, fontWeight: FontWeight.w800)),
+                ]),
+              ),
+          ],
         ],
       ),
     );
