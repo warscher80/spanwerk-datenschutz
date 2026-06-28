@@ -67,17 +67,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   League get _league => kLeagues[_leagueIdx < 0 ? 0 : _leagueIdx];
   bool get _isCup => !_currentMode && _league.isCup;
   int get _roundCode => _isCup ? (_stages.isEmpty ? 0 : _stages[_stageIdx].code) : _day;
-  bool get _canPrev => _currentMode ? false : (_isCup ? _stageIdx > 0 : _day > 1);
-  bool get _canNext =>
-      _currentMode ? false : (_isCup ? _stageIdx < _stages.length - 1 : _day < _league.maxRound);
+  // Turniere zeigen alle Spiele auf einmal -> kein Blättern.
+  bool get _canPrev => (_currentMode || _isCup) ? false : _day > 1;
+  bool get _canNext => (_currentMode || _isCup) ? false : _day < _league.maxRound;
 
   String get _stageTitle {
     if (_currentMode) return 'Aktuelle Spiele';
-    if (_isCup) {
-      if (_stages.isEmpty) return '—';
-      final s = _stages[_stageIdx];
-      return cupStageLabel(s.code, s.count);
-    }
+    if (_isCup) return 'Alle Spiele';
     return '$_day. Spieltag';
   }
 
@@ -193,15 +189,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
-    final code = _roundCode;
-    if (_isCup && code == 0) {
+    if (_isCup && _stages.isEmpty) {
       setState(() { _matches = []; _loading = false; });
       return;
     }
     try {
-      final m = _currentMode
-          ? await Api.currentMatches(kLeagues, DateTime.now())
-          : await Api.round(_league.id, _season, code);
+      final List<FootyMatch> m;
+      if (_currentMode) {
+        m = await Api.currentMatches(kLeagues, DateTime.now());
+      } else if (_isCup) {
+        // Turnier: ALLE Spiele (Gruppe + K.o.) in einer Liste.
+        m = await Api.allCupMatches(_league.id, _season, _stages);
+      } else {
+        m = await Api.round(_league.id, _season, _day);
+      }
       if (!_currentMode && !_isCup) await _store.setLastRound(_league.id, _day);
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
@@ -689,7 +690,7 @@ class _MatchCard extends StatelessWidget {
 
     return Row(children: [
       cell(match.home.shortName, probs.home, 0),
-      cell('Remis', probs.draw, 1),
+      cell('Unentschieden', probs.draw, 1),
       cell(match.away.shortName, probs.away, 2),
     ]);
   }

@@ -49,6 +49,18 @@ class PredictionStore {
       });
     }
     _loadLearning();
+    // Bei neuer Modell-Version Lerndaten einmalig zurücksetzen, damit die
+    // verbesserten Start-Stärken (z. B. Nationalteams) wirken.
+    const modelVer = 2;
+    if ((_prefs?.getInt('footy_model_ver') ?? 0) != modelVer) {
+      elo.clear();
+      _ingested.clear();
+      _learnedRounds.clear();
+      modelHits = 0;
+      modelTotal = 0;
+      await _prefs?.setInt('footy_model_ver', modelVer);
+      await saveLearning();
+    }
   }
 
   void _loadLearning() {

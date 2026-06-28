@@ -23,6 +23,33 @@ class MatchOdds {
 }
 
 /// Elo-Bewertung mit Heimvorteil und Remis-Modell.
+/// Realistische Start-Stärken für Nationalteams (≈ World-Football-Elo-Niveau).
+/// Damit sind WM-Prognosen vom ersten Spiel an sinnvoll, statt bei null zu starten.
+const kNationalElo = <String, double>{
+  // Weltspitze
+  'Argentina': 2110, 'France': 2090, 'Spain': 2080, 'England': 2040, 'Brazil': 2040,
+  'Portugal': 2010, 'Netherlands': 2000, 'Belgium': 1980, 'Italy': 1975, 'Germany': 1970,
+  // Stark
+  'Croatia': 1940, 'Uruguay': 1930, 'Colombia': 1920, 'Morocco': 1915, 'Switzerland': 1905,
+  'USA': 1890, 'Mexico': 1890, 'United States': 1890, 'Denmark': 1895, 'Japan': 1885,
+  'Senegal': 1880, 'Ecuador': 1860, 'Serbia': 1860, 'Korea Republic': 1855, 'South Korea': 1855,
+  'Iran': 1850, 'Ukraine': 1850, 'Austria': 1875, 'Poland': 1845, 'Sweden': 1840,
+  'Australia': 1830, 'Wales': 1825, 'Turkey': 1860, 'Norway': 1865, 'Nigeria': 1840,
+  'Algeria': 1835, 'Egypt': 1830, 'Ivory Coast': 1825, 'Peru': 1820, 'Chile': 1825,
+  'Canada': 1840, 'Scotland': 1835, 'Greece': 1830, 'Hungary': 1830, 'Czech Republic': 1835,
+  'Czechia': 1835, 'Romania': 1810, 'Slovakia': 1810, 'Slovenia': 1805,
+  // Mittelfeld
+  'Tunisia': 1800, 'Ghana': 1800, 'Cameroon': 1800, 'Mali': 1800, 'Paraguay': 1810,
+  'Venezuela': 1805, 'Costa Rica': 1790, 'Panama': 1785, 'Qatar': 1780, 'Saudi Arabia': 1775,
+  'South Africa': 1780, 'Cape Verde': 1780, 'Burkina Faso': 1785, 'DR Congo': 1790,
+  'Jamaica': 1770, 'Uzbekistan': 1775, 'Iraq': 1765, 'Jordan': 1760, 'United Arab Emirates': 1750,
+  'Honduras': 1745, 'New Zealand': 1740, 'Bolivia': 1735, 'Bahrain': 1730,
+  // Außenseiter
+  'Haiti': 1710, 'El Salvador': 1700, 'Guatemala': 1700, 'Curacao': 1715, 'Suriname': 1705,
+  'Oman': 1720, 'China': 1715, 'Thailand': 1690, 'India': 1660, 'Kuwait': 1690,
+  'Trinidad and Tobago': 1690, 'Indonesia': 1680, 'Vietnam': 1700,
+};
+
 class EloModel {
   final Map<String, double> ratings;
   EloModel(this.ratings);
@@ -33,7 +60,8 @@ class EloModel {
   static const homeAdvantage = 50.0;
   static const k = 16.0;
 
-  double rating(String team) => ratings[team] ?? base;
+  // Bekannte Stärke nutzen, sonst Nationalteam-Startwert, sonst Basis.
+  double rating(String team) => ratings[team] ?? kNationalElo[team] ?? base;
   bool knows(String team) => ratings.containsKey(team);
 
   /// Ein echtes Ergebnis ins Modell einarbeiten (nullsummen-symmetrisch).
