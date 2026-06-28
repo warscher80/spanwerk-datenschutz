@@ -479,10 +479,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return RefreshIndicator(
         color: _accent,
         onRefresh: _loadDay,
-        child: ListView(children: const [
-          SizedBox(height: 160),
-          Center(child: Text('Keine Spiele für diesen Spieltag.',
-              style: TextStyle(color: Colors.white70))),
+        child: ListView(children: [
+          const SizedBox(height: 140),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
+              child: Text(
+                _currentMode
+                    ? 'Gerade keine aktuellen Spiele.\nWähle oben eine Liga (z. B. 🏆 WM 2026).'
+                    : 'Keine Spiele für diesen Zeitraum.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
+          ),
         ]),
       );
     }

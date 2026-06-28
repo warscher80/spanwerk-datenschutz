@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "1.9.0",
+  "versionCode": 18,
+  "versionName": "1.9.1",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Merkt die zuletzt gewaehlte Liga; Staerke-Rangliste in der Statistik; groessere Prognose"
+  "notes": "WM-K.o.-Runden (Round of 32/16, VF, HF) werden jetzt erkannt und angezeigt"
 }

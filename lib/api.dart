@@ -29,10 +29,10 @@ class League {
   String get sub => country;
 }
 
-// Runden-Codes für Turniere bei TheSportsDB: 1-3 = Gruppen-Spieltage,
-// 100/110 = Sechzehntel-/Achtelfinale (je nach Teilnehmerzahl), 125 = Viertel-,
-// 150 = Halbfinale, 160 = Spiel um Platz 3, 200 = Finale.
-const _wcCandidates = [1, 2, 3, 100, 110, 120, 125, 150, 160, 170, 180, 200];
+// Runden-Codes für die WM bei TheSportsDB: 1–3 = Gruppen-Spieltage,
+// danach „Round of N": 32 = Sechzehntelfinale, 16 = Achtelfinale, 8 = Viertel-,
+// 4 = Halbfinale; 125/150/160/200 als Fallback für Halbfinale/Platz 3/Finale.
+const _wcCandidates = [1, 2, 3, 32, 16, 8, 4, 125, 150, 160, 200];
 
 const kLeagues = <League>[
   League('4429', 'WM 2026', 'International', '🏆', 0,
