@@ -252,11 +252,21 @@ class Api {
       List<League> leagues, DateTime now) async {
     final byId = <int, FootyMatch>{};
     for (final l in leagues) {
+      final pool = <FootyMatch>[];
+
+      // Turniere: alle Runden direkt laden (sonst fehlen die K.o.-Spiele).
+      if (l.isCup) {
+        pool.addAll(await allCupMatches(l.id, seasonFor(l, now), l.cupCandidates));
+        for (final m in pool) {
+          byId[m.id] = m;
+        }
+        continue;
+      }
+
       // Nächste Spiele dieser Liga (liefert auch die aktuelle Runden-Nummer).
       final next = await _events('eventsnextleague.php?id=${l.id}');
       await Future.delayed(const Duration(milliseconds: 70));
 
-      final pool = <FootyMatch>[];
       if (next.isNotEmpty) {
         pool.addAll(next);
         // kompletten aktuellen Spieltag nachladen (sonst nur 1–2 Spiele)
@@ -280,11 +290,12 @@ class Api {
       }
     }
 
-    final from = now.subtract(const Duration(days: 2));
-    final to = now.add(const Duration(days: 12));
+    // Nur noch nicht gespielte (anstehende/laufende) Partien der nächsten ~2 Wochen.
+    final from = now.subtract(const Duration(hours: 4)); // laufende Spiele noch zeigen
+    final to = now.add(const Duration(days: 16));
     final list = byId.values.where((m) {
       final k = m.kickoff;
-      return k != null && k.isAfter(from) && k.isBefore(to);
+      return k != null && !m.finished && k.isAfter(from) && k.isBefore(to);
     }).toList()
       ..sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
     return list;

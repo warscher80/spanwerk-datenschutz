@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "1.9.2",
+  "versionCode": 20,
+  "versionName": "1.9.3",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "WM laedt jetzt robust alle Spiele (Gruppe + K.o.); fertige Runden werden gecacht"
+  "notes": "Aktuell zeigt jetzt ALLE noch nicht gespielten Spiele (inkl. alle WM-K.o.-Partien)"
 }
