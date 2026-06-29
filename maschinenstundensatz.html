@@ -8,13 +8,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Maschinenstundensatz">
-<title>Maschinenstundensatz – Spanwerk</title>
+<meta name="apple-mobile-web-app-title" content="Spanwerk">
+<title>Spanwerk · Werkstatt-Tools</title>
 <style>
   :root{
     --bg:#f4f6f9; --card:#fff; --ink:#1a2330; --muted:#667; --line:#e2e7ee;
     --accent:#1f6feb; --accent-soft:#e8f0fe; --good:#0f8a4f; --warn:#b8860b;
-    --warn-bg:#fff7e6;
+    --warn-bg:#fff7e6; --bad:#c0392b;
   }
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
@@ -66,16 +66,103 @@
   .toolbar button:hover{border-color:var(--accent);color:var(--accent)}
   .checkline{display:flex;align-items:center;gap:8px;font-size:14px;margin:2px 0 12px}
   .checkline input{width:18px;height:18px}
-  @media print{.toolbar,.result{position:static} body{background:#fff}}
+
+  /* Tabs / Navigation */
+  .tabs{max-width:760px;margin:8px auto 0;display:flex;gap:8px;
+    padding:0 calc(18px + env(safe-area-inset-right)) 0 calc(18px + env(safe-area-inset-left))}
+  .tabs button{flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;
+    padding:11px 8px;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer;
+    min-height:46px;-webkit-appearance:none}
+  .tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  [hidden]{display:none!important}
+
+  /* Filament-Lager */
+  .sumwrap{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{flex:1 1 140px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .chip .m{font-size:13px;color:var(--muted);font-weight:600}
+  .chip .g{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin:2px 0}
+  .chip .s{font-size:12px;color:var(--muted)}
+  .chip.low{border-color:#f0c0b8;background:#fdeeec}
+  .reorder{background:var(--warn-bg);border:1px solid #f0e0b8;border-radius:10px;
+    padding:11px 13px;font-size:14px;color:#5a4a1a;margin:14px 0}
+  .reorder b{color:var(--bad)}
+  .fa{display:flex;gap:10px;margin:14px 0 12px}
+  .fa button{flex:1;border:0;border-radius:10px;padding:14px;font-size:15px;font-weight:600;
+    cursor:pointer;min-height:50px;-webkit-appearance:none}
+  .fa .primary{background:var(--accent);color:#fff}
+  .fa .ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .search input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:16px;min-height:46px;margin-bottom:12px;background:#fff;color:var(--ink)}
+  .spool{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;
+    box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .spool.low{border-color:#f0c0b8}
+  .spool .top{display:flex;align-items:center;gap:10px}
+  .dot{width:24px;height:24px;border-radius:50%;border:1px solid rgba(0,0,0,.18);flex:0 0 auto}
+  .spool .name{flex:1;min-width:0}
+  .spool .name b{font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spool .name small{color:var(--muted);font-size:12px}
+  .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--accent-soft);
+    color:var(--accent);text-transform:uppercase;letter-spacing:.03em;flex:0 0 auto}
+  .bar{height:9px;border-radius:6px;background:var(--line);overflow:hidden;margin:11px 0 6px}
+  .bar i{display:block;height:100%;background:var(--good);transition:width .2s}
+  .bar.warn i{background:var(--warn)}
+  .bar.bad i{background:var(--bad)}
+  .gline{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;
+    color:var(--muted);font-variant-numeric:tabular-nums}
+  .gline b{font-size:16px;color:var(--ink)}
+  .meta{font-size:12px;color:var(--muted);margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}
+  .qa{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+  .qa button{flex:1 1 auto;border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:9px 6px;font-size:13px;cursor:pointer;min-height:42px;color:var(--ink);-webkit-appearance:none}
+  .qa button.add{color:var(--good);border-color:#bfe3cf}
+  .qa button.del{color:var(--bad);border-color:#f0c0b8}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px;font-size:14px}
+
+  /* Sheets / Modals */
+  .sheet{position:fixed;inset:0;background:rgba(15,22,35,.5);display:flex;align-items:flex-end;
+    justify-content:center;z-index:50}
+  .sheet .panel{background:var(--card);width:100%;max-width:560px;border-radius:16px 16px 0 0;
+    max-height:92vh;overflow:auto;
+    padding:18px calc(18px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
+            calc(18px + env(safe-area-inset-left))}
+  @media(min-width:600px){.sheet{align-items:center}.sheet .panel{border-radius:16px}}
+  .panel h3{margin:0 0 14px;font-size:18px}
+  #scanModal{z-index:60}
+  .scanframe{position:relative;border-radius:12px;overflow:hidden;background:#000}
+  #scanVideo{width:100%;display:block;aspect-ratio:3/4;object-fit:cover;background:#000}
+  .reticle{position:absolute;left:8%;right:8%;top:34%;height:32%;border:2px solid rgba(255,255,255,.9);
+    border-radius:10px;pointer-events:none}
+  .scanhint{font-size:13px;color:var(--muted);margin:12px 0 8px}
+  .scanerr{font-size:13px;color:var(--bad);margin:10px 0}
+  .sheetbtns{display:flex;gap:10px;margin-top:10px}
+  .sheetbtns button{flex:1;border-radius:10px;padding:13px;font-size:15px;font-weight:600;
+    min-height:50px;cursor:pointer;-webkit-appearance:none}
+  .btn-primary{background:var(--accent);color:#fff;border:0}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn-del{background:#fff;border:1px solid #f0c0b8;color:var(--bad)}
+  .with-btn{display:flex;gap:8px}
+  .with-btn input{flex:1}
+  .with-btn button{flex:0 0 auto;border:1px solid var(--accent);background:var(--accent-soft);
+    color:var(--accent);border-radius:8px;padding:0 14px;font-size:14px;font-weight:600;cursor:pointer;
+    min-height:46px}
+
+  @media print{.toolbar,.result,.tabs,.fa,.search{position:static} body{background:#fff}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Maschinenstundensatz-Rechner</h1>
-  <small>Spanwerk · läuft offline · Eingaben werden nur lokal gespeichert</small>
+  <h1>Spanwerk</h1>
+  <small>Werkstatt-Tools · läuft offline · alles nur lokal gespeichert</small>
 </header>
 
+<nav class="tabs" id="mainTabs">
+  <button type="button" data-view="rechner" class="active">Stundensatz</button>
+  <button type="button" data-view="filament">Filament-Lager</button>
+</nav>
+
 <main>
+<!-- ============================ STUNDENSATZ-RECHNER ============================ -->
+<div id="view-rechner">
   <!-- MASCHINE -->
   <section class="card">
     <h2>Maschine</h2>
@@ -218,9 +305,137 @@
     <button type="button" id="resetBtn">Zurücksetzen</button>
     <button type="button" id="printBtn">Drucken / PDF</button>
   </div>
+</div>
+
+<!-- ============================ FILAMENT-LAGER ============================ -->
+<div id="view-filament" hidden>
+  <section class="card">
+    <h2>Bestand nach Material</h2>
+    <div class="sumwrap" id="filSummary"></div>
+    <div class="reorder" id="filReorder" hidden></div>
+  </section>
+
+  <div class="fa">
+    <button type="button" class="primary" id="filScan">📷 Spule scannen</button>
+    <button type="button" class="ghost" id="filNew">+ Neu anlegen</button>
+  </div>
+
+  <div class="search">
+    <input id="filSearch" type="text" placeholder="Suchen: Material, Farbe, Hersteller, Barcode …">
+  </div>
+
+  <div id="filList"></div>
+</div>
 </main>
 
+<!-- ============================ SCANNER ============================ -->
+<div class="sheet" id="scanModal" hidden>
+  <div class="panel">
+    <h3>Barcode scannen</h3>
+    <div id="scanCam" class="scanframe" style="display:none">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="reticle"></div>
+    </div>
+    <div class="scanhint" id="scanHint">Barcode der Spule vor die Kamera halten …</div>
+    <div class="scanerr" id="scanErr"></div>
+    <div class="field" style="margin-top:6px">
+      <label for="scanManual">Barcode manuell eingeben</label>
+      <div class="with-btn">
+        <input id="scanManual" type="text" inputmode="numeric" placeholder="z. B. 4250413701234">
+        <button type="button" id="scanManualBtn">OK</button>
+      </div>
+    </div>
+    <div class="sheetbtns">
+      <button type="button" class="btn-ghost" id="scanClose">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ SPULE BEARBEITEN ============================ -->
+<div class="sheet" id="editModal" hidden>
+  <div class="panel">
+    <h3 id="editTitle">Spule</h3>
+
+    <div class="field">
+      <label for="fBarcode">Barcode (EAN)</label>
+      <div class="with-btn">
+        <input id="fBarcode" type="text" inputmode="numeric" placeholder="optional – per Scan oder manuell">
+        <button type="button" id="fScanBtn">Scan</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="fMaterial">Material</label>
+        <select id="fMaterial"></select>
+      </div>
+      <div class="field">
+        <label for="fDiameter">Durchmesser</label>
+        <select id="fDiameter">
+          <option value="1.75">1,75 mm</option>
+          <option value="2.85">2,85 mm</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field" style="flex:2 1 200px">
+        <label for="fColor">Farbe</label>
+        <input id="fColor" type="text" placeholder="z. B. Galaxy Black">
+      </div>
+      <div class="field" style="flex:0 0 70px">
+        <label for="fColorHex">&nbsp;</label>
+        <input id="fColorHex" type="color" value="#1a2330" style="padding:4px;height:46px">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fBrand">Hersteller</label>
+      <input id="fBrand" type="text" placeholder="z. B. Prusament">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="fSpoolSize">Spulengröße voll (g)</label>
+        <input id="fSpoolSize" type="number" min="1" step="any" value="1000">
+      </div>
+      <div class="field">
+        <label for="fRemaining">Aktuelle Restmenge (g)</label>
+        <input id="fRemaining" type="number" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="fThreshold">Warnung ab (g)</label>
+        <input id="fThreshold" type="number" min="0" step="any" value="250">
+      </div>
+      <div class="field">
+        <label for="fPrice">Preis je Spule (€)</label>
+        <input id="fPrice" type="number" min="0" step="any" placeholder="optional">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fLocation">Lagerort</label>
+      <input id="fLocation" type="text" placeholder="z. B. Regal B / Box 3">
+    </div>
+
+    <div class="field">
+      <label for="fNotes">Notiz</label>
+      <input id="fNotes" type="text" placeholder="optional">
+    </div>
+
+    <div class="sheetbtns">
+      <button type="button" class="btn-del" id="editDelete" hidden>Löschen</button>
+      <button type="button" class="btn-ghost" id="editCancel">Abbrechen</button>
+      <button type="button" class="btn-primary" id="editSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <script>
+/* ============================ STUNDENSATZ-RECHNER ============================ */
 (function(){
   var KEY='spanwerk-msr-v1';
   var ids=['name','awert','nutzung','restwert','kalkAbschr','tage','stdtag','ausl',
@@ -336,6 +551,326 @@
 
   load();
   setMode(mode);
+})();
+
+/* ============================ TAB-NAVIGATION ============================ */
+(function(){
+  var tabs=document.getElementById('mainTabs');
+  tabs.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    var v=b.dataset.view;
+    var btns=tabs.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++)btns[i].classList.toggle('active',btns[i]===b);
+    document.getElementById('view-rechner').hidden=(v!=='rechner');
+    document.getElementById('view-filament').hidden=(v!=='filament');
+    window.scrollTo(0,0);
+  });
+})();
+
+/* ============================ FILAMENT-LAGER ============================ */
+(function(){
+  var KEY='spanwerk-filament-v1';
+  var MATERIALS=['PLA','PLA+','PETG','ABS','ASA','TPU','Nylon (PA)','PC','HIPS','PVA',
+    'Holz / Wood','Carbon-Fill','Silk','Sonstiges'];
+  var spools=[];
+  var editId=null;
+
+  function $(id){return document.getElementById(id);}
+  function gFmt(n){return Math.round(n||0).toLocaleString('de-DE')+' g';}
+  function esc(s){return (''+(s||'')).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function uid(){return 'f'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+
+  function load(){
+    try{var d=JSON.parse(localStorage.getItem(KEY));if(d&&d.spools)spools=d.spools;}catch(e){}
+  }
+  function persist(){
+    try{localStorage.setItem(KEY,JSON.stringify({spools:spools}));}catch(e){}
+  }
+
+  function fillMaterialSelect(){
+    var sel=$('fMaterial'),h='';
+    MATERIALS.forEach(function(m){h+='<option value="'+esc(m)+'">'+esc(m)+'</option>';});
+    sel.innerHTML=h;
+  }
+
+  function findByBarcode(code){
+    code=(''+code).trim();if(!code)return null;
+    for(var i=0;i<spools.length;i++)if((spools[i].barcode||'')===code)return spools[i];
+    return null;
+  }
+  function findById(id){
+    for(var i=0;i<spools.length;i++)if(spools[i].id===id)return spools[i];
+    return null;
+  }
+  function isLow(p){return p.remaining<=(p.threshold||0);}
+
+  /* ---------- Rendering ---------- */
+  function render(){
+    renderSummary();
+    renderList();
+  }
+
+  function renderSummary(){
+    var box=$('filSummary');
+    if(!spools.length){box.innerHTML='<div class="chip"><div class="m">Noch nichts erfasst</div>'+
+      '<div class="s">Lege deine erste Spule an oder scanne einen Barcode.</div></div>';
+      $('filReorder').hidden=true;return;}
+    var by={};
+    spools.forEach(function(p){
+      var m=p.material||'Sonstiges';
+      if(!by[m])by[m]={g:0,n:0,low:0};
+      by[m].g+=Math.max(0,p.remaining||0);by[m].n++;if(isLow(p))by[m].low++;
+    });
+    var keys=Object.keys(by).sort();
+    var h='',totalG=0;
+    keys.forEach(function(m){
+      var d=by[m];totalG+=d.g;
+      h+='<div class="chip'+(d.low?' low':'')+'">'+
+        '<div class="m">'+esc(m)+'</div>'+
+        '<div class="g">'+gFmt(d.g)+'</div>'+
+        '<div class="s">'+d.n+' '+(d.n===1?'Sorte':'Sorten')+
+        (d.low?' · '+d.low+' knapp':'')+'</div></div>';
+    });
+    h+='<div class="chip" style="background:var(--accent-soft);border-color:#cfe0fb">'+
+      '<div class="m">Gesamt</div><div class="g">'+gFmt(totalG)+'</div>'+
+      '<div class="s">'+spools.length+' '+(spools.length===1?'Eintrag':'Einträge')+'</div></div>';
+    box.innerHTML=h;
+
+    var low=spools.filter(isLow);
+    if(low.length){
+      var names=low.map(function(p){return (p.material||'?')+' '+(p.color||'');}).slice(0,4)
+        .map(function(s){return s.trim();});
+      $('filReorder').innerHTML='⚠️ <b>Nachbestellen ('+low.length+'):</b> '+
+        esc(names.join(', '))+(low.length>4?' …':'');
+      $('filReorder').hidden=false;
+    } else $('filReorder').hidden=true;
+  }
+
+  function renderList(){
+    var q=($('filSearch').value||'').toLowerCase().trim();
+    var list=spools.slice().filter(function(p){
+      if(!q)return true;
+      return ((p.material||'')+' '+(p.color||'')+' '+(p.brand||'')+' '+
+        (p.barcode||'')+' '+(p.location||'')).toLowerCase().indexOf(q)>=0;
+    });
+    list.sort(function(a,b){
+      return (a.material||'').localeCompare(b.material||'')||
+        (a.color||'').localeCompare(b.color||'');
+    });
+    var box=$('filList');
+    if(!list.length){
+      box.innerHTML='<div class="empty">'+(spools.length?
+        'Keine Treffer für „'+esc(q)+'“.':
+        'Noch keine Spulen erfasst.<br>Tippe auf „Spule scannen“ oder „Neu anlegen“.')+'</div>';
+      return;
+    }
+    var h='';
+    list.forEach(function(p){
+      var size=p.spoolSize>0?p.spoolSize:1000;
+      var rem=Math.max(0,p.remaining||0);
+      var denom=Math.max(size,rem)||1;
+      var pct=Math.max(0,Math.min(100,rem/denom*100));
+      var cls=isLow(p)?(rem<=0?'bad':'warn'):'';
+      var spoolsApprox=rem/size;
+      h+='<div class="spool'+(isLow(p)?' low':'')+'" data-id="'+p.id+'">'+
+        '<div class="top">'+
+          '<span class="dot" style="background:'+esc(p.colorHex||'#888')+'"></span>'+
+          '<span class="name"><b>'+esc(p.color||'Ohne Farbe')+'</b>'+
+            '<small>'+esc(p.brand||'—')+' · '+esc(p.diameter||'1.75')+' mm'+
+            (p.location?' · '+esc(p.location):'')+'</small></span>'+
+          '<span class="badge">'+esc(p.material||'?')+'</span>'+
+        '</div>'+
+        '<div class="bar '+cls+'"><i style="width:'+pct.toFixed(0)+'%"></i></div>'+
+        '<div class="gline"><span><b>'+gFmt(rem)+'</b> übrig</span>'+
+          '<span>≈ '+spoolsApprox.toLocaleString('de-DE',{maximumFractionDigits:1})+
+          ' Spule(n) à '+gFmt(size)+'</span></div>'+
+        (p.barcode?'<div class="meta">📷 '+esc(p.barcode)+
+          (p.notes?' · '+esc(p.notes):'')+'</div>':
+          (p.notes?'<div class="meta">'+esc(p.notes)+'</div>':''))+
+        '<div class="qa">'+
+          '<button type="button" data-act="use" data-amt="100">−100 g</button>'+
+          '<button type="button" data-act="use" data-amt="500">−500 g</button>'+
+          '<button type="button" class="add" data-act="spool">+1 Spule</button>'+
+          '<button type="button" data-act="edit">Bearbeiten</button>'+
+        '</div>'+
+      '</div>';
+    });
+    box.innerHTML=h;
+  }
+
+  /* ---------- Aktionen ---------- */
+  function useAmount(id,amt){
+    var p=findById(id);if(!p)return;
+    p.remaining=Math.max(0,(p.remaining||0)-amt);
+    p.updated=Date.now();persist();render();
+  }
+  function addSpool(id){
+    var p=findById(id);if(!p)return;
+    p.remaining=(p.remaining||0)+(p.spoolSize>0?p.spoolSize:1000);
+    p.updated=Date.now();persist();render();
+  }
+  function delSpool(id){
+    var p=findById(id);if(!p)return;
+    if(!confirm('„'+(p.material||'')+' '+(p.color||'')+'“ wirklich löschen?'))return;
+    spools=spools.filter(function(x){return x.id!==id;});
+    persist();render();
+  }
+
+  $('filList').addEventListener('click',function(e){
+    var btn=e.target.closest('button[data-act]');
+    var card=e.target.closest('.spool');if(!card)return;
+    var id=card.dataset.id;
+    if(!btn){openEditor(id);return;}
+    var act=btn.dataset.act;
+    if(act==='use')useAmount(id,parseFloat(btn.dataset.amt));
+    else if(act==='spool')addSpool(id);
+    else if(act==='edit')openEditor(id);
+  });
+  $('filSearch').addEventListener('input',renderList);
+
+  /* ---------- Editor ---------- */
+  function openEditor(id,prefill){
+    editId=id||null;
+    var p=id?findById(id):null;
+    prefill=prefill||{};
+    $('editTitle').textContent=p?'Spule bearbeiten':'Neue Spule';
+    $('editDelete').hidden=!p;
+    $('fBarcode').value=p?p.barcode||'':(prefill.barcode||'');
+    $('fMaterial').value=p?(p.material||'PLA'):'PLA';
+    if($('fMaterial').selectedIndex<0)$('fMaterial').value='Sonstiges';
+    $('fDiameter').value=p?(p.diameter||'1.75'):'1.75';
+    $('fColor').value=p?p.color||'':'';
+    $('fColorHex').value=p?(p.colorHex||'#1a2330'):'#1a2330';
+    $('fBrand').value=p?p.brand||'':'';
+    $('fSpoolSize').value=p?(p.spoolSize||1000):1000;
+    $('fRemaining').value=p?(p.remaining!=null?p.remaining:''):'';
+    $('fThreshold').value=p?(p.threshold!=null?p.threshold:250):250;
+    $('fPrice').value=p&&p.price!=null?p.price:'';
+    $('fLocation').value=p?p.location||'':'';
+    $('fNotes').value=p?p.notes||'':'';
+    $('editModal').hidden=false;
+  }
+  function closeEditor(){$('editModal').hidden=true;editId=null;}
+
+  function numv(id){var v=parseFloat((''+$(id).value).replace(',','.'));return isNaN(v)?0:v;}
+
+  $('editSave').addEventListener('click',function(){
+    var material=$('fMaterial').value;
+    var color=$('fColor').value.trim();
+    if(!color&&!material){alert('Bitte mindestens Material und Farbe angeben.');return;}
+    var barcode=$('fBarcode').value.trim();
+    // Doppelten Barcode auf anderen Eintrag verhindern
+    if(barcode){
+      var other=findByBarcode(barcode);
+      if(other&&other.id!==editId){
+        if(!confirm('Dieser Barcode ist bereits „'+(other.material||'')+' '+(other.color||'')+
+          '“ zugeordnet. Trotzdem speichern?'))return;
+      }
+    }
+    var p=editId?findById(editId):null;
+    if(!p){p={id:uid(),created:Date.now()};spools.push(p);}
+    p.barcode=barcode;
+    p.material=material;
+    p.diameter=$('fDiameter').value;
+    p.color=color;
+    p.colorHex=$('fColorHex').value;
+    p.brand=$('fBrand').value.trim();
+    p.spoolSize=numv('fSpoolSize')||1000;
+    p.remaining=numv('fRemaining');
+    p.threshold=numv('fThreshold');
+    var pr=$('fPrice').value.trim();p.price=pr?numv('fPrice'):null;
+    p.location=$('fLocation').value.trim();
+    p.notes=$('fNotes').value.trim();
+    p.updated=Date.now();
+    persist();render();closeEditor();
+  });
+  $('editCancel').addEventListener('click',closeEditor);
+  $('editDelete').addEventListener('click',function(){if(editId){var id=editId;closeEditor();delSpool(id);}});
+  $('editModal').addEventListener('click',function(e){if(e.target===$('editModal'))closeEditor();});
+  $('filNew').addEventListener('click',function(){openEditor(null);});
+
+  /* ---------- Barcode-Scanner ---------- */
+  var scanStream=null,scanTimer=null,scanDetector=null,scanCb=null;
+
+  function stopScan(){
+    if(scanTimer){clearTimeout(scanTimer);scanTimer=null;}
+    if(scanStream){scanStream.getTracks().forEach(function(t){t.stop();});scanStream=null;}
+    scanDetector=null;
+    var v=$('scanVideo');try{v.pause();v.srcObject=null;}catch(e){}
+  }
+  function closeScanner(){stopScan();scanCb=null;$('scanModal').hidden=true;}
+
+  async function openScanner(cb){
+    scanCb=cb;
+    $('scanErr').textContent='';
+    $('scanManual').value='';
+    $('scanModal').hidden=false;
+    var canDetect=('BarcodeDetector' in window) &&
+      navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    if(!canDetect){
+      $('scanCam').style.display='none';
+      $('scanHint').textContent='Kamera-Scan auf diesem Gerät nicht verfügbar.';
+      $('scanErr').textContent='Bitte den Barcode unten manuell eingeben (oder mit einem USB-/Bluetooth-Scanner ins Feld scannen).';
+      $('scanManual').focus();
+      return;
+    }
+    try{
+      var supported=await window.BarcodeDetector.getSupportedFormats();
+      var want=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar',
+        'qr_code','data_matrix'].filter(function(f){return supported.indexOf(f)>=0;});
+      scanDetector=new window.BarcodeDetector(want.length?{formats:want}:undefined);
+      scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+      var v=$('scanVideo');v.srcObject=scanStream;await v.play();
+      $('scanCam').style.display='block';
+      $('scanHint').textContent='Barcode der Spule vor die Kamera halten …';
+      tick();
+    }catch(err){
+      $('scanCam').style.display='none';
+      $('scanHint').textContent='';
+      $('scanErr').textContent='Kamera nicht verfügbar oder nicht freigegeben – bitte Barcode manuell eingeben.';
+      $('scanManual').focus();
+    }
+  }
+  async function tick(){
+    if(!scanStream||!scanDetector)return;
+    try{
+      var codes=await scanDetector.detect($('scanVideo'));
+      if(codes&&codes.length){
+        var val=(codes[0].rawValue||'').trim();
+        if(val){if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){} finishScan(val);return;}
+      }
+    }catch(e){}
+    scanTimer=setTimeout(tick,250);
+  }
+  function finishScan(val){var cb=scanCb;closeScanner();if(cb)cb(val);}
+
+  $('scanClose').addEventListener('click',closeScanner);
+  $('scanModal').addEventListener('click',function(e){if(e.target===$('scanModal'))closeScanner();});
+  $('scanManualBtn').addEventListener('click',function(){
+    var v=$('scanManual').value.trim();if(v)finishScan(v);
+  });
+  $('scanManual').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){var v=$('scanManual').value.trim();if(v)finishScan(v);}
+  });
+
+  // Scan vom Lager: bekannten Barcode öffnen, sonst neu anlegen
+  $('filScan').addEventListener('click',function(){
+    openScanner(function(code){
+      var p=findByBarcode(code);
+      if(p)openEditor(p.id);
+      else openEditor(null,{barcode:code});
+    });
+  });
+  // Scan im Editor: nur das Barcode-Feld füllen
+  $('fScanBtn').addEventListener('click',function(){
+    openScanner(function(code){$('fBarcode').value=code;});
+  });
+
+  // Init
+  fillMaterialSelect();
+  load();
+  render();
 })();
 </script>
 </body>
