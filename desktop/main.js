@@ -6,11 +6,13 @@ const { app, BrowserWindow, shell, Menu, ipcMain } = require("electron");
 const path = require("path");
 const http = require("http");
 const os = require("os");
+const crypto = require("crypto");
 
 var win = null;
 var server = null;
 var cachedData = "{}";
 var PORT = 8765;
+var syncToken = null; // 6-stelliger Kopplungs-PIN, nur gültig solange der Server läuft
 
 function localIPs() {
   var nets = os.networkInterfaces(), out = [];
@@ -48,17 +50,25 @@ ipcMain.on("open-external", function (_e, url) {
 ipcMain.on("sync-set-data", function (_e, json) { if (typeof json === "string") cachedData = json; });
 
 ipcMain.handle("sync-start", function () {
-  if (server) return { ips: localIPs(), port: PORT, running: true };
+  if (server) return { ips: localIPs(), port: PORT, token: syncToken, running: true };
+  // Kopplungs-PIN: ohne gültigen PIN wird kein Zugriff gewährt – schützt
+  // im gemeinsamen WLAN vor versehentlichem/fremdem Überschreiben der Daten.
+  syncToken = String(crypto.randomInt(100000, 1000000));
   server = http.createServer(function (req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-    if (req.method === "GET" && (req.url === "/pull" || req.url === "/")) {
+    var u, pfad, token;
+    try { u = new URL(req.url, "http://localhost"); pfad = u.pathname; token = u.searchParams.get("t"); }
+    catch (e) { res.writeHead(400); res.end("bad request"); return; }
+    // PIN-Prüfung für alle Datenzugriffe
+    if (token !== syncToken) { res.writeHead(403, { "Content-Type": "application/json" }); res.end('{"error":"PIN falsch"}'); return; }
+    if (req.method === "GET" && (pfad === "/pull" || pfad === "/")) {
       if (win) win.webContents.send("sync-client");
       res.writeHead(200, { "Content-Type": "application/json" }); res.end(cachedData); return;
     }
-    if (req.method === "POST" && req.url === "/push") {
+    if (req.method === "POST" && pfad === "/push") {
       var body = "";
       req.on("data", function (c) { body += c; if (body.length > 30e6) req.destroy(); });
       req.on("end", function () {
@@ -71,11 +81,12 @@ ipcMain.handle("sync-start", function () {
   });
   server.on("error", function (e) { console.error("Sync-Server:", e.message); });
   try { server.listen(PORT, "0.0.0.0"); } catch (e) { console.error(e); }
-  return { ips: localIPs(), port: PORT, running: true };
+  return { ips: localIPs(), port: PORT, token: syncToken, running: true };
 });
 
 ipcMain.handle("sync-stop", function () {
   if (server) { try { server.close(); } catch (e) {} server = null; }
+  syncToken = null;
   return { running: false };
 });
 

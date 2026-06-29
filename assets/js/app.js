@@ -1566,13 +1566,16 @@
         return;
       }
       var addr = ips[0] + ":" + port;
-      var body = '<p>PC und Handy müssen im <strong>selben WLAN</strong> sein. Am Handy: Stammdaten → Geräte-Sync → „Mit PC verbinden" und diesen Code scannen.</p>' +
+      var pin = (info && info.token) || "";
+      var qrUrl = "http://" + addr + (pin ? "?t=" + pin : "");
+      var body = '<p>PC und Handy müssen im <strong>selben WLAN</strong> sein. Am Handy: Stammdaten → Geräte-Sync → „QR-Code scannen".</p>' +
         '<div id="qr-box" style="text-align:center;margin:14px 0"></div>' +
         '<div style="text-align:center;font-size:17px;font-weight:700">' + esc(addr) + "</div>" +
+        (pin ? '<div style="text-align:center;margin-top:6px">Kopplungs-PIN: <strong style="font-size:20px;letter-spacing:2px">' + esc(pin) + "</strong></div>" : "") +
         (ips.length > 1 ? '<p class="hint" style="text-align:center">Alternative Adressen: ' + ips.slice(1).map(function (i) { return esc(i + ":" + port); }).join(", ") + "</p>" : "") +
-        '<p class="hint">Der PC bleibt empfangsbereit, solange dieses Fenster offen ist. Eine Firewall-Abfrage bitte zulassen.</p>';
+        '<p class="hint">Scannen überträgt Adresse und PIN automatisch. Bei manueller Eingabe den PIN am Handy mit eintippen. Der PC bleibt empfangsbereit, solange dieses Fenster offen ist; eine Firewall-Abfrage bitte zulassen.</p>';
       openModal("📡 Geräte-Sync – dieser PC", body, null, "Fertig");
-      zeichneQR($("#qr-box"), "http://" + addr);
+      zeichneQR($("#qr-box"), qrUrl);
     }).catch(function (e) { toast("Server-Start fehlgeschlagen: " + (e && e.message || e), "err"); });
   }
 
@@ -1582,6 +1585,7 @@
     try { last = w.localStorage.getItem("ps.sync.addr") || ""; } catch (e) {}
     var body = "<p>Daten mit dem PC abgleichen – beide im <strong>selben WLAN</strong>. Am PC: Stammdaten → Geräte-Sync.</p>" +
       fld2("PC-Adresse (z. B. 192.168.0.10:8765)", "sync-addr", last, "text") +
+      fld2("Kopplungs-PIN (vom PC)", "sync-pin", "", "text") +
       '<div class="btn-row" style="margin-bottom:8px"><button class="btn sm" id="sync-scan" type="button">📷 QR-Code scannen</button></div>' +
       '<div id="scan-box" style="text-align:center"></div>' +
       '<hr class="sep">' +
@@ -1589,38 +1593,53 @@
         '<button class="btn primary" id="sync-pull" type="button">⬇️ Daten vom PC holen</button>' +
         '<button class="btn" id="sync-push" type="button">⬆️ Daten an PC senden</button>' +
       "</div>" +
-      '<p class="hint">„Holen" überschreibt die Daten auf diesem Gerät, „Senden" die auf dem PC.</p>';
+      '<p class="hint">Der QR-Code überträgt Adresse und PIN automatisch. „Holen" überschreibt die Daten auf diesem Gerät, „Senden" die auf dem PC.</p>';
     openModal("📡 Geräte-Sync", body, null, "Schließen");
-    $("#sync-scan").onclick = function () { starteScan($("#scan-box"), $("#sync-addr")); };
-    $("#sync-pull").onclick = function () { syncPull($("#sync-addr").value); };
-    $("#sync-push").onclick = function () { syncPush($("#sync-addr").value); };
+    var pinFeld = $("#sync-pin");
+    $("#sync-scan").onclick = function () { starteScan($("#scan-box"), $("#sync-addr"), pinFeld); };
+    $("#sync-pull").onclick = function () { syncPull($("#sync-addr").value, pinFeld.value); };
+    $("#sync-push").onclick = function () { syncPush($("#sync-addr").value, pinFeld.value); };
   }
 
-  function syncPull(addr) {
-    addr = normAddr(addr);
+  function syncPull(addr, pin) {
+    addr = normAddr(addr); pin = (pin || "").trim();
     if (!addr) { toast("Bitte PC-Adresse eingeben oder scannen.", "err"); return; }
+    if (!pin) { toast("Bitte den Kopplungs-PIN vom PC eingeben (oder QR scannen).", "err"); return; }
     if (!confirm("Daten vom PC holen? Die Daten auf DIESEM Gerät werden überschrieben.")) return;
     try { w.localStorage.setItem("ps.sync.addr", addr); } catch (e) {}
-    fetch("http://" + addr + "/pull", { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
+    fetch("http://" + addr + "/pull?t=" + encodeURIComponent(pin), { cache: "no-store" })
+      .then(function (r) { if (r.status === 403) throw new Error("PIN falsch"); if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
       .then(function (text) { var neu = Store.importJSON(text); db = neu; toast("Daten vom PC übernommen. ✅"); schliesseModal(); navTo("dashboard"); })
-      .catch(function (e) { toast("Holen fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN? Adresse korrekt?", "err"); });
+      .catch(function (e) { toast("Holen fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN? Adresse/PIN korrekt?", "err"); });
   }
 
-  function syncPush(addr) {
-    addr = normAddr(addr);
+  function syncPush(addr, pin) {
+    addr = normAddr(addr); pin = (pin || "").trim();
     if (!addr) { toast("Bitte PC-Adresse eingeben oder scannen.", "err"); return; }
+    if (!pin) { toast("Bitte den Kopplungs-PIN vom PC eingeben (oder QR scannen).", "err"); return; }
     if (!confirm("Daten an den PC senden? Die Daten auf dem PC werden überschrieben.")) return;
     try { w.localStorage.setItem("ps.sync.addr", addr); } catch (e) {}
-    fetch("http://" + addr + "/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: Store.exportJSON() })
-      .then(function (r) { if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
+    fetch("http://" + addr + "/push?t=" + encodeURIComponent(pin), { method: "POST", headers: { "Content-Type": "application/json" }, body: Store.exportJSON() })
+      .then(function (r) { if (r.status === 403) throw new Error("PIN falsch"); if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
       .then(function () { toast("Daten an PC gesendet. ✅"); })
-      .catch(function (e) { toast("Senden fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN?", "err"); });
+      .catch(function (e) { toast("Senden fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN? PIN korrekt?", "err"); });
+  }
+
+  // QR-Inhalt in Adresse + PIN zerlegen (URL mit ?t= oder reine Adresse).
+  function uebernehmeScan(data, addrInput, pinInput) {
+    try {
+      var url = new URL(data);
+      addrInput.value = normAddr(url.host);
+      var t = url.searchParams.get("t");
+      if (t && pinInput) pinInput.value = t;
+    } catch (e) {
+      addrInput.value = normAddr(data);
+    }
   }
 
   // QR-Scan per Kamera (jsQR); manuelle Eingabe bleibt als Rückfallebene
   var _scanStop = false;
-  function starteScan(box, addrInput) {
+  function starteScan(box, addrInput, pinInput) {
     if (!w.jsQR || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast("Kamera nicht verfügbar – bitte Adresse manuell eingeben.", "err"); return;
     }
@@ -1640,7 +1659,7 @@
           try {
             var img = cx.getImageData(0, 0, canvas.width, canvas.height);
             var code = w.jsQR(img.data, img.width, img.height);
-            if (code && code.data) { addrInput.value = normAddr(code.data); toast("Code erkannt: " + addrInput.value); ende(); return; }
+            if (code && code.data) { uebernehmeScan(code.data, addrInput, pinInput); toast("Code erkannt: " + addrInput.value); ende(); return; }
           } catch (e) {}
         }
         requestAnimationFrame(tick);

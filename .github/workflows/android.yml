@@ -63,14 +63,14 @@ jobs:
       - name: Web-Dateien synchronisieren
         run: npm run sync
 
-      - name: APK bauen (Debug)
+      - name: APK bauen (Release)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon -Pvcode=${{ env.VCODE }} -Pvname=${{ env.VNAME }}
+          ./gradlew assembleRelease --no-daemon -Pvcode=${{ env.VCODE }} -Pvname=${{ env.VNAME }}
 
       - name: APK umbenennen
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk preisschmiede.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk preisschmiede.apk
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4
