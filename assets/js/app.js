@@ -406,32 +406,98 @@
   // ============================================================
   //  MATERIAL
   // ============================================================
+  // Filterzustand der Materialdatenbank
+  var materialFilter = { suche: "", kategorie: "", typ: "" };
+  // feste Reihenfolge der Hauptkategorien (Unbekanntes/„Sonstiges" ans Ende)
+  var KAT_ORDER = ["Rohre", "Vollmaterial", "Profile", "Träger", "Bleche"];
+  function matKat(m) { return (m.kategorie && String(m.kategorie).trim()) || "Sonstiges"; }
+  function matUnterkat(m) { return (m.unterkategorie && String(m.unterkategorie).trim()) || "—"; }
+
   function renderMaterial() {
     var root = $("#page-material .content");
-    var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Positionen</span></h3>';
-    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button> <button class="btn sm" id="btn-import-datanorm">📥 DATANORM / Preisliste importieren</button> <button class="btn sm" id="btn-sortiment">📦 Standard-Sortiment laden</button></div>';
-    html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Lager</th><th class="num">Aktion</th></tr></thead><tbody>';
-    db.material.forEach(function (m) {
-      html += "<tr>" +
-        "<td>" + esc(m.name) +
-          (m.artikelnummer ? ' <span class="tag muted">Nr. ' + esc(m.artikelnummer) + "</span>" : "") +
-          (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") + "</td>" +
-        "<td>" + esc(m.typ || "-") + "</td>" +
-        "<td>" + esc(m.lieferant || "-") + "</td>" +
-        '<td class="num">' + fmtEUR(m.preis) + "</td>" +
-        "<td>/" + esc(m.einheit) + "</td>" +
-        '<td class="num muted">' + (m.lager != null && m.lager !== "" ? esc(m.lager) + " " + esc(m.einheit) : "—") + "</td>" +
-        '<td class="num"><button class="btn sm ghost" data-edit="' + m.id + '">✏️</button> ' +
-          '<button class="btn sm danger" data-del="' + m.id + '">🗑️</button></td></tr>';
-    });
-    html += "</tbody></table></div></div>";
+    // vorhandene Kategorien & Werkstoffe für die Filter-Dropdowns
+    var katSet = {}, typSet = {};
+    db.material.forEach(function (m) { katSet[matKat(m)] = true; if (m.typ) typSet[m.typ] = true; });
+    var kats = Object.keys(katSet).sort(katSort);
+    var typen = Object.keys(typSet).sort();
+    function opt(val, label, sel) { return '<option value="' + esc(val) + '"' + (sel === val ? " selected" : "") + ">" + esc(label) + "</option>"; }
+
+    var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Artikel</span></h3>';
+    html += '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button> <button class="btn sm" id="btn-import-datanorm">📥 DATANORM / Preisliste importieren</button> <button class="btn sm" id="btn-sortiment">📦 Standard-Sortiment laden</button></div>';
+    html += '<div class="inline" style="margin-bottom:8px">' +
+      '<input id="mat-suche" placeholder="🔍 Suche: Bezeichnung, Nr., Lieferant" value="' + esc(materialFilter.suche) + '" style="flex:2">' +
+      '<select id="mat-kat" style="flex:1;min-width:130px"><option value="">Alle Kategorien</option>' +
+        kats.map(function (k) { return opt(k, k, materialFilter.kategorie); }).join("") + "</select>" +
+      '<select id="mat-typ" style="flex:1;min-width:120px"><option value="">Alle Werkstoffe</option>' +
+        typen.map(function (t) { return opt(t, t, materialFilter.typ); }).join("") + "</select>" +
+      "</div>";
+    html += '<div id="mat-liste"></div></div>';
     root.innerHTML = html;
 
     $("#btn-add-material").onclick = function () { materialModal(null); };
     var bImp = $("#btn-import-datanorm"); if (bImp) bImp.onclick = datanormImportModal;
     var bSort = $("#btn-sortiment"); if (bSort) bSort.onclick = ladeSortiment;
-    $all("[data-edit]").forEach(function (b) { b.onclick = function () { materialModal(b.dataset.edit); }; });
-    $all("[data-del]").forEach(function (b) {
+    $("#mat-suche").addEventListener("input", function () { materialFilter.suche = this.value; renderMaterialListe(); });
+    $("#mat-kat").addEventListener("change", function () { materialFilter.kategorie = this.value; renderMaterialListe(); });
+    $("#mat-typ").addEventListener("change", function () { materialFilter.typ = this.value; renderMaterialListe(); });
+    renderMaterialListe();
+  }
+
+  function katSort(a, b) {
+    var ia = KAT_ORDER.indexOf(a), ib = KAT_ORDER.indexOf(b);
+    if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+    return ia !== ib ? ia - ib : a.localeCompare(b, "de");
+  }
+
+  function renderMaterialListe() {
+    var ziel = $("#mat-liste"); if (!ziel) return;
+    var suche = (materialFilter.suche || "").toLowerCase().trim();
+    var gefiltert = db.material.filter(function (m) {
+      if (materialFilter.kategorie && matKat(m) !== materialFilter.kategorie) return false;
+      if (materialFilter.typ && (m.typ || "") !== materialFilter.typ) return false;
+      if (!suche) return true;
+      var hay = [m.name, m.artikelnummer, m.lieferant, m.unterkategorie].filter(Boolean).join(" ").toLowerCase();
+      return hay.indexOf(suche) >= 0;
+    });
+    if (!gefiltert.length) {
+      ziel.innerHTML = '<div class="empty">Keine Treffer. Filter ändern oder Material anlegen / Sortiment laden.</div>';
+      return;
+    }
+    // nach Hauptkategorie -> Unterkategorie gruppieren
+    var gruppen = {};
+    gefiltert.forEach(function (m) {
+      var k = matKat(m), u = matUnterkat(m);
+      (gruppen[k] = gruppen[k] || {})[u] = (gruppen[k][u] || []);
+      gruppen[k][u].push(m);
+    });
+    var html = "";
+    Object.keys(gruppen).sort(katSort).forEach(function (k) {
+      var unter = gruppen[k];
+      var anzahl = Object.keys(unter).reduce(function (s, u) { return s + unter[u].length; }, 0);
+      html += '<details class="mat-gruppe" open><summary style="cursor:pointer;font-weight:700;padding:8px 4px;font-size:15px">' +
+        esc(k) + ' <span class="muted" style="font-weight:400">(' + anzahl + ")</span></summary>";
+      Object.keys(unter).sort(function (a, b) { return a.localeCompare(b, "de"); }).forEach(function (u) {
+        if (u !== "—") html += '<div class="muted" style="font-size:12px;font-weight:600;margin:8px 0 2px 4px">' + esc(u) + "</div>";
+        html += '<div class="table-wrap"><table><tbody>';
+        unter[u].sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "de", { numeric: true }); }).forEach(function (m) {
+          html += "<tr>" +
+            "<td>" + esc(m.name) +
+              (m.artikelnummer ? ' <span class="tag muted">Nr. ' + esc(m.artikelnummer) + "</span>" : "") +
+              (m.historie && m.historie.length > 1 ? ' <span class="tag">' + m.historie.length + " Preise</span>" : "") +
+              '<br><span class="muted" style="font-size:11px">' + esc(m.typ || "-") + " · " + esc(m.lieferant || "—") +
+              (m.lager != null && m.lager !== "" ? " · Lager " + esc(m.lager) + " " + esc(m.einheit) : "") + "</span></td>" +
+            '<td class="num" style="white-space:nowrap">' + fmtEUR(m.preis) + " /" + esc(m.einheit) + "</td>" +
+            '<td class="num" style="white-space:nowrap"><button class="btn sm ghost" data-edit="' + m.id + '">✏️</button> ' +
+              '<button class="btn sm danger" data-del="' + m.id + '">🗑️</button></td></tr>';
+        });
+        html += "</tbody></table></div>";
+      });
+      html += "</details>";
+    });
+    ziel.innerHTML = html;
+
+    $all("[data-edit]", ziel).forEach(function (b) { b.onclick = function () { materialModal(b.dataset.edit); }; });
+    $all("[data-del]", ziel).forEach(function (b) {
       b.onclick = function () {
         if (confirm("Material löschen?")) {
           db.material = db.material.filter(function (m) { return m.id !== b.dataset.del; });
@@ -443,10 +509,24 @@
 
   function materialModal(id) {
     var m = id ? db.material.find(function (x) { return x.id === id; }) : null;
+    // Vorschläge für Kategorie/Unterkategorie aus vorhandenen Daten + Sortiment
+    var katVor = {}, unterVor = {};
+    db.material.forEach(function (x) { if (x.kategorie) katVor[x.kategorie] = true; if (x.unterkategorie) unterVor[x.unterkategorie] = true; });
+    (w.Preisschmiede && w.Preisschmiede.Sortiment || []).forEach(function (x) { katVor[x.kategorie] = true; unterVor[x.unterkategorie] = true; });
+    function datalist(id, obj) { return '<datalist id="' + id + '">' + Object.keys(obj).sort().map(function (v) { return "<option>" + esc(v) + "</option>"; }).join("") + "</datalist>"; }
+    function fldList(label, fid, val, listId) {
+      return '<label class="fld"><span class="lbl">' + esc(label) + '</span><input type="text" id="' + fid + '" list="' + listId + '" value="' + esc(val == null ? "" : val) + '"></label>';
+    }
+
     var body =
       fld2("Bezeichnung", "m-name", m ? m.name : "", "text") +
       '<div class="inline">' +
-        fld2("Typ", "m-typ", m ? m.typ : "Stahl", "text") +
+        fldList("Kategorie", "m-kategorie", m ? m.kategorie : "", "dl-kat") +
+        fldList("Unterkategorie", "m-unterkategorie", m ? m.unterkategorie : "", "dl-unter") +
+      "</div>" +
+      datalist("dl-kat", katVor) + datalist("dl-unter", unterVor) +
+      '<div class="inline">' +
+        fld2("Werkstoff (Typ)", "m-typ", m ? m.typ : "Stahl", "text") +
         fld2("Einheit", "m-einheit", m ? m.einheit : "m", "text") +
       "</div>" +
       '<div class="inline">' +
@@ -485,14 +565,18 @@
         toast('„Preis pro kg" wirkt nur mit Gewicht (kg je Einheit). Bitte Gewicht eintragen.', "err");
         return false;
       }
+      var kategorie = $("#m-kategorie").value.trim();
+      var unterkategorie = $("#m-unterkategorie").value.trim();
       if (m) {
         if (preis !== m.preis) (m.historie = m.historie || []).push({ datum: Store.nowISO(), preis: preis });
         m.name = name; m.typ = $("#m-typ").value.trim(); m.einheit = $("#m-einheit").value.trim() || "Stk";
+        m.kategorie = kategorie; m.unterkategorie = unterkategorie;
         m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.lager = lager;
         m.kgProEinheit = kg; m.preisProKg = ppk; m.aktualisiert = Store.nowISO();
       } else {
         db.material.push({
           id: Store.uid(), name: name, typ: $("#m-typ").value.trim(),
+          kategorie: kategorie, unterkategorie: unterkategorie,
           einheit: $("#m-einheit").value.trim() || "Stk", preis: preis,
           lieferant: $("#m-lieferant").value.trim(), kgProEinheit: kg, preisProKg: ppk, lager: lager,
           aktualisiert: Store.nowISO(), historie: [{ datum: Store.nowISO(), preis: preis }]
@@ -606,6 +690,7 @@
     neu.forEach(function (a) {
       db.material.push({
         id: Store.uid(), name: a.name, typ: a.typ, einheit: a.einheit,
+        kategorie: a.kategorie || "", unterkategorie: a.unterkategorie || "",
         preis: a.preis, lieferant: "Frankstahl",
         kgProEinheit: a.kgProEinheit != null ? a.kgProEinheit : null,
         preisProKg: a.preisProKg != null ? a.preisProKg : null,
@@ -655,7 +740,8 @@
       } else {
         db.material.push({
           id: Store.uid(), artikelnummer: a.artikelnummer, name: a.name,
-          typ: a.warengruppe || "", einheit: a.einheit || "Stk", preis: preis,
+          typ: "", kategorie: a.warengruppe || "Import (DATANORM)", unterkategorie: a.warengruppe || "",
+          einheit: a.einheit || "Stk", preis: preis,
           lieferant: lieferant || "Frankstahl", kgProEinheit: a.kg != null ? a.kg : null,
           preisProKg: null, lager: null, aktualisiert: Store.nowISO(),
           historie: [{ datum: Store.nowISO(), preis: preis }]
