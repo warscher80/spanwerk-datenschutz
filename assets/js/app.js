@@ -409,7 +409,7 @@
   function renderMaterial() {
     var root = $("#page-material .content");
     var html = '<div class="card"><h3>Materialdatenbank <span class="sub">' + db.material.length + ' Positionen</span></h3>';
-    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button> <button class="btn sm" id="btn-import-datanorm">📥 DATANORM / Preisliste importieren</button></div>';
+    html += '<div class="btn-row" style="margin-bottom:14px"><button class="btn primary sm" id="btn-add-material">+ Material anlegen</button> <button class="btn sm" id="btn-import-datanorm">📥 DATANORM / Preisliste importieren</button> <button class="btn sm" id="btn-sortiment">📦 Standard-Sortiment laden</button></div>';
     html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Typ</th><th>Lieferant</th><th class="num">Preis</th><th>Einheit</th><th class="num">Lager</th><th class="num">Aktion</th></tr></thead><tbody>';
     db.material.forEach(function (m) {
       html += "<tr>" +
@@ -429,6 +429,7 @@
 
     $("#btn-add-material").onclick = function () { materialModal(null); };
     var bImp = $("#btn-import-datanorm"); if (bImp) bImp.onclick = datanormImportModal;
+    var bSort = $("#btn-sortiment"); if (bSort) bSort.onclick = ladeSortiment;
     $all("[data-edit]").forEach(function (b) { b.onclick = function () { materialModal(b.dataset.edit); }; });
     $all("[data-del]").forEach(function (b) {
       b.onclick = function () {
@@ -590,6 +591,30 @@
       rd.onerror = function () { toast("Datei konnte nicht gelesen werden.", "err"); };
       try { rd.readAsText(inp.files[0], enc); } catch (e) { rd.readAsText(inp.files[0]); }
     };
+  }
+
+  // Metallbau-Grundsortiment (gängige Profile/Bleche) als Startbasis laden.
+  function ladeSortiment() {
+    var liste = w.Preisschmiede && w.Preisschmiede.Sortiment;
+    if (!liste || !liste.length) { toast("Standard-Sortiment nicht verfügbar.", "err"); return; }
+    var vorhanden = {};
+    db.material.forEach(function (m) { vorhanden[(m.name || "").toLowerCase().trim()] = true; });
+    var neu = liste.filter(function (a) { return !vorhanden[(a.name || "").toLowerCase().trim()]; });
+    if (!neu.length) { toast("Alle Artikel des Standard-Sortiments sind bereits vorhanden.", "ok"); return; }
+    if (!confirm(neu.length + " Artikel aus dem Metallbau-Grundsortiment hinzufügen?\n\nGewichte sind exakt berechnet, die Preise sind €/kg-RICHTWERTE – bitte mit deinen Konditionen bzw. per DATANORM-Import aktualisieren.")) return;
+    var jetzt = Store.nowISO();
+    neu.forEach(function (a) {
+      db.material.push({
+        id: Store.uid(), name: a.name, typ: a.typ, einheit: a.einheit,
+        preis: a.preis, lieferant: "Frankstahl",
+        kgProEinheit: a.kgProEinheit != null ? a.kgProEinheit : null,
+        preisProKg: a.preisProKg != null ? a.preisProKg : null,
+        lager: null, aktualisiert: jetzt,
+        historie: [{ datum: jetzt, preis: a.preis }]
+      });
+    });
+    Store.save(); renderMaterial();
+    toast(neu.length + " Artikel hinzugefügt. Preise sind Richtwerte – bitte prüfen. ✅", "ok");
   }
 
   function zeigeDatanormVorschau(g) {
