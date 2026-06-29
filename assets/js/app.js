@@ -43,6 +43,7 @@
 
   function toast(msg, kind) {
     var t = $("#toast");
+    if (!t) { return; }
     t.textContent = msg;
     t.className = "toast show " + (kind || "ok");
     clearTimeout(t._tm);
@@ -383,8 +384,8 @@
       if (!name) { toast("Bitte Maschinennamen angeben.", "err"); return false; }
       var daten = {
         name: name, schritt: $("#ma-schritt").value,
-        stundensatz: parseFloat($("#ma-satz").value) || 0,
-        ruestkosten: parseFloat($("#ma-ruest").value) || 0
+        stundensatz: leseZahl0($("#ma-satz").value),
+        ruestkosten: leseZahl0($("#ma-ruest").value)
       };
       if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestkosten = daten.ruestkosten; }
       else { daten.id = Store.uid(); liste.push(daten); }
@@ -393,12 +394,14 @@
     });
   }
 
+  // Zahlfeld: Text + inputmode=decimal, damit das deutsche Komma erhalten
+  // bleibt (type=number verwirft "12,5" je nach Gerät zu "12" oder "").
   function fld(label, id, val, suffix) {
-    var inner = '<input type="number" step="any" id="' + id + '" value="' + esc(val) + '">';
+    var inner = '<input type="text" inputmode="decimal" id="' + id + '" value="' + esc(val) + '">';
     if (suffix) inner = '<div class="suffix-grp">' + inner + '<span class="suffix">' + suffix + "</span></div>";
     return '<label class="fld"><span class="lbl">' + esc(label) + "</span>" + inner + "</label>";
   }
-  function numv(sel) { return parseFloat($(sel).value) || 0; }
+  function numv(sel) { var e = $(sel); return e ? leseZahl0(e.value) : 0; }
 
   // ============================================================
   //  MATERIAL
@@ -469,15 +472,20 @@
     openModal(m ? "Material bearbeiten" : "Material anlegen", body, function () {
       var name = $("#m-name").value.trim();
       if (!name) { toast("Bitte Bezeichnung angeben.", "err"); return false; }
-      var preis = parseFloat($("#m-preis").value) || 0;
+      var preis = leseZahl0($("#m-preis").value);
       var lagerRaw = $("#m-lager").value.trim();
-      var lager = lagerRaw === "" ? null : (parseFloat(lagerRaw) || 0);
+      var lager = lagerRaw === "" ? null : leseZahl0(lagerRaw);
       var kgRaw = $("#m-kg").value.trim();
-      var kg = kgRaw === "" ? null : (parseFloat(kgRaw) || 0);
+      var kg = kgRaw === "" ? null : leseZahl0(kgRaw);
       var ppkRaw = $("#m-preisProKg").value.trim();
-      var ppk = ppkRaw === "" ? null : (parseFloat(ppkRaw) || 0);
+      var ppk = ppkRaw === "" ? null : leseZahl0(ppkRaw);
+      // "Preis pro kg" wirkt nur zusammen mit dem Gewicht – sonst still ignoriert
+      if (ppk != null && ppk > 0 && !(kg != null && kg > 0)) {
+        toast('„Preis pro kg" wirkt nur mit Gewicht (kg je Einheit). Bitte Gewicht eintragen.', "err");
+        return false;
+      }
       if (m) {
-        if (preis !== m.preis) m.historie.push({ datum: Store.nowISO(), preis: preis });
+        if (preis !== m.preis) (m.historie = m.historie || []).push({ datum: Store.nowISO(), preis: preis });
         m.name = name; m.typ = $("#m-typ").value.trim(); m.einheit = $("#m-einheit").value.trim() || "Stk";
         m.preis = preis; m.lieferant = $("#m-lieferant").value.trim(); m.lager = lager;
         m.kgProEinheit = kg; m.preisProKg = ppk; m.aktualisiert = Store.nowISO();
@@ -495,8 +503,10 @@
   }
 
   function fld2(label, id, val, typ) {
-    return '<label class="fld"><span class="lbl">' + esc(label) + '</span><input type="' + (typ || "text") +
-      '" id="' + id + '" value="' + esc(val == null ? "" : val) + '"' + (typ === "number" ? ' step="any"' : "") + "></label>";
+    // "number" wird bewusst als Text+inputmode=decimal gerendert (Komma-Schutz).
+    var attrs = (typ === "number") ? 'type="text" inputmode="decimal"' : 'type="' + (typ || "text") + '"';
+    return '<label class="fld"><span class="lbl">' + esc(label) + "</span><input " + attrs +
+      ' id="' + id + '" value="' + esc(val == null ? "" : val) + '"></label>';
   }
 
   // Eine Eingabezeile für eine externe Kostenposition (Zukauf/Fremdleistung).
@@ -510,12 +520,28 @@
       "</div>";
   }
 
-  // Zahl aus Texteingabe mit deutschem Komma robust lesen ("35,50" -> 35.5).
+  // Zahl aus Texteingabe robust lesen – mit deutschem Komma UND Tausenderpunkt:
+  // "35,50" -> 35.5 · "1.250,00" -> 1250 · "1.250" -> 1250 · "58.50" -> 58.5
   function leseZahl(s) {
-    var t = String(s == null ? "" : s).trim().replace(/\s/g, "").replace(",", ".");
+    var t = String(s == null ? "" : s).trim().replace(/\s/g, "");
+    if (!t) return NaN;
+    if (t.indexOf(",") >= 0) {
+      // Komma ist Dezimaltrenner; Punkte sind Tausendertrenner
+      t = t.replace(/\./g, "");
+      var i = t.lastIndexOf(",");
+      t = t.slice(0, i).replace(/,/g, "") + "." + t.slice(i + 1);
+    } else if ((t.match(/\./g) || []).length > 1) {
+      // mehrere Punkte ohne Komma -> Tausendertrenner
+      t = t.replace(/\./g, "");
+    } else if (/^-?\d{1,3}\.\d{3}$/.test(t)) {
+      // ein Punkt + genau 3 Nachstellen (z. B. "1.250") -> Tausendertrenner
+      t = t.replace(".", "");
+    }
     var v = parseFloat(t);
     return isFinite(v) ? v : NaN;
   }
+  // Wie leseZahl, aber mit 0 als Fallback (für Pflicht-Zahlfelder).
+  function leseZahl0(s) { var v = leseZahl(s); return isFinite(v) ? v : 0; }
 
   // ---- DATANORM-/Preislisten-Import (PC & Handy, komplett offline) ----
   function datanormImportModal() {
@@ -596,7 +622,7 @@
       var m = db.material.find(function (x) { return x.artikelnummer && x.artikelnummer === a.artikelnummer; });
       if (m) {
         var changed = false;
-        if (preis > 0 && preis !== m.preis) { m.historie.push({ datum: Store.nowISO(), preis: preis }); m.preis = preis; changed = true; }
+        if (preis > 0 && preis !== m.preis) { (m.historie = m.historie || []).push({ datum: Store.nowISO(), preis: preis }); m.preis = preis; changed = true; }
         if (a.name && a.name !== m.name) { m.name = a.name; changed = true; }
         if (a.einheit && a.einheit !== m.einheit) { m.einheit = a.einheit; changed = true; }
         if (a.kg != null && a.kg !== m.kgProEinheit) { m.kgProEinheit = a.kg; changed = true; }
@@ -672,7 +698,7 @@
         html += '<label class="checkrow"><input type="checkbox" data-cfg="' + q.key + '" ' + checked + '><span>' + esc(q.label) + "</span></label>";
       } else if (q.typ === "number") {
         html += '<label class="fld"><span class="lbl">' + esc(q.label) + (q.einheit ? " (" + q.einheit + ")" : "") +
-          '</span><input type="number" step="any" data-cfg="' + q.key + '" value="' + esc(cur) + '"></label>';
+          '</span><input type="text" inputmode="decimal" data-cfg="' + q.key + '" value="' + esc(cur) + '"></label>';
       } else {
         html += '<label class="fld"><span class="lbl">' + esc(q.label) + '</span><input type="text" data-cfg="' + q.key + '" value="' + esc(cur) + '"></label>';
       }
@@ -688,7 +714,7 @@
       SCHRITTE.forEach(function (s) {
         var mv = entwurf.manuelleZeiten[s.key];
         html += '<label class="fld" style="min-width:120px;flex:0 0 31%"><span class="lbl">' + esc(s.label) +
-          '</span><input type="number" step="any" data-zeit="' + s.key + '" value="' + (mv != null ? esc(mv) : "") + '" placeholder="auto"></label>';
+          '</span><input type="text" inputmode="decimal" data-zeit="' + s.key + '" value="' + (mv != null ? esc(mv) : "") + '" placeholder="auto"></label>';
       });
       html += "</div>";
     }
@@ -714,7 +740,7 @@
       };
       $all("[data-zeit]", wrap).forEach(function (inp) {
         inp.addEventListener("input", function () {
-          var v = parseFloat(inp.value);
+          var v = leseZahl(inp.value);
           if (isNaN(v)) delete entwurf.manuelleZeiten[inp.dataset.zeit];
           else entwurf.manuelleZeiten[inp.dataset.zeit] = v;
           liveBerechnen();
@@ -752,16 +778,16 @@
     entwurf.freiePositionen.forEach(function (p, i) {
       html += '<div class="inline" style="margin-bottom:8px;align-items:flex-end">' +
         '<input data-pos="' + i + '-name" placeholder="Bezeichnung" value="' + esc(p.name) + '" style="flex:2">' +
-        '<input data-pos="' + i + '-menge" type="number" step="any" placeholder="Menge" value="' + esc(p.menge) + '" style="flex:.8">' +
+        '<input data-pos="' + i + '-menge" type="text" inputmode="decimal" placeholder="Menge" value="' + esc(p.menge) + '" style="flex:.8">' +
         '<input data-pos="' + i + '-einheit" placeholder="Einh." value="' + esc(p.einheit) + '" style="flex:.6">' +
-        '<input data-pos="' + i + '-preis" type="number" step="any" placeholder="€/Einh." value="' + esc(p.preis) + '" style="flex:.9">' +
+        '<input data-pos="' + i + '-preis" type="text" inputmode="decimal" placeholder="€/Einh." value="' + esc(p.preis) + '" style="flex:.9">' +
         '<button class="btn sm danger" data-pos-del="' + i + '" type="button">✕</button></div>';
     });
     wrap.innerHTML = html;
     $all("[data-pos]", wrap).forEach(function (inp) {
       inp.addEventListener("input", function () {
         var parts = inp.dataset.pos.split("-"); var idx = +parts[0]; var key = parts[1];
-        entwurf.freiePositionen[idx][key] = (key === "menge" || key === "preis") ? parseFloat(inp.value) || 0 : inp.value;
+        entwurf.freiePositionen[idx][key] = (key === "menge" || key === "preis") ? leseZahl0(inp.value) : inp.value;
         liveBerechnen();
       });
     });
@@ -1121,7 +1147,7 @@
         id: Store.uid(), nummer: nummer, titel: titel,
         kunde: kunde ? JSON.parse(JSON.stringify(kunde)) : null,
         kommission: $("#a-kommission").value.trim(),
-        rabatt: parseFloat($("#a-rabatt").value) || 0,
+        rabatt: leseZahl0($("#a-rabatt").value),
         positionen: JSON.parse(JSON.stringify(positionen)),
         kalk: Calc.aggregiere(positionen.map(function (p) { return p.kalk; })),
         status: "Angebot", erstellt: Store.nowISO()
@@ -1278,7 +1304,7 @@
         if (soll <= 0 && istV === "") return;
         var laeuft = db.aktiverTimer && db.aktiverTimer.auftragId === a.id && db.aktiverTimer.posIndex === pi && db.aktiverTimer.schritt === s.key;
         body += "<tr><td>" + esc(s.label) + '</td><td class="num muted">' + (soll ? fmtH(soll) : "—") +
-          '</td><td class="num"><input type="number" step="any" data-ist="' + pi + ":" + s.key + '" value="' + esc(istV) + '" placeholder="' + (soll || 0) + '" style="width:80px;text-align:right"></td>' +
+          '</td><td class="num"><input type="text" inputmode="decimal" data-ist="' + pi + ":" + s.key + '" value="' + esc(istV) + '" placeholder="' + (soll || 0) + '" style="width:80px;text-align:right"></td>' +
           '<td class="num"><button class="btn sm ' + (laeuft ? "danger" : "ghost") + '" data-timer="' + pi + ":" + s.key + '" type="button">' + (laeuft ? "⏹ Stopp" : "▶") + "</button></td></tr>";
       });
       body += "</tbody></table></div>";
@@ -1309,10 +1335,10 @@
     openModalWide("Auftrag: " + esc(a.titel), body, function () {
       a.status = $("#a-status").value;
       a.kommission = $("#a-kommission").value.trim();
-      a.rabatt = parseFloat($("#a-rabatt").value) || 0;
+      a.rabatt = leseZahl0($("#a-rabatt").value);
       var istProPos = {};
       $all("[data-ist]").forEach(function (inp) {
-        var v = parseFloat(inp.value);
+        var v = leseZahl(inp.value);
         if (isNaN(v) || v <= 0) return;
         var parts = inp.dataset.ist.split(":"); var pi = parts[0], key = parts[1];
         (istProPos[pi] = istProPos[pi] || {})[key] = v;
@@ -1321,15 +1347,8 @@
       positionen.forEach(function (p, pi) {
         if (istProPos[pi]) { p.ist = { zeiten: istProPos[pi], erfasst: Store.nowISO() }; hatIst = true; }
       });
-      // Fremdleistungen / Zukauf einlesen
-      var fremd = [];
-      $all("#fremd-liste .fremd-row").forEach(function (row) {
-        var bez = (row.querySelector(".f-bez").value || "").trim();
-        var betrag = leseZahl(row.querySelector(".f-betrag").value);
-        if (!bez && !(betrag > 0)) return;
-        fremd.push({ bezeichnung: bez, betrag: isFinite(betrag) ? Math.round(betrag * 100) / 100 : 0 });
-      });
-      a.fremdkosten = fremd;
+      // Fremdleistungen / Zukauf einlesen (negative Beträge werden auf 0 geklemmt)
+      a.fremdkosten = leseFremdkosten();
       a.materialKommentar = $("#a-matnote").value.trim();
       if (a.status === "Abgeschlossen" && hatIst) {
         Calc.lerneAusAuftrag(db, a);
@@ -1373,21 +1392,50 @@
     tickTimer();
   }
 
+  // Fremdkosten aus dem offenen Auftrag-Modal lesen (negative -> 0).
+  function leseFremdkosten() {
+    var fremd = [];
+    $all("#fremd-liste .fremd-row").forEach(function (row) {
+      var bez = (row.querySelector(".f-bez").value || "").trim();
+      var betrag = leseZahl(row.querySelector(".f-betrag").value);
+      betrag = isFinite(betrag) ? Math.max(0, Math.round(betrag * 100) / 100) : 0;
+      if (!bez && !(betrag > 0)) return;
+      fremd.push({ bezeichnung: bez, betrag: betrag });
+    });
+    return fremd;
+  }
+
   // ---- Zeiterfassung (Timer, nur einer gleichzeitig) --------
+  // Sichert ALLE Eingaben des offenen Auftrag-Modals, damit ein Timer-Klick
+  // (der das Modal neu aufbaut) keine ungespeicherten Werte verwirft.
   function istAusDomSpeichern(a) {
     var positionen = auftragPositionen(a);
     $all("[data-ist]").forEach(function (inp) {
-      var v = parseFloat(inp.value);
+      var v = leseZahl(inp.value);
       var parts = inp.dataset.ist.split(":"); var pi = +parts[0], key = parts[1];
       var p = positionen[pi]; if (!p) return;
       if (!isNaN(v) && v > 0) { p.ist = p.ist || { zeiten: {}, erfasst: Store.nowISO() }; p.ist.zeiten[key] = v; }
     });
+    if ($("#fremd-liste")) a.fremdkosten = leseFremdkosten();
+    if ($("#a-kommission")) a.kommission = $("#a-kommission").value.trim();
+    if ($("#a-rabatt")) a.rabatt = leseZahl0($("#a-rabatt").value);
+    if ($("#a-status")) a.status = $("#a-status").value;
+    if ($("#a-matnote")) a.materialKommentar = $("#a-matnote").value.trim();
   }
   function timerBuchen() {
     var t = db.aktiverTimer; if (!t) return;
     var a = db.auftraege.filter(function (x) { return x.id === t.auftragId; })[0];
     var dauerH = (Date.now() - new Date(t.startISO).getTime()) / 3600000;
-    if (a) {
+    if (!isFinite(dauerH) || dauerH < 0) dauerH = 0;
+    // Verwaister/vergessener Timer (z. B. über Nacht offen) nicht still als
+    // viele Stunden buchen – sonst werden Nachkalkulation und Lernfaktoren verfälscht.
+    if (dauerH > 16) {
+      var antwort = w.prompt("Der Timer lief " + dauerH.toFixed(1) + " h – vermutlich vergessen.\nWie viele Stunden tatsächlich buchen? (0 = nichts)", "0");
+      if (antwort === null) return; // Abbruch: Timer läuft weiter
+      var manuell = leseZahl(antwort);
+      dauerH = (isFinite(manuell) && manuell >= 0) ? manuell : 0;
+    }
+    if (a && dauerH > 0) {
       var p = auftragPositionen(a)[t.posIndex];
       if (p) { p.ist = p.ist || { zeiten: {}, erfasst: Store.nowISO() }; p.ist.zeiten[t.schritt] = Calc.round2((p.ist.zeiten[t.schritt] || 0) + dauerH); }
     }
@@ -1555,7 +1603,7 @@
     try { w.localStorage.setItem("ps.sync.addr", addr); } catch (e) {}
     fetch("http://" + addr + "/pull", { cache: "no-store" })
       .then(function (r) { if (!r.ok) throw new Error("PC antwortet nicht"); return r.text(); })
-      .then(function (text) { db = Store.importJSON(text); toast("Daten vom PC übernommen. ✅"); schliesseModal(); navTo("dashboard"); })
+      .then(function (text) { var neu = Store.importJSON(text); db = neu; toast("Daten vom PC übernommen. ✅"); schliesseModal(); navTo("dashboard"); })
       .catch(function (e) { toast("Holen fehlgeschlagen: " + (e && e.message || e) + ". Gleiches WLAN? Adresse korrekt?", "err"); });
   }
 
@@ -1584,6 +1632,8 @@
       stream = s; video.srcObject = s; video.setAttribute("playsinline", true); video.play();
       function tick() {
         if (_scanStop) return;
+        // Modal geschlossen? -> Kamera freigeben statt endlos weiterzulaufen
+        if (!d.body.contains(video)) { ende(); return; }
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           canvas.width = video.videoWidth; canvas.height = video.videoHeight;
           cx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -1616,20 +1666,31 @@
   function updateDownloadURL() { return istDesktop() ? UPDATE_EXE_URL : UPDATE_APK_URL; }
   function updateDownloadLabel() { return istDesktop() ? "Windows-Update laden" : "Jetzt aktualisieren"; }
 
+  // Version "1.2.3" -> [1,2,3]; vergleicht major.minor.patch numerisch.
+  function versionTupel(s) {
+    var m = /(\d+)\.(\d+)\.(\d+)/.exec(String(s == null ? "" : s));
+    return m ? [+m[1], +m[2], +m[3]] : null;
+  }
+  function versionNeuer(remote, lokal) {
+    for (var i = 0; i < 3; i++) { if (remote[i] !== lokal[i]) return remote[i] > lokal[i]; }
+    return false;
+  }
+
   function pruefeUpdate() {
     // Eigene Version wird vom eingebetteten build-info.js gesetzt (window.PSBUILD).
     // Fehlt sie (z. B. Web-Vorschau), wird der Check still übersprungen.
     var lokal = w.PSBUILD;
     if (!lokal || typeof lokal.build !== "number" || !w.fetch) return;
+    var lokalV = versionTupel(lokal.version) || [1, 0, lokal.build];
     fetch(UPDATE_API_URL, { cache: "no-store", headers: { Accept: "application/vnd.github+json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (rel) {
         if (!rel || !rel.body) return;
-        var m = /Version\s+\d+\.\d+\.(\d+)/.exec(rel.body);
+        var m = /Version\s+(\d+\.\d+\.\d+)/.exec(rel.body);
         if (!m) return;
-        var remoteBuild = parseInt(m[1], 10);
-        if (isFinite(remoteBuild) && remoteBuild > lokal.build) {
-          zeigeUpdateBanner({ version: "1.0." + remoteBuild });
+        var remoteV = versionTupel(m[1]);
+        if (remoteV && versionNeuer(remoteV, lokalV)) {
+          zeigeUpdateBanner({ version: remoteV.join(".") });
         }
       })
       .catch(function () { /* offline o. ä. – still ignorieren, App läuft normal weiter */ });

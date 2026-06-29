@@ -79,7 +79,7 @@ jobs:
           path: preisschmiede.apk
 
       - name: Veraltete APK aus dem Release entfernen
-        run: gh release delete-asset app-latest spanwerk.apk --yes || true
+        run: gh release delete-asset app-latest preisschmiede.apk --yes || true
         env:
           GH_TOKEN: ${{ github.token }}
 

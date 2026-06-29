@@ -90,7 +90,9 @@
   function kalkuliere(db, eingabe) {
     var s = db.settings;
     var maschinen = Array.isArray(s.maschinen) ? s.maschinen : [];
-    var verschnitt = (eingabe.verschnitt != null ? eingabe.verschnitt : s.verschnitt) / 100;
+    var vRaw = (eingabe.verschnitt != null ? eingabe.verschnitt : s.verschnitt);
+    var vNum = parseFloat(vRaw);
+    var verschnitt = (isFinite(vNum) ? vNum : 0) / 100;
 
     var zeiten = berechneZeiten(db, eingabe.produktKey, eingabe.config, eingabe.manuelleZeiten);
     var positionen = materialPositionen(db, eingabe.produktKey, eingabe.config, eingabe.freiePositionen);

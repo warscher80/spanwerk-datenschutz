@@ -93,56 +93,76 @@
 
   var _db = null;
 
+  // Sanfte, idempotente Migration: füllt fehlende Felder feldweise auf,
+  // sodass nie ein fehlendes Feld später einen Crash oder eine NaN-
+  // Fehlkalkulation auslöst. Gibt null zurück, wenn obj kein Objekt ist.
+  function migrate(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+    var ds = DEFAULT_SETTINGS;
+    if (!obj.settings || typeof obj.settings !== "object") obj.settings = JSON.parse(JSON.stringify(ds));
+    var st = obj.settings;
+    // Maschinen: altes Objekt {key: satz} -> Liste mit Rüstkosten
+    if (st.maschinen && !Array.isArray(st.maschinen)) {
+      var alt = st.maschinen;
+      var map = {
+        saege: ["Säge", "zuschnitt"], laser: ["Laser", "lasern"],
+        abkantpresse: ["Abkantpresse", "biegen"], bohrmaschine: ["Bohrmaschine", "bohren"],
+        schweissgeraet: ["Schweißgerät", "schweissen"], schleifmaschine: ["Schleifmaschine", "schleifen"]
+      };
+      st.maschinen = Object.keys(alt).map(function (k) {
+        var m = map[k] || [k, ""];
+        return { id: "m-" + k, name: m[0], schritt: m[1], stundensatz: alt[k], ruestkosten: 0 };
+      });
+    }
+    if (!Array.isArray(st.maschinen)) st.maschinen = JSON.parse(JSON.stringify(ds.maschinen));
+    if (!st.firma || typeof st.firma !== "object") st.firma = JSON.parse(JSON.stringify(ds.firma));
+    Object.keys(ds.firma).forEach(function (k) { if (st.firma[k] == null) st.firma[k] = ds.firma[k]; });
+    // Stundensätze (rates) feldweise auffüllen
+    if (!st.rates || typeof st.rates !== "object") st.rates = JSON.parse(JSON.stringify(ds.rates));
+    Object.keys(ds.rates).forEach(function (k) { if (typeof st.rates[k] !== "number") st.rates[k] = ds.rates[k]; });
+    // alle numerischen Top-Level-Einstellungen (Aufschläge, Gewinn, MwSt, ...) auffüllen
+    Object.keys(ds).forEach(function (k) { if (typeof ds[k] === "number" && typeof st[k] !== "number") st[k] = ds[k]; });
+    if (st.angebotZaehler == null) st.angebotZaehler = 1;
+    if (!obj.lernen || typeof obj.lernen !== "object") obj.lernen = { faktoren: {}, erkenntnisse: [] };
+    if (!obj.lernen.faktoren || typeof obj.lernen.faktoren !== "object") obj.lernen.faktoren = {};
+    if (!Array.isArray(obj.lernen.erkenntnisse)) obj.lernen.erkenntnisse = [];
+    if (!Array.isArray(obj.material)) obj.material = [];
+    // Material: Preishistorie sicherstellen (sonst crasht m.historie.push)
+    obj.material.forEach(function (m) {
+      if (m && !Array.isArray(m.historie)) m.historie = (m.preis != null ? [{ datum: nowISO(), preis: m.preis }] : []);
+    });
+    if (!Array.isArray(obj.kunden)) obj.kunden = [];
+    if (!obj.untergruppen || typeof obj.untergruppen !== "object") obj.untergruppen = {};
+    if (!Array.isArray(obj.auftraege)) obj.auftraege = [];
+    // Einzelpositions-Aufträge -> positionen-Array (idempotent)
+    obj.auftraege.forEach(function (a) {
+      if (!a.positionen) {
+        a.positionen = [{
+          produktKey: a.produktKey, config: a.config,
+          freiePositionen: a.freiePositionen, manuelleZeiten: a.manuelleZeiten,
+          kalk: a.kalk, ist: a.ist || null,
+          label: a.titel || null
+        }];
+      }
+    });
+    return obj;
+  }
+
   function load() {
     if (_db) return _db;
     var raw = null;
     try {
       raw = w.localStorage.getItem(KEY);
       if (raw) {
-        _db = JSON.parse(raw);
-        if (!_db || typeof _db !== "object") throw new Error("Datenformat ungültig");
-        // sanfte Migration fehlender Felder
-        if (!_db.settings || typeof _db.settings !== "object") _db.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-        // Migration: altes Maschinen-Objekt {key: satz} -> Liste mit Rüstkosten
-        if (_db.settings.maschinen && !Array.isArray(_db.settings.maschinen)) {
-          var alt = _db.settings.maschinen;
-          var map = {
-            saege: ["Säge", "zuschnitt"], laser: ["Laser", "lasern"],
-            abkantpresse: ["Abkantpresse", "biegen"], bohrmaschine: ["Bohrmaschine", "bohren"],
-            schweissgeraet: ["Schweißgerät", "schweissen"], schleifmaschine: ["Schleifmaschine", "schleifen"]
-          };
-          _db.settings.maschinen = Object.keys(alt).map(function (k) {
-            var m = map[k] || [k, ""];
-            return { id: "m-" + k, name: m[0], schritt: m[1], stundensatz: alt[k], ruestkosten: 0 };
-          });
-        }
-        if (!_db.settings.maschinen) _db.settings.maschinen = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.maschinen));
-        if (!_db.settings.firma) _db.settings.firma = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.firma));
-        if (_db.settings.angebotZaehler == null) _db.settings.angebotZaehler = 1;
-        if (!_db.lernen || typeof _db.lernen !== "object") _db.lernen = { faktoren: {}, erkenntnisse: [] };
-        if (!_db.lernen.faktoren) _db.lernen.faktoren = {};
-        if (!_db.lernen.erkenntnisse) _db.lernen.erkenntnisse = [];
-        if (!Array.isArray(_db.material)) _db.material = [];
-        if (!Array.isArray(_db.kunden)) _db.kunden = [];
-        if (!_db.untergruppen || typeof _db.untergruppen !== "object") _db.untergruppen = {};
-        if (!Array.isArray(_db.auftraege)) _db.auftraege = [];
-        // Migration: Einzelpositions-Aufträge -> positionen-Array
-        _db.auftraege.forEach(function (a) {
-          if (!a.positionen) {
-            a.positionen = [{
-              produktKey: a.produktKey, config: a.config,
-              freiePositionen: a.freiePositionen, manuelleZeiten: a.manuelleZeiten,
-              kalk: a.kalk, ist: a.ist || null,
-              label: null
-            }];
-          }
-        });
+        var m = migrate(JSON.parse(raw));
+        if (!m) throw new Error("Datenformat ungültig");
+        _db = m;
         return _db;
       }
     } catch (e) {
-      // Beschädigte Daten nicht verwerfen, sondern für eine spätere Rettung sichern
+      // Beschädigte Daten nicht verwerfen, sondern die erste Rettungskopie sichern
       console.warn("Daten beschädigt – starte mit leerer Datenbank:", e);
-      try { if (raw) w.localStorage.setItem(KEY + ".backup", raw); } catch (_) {}
+      try { if (raw && !w.localStorage.getItem(KEY + ".backup")) w.localStorage.setItem(KEY + ".backup", raw); } catch (_) {}
     }
     _db = fresh();
     save();
@@ -152,12 +172,21 @@
   var _onSave = null;
   function onSave(cb) { _onSave = cb; }
   function save() {
+    var ok = true;
     try { w.localStorage.setItem(KEY, JSON.stringify(_db)); }
-    catch (e) { console.warn("Speichern fehlgeschlagen:", e); }
-    if (_onSave) { try { _onSave(); } catch (e) {} }
+    catch (e) {
+      ok = false;
+      console.warn("Speichern fehlgeschlagen:", e);
+      // Datenverlust ist inakzeptabel – Nutzer sichtbar warnen statt still scheitern
+      try { w.alert("⚠️ Daten konnten nicht gespeichert werden (Gerätespeicher voll?).\nBitte exportiere deine Daten zur Sicherung (Stammdaten → Daten sichern)."); } catch (_) {}
+    }
+    if (_onSave) { try { _onSave(ok); } catch (e) {} }
+    return ok;
   }
 
   function reset() {
+    // aktuellen Stand vor dem Löschen sichern
+    try { w.localStorage.setItem(KEY + ".prev", JSON.stringify(_db)); } catch (_) {}
     _db = fresh();
     save();
     return _db;
@@ -167,8 +196,13 @@
 
   function importJSON(text) {
     var obj = JSON.parse(text);
-    if (!obj || typeof obj !== "object") throw new Error("Ungültige Datei");
-    _db = obj;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("Ungültige Datei");
+    if (!obj.settings && !obj.material && !obj.auftraege) throw new Error("Keine Preisschmiede-Daten erkannt");
+    var migrated = migrate(obj);
+    if (!migrated) throw new Error("Ungültige Datei");
+    // aktuellen Stand vor dem Überschreiben sichern
+    try { w.localStorage.setItem(KEY + ".prev", JSON.stringify(_db)); } catch (_) {}
+    _db = migrated;
     save();
     return _db;
   }
