@@ -73,8 +73,10 @@
   // Rabatt mindert Netto, Deckungsbeitrag und Gewinn um denselben Betrag
   function auftragRabattBetrag(a) { return (a.kalk ? a.kalk.netto : 0) * (a.rabatt || 0) / 100; }
   function auftragNetto(a) { return (a.kalk ? a.kalk.netto : 0) - auftragRabattBetrag(a); }
-  function auftragDB(a) { return (a.kalk ? a.kalk.deckungsbeitrag : 0) - auftragRabattBetrag(a); }
-  function auftragGewinn(a) { return (a.kalk ? a.kalk.gewinn : 0) - auftragRabattBetrag(a); }
+  // Externe Kosten (Zukauf, Fremdleistungen, Normteile) aus der Nachkalkulation
+  function auftragFremd(a) { return Calc.fremdkostenSumme(a); }
+  function auftragDB(a) { return (a.kalk ? a.kalk.deckungsbeitrag : 0) - auftragRabattBetrag(a) - auftragFremd(a); }
+  function auftragGewinn(a) { return (a.kalk ? a.kalk.gewinn : 0) - auftragRabattBetrag(a) - auftragFremd(a); }
 
   // ============================================================
   //  DASHBOARD / AUSWERTUNG
@@ -495,6 +497,24 @@
   function fld2(label, id, val, typ) {
     return '<label class="fld"><span class="lbl">' + esc(label) + '</span><input type="' + (typ || "text") +
       '" id="' + id + '" value="' + esc(val == null ? "" : val) + '"' + (typ === "number" ? ' step="any"' : "") + "></label>";
+  }
+
+  // Eine Eingabezeile für eine externe Kostenposition (Zukauf/Fremdleistung).
+  // Betrag als Text-Feld mit inputmode="decimal", damit das Komma (z. B.
+  // "35,50") zuverlässig erhalten bleibt – type=number verwirft es je nach Gerät.
+  function fremdZeile(bez, betrag) {
+    return '<div class="inline fremd-row" style="gap:8px;margin-bottom:6px">' +
+      '<input type="text" class="f-bez" placeholder="z. B. Pulverbeschichten RAL 7016 / Edelstahlschrauben" value="' + esc(bez || "") + '" style="flex:2">' +
+      '<input type="text" inputmode="decimal" class="f-betrag" placeholder="€" value="' + esc(betrag != null ? betrag : "") + '" style="flex:1;min-width:90px;text-align:right">' +
+      '<button class="btn sm danger f-del" type="button" title="Entfernen">✕</button>' +
+      "</div>";
+  }
+
+  // Zahl aus Texteingabe mit deutschem Komma robust lesen ("35,50" -> 35.5).
+  function leseZahl(s) {
+    var t = String(s == null ? "" : s).trim().replace(/\s/g, "").replace(",", ".");
+    var v = parseFloat(t);
+    return isFinite(v) ? v : NaN;
   }
 
   // ---- DATANORM-/Preislisten-Import (PC & Handy, komplett offline) ----
@@ -1238,6 +1258,7 @@
     body += '<div class="card" style="background:var(--panel-2);margin-bottom:12px">' +
       line(rab ? "Verkaufspreis netto (Liste)" : "Verkaufspreis netto", fmtEUR(a.kalk.netto)) +
       (rab ? line("abzgl. Rabatt " + rab + " %", "−" + fmtEUR(auftragRabattBetrag(a)), "sub") + line("Endpreis netto", fmtEUR(nettoEnd)) : "") +
+      (auftragFremd(a) ? line("abzgl. externe Kosten (Zukauf/Fremd)", "−" + fmtEUR(auftragFremd(a)), "sub") : "") +
       line("Deckungsbeitrag", fmtEUR(auftragDB(a)), "sub") +
       line("Soll-Stunden gesamt", fmtH(a.kalk.stundenGesamt), "sub") +
       (nettoEnd < a.kalk.selbstkosten ? '<div class="result-line" style="color:var(--red)"><span>⚠️ Unter Selbstkosten!</span><span class="v">' + fmtEUR(a.kalk.selbstkosten) + "</span></div>" : "") +
@@ -1262,11 +1283,27 @@
       });
       body += "</tbody></table></div>";
     });
+    // Fremdleistungen & Zukauf – externe Kosten als Preis statt Zeit
+    body += '<div class="lbl" style="margin:16px 0 4px">Fremdleistungen & Zukauf (extern, €)</div>';
+    body += '<p class="hint" style="margin-top:0">Zugekaufte Teile, Normteile oder externe Beschichtung – hier als <strong>Preis</strong> statt als Zeit erfassen. Sie mindern den Gewinn der Nachkalkulation.</p>';
+    body += '<div id="fremd-liste">';
+    (a.fremdkosten || []).forEach(function (f) { body += fremdZeile(f.bezeichnung, f.betrag); });
+    body += "</div>";
+    body += '<div class="btn-row" style="margin:4px 0 2px"><button class="btn sm ghost" id="btn-fremd-add" type="button">+ Posten</button></div>';
+
     body += fld2("Materialverbrauch / Notiz (optional)", "a-matnote", a.materialKommentar || "", "text");
 
     if (si) {
-      body += '<div class="insight" style="margin-top:12px"><span class="ico">📊</span><span>Ist gesamt: <strong>' + fmtH(si.istStunden) +
-        "</strong> vs. Soll " + fmtH(si.sollStunden) + " — Abweichung <strong>" + (si.abwProz > 0 ? "+" : "") + si.abwProz + " %</strong></span></div>";
+      var box = "";
+      if (si.hatZeiten) {
+        box += "Ist gesamt: <strong>" + fmtH(si.istStunden) + "</strong> vs. Soll " + fmtH(si.sollStunden) +
+          " — Abweichung <strong>" + (si.abwProz > 0 ? "+" : "") + si.abwProz + " %</strong>";
+      }
+      if (si.fremdkosten > 0) {
+        box += (box ? "<br>" : "") + "Externe Kosten: <strong>" + fmtEUR(si.fremdkosten) +
+          "</strong> → Gewinn nach externen Kosten: <strong>" + fmtEUR(auftragGewinn(a)) + "</strong>";
+      }
+      body += '<div class="insight" style="margin-top:12px"><span class="ico">📊</span><span>' + box + "</span></div>";
     }
 
     openModalWide("Auftrag: " + esc(a.titel), body, function () {
@@ -1284,6 +1321,15 @@
       positionen.forEach(function (p, pi) {
         if (istProPos[pi]) { p.ist = { zeiten: istProPos[pi], erfasst: Store.nowISO() }; hatIst = true; }
       });
+      // Fremdleistungen / Zukauf einlesen
+      var fremd = [];
+      $all("#fremd-liste .fremd-row").forEach(function (row) {
+        var bez = (row.querySelector(".f-bez").value || "").trim();
+        var betrag = leseZahl(row.querySelector(".f-betrag").value);
+        if (!bez && !(betrag > 0)) return;
+        fremd.push({ bezeichnung: bez, betrag: isFinite(betrag) ? Math.round(betrag * 100) / 100 : 0 });
+      });
+      a.fremdkosten = fremd;
       a.materialKommentar = $("#a-matnote").value.trim();
       if (a.status === "Abgeschlossen" && hatIst) {
         Calc.lerneAusAuftrag(db, a);
@@ -1311,6 +1357,19 @@
         timerKlick(a, +parts[0], parts[1]);
       };
     });
+    function bindFremdDel() {
+      $all("#fremd-liste .f-del").forEach(function (b) {
+        b.onclick = function () { var row = b.parentNode; if (row) row.parentNode.removeChild(row); };
+      });
+    }
+    if ($("#btn-fremd-add")) $("#btn-fremd-add").onclick = function () {
+      var liste = $("#fremd-liste");
+      var tmp = d.createElement("div");
+      tmp.innerHTML = fremdZeile("", "");
+      liste.appendChild(tmp.firstChild);
+      bindFremdDel();
+    };
+    bindFremdDel();
     tickTimer();
   }
 

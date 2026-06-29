@@ -309,10 +309,15 @@
   }
 
   // ---- Soll/Ist-Abweichung eines Auftrags (über alle Positionen) ----
+  function fremdkostenSumme(auftrag) {
+    return (auftrag && auftrag.fremdkosten || []).reduce(function (s, f) { return s + (parseFloat(f.betrag) || 0); }, 0);
+  }
+
   function sollIst(auftrag) {
     var positionen = posListe(auftrag);
     var hatIst = positionen.some(function (p) { return p.ist && p.ist.zeiten; });
-    if (!hatIst) return null;
+    var fremd = fremdkostenSumme(auftrag);
+    if (!hatIst && !(fremd > 0)) return null;
     var sollH = 0, istH = 0;
     positionen.forEach(function (p) {
       var z = (p.kalk && p.kalk.zeiten) || {};
@@ -322,7 +327,9 @@
     return {
       sollStunden: round2(sollH), istStunden: round2(istH),
       abwStunden: round2(istH - sollH),
-      abwProz: sollH > 0 ? Math.round((istH - sollH) / sollH * 100) : 0
+      abwProz: sollH > 0 ? Math.round((istH - sollH) / sollH * 100) : 0,
+      hatZeiten: hatIst,
+      fremdkosten: round2(fremd)
     };
   }
 
@@ -332,6 +339,7 @@
     segmentKeys: segmentKeys, groessenklasse: groessenklasse, segLabel: segLabel,
     angebotstext: angebotstext, lerneAusAuftrag: lerneAusAuftrag,
     erkenntnisseAktualisieren: erkenntnisseAktualisieren, aggregiere: aggregiere,
-    erfahrung: erfahrung, sollIst: sollIst, fmtEUR: fmtEUR, round2: round2
+    erfahrung: erfahrung, sollIst: sollIst, fremdkostenSumme: fremdkostenSumme,
+    fmtEUR: fmtEUR, round2: round2
   };
 })(window);
