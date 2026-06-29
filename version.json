@@ -1,6 +1,6 @@
 {
-  "versionCode": 24,
-  "versionName": "1.11.0",
+  "versionCode": 25,
+  "versionName": "1.12.0",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Neu: WM-Baum (Turnierbaum) mit Favoriten je Runde"
+  "notes": "Neu: In-App-Tor-Alarm (zeigt 'TOR!' bei laufenden Spielen, solange die App offen ist)"
 }

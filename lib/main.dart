@@ -1,6 +1,7 @@
 // main.dart – KickProphet: echte Spiele tippen, Punkte sammeln (kein Echtgeld).
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
@@ -61,6 +62,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _learnStatus; // z.B. "lernt … 60 %"
   Timer? _autoTimer;
   UpdateInfo? _update; // gesetzt, wenn eine neuere App-Version verfügbar ist
+
+  // Tor-Erkennung: letzter bekannter Spielstand je Spiel (Tore gesamt).
+  final Map<int, int> _prevScores = {};
+  bool _scoreSnapshot = false;
 
   // _leagueIdx == -1 -> „Aktuell" (ligaübergreifend aktuelle/anstehende Spiele).
   bool get _currentMode => _leagueIdx < 0;
@@ -213,12 +218,43 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         setState(() { _loading = false; _updatedAt = DateTime.now(); });
         return;
       }
+      final goals = _detectGoals(m);
       setState(() { _matches = m; _loading = false; _updatedAt = DateTime.now(); });
       _scheduleReminders(m);
+      for (final g in goals) {
+        _goalAlert(g);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() { if (!silent) _error = _msg(e); _loading = false; });
     }
+  }
+
+  /// Vergleicht die neuen Spielstände mit dem letzten Stand und meldet Tore.
+  List<String> _detectGoals(List<FootyMatch> m) {
+    final msgs = <String>[];
+    for (final x in m) {
+      if (!x.hasResult) continue;
+      final total = x.homeGoals! + x.awayGoals!;
+      final prev = _prevScores[x.id];
+      if (_scoreSnapshot && prev != null && total > prev) {
+        msgs.add('⚽ TOR! ${x.home.shortName} ${x.homeGoals}:${x.awayGoals} ${x.away.shortName}');
+      }
+      _prevScores[x.id] = total;
+    }
+    _scoreSnapshot = true;
+    return msgs;
+  }
+
+  void _goalAlert(String msg) {
+    HapticFeedback.mediumImpact();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: _accent,
+      duration: const Duration(seconds: 5),
+      content: Text(msg,
+          style: const TextStyle(color: _green, fontWeight: FontWeight.w800, fontSize: 15)),
+    ));
   }
 
   /// Hintergrund-Lernen: Vorsaison/Turnier-Runden einspeisen, Quoten verfeinern.
