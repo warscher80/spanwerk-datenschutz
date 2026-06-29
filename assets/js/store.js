@@ -128,8 +128,24 @@
     if (!Array.isArray(obj.lernen.erkenntnisse)) obj.lernen.erkenntnisse = [];
     if (!Array.isArray(obj.material)) obj.material = [];
     // Material: Preishistorie sicherstellen (sonst crasht m.historie.push)
+    // + frühere Sortiment-Kategorien auf die thesteel.com-Struktur umstellen.
+    var KAT_MIG = {
+      "Rohre|Rundrohr": ["Rundrohre", "Rundrohr"],
+      "Rohre|Vierkantrohr": ["Formrohre & Profile", "Vierkantrohr"],
+      "Rohre|Rechteckrohr": ["Formrohre & Profile", "Rechteckrohr"],
+      "Vollmaterial|Flachstahl": ["Voll-/Stabmaterial", "Flachstahl"],
+      "Vollmaterial|Rundstahl": ["Voll-/Stabmaterial", "Rundstahl"],
+      "Vollmaterial|Vierkantstahl": ["Voll-/Stabmaterial", "Vierkantstahl"],
+      "Profile|Winkel": ["Voll-/Stabmaterial", "Winkelstahl"],
+      "Profile|U-Profil": ["Stahlträger", "U-Stahl"],
+      "Träger|IPE": ["Stahlträger", "IPE"],
+      "Träger|HEA": ["Stahlträger", "HEA"]
+    };
     obj.material.forEach(function (m) {
-      if (m && !Array.isArray(m.historie)) m.historie = (m.preis != null ? [{ datum: nowISO(), preis: m.preis }] : []);
+      if (!m) return;
+      if (!Array.isArray(m.historie)) m.historie = (m.preis != null ? [{ datum: nowISO(), preis: m.preis }] : []);
+      var mig = KAT_MIG[(m.kategorie || "") + "|" + (m.unterkategorie || "")];
+      if (mig) { m.kategorie = mig[0]; m.unterkategorie = mig[1]; }
     });
     if (!Array.isArray(obj.kunden)) obj.kunden = [];
     if (!obj.untergruppen || typeof obj.untergruppen !== "object") obj.untergruppen = {};

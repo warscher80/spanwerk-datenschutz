@@ -408,8 +408,9 @@
   // ============================================================
   // Filterzustand der Materialdatenbank
   var materialFilter = { suche: "", kategorie: "", typ: "" };
-  // feste Reihenfolge der Hauptkategorien (Unbekanntes/„Sonstiges" ans Ende)
-  var KAT_ORDER = ["Rohre", "Vollmaterial", "Profile", "Träger", "Bleche"];
+  // Hauptkategorien in der Reihenfolge von thesteel.com (Frankstahl-Shop);
+  // Unbekanntes/„Sonstiges" landet am Ende.
+  var KAT_ORDER = ["Stahlträger", "Voll-/Stabmaterial", "Bleche", "Formrohre & Profile", "Rundrohre"];
   function matKat(m) { return (m.kategorie && String(m.kategorie).trim()) || "Sonstiges"; }
   function matUnterkat(m) { return (m.unterkategorie && String(m.unterkategorie).trim()) || "—"; }
 
