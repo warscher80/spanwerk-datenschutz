@@ -1,6 +1,6 @@
 {
-  "versionCode": 23,
-  "versionName": "1.10.1",
+  "versionCode": 24,
+  "versionName": "1.11.0",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Aktuell stabiler: weniger Anfragen, entzerrt, Wiederholversuch bei Drosselung"
+  "notes": "Neu: WM-Baum (Turnierbaum) mit Favoriten je Runde"
 }

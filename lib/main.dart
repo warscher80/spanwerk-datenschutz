@@ -376,6 +376,156 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// WM-Baum: K.o.-Runden als scrollbare Spalten mit Favoriten-Markierung.
+  void _openBracket() {
+    final ko = _matches.where((m) => m.round > 3).toList();
+    if (ko.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: Color(0xFF114E3B),
+        content: Text('Der Turnierbaum erscheint ab dem Achtelfinale.'),
+      ));
+      return;
+    }
+    final byRound = <int, List<FootyMatch>>{};
+    for (final m in ko) {
+      byRound.putIfAbsent(m.round, () => []).add(m);
+    }
+    // Runden von vielen Spielen (früh) zu wenigen (Finale) ordnen.
+    final rounds = byRound.keys.toList()
+      ..sort((a, b) => byRound[b]!.length.compareTo(byRound[a]!.length));
+    for (final r in rounds) {
+      byRound[r]!.sort((a, b) {
+        final ka = a.kickoff, kb = b.kickoff;
+        if (ka == null || kb == null) return 0;
+        return ka.compareTo(kb);
+      });
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D4634),
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        builder: (c, ctrl) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('🗂️ WM-Baum',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  controller: ctrl,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final r in rounds) _bracketColumn(r, byRound[r]!),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bracketColumn(int round, List<FootyMatch> games) {
+    final label = _bracketRoundLabel(round, games.length);
+    return Container(
+      width: 178,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8, left: 4),
+            child: Text(label,
+                style: const TextStyle(color: _accent, fontWeight: FontWeight.w800, fontSize: 13)),
+          ),
+          for (final m in games) _bracketGame(m),
+        ],
+      ),
+    );
+  }
+
+  Widget _bracketGame(FootyMatch m) {
+    final p = _elo.probs(m.home.name, m.away.name, neutral: true);
+    final finished = m.finished && m.hasResult;
+    // Sieger/Favorit bestimmen.
+    bool homeTop;
+    if (finished && m.homeGoals != m.awayGoals) {
+      homeTop = m.homeGoals! > m.awayGoals!;
+    } else {
+      homeTop = p.home >= p.away;
+    }
+
+    Widget side(Team t, bool top, int? goals) {
+      return Row(children: [
+        Expanded(
+          child: Text(t.shortName,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: top ? _accent : Colors.white70,
+                fontWeight: top ? FontWeight.w800 : FontWeight.w500,
+                fontSize: 12.5,
+              )),
+        ),
+        if (goals != null)
+          Text('$goals',
+              style: TextStyle(
+                color: top ? _accent : Colors.white54, fontWeight: FontWeight.w700, fontSize: 12.5)),
+      ]);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF114E3B),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF1C6A50)),
+      ),
+      child: Column(children: [
+        side(m.home, homeTop, finished ? m.homeGoals : null),
+        const Divider(height: 10, color: Color(0xFF1C6A50)),
+        side(m.away, !homeTop, finished ? m.awayGoals : null),
+        const SizedBox(height: 2),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(finished ? 'Ergebnis' : 'Prognose',
+              style: const TextStyle(color: Colors.white30, fontSize: 9)),
+        ),
+      ]),
+    );
+  }
+
+  String _bracketRoundLabel(int round, int count) {
+    if (round == 160) return 'Spiel um Platz 3';
+    if (round == 200) return 'Finale';
+    switch (count) {
+      case 16: return 'Sechzehntelfinale';
+      case 8: return 'Achtelfinale';
+      case 4: return 'Viertelfinale';
+      case 2: return 'Halbfinale';
+      case 1: return 'Finale';
+      default: return 'K.o.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -383,6 +533,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF0D4634),
         title: const Text('🔮 KickProphet'),
         actions: [
+          if (_isCup)
+            IconButton(
+              tooltip: 'WM-Baum',
+              onPressed: _openBracket,
+              icon: const Icon(Icons.account_tree_rounded),
+            ),
           if (_isCup)
             IconButton(
               tooltip: 'Wer gewinnt die WM?',
