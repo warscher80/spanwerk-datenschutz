@@ -38,6 +38,7 @@
   header .htext{flex:0 1 auto; text-align:center; line-height:1.1}
   header h1{margin:0; font-size:26px; line-height:1.05}
   header .by{display:block; font-size:13px; opacity:.95; font-weight:600; margin-top:2px}
+  header .by #egg{user-select:none; -webkit-user-select:none; cursor:default}
   header .hint{margin:6px 0 0; text-align:center; font-size:12px; opacity:.9}
   .wrap{max-width:680px; margin:0 auto; padding:14px}
   h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
@@ -197,7 +198,7 @@
     </div>
     <div class="htext">
       <h1>Sommerfest Kassa</h1>
-      <span class="by">Kassiersystem Nico Warscher</span>
+      <span class="by">Kassiersystem <span id="egg">Nico</span> Warscher</span>
     </div>
     <div class="side right">
       <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
@@ -480,13 +481,34 @@ function showDay(){
   document.getElementById('modal').classList.add('open');
 }
 
-const TAG_PIN = '1234';
+let TAG_PIN = localStorage.getItem('kassa_pin') || '1234';
 document.getElementById('btnTag').onclick = ()=>{
   const pin = prompt('PIN für Auswertung:');   // jedes Mal abfragen
   if(pin===null) return;                       // abgebrochen
   if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
   showDay();
 };
+
+// ---- Easteregg: 3× schnell auf "Nico" tippen -> PIN ändern -----------------
+let eggClicks=0, eggTimer=null;
+document.getElementById('egg').addEventListener('click', ()=>{
+  eggClicks++;
+  clearTimeout(eggTimer);
+  eggTimer = setTimeout(()=>{ eggClicks=0; }, 1200);   // 3 Taps innerhalb 1,2 s
+  if(eggClicks>=3){
+    eggClicks=0; clearTimeout(eggTimer);
+    const cur = prompt('🔓 Geheimmenü – aktuellen PIN eingeben:');
+    if(cur===null) return;
+    if(cur!==TAG_PIN){ alert('Falscher PIN.'); return; }
+    const neu = prompt('Neuen PIN festlegen (4 Ziffern):', TAG_PIN);
+    if(neu===null) return;
+    const v = (neu||'').trim();
+    if(!/^\d{4}$/.test(v)){ alert('Bitte genau 4 Ziffern eingeben.'); return; }
+    TAG_PIN = v;
+    localStorage.setItem('kassa_pin', v);
+    alert('PIN geändert ✓  Neuer PIN: '+v);
+  }
+});
 // Wechselgeld-Start eingeben/ändern
 document.getElementById('startCash').addEventListener('input', e=>{
   let v = parseFloat((e.target.value||'').replace(',','.'));
