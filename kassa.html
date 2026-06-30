@@ -34,7 +34,7 @@
     display:flex; align-items:center; gap:8px}
   header .side{flex:1 1 0; min-width:0; display:flex; align-items:center}
   header .side.right{justify-content:flex-end}
-  header .logo{width:46px; height:46px; border-radius:50%; flex:0 0 auto;
+  header .logo{width:62px; height:62px; border-radius:50%; flex:0 0 auto;
     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2)}
   header .htext{flex:0 1 auto; text-align:center; line-height:1.1}
   header h1{margin:0; font-size:26px; line-height:1.05}
@@ -57,18 +57,18 @@
     .total .t2{font-size:34px}
     header h1{font-size:34px}
     header .by{font-size:15px}
-    header .logo{width:58px; height:58px}
+    header .logo{width:80px; height:80px}
   }
-  /* schmale Handys: Logo+Titel in einer Zeile, Tagessumme-Knopf darunter mittig */
+  /* schmale Handys: Logo links (größer), Titel mittig, Tagessumme-Knopf darunter */
   @media(max-width:559px){
-    header .hwrap{flex-wrap:wrap; justify-content:center}
-    header .side{flex:0 0 auto}
-    header .side.left{order:1}
-    header .htext{order:2}
-    header .side.right{order:3; flex-basis:100%; justify-content:center; margin-top:6px}
+    header{position:relative}
+    header .hwrap{flex-direction:column; align-items:center; gap:4px}
+    header .side.left{position:absolute; left:12px; top:8px}
+    header .htext{order:1}
+    header .side.right{order:2; margin-top:4px}
     header h1{font-size:21px}
     header .by{font-size:12px}
-    header .logo{width:42px; height:42px}
+    header .logo{width:62px; height:62px}
   }
   /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
   @media(orientation:landscape) and (max-height:600px){
