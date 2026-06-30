@@ -23,7 +23,7 @@
   body{
     font-family:-apple-system,Segoe UI,Roboto,sans-serif;
     background:var(--bg); color:var(--ink);
-    padding:0 0 278px; line-height:1.4;
+    padding:0 0 296px; line-height:1.4;
   }
   header{
     background:var(--orange); color:#fff;
@@ -34,7 +34,7 @@
     display:flex; align-items:center; gap:8px}
   header .side{flex:1 1 0; min-width:0; display:flex; align-items:center}
   header .side.right{justify-content:flex-end}
-  header .logo{width:62px; height:62px; border-radius:50%; flex:0 0 auto;
+  header .logo{width:76px; height:76px; border-radius:50%; flex:0 0 auto;
     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2)}
   header .htext{flex:0 1 auto; text-align:center; line-height:1.1}
   header h1{margin:0; font-size:26px; line-height:1.05}
@@ -65,7 +65,7 @@
     .total .t2{font-size:34px}
     header h1{font-size:34px}
     header .by{font-size:15px}
-    header .logo{width:80px; height:80px}
+    header .logo{width:98px; height:98px}
   }
   /* schmale Handys: Logo links (größer), Titel mittig, Tagessumme-Knopf darunter */
   @media(max-width:559px){
@@ -76,7 +76,7 @@
     header .side.right{order:2; margin-top:4px}
     header h1{font-size:21px}
     header .by{font-size:12px}
-    header .logo{width:62px; height:62px}
+    header .logo{width:70px; height:70px}
   }
   /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
   @media(orientation:landscape) and (max-height:600px){
@@ -150,11 +150,20 @@
   .change .ret{font-size:15px; font-weight:700; white-space:nowrap}
   .change .ret b{color:var(--green-d)}
   /* Gegeben-Schnelltasten */
-  .quickcash{display:flex; gap:6px; margin-bottom:8px}
-  .quickcash button{flex:1; padding:9px 4px; border:1px solid var(--line); background:var(--card);
-    border-radius:9px; font-size:14px; font-weight:700; cursor:pointer; color:var(--ink)}
+  .quickcash{display:flex; gap:7px; margin-bottom:8px}
+  .quickcash button{flex:1; padding:15px 4px; border:1px solid var(--line); background:var(--card);
+    border-radius:11px; font-size:18px; font-weight:700; cursor:pointer; color:var(--ink)}
   .quickcash button:active{background:var(--bg)}
-  .quickcash .qc-clear{flex:0 0 46px; color:var(--red); font-weight:800}
+  .quickcash .qc-clear{flex:0 0 54px; color:var(--red); font-weight:800; font-size:18px}
+  /* Geldschein-Knöpfe (Euro-Farben) */
+  .quickcash .note{color:#fff; font-weight:800; font-size:19px; border:1px solid rgba(0,0,0,.18);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.28)}
+  .quickcash .note:active{filter:brightness(.9)}
+  .quickcash .note.n5{background:#c9ccd1; color:#23262b}
+  .quickcash .note.n10{background:#c0392b}
+  .quickcash .note.n20{background:#2f6fb0}
+  .quickcash .note.n50{background:#e08a1e}
+  .quickcash .note.n100{background:#2e9e5b}
   .actions{display:flex; gap:8px}
   .actions button{
     flex:1; border:none; border-radius:12px; padding:13px 8px;
@@ -232,6 +241,15 @@
   .confetti{position:fixed; top:-24px; font-size:22px; z-index:39; pointer-events:none;
     will-change:transform; animation:fall linear forwards}
   @keyframes fall{0%{transform:translateY(-30px) rotate(0)}100%{transform:translateY(106vh) rotate(540deg)}}
+
+  /* QR-Übertragung */
+  #qrbox{display:flex; justify-content:center; margin:12px 0}
+  #qrbox svg{width:min(300px,78vw); height:auto; background:#fff; padding:8px; border-radius:10px}
+  .btn-send{background:#2d6cdf; color:#fff}
+  #bothBox{margin-top:14px; border-top:2px solid var(--line); padding-top:10px}
+  #bothBox h3{font-size:13px; margin:0 0 6px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px}
+  #bothBox .kv span:last-child{color:var(--green-d)}
 </style>
 </head>
 <body>
@@ -280,11 +298,11 @@
       <span class="ret" id="retOut"></span>
     </div>
     <div class="quickcash">
-      <button data-cash="5">+5</button>
-      <button data-cash="10">+10</button>
-      <button data-cash="20">+20</button>
-      <button data-cash="50">+50</button>
-      <button data-cash="100">+100</button>
+      <button data-cash="5"   class="note n5">5&nbsp;€</button>
+      <button data-cash="10"  class="note n10">10&nbsp;€</button>
+      <button data-cash="20"  class="note n20">20&nbsp;€</button>
+      <button data-cash="50"  class="note n50">50&nbsp;€</button>
+      <button data-cash="100" class="note n100">100&nbsp;€</button>
       <button data-cash="clear" class="qc-clear" title="Löschen">C</button>
     </div>
     <div class="actions">
@@ -320,9 +338,18 @@
       <h3>Verkaufte Artikel (gesamt)</h3>
       <div id="dItems"></div>
     </div>
+    <div id="bothBox" style="display:none">
+      <h3>🔗 Beide Geräte zusammen <span id="bNote" style="text-transform:none;font-weight:400"></span></h3>
+      <div class="kv"><span>Einnahmen gesamt (beide)</span><span id="bCash">0,00 €</span></div>
+      <div class="kv"><span>Umsatz Ware (beide)</span><span id="bWare">0,00 €</span></div>
+      <div class="kv"><span>Verkäufe (beide)</span><span id="bCount">0</span></div>
+    </div>
     <div class="mbtns">
       <button class="btn-close" id="btnClose">Schließen</button>
       <button class="btn-day" id="btnCloseDay">✔ Tag abschließen</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-send" id="btnSend">📤 An anderes Gerät (QR)</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
@@ -332,6 +359,17 @@
 
 <div class="party" id="party"><div class="msg" id="partyMsg"></div></div>
 
+<div class="modal" id="qrmodal">
+  <div class="sheet" style="text-align:center">
+    <h2>📤 An anderes Gerät senden</h2>
+    <div class="sub">Mit der Kamera des anderen Tablets diesen Code scannen</div>
+    <div id="qrbox"></div>
+    <div class="c3" id="qrinfo" style="margin-top:8px"></div>
+    <div class="mbtns"><button class="btn-close" id="qrClose">Schließen</button></div>
+  </div>
+</div>
+
+<script src="qrcode.js"></script>
 <script>
 // ---- Speisekarte (aus der Karte) -----------------------------------------
 // Geldbeträge werden intern in GANZEN CENT gerechnet -> keine Rundungsfehler.
@@ -379,6 +417,8 @@ function centsFromInput(s){                             // "12,50" / "12.5" -> 1
 const byId = id => MENU.find(m=>m.id===id);
 function store(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
 function load(key, def){ try{ const r=localStorage.getItem(key); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
+function b64urlEncode(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
 
 // ---- Zustand (laufende Bestellung) ----------------------------------------
 let cart = {};        // id -> menge
@@ -558,11 +598,19 @@ let archive = [];                                       // abgeschlossene Tage
 { const a = load('kassa_fest2', []); if(Array.isArray(a)) archive = a.map(sane); }
 function saveDay(){ store('kassa_tag2', day); }
 function saveFest(){ store('kassa_fest2', archive); }
+// vom anderen Gerät übernommene Daten (für "beide Geräte zusammen")
+let imported = (function(){
+  const d = load('kassa_imp', null) || {};
+  return { w:+d.w||0, po:+d.po||0, pb:+d.pb||0, c:+d.c||0,
+           items:(d.items&&typeof d.items==='object')?d.items:{},
+           ids:Array.isArray(d.ids)?d.ids:[], devices:+d.devices||0 };
+})();
+function saveImp(){ store('kassa_imp', imported); }
 const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
 function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
 
 // aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
-const MILESTONE = 50;                                  // Feier alle 50 Getränke
+const MILESTONE = 100;                                 // Feier alle 100 Getränke
 function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=day.items[m.id]||0; } return n; }
 function recordSale(){
   const ids = Object.keys(cart);
@@ -623,6 +671,17 @@ function showDay(){
     ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${g.items[m.id]}×</span></div>`).join('')
     : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
 
+  // "Beide Geräte zusammen" (wenn Daten vom anderen Tablet übernommen wurden)
+  const both = document.getElementById('bothBox');
+  if(imported.devices>0){
+    const bothCash = cashOf(g) + (imported.w + imported.po - imported.pb);
+    document.getElementById('bCash').textContent  = eur(bothCash);
+    document.getElementById('bWare').textContent  = eur(g.ware + imported.w);
+    document.getElementById('bCount').textContent = (g.count + imported.c);
+    document.getElementById('bNote').textContent  = '(dieses + '+imported.devices+' Gerät'+(imported.devices>1?'e':'')+')';
+    both.style.display='';
+  } else { both.style.display='none'; }
+
   document.getElementById('modal').classList.add('open');
 }
 
@@ -682,9 +741,52 @@ document.getElementById('btnCloseDay').onclick = ()=>{
 // Komplettes Fest (alle Tage) auf 0 setzen
 document.getElementById('btnReset').onclick = ()=>{
   if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
-    archive=[]; day=leer(); saveFest(); saveDay(); showDay();
+    archive=[]; day=leer();
+    imported={w:0,po:0,pb:0,c:0,items:{},ids:[],devices:0};
+    saveFest(); saveDay(); saveImp(); showDay();
   }
 };
+
+// ---- QR-Übertragung an das andere Gerät -----------------------------------
+function makeTransfer(){
+  if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return; }
+  const g = gesamt();
+  const payload = { v:1,
+    id:'d'+Date.now().toString(36)+Math.floor(Math.random()*1e7).toString(36),
+    w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it:g.items };
+  const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
+  try{
+    const qr = qrcode(0,'L'); qr.addData(url); qr.make();
+    document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
+  }catch(e){ alert('QR konnte nicht erstellt werden.'); return; }
+  document.getElementById('qrinfo').textContent = g.count+' Verkäufe · '+eur(cashOf(g))+' Einnahmen';
+  document.getElementById('qrmodal').classList.add('open');
+}
+document.getElementById('btnSend').onclick = makeTransfer;
+document.getElementById('qrClose').onclick = ()=>document.getElementById('qrmodal').classList.remove('open');
+document.getElementById('qrmodal').addEventListener('click', e=>{
+  if(e.target.id==='qrmodal') document.getElementById('qrmodal').classList.remove('open');
+});
+
+// Empfangene Daten aus der URL (#m=...) übernehmen
+(function importFromUrl(){
+  const m = (location.hash||'').match(/^#m=(.+)$/);
+  if(!m) return;
+  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
+  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}   // Hash entfernen
+  if(!p || p.v!==1 || typeof p.id!=='string') return;
+  if(imported.ids.indexOf(p.id) >= 0){ alert('Diese Daten wurden bereits übernommen.'); return; }
+  const cash = (+p.w||0)+(+p.po||0)-(+p.pb||0);
+  const pin = prompt('Daten vom anderen Gerät übernehmen?\n'+(+p.c||0)+' Verkäufe · '+eur(cash)+' Einnahmen\n\nPIN zum Bestätigen:');
+  if(pin===null) return;
+  if(pin!==TAG_PIN){ alert('Falscher PIN – nicht übernommen.'); return; }
+  imported.w+=+p.w||0; imported.po+=+p.po||0; imported.pb+=+p.pb||0; imported.c+=+p.c||0;
+  if(p.it && typeof p.it==='object'){ for(const id in p.it){ if(MENU_IDS.has(id)) imported.items[id]=(imported.items[id]||0)+(+p.it[id]||0); } }
+  imported.ids.push(p.id); imported.devices+=1;
+  saveImp();
+  alert('Übernommen ✓  – jetzt unter „Beide Geräte zusammen“ sichtbar.');
+  showDay();
+})();
 
 // ---- Aktionen -------------------------------------------------------------
 document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
