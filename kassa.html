@@ -241,10 +241,20 @@
   #qrbox{display:flex; justify-content:center; margin:12px 0}
   #qrbox svg{width:min(300px,78vw); height:auto; background:#fff; padding:8px; border-radius:10px}
   .btn-send{background:#2d6cdf; color:#fff}
-  #bothBox{margin-top:14px; border-top:2px solid var(--line); padding-top:10px}
-  #bothBox h3{font-size:13px; margin:0 0 6px; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.5px}
-  #bothBox .kv span:last-child{color:var(--green-d)}
+
+  /* Statistik-Bericht (empfangen, zum Speichern) */
+  .report{position:fixed; inset:0; z-index:30; background:#2a2f36; display:none;
+    align-items:flex-start; justify-content:center; overflow:auto; padding:14px}
+  .report.open{display:flex}
+  .rsheet{max-width:560px; width:100%; margin:auto}
+  .rscroll{text-align:center}
+  .report img{width:100%; height:auto; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .rhint{color:#dfe3e8; font-size:13px; text-align:center; margin:10px 0 4px}
+  .rbtns{display:flex; gap:8px; margin-top:8px; position:sticky; bottom:0; padding-bottom:6px}
+  .rbtns button{flex:1; border:none; border-radius:11px; padding:14px; font-size:15px;
+    font-weight:700; cursor:pointer}
+  #reportSave{background:var(--green); color:#fff}
+  #reportClose{background:#e7eaee; color:#23262b}
 </style>
 </head>
 <body>
@@ -328,18 +338,12 @@
       <h3>Verkaufte Artikel (gesamt)</h3>
       <div id="dItems"></div>
     </div>
-    <div id="bothBox" style="display:none">
-      <h3>🔗 Beide Geräte zusammen <span id="bNote" style="text-transform:none;font-weight:400"></span></h3>
-      <div class="kv"><span>Einnahmen gesamt (beide)</span><span id="bCash">0,00 €</span></div>
-      <div class="kv"><span>Umsatz Ware (beide)</span><span id="bWare">0,00 €</span></div>
-      <div class="kv"><span>Verkäufe (beide)</span><span id="bCount">0</span></div>
-    </div>
     <div class="mbtns">
       <button class="btn-close" id="btnClose">Schließen</button>
       <button class="btn-day" id="btnCloseDay">✔ Tag abschließen</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
-      <button class="btn-send" id="btnSend">📤 An anderes Gerät (QR)</button>
+      <button class="btn-send" id="btnSend">📤 Statistik als QR (aufs Handy)</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
@@ -351,11 +355,22 @@
 
 <div class="modal" id="qrmodal">
   <div class="sheet" style="text-align:center">
-    <h2>📤 An anderes Gerät senden</h2>
-    <div class="sub">Mit der Kamera des anderen Tablets diesen Code scannen</div>
+    <h2>📤 Statistik senden</h2>
+    <div class="sub">Mit dem Handy scannen → Statistik öffnet sich zum Speichern</div>
     <div id="qrbox"></div>
     <div class="c3" id="qrinfo" style="margin-top:8px"></div>
     <div class="mbtns"><button class="btn-close" id="qrClose">Schließen</button></div>
+  </div>
+</div>
+
+<div class="report" id="report">
+  <div class="rsheet">
+    <div class="rscroll"><img id="reportImg" alt="Statistik"></div>
+    <div class="rhint">Tipp: lange auf das Bild drücken → „Bild sichern“ (Foto-App)</div>
+    <div class="rbtns">
+      <button id="reportSave">📥 Speichern</button>
+      <button id="reportClose">Schließen</button>
+    </div>
   </div>
 </div>
 
@@ -634,14 +649,6 @@ let archive = [];                                       // abgeschlossene Tage
 { const a = load('kassa_fest2', []); if(Array.isArray(a)) archive = a.map(sane); }
 function saveDay(){ store('kassa_tag2', day); }
 function saveFest(){ store('kassa_fest2', archive); }
-// vom anderen Gerät übernommene Daten (für "beide Geräte zusammen")
-let imported = (function(){
-  const d = load('kassa_imp', null) || {};
-  return { w:+d.w||0, po:+d.po||0, pb:+d.pb||0, c:+d.c||0,
-           items:(d.items&&typeof d.items==='object')?d.items:{},
-           ids:Array.isArray(d.ids)?d.ids:[], devices:+d.devices||0 };
-})();
-function saveImp(){ store('kassa_imp', imported); }
 const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
 function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
 
@@ -707,17 +714,6 @@ function showDay(){
     ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${g.items[m.id]}×</span></div>`).join('')
     : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
 
-  // "Beide Geräte zusammen" (wenn Daten vom anderen Tablet übernommen wurden)
-  const both = document.getElementById('bothBox');
-  if(imported.devices>0){
-    const bothCash = cashOf(g) + (imported.w + imported.po - imported.pb);
-    document.getElementById('bCash').textContent  = eur(bothCash);
-    document.getElementById('bWare').textContent  = eur(g.ware + imported.w);
-    document.getElementById('bCount').textContent = (g.count + imported.c);
-    document.getElementById('bNote').textContent  = '(dieses + '+imported.devices+' Gerät'+(imported.devices>1?'e':'')+')';
-    both.style.display='';
-  } else { both.style.display='none'; }
-
   document.getElementById('modal').classList.add('open');
 }
 
@@ -778,23 +774,21 @@ document.getElementById('btnCloseDay').onclick = ()=>{
 document.getElementById('btnReset').onclick = ()=>{
   if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
     archive=[]; day=leer();
-    imported={w:0,po:0,pb:0,c:0,items:{},ids:[],devices:0};
-    saveFest(); saveDay(); saveImp(); showDay();
+    saveFest(); saveDay(); showDay();
   }
 };
 
-// ---- QR-Übertragung an das andere Gerät -----------------------------------
+// ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
 function makeTransfer(){
   if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return; }
   const g = gesamt();
-  const payload = { v:1,
-    id:'d'+Date.now().toString(36)+Math.floor(Math.random()*1e7).toString(36),
-    w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it:g.items };
-  const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
+  const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
+  const payload = { v:2, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it:g.items, days };
+  const url = location.href.split('#')[0] + '#r=' + b64urlEncode(JSON.stringify(payload));
   try{
     const qr = qrcode(0,'L'); qr.addData(url); qr.make();
     document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
-  }catch(e){ alert('QR konnte nicht erstellt werden.'); return; }
+  }catch(e){ alert('QR konnte nicht erstellt werden (Statistik evtl. zu groß).'); return; }
   document.getElementById('qrinfo').textContent = g.count+' Verkäufe · '+eur(cashOf(g))+' Einnahmen';
   document.getElementById('qrmodal').classList.add('open');
 }
@@ -804,24 +798,71 @@ document.getElementById('qrmodal').addEventListener('click', e=>{
   if(e.target.id==='qrmodal') document.getElementById('qrmodal').classList.remove('open');
 });
 
-// Empfangene Daten aus der URL (#m=...) übernehmen
-(function importFromUrl(){
-  const m = (location.hash||'').match(/^#m=(.+)$/);
+// ---- Statistik-Bericht als speicherbares Bild zeichnen --------------------
+function renderReportCanvas(p){
+  const items = MENU.filter(m => (p.it && p.it[m.id]) > 0);
+  const days  = Array.isArray(p.days) ? p.days : [];
+  const W = 760, S = 2, M = 36, RH = 30;
+  let H = 150 + 36 + (days.length+1)*RH + 30 + 34 + 6*RH + 30 + 34 + items.length*RH + 50;
+  const c = document.createElement('canvas'); c.width = W*S; c.height = H*S;
+  const x = c.getContext('2d'); x.scale(S,S);
+  x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+  // Kopf
+  x.fillStyle = '#e8920c'; x.fillRect(0,0,W,110);
+  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
+  x.font = '800 32px Arial,sans-serif'; x.fillText('Sommerfest Lienz 2026', M, 48);
+  x.font = '700 19px Arial,sans-serif'; x.fillText('Kassa-Statistik · erstellt '+(p.t||''), M, 80);
+  x.font = '600 15px Arial,sans-serif'; x.fillText('Kassiersystem à la Nico Warscher', M, 100);
+  const ck = n => eur(n);
+  const sep = y => { x.strokeStyle = '#e3e6ea'; x.lineWidth = 1; x.beginPath(); x.moveTo(M,y); x.lineTo(W-M,y); x.stroke(); };
+  const head = (t,y) => { x.fillStyle = '#6b7585'; x.font = '700 14px Arial'; x.fillText(t.toUpperCase(), M, y); };
+  const row = (l,r,y,bold) => {
+    x.fillStyle = '#1a2330'; x.font = (bold?'800 ':'600 ')+'18px Arial';
+    x.textAlign = 'left';  x.fillText(l, M, y);
+    x.textAlign = 'right'; x.fillText(r, W-M, y); x.textAlign = 'left';
+  };
+  let y = 150;
+  head('Einnahmen pro Tag', y); y += 26;
+  days.forEach((d,i)=>{ row('Tag '+(i+1)+(d.s?' · '+d.s:''), ck(+d.cash||0), y); y += RH; sep(y-RH+6); });
+  row('Gesamt (alle Tage)', ck(p.w+p.po-p.pb), y, true); y += RH + 22;
+  head('Übersicht', y); y += 26;
+  row('Einnahmen gesamt', ck(p.w+p.po-p.pb), y, true); y += RH;
+  row('Umsatz Ware', ck(p.w), y); y += RH;
+  row('Pfand erhalten', ck(p.po), y); y += RH;
+  row('Pfand zurück', ck(p.pb), y); y += RH;
+  row('Becher noch draußen', Math.round((p.po-p.pb)/PFAND_C)+' Becher', y); y += RH;
+  row('Verkäufe gesamt', String(p.c||0), y); y += RH + 22;
+  head('Verkaufte Artikel', y); y += 26;
+  items.forEach(m=>{ row(m.name, (p.it[m.id])+'×', y); y += RH; });
+  return c;
+}
+
+let reportDataUrl = '';
+function showReport(p){
+  let canvas; try{ canvas = renderReportCanvas(p); reportDataUrl = canvas.toDataURL('image/png'); }
+  catch(e){ alert('Bericht konnte nicht erstellt werden.'); return; }
+  document.getElementById('reportImg').src = reportDataUrl;
+  document.getElementById('report').classList.add('open');
+}
+document.getElementById('reportClose').onclick = ()=>document.getElementById('report').classList.remove('open');
+document.getElementById('reportSave').onclick = ()=>{
+  if(!reportDataUrl) return;
+  try{
+    const a = document.createElement('a');
+    a.href = reportDataUrl; a.download = 'sommerfest-statistik.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('Zum Speichern: lange auf das Bild drücken → „Bild sichern“.'); }
+};
+
+// Statistik aus der URL (#r=...) anzeigen (Handy hat den QR gescannt)
+(function reportFromUrl(){
+  const m = (location.hash||'').match(/^#r=(.+)$/);
   if(!m) return;
   let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
   try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}   // Hash entfernen
-  if(!p || p.v!==1 || typeof p.id!=='string') return;
-  if(imported.ids.indexOf(p.id) >= 0){ alert('Diese Daten wurden bereits übernommen.'); return; }
-  const cash = (+p.w||0)+(+p.po||0)-(+p.pb||0);
-  const pin = prompt('Daten vom anderen Gerät übernehmen?\n'+(+p.c||0)+' Verkäufe · '+eur(cash)+' Einnahmen\n\nPIN zum Bestätigen:');
-  if(pin===null) return;
-  if(pin!==TAG_PIN){ alert('Falscher PIN – nicht übernommen.'); return; }
-  imported.w+=+p.w||0; imported.po+=+p.po||0; imported.pb+=+p.pb||0; imported.c+=+p.c||0;
-  if(p.it && typeof p.it==='object'){ for(const id in p.it){ if(MENU_IDS.has(id)) imported.items[id]=(imported.items[id]||0)+(+p.it[id]||0); } }
-  imported.ids.push(p.id); imported.devices+=1;
-  saveImp();
-  alert('Übernommen ✓  – jetzt unter „Beide Geräte zusammen“ sichtbar.');
-  showDay();
+  if(!p || p.v!==2) return;
+  p.w=+p.w||0; p.po=+p.po||0; p.pb=+p.pb||0; p.c=+p.c||0; p.it=(p.it&&typeof p.it==='object')?p.it:{};
+  showReport(p);
 })();
 
 // ---- Aktionen -------------------------------------------------------------
