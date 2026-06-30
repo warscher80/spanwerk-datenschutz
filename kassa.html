@@ -51,6 +51,21 @@
     .foot .inner{max-width:980px}
     .total .t2{font-size:34px}
   }
+  /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
+  @media(orientation:landscape) and (max-height:600px){
+    body{padding-bottom:118px}
+    header{padding:5px 16px}
+    header .hint{display:none}
+    .foot{padding:6px 14px env(safe-area-inset-bottom)}
+    .foot .inner{display:grid; grid-template-columns:auto 1fr;
+      column-gap:18px; row-gap:5px; align-items:center; max-width:980px}
+    .lines{grid-column:1; grid-row:1; gap:14px}
+    .total{grid-column:1; grid-row:2; margin:0; gap:10px}
+    .total .t2{font-size:24px}
+    .change{grid-column:2; grid-row:1; margin:0}
+    .actions{grid-column:2; grid-row:2}
+    .actions button{padding:10px 8px}
+  }
   button.item{
     border:1px solid var(--line); background:var(--card);
     border-radius:14px; padding:12px 10px; text-align:left;
