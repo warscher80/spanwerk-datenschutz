@@ -918,6 +918,22 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
 }
 
+// ---- Bildschirm wach halten (Tablet geht nicht in Standby) -----------------
+let wakeLock = null;
+async function ensureWake(){
+  try{
+    if(!('wakeLock' in navigator)) return;
+    if(wakeLock) return;                                  // schon aktiv
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
+  }catch(e){ wakeLock = null; }                           // z. B. ohne HTTPS/Geste – App läuft normal weiter
+}
+document.addEventListener('visibilitychange', ()=>{       // beim Zurückkehren neu anfordern
+  if(document.visibilityState==='visible') ensureWake();
+});
+window.addEventListener('pointerdown', ensureWake);       // spätestens bei erster Berührung aktivieren
+ensureWake();
+
 render();
 </script>
 </body>
