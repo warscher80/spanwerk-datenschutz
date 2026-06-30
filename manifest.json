@@ -1,0 +1,14 @@
+{
+  "name": "Sommerfest Kassa",
+  "short_name": "Kassa",
+  "start_url": "./kassa.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e8920c",
+  "theme_color": "#e8920c",
+  "icons": [
+    { "src": "sommerfest-logo.png", "sizes": "220x220", "type": "image/png", "purpose": "any" },
+    { "src": "sommerfest-logo.png", "sizes": "220x220", "type": "image/png", "purpose": "maskable" }
+  ]
+}
