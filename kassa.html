@@ -23,7 +23,7 @@
   body{
     font-family:-apple-system,Segoe UI,Roboto,sans-serif;
     background:var(--bg); color:var(--ink);
-    padding:0 0 230px; line-height:1.4;
+    padding:0 0 278px; line-height:1.4;
   }
   header{
     background:var(--orange); color:#fff;
@@ -90,6 +90,7 @@
     .total{grid-column:1; grid-row:2; margin:0; gap:10px}
     .total .t2{font-size:24px}
     .change{grid-column:2; grid-row:1; margin:0}
+    .quickcash{display:none}
     .actions{grid-column:2; grid-row:2}
     .actions button{padding:10px 8px}
   }
@@ -147,6 +148,12 @@
   }
   .change .ret{font-size:15px; font-weight:700; white-space:nowrap}
   .change .ret b{color:var(--green-d)}
+  /* Gegeben-Schnelltasten */
+  .quickcash{display:flex; gap:6px; margin-bottom:8px}
+  .quickcash button{flex:1; padding:9px 4px; border:1px solid var(--line); background:#fff;
+    border-radius:9px; font-size:14px; font-weight:700; cursor:pointer; color:var(--ink)}
+  .quickcash button:active{background:#eee}
+  .quickcash .qc-clear{flex:0 0 46px; color:var(--red); font-weight:800}
   .actions{display:flex; gap:8px}
   .actions button{
     flex:1; border:none; border-radius:12px; padding:13px 8px;
@@ -213,7 +220,7 @@
       <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
     </div>
   </div>
-  <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
+  <p class="hint">Tippen → Betrag ablesen → kassieren · lange drücken = ×5 · Pfand 2&nbsp;€ pro Becher automatisch.</p>
   <div class="dcount" id="dcount"></div>
 </header>
 
@@ -242,6 +249,14 @@
       <label>Gegeben</label>
       <input id="given" type="number" inputmode="decimal" placeholder="z. B. 20" step="0.5">
       <span class="ret" id="retOut"></span>
+    </div>
+    <div class="quickcash">
+      <button data-cash="5">+5</button>
+      <button data-cash="10">+10</button>
+      <button data-cash="20">+20</button>
+      <button data-cash="50">+50</button>
+      <button data-cash="100">+100</button>
+      <button data-cash="clear" class="qc-clear" title="Löschen">C</button>
     </div>
     <div class="actions">
       <button class="btn-pfand" id="btnPfandBack">↩︎ Becher retour (−2 €)</button>
@@ -366,14 +381,28 @@ function buildGrid(cat, el){
       `<span class="cnt"></span>
        <span class="name">${m.name}</span>
        <span class="price">${eur(m.c)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
-    b.addEventListener('click', ()=>add(m.id));
+    attachItem(b, m.id);
     el.appendChild(b);
   });
+}
+// Klick = +1, langer Druck (≈550 ms) = +5 (große Runden)
+function attachItem(b, id){
+  let timer=null, long=false;
+  const start = ()=>{ long=false; timer=setTimeout(()=>{ long=true; addMany(id,5);
+    if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, 550); };
+  const cancel = ()=>{ if(timer){ clearTimeout(timer); timer=null; } };
+  b.addEventListener('pointerdown', start);
+  b.addEventListener('pointerup', cancel);
+  b.addEventListener('pointerleave', cancel);
+  b.addEventListener('pointercancel', cancel);
+  b.addEventListener('contextmenu', e=>e.preventDefault());
+  b.addEventListener('click', ()=>{ if(long){ long=false; return; } add(id); });
 }
 buildGrid('speisen',  document.getElementById('gridSpeisen'));
 buildGrid('getraenke',document.getElementById('gridGetraenke'));
 
-function add(id){ if(!MENU_IDS.has(id)) return; cart[id]=(cart[id]||0)+1; render(); }
+function add(id){ addMany(id,1); }
+function addMany(id,n){ if(!MENU_IDS.has(id)) return; cart[id]=(cart[id]||0)+n; render(); }
 function dec(id){ if(cart[id]){ cart[id]--; if(cart[id]<=0) delete cart[id]; render(); } }
 
 // ---- Bestellliste + Summen ------------------------------------------------
@@ -461,6 +490,22 @@ function updateChange(totalC){
   } else { out.textContent=''; }
 }
 document.getElementById('given').addEventListener('input', ()=> updateChange(totals().totalC));
+
+// Gegeben-Schnelltasten: +5/+10/+20/+50/+100 aufaddieren, C löscht
+function addGiven(euros){
+  const inp = document.getElementById('given');
+  const cur = centsFromInput(inp.value);
+  const base = isNaN(cur) ? 0 : cur;
+  inp.value = String((base + euros*100)/100);
+  updateChange(totals().totalC);
+}
+document.querySelectorAll('.quickcash [data-cash]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const v = b.dataset.cash;
+    if(v==='clear'){ document.getElementById('given').value=''; updateChange(totals().totalC); }
+    else addGiven(parseInt(v,10));
+  });
+});
 
 // ---- Kasse: heutiger Tag + abgeschlossene Tage (nur DIESES Gerät) ----------
 // Alle Geld-Felder in Cent (Ganzzahl).
