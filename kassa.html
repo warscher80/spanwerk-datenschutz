@@ -149,6 +149,11 @@
     padding:12px 14px; text-align:center; margin-bottom:14px}
   .cash .c1{font-size:13px; color:var(--muted)}
   .cash .c2{font-size:30px; font-weight:800; color:var(--green-d)}
+  .cash .c3{font-size:12px; color:var(--muted); margin-top:4px}
+  .wg{display:flex; align-items:center; gap:8px; margin-bottom:12px}
+  .wg label{font-size:14px; color:var(--ink); flex:1; font-weight:600}
+  .wg input{width:120px; font-size:16px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:10px; text-align:right}
   .kv{display:flex; justify-content:space-between; padding:7px 0;
     border-bottom:1px solid var(--line); font-size:14px}
   .kv span:last-child{font-weight:700}
@@ -215,12 +220,17 @@
   <div class="sheet">
     <h2>📊 Auswertung</h2>
     <div class="sub">nur dieses Gerät</div>
+    <div class="wg">
+      <label>Wechselgeld Start (heute)</label>
+      <input id="startCash" type="number" inputmode="decimal" step="10" placeholder="0">
+    </div>
     <div class="cash">
-      <div class="c1">Fest gesamt – Bargeld (soll)</div>
-      <div class="c2" id="dCash">0,00 €</div>
+      <div class="c1">In der Lade jetzt (soll)</div>
+      <div class="c2" id="dDrawer">0,00 €</div>
+      <div class="c3" id="dDrawerCalc"></div>
     </div>
     <div class="itemstat">
-      <h3>Tage</h3>
+      <h3>Tage – Einnahmen (ohne Wechselgeld)</h3>
       <div class="daysum" id="dDays"></div>
     </div>
     <div class="kv"><span>Umsatz Ware (gesamt)</span><span id="dWare">0,00 €</span></div>
@@ -379,7 +389,7 @@ document.getElementById('given').addEventListener('input', ()=>{
 });
 
 // ---- Kasse: heutiger Tag + abgeschlossene Tage (nur DIESES Gerät) ----------
-const leer = ()=>({ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''});
+const leer = ()=>({ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:'', startCash:0});
 let day = leer();      // aktuell laufender Tag
 let archive = [];      // abgeschlossene Tage (Tag 1, Tag 2, ...)
 try{ const d=JSON.parse(localStorage.getItem('kassa_tag')||'null'); if(d) day=Object.assign(leer(), d); }catch(e){}
@@ -416,7 +426,13 @@ function gesamt(){
 
 function showDay(){
   const g = gesamt();
-  document.getElementById('dCash').textContent      = eur(cashOf(g));
+  // In der Lade jetzt = Wechselgeld (heute) + Einnahmen (heute, bar)
+  const wg = day.startCash || 0;
+  const einnHeute = cashOf(day);
+  document.getElementById('startCash').value = wg ? String(wg) : '';
+  document.getElementById('dDrawer').textContent = eur(wg + einnHeute);
+  document.getElementById('dDrawerCalc').textContent =
+    'Wechselgeld '+eur(wg)+' + Einnahmen heute '+eur(einnHeute);
   document.getElementById('dWare').textContent      = eur(g.ware);
   document.getElementById('dPfandOut').textContent  = eur(g.pfandOut);
   document.getElementById('dPfandBack').textContent = eur(g.pfandBack);
@@ -448,6 +464,16 @@ document.getElementById('btnTag').onclick = ()=>{
   if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
   showDay();
 };
+// Wechselgeld-Start eingeben/ändern
+document.getElementById('startCash').addEventListener('input', e=>{
+  let v = parseFloat((e.target.value||'').replace(',','.'));
+  day.startCash = (isNaN(v)||v<0) ? 0 : v;
+  saveDay();
+  const einnHeute = cashOf(day);
+  document.getElementById('dDrawer').textContent = eur(day.startCash + einnHeute);
+  document.getElementById('dDrawerCalc').textContent =
+    'Wechselgeld '+eur(day.startCash)+' + Einnahmen heute '+eur(einnHeute);
+});
 document.getElementById('btnClose').onclick = ()=>document.getElementById('modal').classList.remove('open');
 document.getElementById('modal').addEventListener('click', e=>{
   if(e.target.id==='modal') document.getElementById('modal').classList.remove('open');
@@ -456,8 +482,10 @@ document.getElementById('modal').addEventListener('click', e=>{
 document.getElementById('btnCloseDay').onclick = ()=>{
   if(day.count===0){ alert('Heute wurde noch nichts verkauft.'); return; }
   if(confirm('Heutigen Tag abschließen und neuen Tag starten?\nDie Summe bleibt im Gesamt erhalten.')){
+    const wgUebertrag = day.startCash || 0;   // gleiches Wechselgeld als Vorschlag für morgen
     archive.push(Object.assign(leer(), day, {items:Object.assign({}, day.items)}));
     day = leer();
+    day.startCash = wgUebertrag;
     saveFest(); saveDay(); showDay();
   }
 };
