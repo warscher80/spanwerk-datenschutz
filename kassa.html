@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#e8920c">
+<title>Sommerfest Kassa</title>
+<style>
+  :root{
+    --orange:#e8920c; --orange-d:#c9760a;
+    --bg:#f4f5f7; --card:#fff; --line:#e3e6ea;
+    --ink:#1a2330; --muted:#6b7585;
+    --green:#1f9d55; --green-d:#198047;
+    --red:#d64545;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding:0 0 230px; line-height:1.4;
+  }
+  header{
+    background:var(--orange); color:#fff;
+    padding:14px 16px; position:sticky; top:0; z-index:5;
+    box-shadow:0 2px 6px rgba(0,0,0,.12);
+  }
+  header h1{margin:0; font-size:19px}
+  header p{margin:2px 0 0; font-size:13px; opacity:.92}
+  .wrap{max-width:680px; margin:0 auto; padding:14px}
+  h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
+    color:var(--muted); margin:18px 0 8px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  @media(min-width:560px){.grid{grid-template-columns:1fr 1fr 1fr}}
+  button.item{
+    border:1px solid var(--line); background:var(--card);
+    border-radius:14px; padding:12px 10px; text-align:left;
+    cursor:pointer; min-height:74px; position:relative;
+    display:flex; flex-direction:column; justify-content:space-between;
+    transition:transform .05s, box-shadow .1s;
+  }
+  button.item:active{transform:scale(.96); box-shadow:0 0 0 3px rgba(232,146,12,.25)}
+  button.item .name{font-size:14px; font-weight:600; line-height:1.25}
+  button.item .price{font-size:15px; font-weight:700; color:var(--orange-d); margin-top:6px}
+  button.item .pfand{font-size:11px; color:var(--muted); font-weight:500}
+  button.item .cnt{
+    position:absolute; top:-8px; right:-8px; min-width:24px; height:24px;
+    background:var(--green); color:#fff; border-radius:12px; font-size:13px;
+    font-weight:700; display:none; align-items:center; justify-content:center;
+    padding:0 6px; box-shadow:0 1px 4px rgba(0,0,0,.2);
+  }
+  button.item.has .cnt{display:flex}
+  button.item.has{border-color:var(--green); background:#f1fbf4}
+
+  /* Bestellung Liste */
+  .order{margin-top:6px}
+  .row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line)}
+  .row .lbl{flex:1; font-size:14px}
+  .row .lbl small{color:var(--muted)}
+  .qtybtns{display:flex; align-items:center; gap:8px}
+  .qtybtns button{
+    width:34px; height:34px; border-radius:9px; border:1px solid var(--line);
+    background:#fff; font-size:20px; font-weight:700; cursor:pointer; color:var(--ink);
+  }
+  .qtybtns button:active{background:#eee}
+  .qtybtns .q{min-width:22px; text-align:center; font-weight:700}
+  .row .sum{width:64px; text-align:right; font-weight:600; font-size:14px}
+  .empty{color:var(--muted); text-align:center; padding:24px 0; font-size:14px}
+
+  /* Footer / Summe */
+  .foot{
+    position:fixed; left:0; right:0; bottom:0; background:#fff;
+    border-top:1px solid var(--line); box-shadow:0 -3px 12px rgba(0,0,0,.08);
+    padding:10px 14px env(safe-area-inset-bottom); z-index:6;
+  }
+  .foot .inner{max-width:680px; margin:0 auto}
+  .lines{font-size:13px; color:var(--muted); display:flex; justify-content:space-between}
+  .total{display:flex; justify-content:space-between; align-items:baseline; margin:2px 0 8px}
+  .total .t1{font-size:16px; font-weight:600}
+  .total .t2{font-size:30px; font-weight:800; color:var(--orange-d)}
+  .change{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+  .change label{font-size:13px; color:var(--muted)}
+  .change input{
+    flex:1; font-size:18px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:10px; text-align:right; min-width:0;
+  }
+  .change .ret{font-size:15px; font-weight:700; white-space:nowrap}
+  .change .ret b{color:var(--green-d)}
+  .actions{display:flex; gap:8px}
+  .actions button{
+    flex:1; border:none; border-radius:12px; padding:13px 8px;
+    font-size:15px; font-weight:700; cursor:pointer; color:#fff;
+  }
+  .btn-pfand{background:#5b6573}
+  .btn-pfand:active{background:#454e5a}
+  .btn-new{background:var(--green)}
+  .btn-new:active{background:var(--green-d)}
+  .hint{font-size:12px; color:var(--muted); margin-top:10px; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍺 Sommerfest Kassa</h1>
+  <p>Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
+</header>
+
+<div class="wrap">
+  <h2 class="sec">Speisen</h2>
+  <div class="grid" id="gridSpeisen"></div>
+
+  <h2 class="sec">Getränke <span style="text-transform:none;font-weight:400">(inkl. 2&nbsp;€ Pfand)</span></h2>
+  <div class="grid" id="gridGetraenke"></div>
+
+  <h2 class="sec">Bestellung</h2>
+  <div class="order" id="order"></div>
+</div>
+
+<div class="foot">
+  <div class="inner">
+    <div class="lines">
+      <span id="lWare">Ware: 0,00 €</span>
+      <span id="lPfand">Pfand: 0,00 €</span>
+    </div>
+    <div class="total">
+      <span class="t1">Zu kassieren</span>
+      <span class="t2" id="totalOut">0,00 €</span>
+    </div>
+    <div class="change">
+      <label>Gegeben</label>
+      <input id="given" type="number" inputmode="decimal" placeholder="z. B. 20" step="0.5">
+      <span class="ret" id="retOut"></span>
+    </div>
+    <div class="actions">
+      <button class="btn-pfand" id="btnPfandBack">↩︎ Becher retour (−2 €)</button>
+      <button class="btn-new" id="btnNew">✓ Kassiert / Neu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Speisekarte (aus der Karte) -----------------------------------------
+// pfand:true  => 2 € Pfand pro Becher wird automatisch dazugerechnet
+const PFAND = 2.00;
+const MENU = [
+  // Speisen
+  {id:'chilli',  name:'Chilli sin carne',          price:8.50, pfand:false, cat:'speisen'},
+  {id:'wurst',   name:'Bauernwurst + Schwarzbrot', price:7.00, pfand:false, cat:'speisen'},
+  {id:'brezen',  name:'Laugenbrezen',              price:2.50, pfand:false, cat:'speisen'},
+  // Getränke
+  {id:'b50',     name:'Gösser Bier 0,5 l',         price:4.50, pfand:true,  cat:'getraenke'},
+  {id:'b30',     name:'Gösser Bier 0,3 l',         price:3.50, pfand:true,  cat:'getraenke'},
+  {id:'ws50',    name:'Weißer Spritzer 0,5 l',     price:4.50, pfand:true,  cat:'getraenke'},
+  {id:'ws30',    name:'Weißer Spritzer 0,3 l',     price:3.50, pfand:true,  cat:'getraenke'},
+  {id:'sv50',    name:'Spritzer Var. 0,5 l',       price:5.00, pfand:true,  cat:'getraenke'},
+  {id:'sv30',    name:'Spritzer Var. 0,3 l',       price:4.00, pfand:true,  cat:'getraenke'},
+  {id:'gt',      name:'Gin Tonic 0,2 l',           price:7.50, pfand:true,  cat:'getraenke'},
+  {id:'vs',      name:'Vodka Soda 0,2 l',          price:6.00, pfand:true,  cat:'getraenke'},
+  {id:'bl',      name:'Berliner Luft',             price:3.00, pfand:true,  cat:'getraenke'},
+  {id:'cola',    name:'Cola 0,3 l',                price:3.00, pfand:true,  cat:'getraenke'},
+  {id:'eistee',  name:'Eistee 0,3 l',              price:3.00, pfand:true,  cat:'getraenke'},
+  {id:'mineral', name:'Mineral 0,3 l',             price:3.00, pfand:true,  cat:'getraenke'},
+  {id:'redbull', name:'Red Bull',                  price:4.00, pfand:true,  cat:'getraenke'},
+];
+
+// ---- Zustand --------------------------------------------------------------
+let cart = {};        // id -> menge
+let pfandBack = 0;    // Anzahl retournierter Becher (Pfand zurück)
+
+try{ const s = JSON.parse(localStorage.getItem('kassa')||'{}');
+     cart = s.cart||{}; pfandBack = s.pfandBack||0; }catch(e){}
+
+function save(){ localStorage.setItem('kassa', JSON.stringify({cart,pfandBack})); }
+const eur = n => n.toFixed(2).replace('.',',') + ' €';
+const byId = id => MENU.find(m=>m.id===id);
+
+// ---- Buttons rendern ------------------------------------------------------
+function buildGrid(cat, el){
+  el.innerHTML = '';
+  MENU.filter(m=>m.cat===cat).forEach(m=>{
+    const b = document.createElement('button');
+    b.className='item'; b.dataset.id=m.id;
+    b.innerHTML =
+      `<span class="cnt"></span>
+       <span class="name">${m.name}</span>
+       <span class="price">${eur(m.price)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
+    b.addEventListener('click', ()=>add(m.id));
+    el.appendChild(b);
+  });
+}
+buildGrid('speisen',  document.getElementById('gridSpeisen'));
+buildGrid('getraenke',document.getElementById('gridGetraenke'));
+
+function add(id){ cart[id]=(cart[id]||0)+1; render(); }
+function dec(id){ if(cart[id]){ cart[id]--; if(cart[id]<=0) delete cart[id]; render(); } }
+
+// ---- Bestellliste + Summen ------------------------------------------------
+function render(){
+  // Button-Zähler
+  document.querySelectorAll('button.item').forEach(b=>{
+    const c = cart[b.dataset.id]||0;
+    b.classList.toggle('has', c>0);
+    b.querySelector('.cnt').textContent = c;
+  });
+
+  // Liste
+  const order = document.getElementById('order');
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0){
+    order.innerHTML = '<div class="empty">Noch nichts gewählt – einfach oben antippen.</div>';
+  } else {
+    order.innerHTML = '';
+    ids.forEach(id=>{
+      const m = byId(id), q = cart[id];
+      const line = m.price*q + (m.pfand?PFAND*q:0);
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML =
+        `<div class="lbl">${m.name}<br><small>${eur(m.price)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
+         <div class="qtybtns">
+           <button data-d="${id}">−</button>
+           <span class="q">${q}</span>
+           <button data-a="${id}">+</button>
+         </div>
+         <div class="sum">${eur(line)}</div>`;
+      order.appendChild(row);
+    });
+    if(pfandBack>0){
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML =
+        `<div class="lbl">Becher retour<br><small>${pfandBack} × −2&nbsp;€ Pfand</small></div>
+         <div class="qtybtns">
+           <button data-pb="dec">−</button>
+           <span class="q">${pfandBack}</span>
+           <button data-pb="inc">+</button>
+         </div>
+         <div class="sum">−${eur(pfandBack*PFAND)}</div>`;
+      order.appendChild(row);
+    }
+    order.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>add(b.dataset.a));
+    order.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>dec(b.dataset.d));
+    order.querySelectorAll('[data-pb]').forEach(b=>b.onclick=()=>{
+      pfandBack += (b.dataset.pb==='inc'?1:-1); if(pfandBack<0)pfandBack=0; render();
+    });
+  }
+
+  // Summen
+  let ware=0, pfand=0;
+  ids.forEach(id=>{ const m=byId(id), q=cart[id]; ware+=m.price*q; if(m.pfand) pfand+=PFAND*q; });
+  pfand -= pfandBack*PFAND;
+  const total = ware + pfand;
+  document.getElementById('lWare').textContent  = 'Ware: '+eur(ware);
+  document.getElementById('lPfand').textContent = 'Pfand: '+eur(pfand);
+  document.getElementById('totalOut').textContent = eur(total);
+  updateChange(total);
+  save();
+}
+
+// ---- Rückgeld -------------------------------------------------------------
+function updateChange(total){
+  const inp = document.getElementById('given');
+  const out = document.getElementById('retOut');
+  const g = parseFloat((inp.value||'').replace(',','.'));
+  if(!isNaN(g) && g>0){
+    const r = g-total;
+    out.innerHTML = r>=0 ? 'Rückgeld <b>'+eur(r)+'</b>'
+                         : '<span style="color:var(--red)">fehlen '+eur(-r)+'</span>';
+  } else { out.textContent=''; }
+}
+document.getElementById('given').addEventListener('input', ()=>{
+  let ware=0,pfand=0;
+  Object.keys(cart).forEach(id=>{const m=byId(id),q=cart[id];ware+=m.price*q;if(m.pfand)pfand+=PFAND*q;});
+  updateChange(ware+pfand-pfandBack*PFAND);
+});
+
+// ---- Aktionen -------------------------------------------------------------
+document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
+document.getElementById('btnNew').onclick = ()=>{
+  cart={}; pfandBack=0; document.getElementById('given').value=''; render();
+};
+
+render();
+</script>
+</body>
+</html>
