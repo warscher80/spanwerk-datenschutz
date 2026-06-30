@@ -390,7 +390,17 @@ function showDay(){
   document.getElementById('modal').classList.add('open');
 }
 
-document.getElementById('btnTag').onclick   = showDay;
+const TAG_PIN = '1234';
+let tagUnlocked = false;
+document.getElementById('btnTag').onclick = ()=>{
+  if(!tagUnlocked){
+    const pin = prompt('PIN für Tagessumme:');
+    if(pin===null) return;                 // abgebrochen
+    if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
+    tagUnlocked = true;
+  }
+  showDay();
+};
 document.getElementById('btnClose').onclick = ()=>document.getElementById('modal').classList.remove('open');
 document.getElementById('modal').addEventListener('click', e=>{
   if(e.target.id==='modal') document.getElementById('modal').classList.remove('open');
