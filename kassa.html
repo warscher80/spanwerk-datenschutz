@@ -115,6 +115,37 @@
   .btn-new{background:var(--green)}
   .btn-new:active{background:var(--green-d)}
   .hint{font-size:12px; color:var(--muted); margin-top:10px; text-align:center}
+
+  /* Tagessumme-Button im Header */
+  header .tagbtn{margin-left:auto; background:rgba(255,255,255,.22); color:#fff;
+    border:1px solid rgba(255,255,255,.55); border-radius:9px; padding:6px 11px;
+    font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap}
+  header .tagbtn:active{background:rgba(255,255,255,.38)}
+
+  /* Auswertungs-Fenster */
+  .modal{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:20;
+    display:none; align-items:flex-start; justify-content:center; padding:18px; overflow:auto}
+  .modal.open{display:flex}
+  .sheet{background:#fff; border-radius:16px; max-width:480px; width:100%;
+    padding:18px; box-shadow:0 12px 40px rgba(0,0,0,.3); margin:auto}
+  .sheet h2{margin:0 0 2px; font-size:20px}
+  .sheet .sub{color:var(--muted); font-size:13px; margin-bottom:14px}
+  .cash{background:#f1fbf4; border:1px solid var(--green); border-radius:12px;
+    padding:12px 14px; text-align:center; margin-bottom:14px}
+  .cash .c1{font-size:13px; color:var(--muted)}
+  .cash .c2{font-size:30px; font-weight:800; color:var(--green-d)}
+  .kv{display:flex; justify-content:space-between; padding:7px 0;
+    border-bottom:1px solid var(--line); font-size:14px}
+  .kv span:last-child{font-weight:700}
+  .itemstat{margin-top:14px}
+  .itemstat h3{font-size:13px; margin:0 0 4px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px}
+  .itemstat .ir{display:flex; justify-content:space-between; font-size:14px; padding:3px 0}
+  .mbtns{display:flex; gap:8px; margin-top:18px}
+  .mbtns button{flex:1; border:none; border-radius:11px; padding:12px;
+    font-size:14px; font-weight:700; cursor:pointer}
+  .btn-close{background:#e7eaee; color:var(--ink)}
+  .btn-reset{background:var(--red); color:#fff}
 </style>
 </head>
 <body>
@@ -123,6 +154,7 @@
     <img class="logo" src="sommerfest-logo.png" alt="Sommerfest Lienz 2026">
     <h1>Sommerfest Kassa</h1>
     <span class="by">· Kassiersystem Nico Warscher</span>
+    <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
     <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
   </div>
 </header>
@@ -156,6 +188,30 @@
     <div class="actions">
       <button class="btn-pfand" id="btnPfandBack">↩︎ Becher retour (−2 €)</button>
       <button class="btn-new" id="btnNew">✓ Kassiert / Neu</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h2>📊 Tagessumme</h2>
+    <div class="sub" id="dayInfo">nur dieses Gerät</div>
+    <div class="cash">
+      <div class="c1">Bargeld in der Kassa (soll)</div>
+      <div class="c2" id="dCash">0,00 €</div>
+    </div>
+    <div class="kv"><span>Umsatz Ware</span><span id="dWare">0,00 €</span></div>
+    <div class="kv"><span>Pfand erhalten</span><span id="dPfandOut">0,00 €</span></div>
+    <div class="kv"><span>Pfand zurück</span><span id="dPfandBack">0,00 €</span></div>
+    <div class="kv"><span>Becher noch draußen</span><span id="dCups">0</span></div>
+    <div class="kv"><span>Anzahl Verkäufe</span><span id="dCount">0</span></div>
+    <div class="itemstat">
+      <h3>Verkaufte Artikel</h3>
+      <div id="dItems"></div>
+    </div>
+    <div class="mbtns">
+      <button class="btn-close" id="btnClose">Schließen</button>
+      <button class="btn-reset" id="btnReset">Tag zurücksetzen</button>
     </div>
   </div>
 </div>
@@ -296,9 +352,60 @@ document.getElementById('given').addEventListener('input', ()=>{
   updateChange(ware+pfand-pfandBack*PFAND);
 });
 
+// ---- Tageskasse (nur DIESES Gerät, kein Austausch mit anderen Tablets) -----
+let day = {ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''};
+try{ const d=JSON.parse(localStorage.getItem('kassa_tag')||'null');
+     if(d) day=Object.assign(day, d); }catch(e){}
+function saveDay(){ localStorage.setItem('kassa_tag', JSON.stringify(day)); }
+
+// aktuellen Verkauf in die Tageskasse buchen (beim "Kassiert / Neu")
+function recordSale(){
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0) return;      // nichts zu buchen
+  let ware=0, pfandOut=0;
+  ids.forEach(id=>{ const m=byId(id), q=cart[id];
+    ware+=m.price*q; if(m.pfand) pfandOut+=PFAND*q;
+    day.items[id]=(day.items[id]||0)+q; });
+  if(!day.start) day.start = new Date().toLocaleDateString('de-AT');
+  day.ware     += ware;
+  day.pfandOut += pfandOut;
+  day.pfandBack+= pfandBack*PFAND;
+  day.count    += 1;
+  saveDay();
+}
+
+function showDay(){
+  const cash = day.ware + day.pfandOut - day.pfandBack;
+  document.getElementById('dCash').textContent      = eur(cash);
+  document.getElementById('dWare').textContent      = eur(day.ware);
+  document.getElementById('dPfandOut').textContent  = eur(day.pfandOut);
+  document.getElementById('dPfandBack').textContent = eur(day.pfandBack);
+  document.getElementById('dCups').textContent      = Math.round((day.pfandOut-day.pfandBack)/PFAND)+' Becher';
+  document.getElementById('dCount').textContent     = day.count;
+  document.getElementById('dayInfo').textContent    = 'nur dieses Gerät'+(day.start?(' · seit '+day.start):'');
+  const entries = MENU.filter(m=>day.items[m.id]>0);
+  document.getElementById('dItems').innerHTML = entries.length
+    ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${day.items[m.id]}×</span></div>`).join('')
+    : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
+  document.getElementById('modal').classList.add('open');
+}
+
+document.getElementById('btnTag').onclick   = showDay;
+document.getElementById('btnClose').onclick = ()=>document.getElementById('modal').classList.remove('open');
+document.getElementById('modal').addEventListener('click', e=>{
+  if(e.target.id==='modal') document.getElementById('modal').classList.remove('open');
+});
+document.getElementById('btnReset').onclick = ()=>{
+  if(confirm('Tageskasse dieses Geräts wirklich auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
+    day={ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''};
+    saveDay(); showDay();
+  }
+};
+
 // ---- Aktionen -------------------------------------------------------------
 document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
 document.getElementById('btnNew').onclick = ()=>{
+  recordSale();
   cart={}; pfandBack=0; document.getElementById('given').value=''; render();
 };
 
