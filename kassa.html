@@ -95,7 +95,7 @@
     .actions button{padding:10px 8px}
   }
   button.item{
-    border:1px solid var(--line); background:var(--card);
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
     border-radius:14px; padding:12px 10px; text-align:left;
     cursor:pointer; min-height:74px; position:relative;
     display:flex; flex-direction:column; justify-content:space-between;
@@ -122,16 +122,16 @@
   .qtybtns{display:flex; align-items:center; gap:8px}
   .qtybtns button{
     width:34px; height:34px; border-radius:9px; border:1px solid var(--line);
-    background:#fff; font-size:20px; font-weight:700; cursor:pointer; color:var(--ink);
+    background:var(--card); font-size:20px; font-weight:700; cursor:pointer; color:var(--ink);
   }
-  .qtybtns button:active{background:#eee}
+  .qtybtns button:active{background:var(--bg)}
   .qtybtns .q{min-width:22px; text-align:center; font-weight:700}
   .row .sum{width:64px; text-align:right; font-weight:600; font-size:14px}
   .empty{color:var(--muted); text-align:center; padding:24px 0; font-size:14px}
 
   /* Footer / Summe */
   .foot{
-    position:fixed; left:0; right:0; bottom:0; background:#fff;
+    position:fixed; left:0; right:0; bottom:0; background:var(--card);
     border-top:1px solid var(--line); box-shadow:0 -3px 12px rgba(0,0,0,.08);
     padding:10px 14px env(safe-area-inset-bottom); z-index:6;
   }
@@ -145,14 +145,15 @@
   .change input{
     flex:1; font-size:18px; padding:8px 10px; border:1px solid var(--line);
     border-radius:10px; text-align:right; min-width:0;
+    background:var(--card); color:var(--ink);
   }
   .change .ret{font-size:15px; font-weight:700; white-space:nowrap}
   .change .ret b{color:var(--green-d)}
   /* Gegeben-Schnelltasten */
   .quickcash{display:flex; gap:6px; margin-bottom:8px}
-  .quickcash button{flex:1; padding:9px 4px; border:1px solid var(--line); background:#fff;
+  .quickcash button{flex:1; padding:9px 4px; border:1px solid var(--line); background:var(--card);
     border-radius:9px; font-size:14px; font-weight:700; cursor:pointer; color:var(--ink)}
-  .quickcash button:active{background:#eee}
+  .quickcash button:active{background:var(--bg)}
   .quickcash .qc-clear{flex:0 0 46px; color:var(--red); font-weight:800}
   .actions{display:flex; gap:8px}
   .actions button{
@@ -175,7 +176,7 @@
   .modal{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:20;
     display:none; align-items:flex-start; justify-content:center; padding:18px; overflow:auto}
   .modal.open{display:flex}
-  .sheet{background:#fff; border-radius:16px; max-width:480px; width:100%;
+  .sheet{background:var(--card); border-radius:16px; max-width:480px; width:100%;
     padding:18px; box-shadow:0 12px 40px rgba(0,0,0,.3); margin:auto}
   .sheet h2{margin:0 0 2px; font-size:20px}
   .sheet .sub{color:var(--muted); font-size:13px; margin-bottom:14px}
@@ -204,6 +205,33 @@
   .daysum .ir.today{font-weight:700}
   .daysum .ir.gesamt{border-top:2px solid var(--line); margin-top:4px;
     padding-top:6px; font-weight:800; font-size:15px}
+
+  /* Abend-Modus (dunkel) */
+  header .iconbtn{background:rgba(255,255,255,.22); color:#fff; line-height:1;
+    border:1px solid rgba(255,255,255,.55); border-radius:9px; padding:6px 9px;
+    font-size:15px; cursor:pointer}
+  header .iconbtn:active{background:rgba(255,255,255,.38)}
+  header .side.right{gap:6px}
+  .dcount .chip.food{border-style:dashed}
+  body.dark{
+    --bg:#14181e; --card:#1e252d; --line:#333d48; --ink:#e9edf2; --muted:#9aa6b3; --orange-d:#f0a020;
+  }
+  body.dark .cash{background:#16301f; border-color:#1f6b3f}
+  body.dark .item.has{background:#173021}
+  body.dark .btn-close{background:#2c343d; color:var(--ink)}
+  body.dark .btn-reset{background:var(--card)}
+
+  /* Feier-Animation (Bier-Meilenstein) */
+  .party{position:fixed; inset:0; z-index:40; display:none; pointer-events:none;
+    align-items:center; justify-content:center}
+  .party.show{display:flex}
+  .party .msg{background:rgba(0,0,0,.82); color:#fff; padding:18px 26px; border-radius:18px;
+    font-size:22px; font-weight:800; text-align:center; max-width:80vw;
+    box-shadow:0 10px 40px rgba(0,0,0,.45); animation:pop .35s ease}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .confetti{position:fixed; top:-24px; font-size:22px; z-index:39; pointer-events:none;
+    will-change:transform; animation:fall linear forwards}
+  @keyframes fall{0%{transform:translateY(-30px) rotate(0)}100%{transform:translateY(106vh) rotate(540deg)}}
 </style>
 </head>
 <body>
@@ -218,6 +246,7 @@
     </div>
     <div class="side right">
       <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
+      <button class="iconbtn" id="btnDark" title="Abend-Modus" aria-label="Abend-Modus">🌙</button>
     </div>
   </div>
   <p class="hint">Tippen → Betrag ablesen → kassieren · lange drücken = ×5 · Pfand 2&nbsp;€ pro Becher automatisch.</p>
@@ -300,6 +329,8 @@
     </div>
   </div>
 </div>
+
+<div class="party" id="party"><div class="msg" id="partyMsg"></div></div>
 
 <script>
 // ---- Speisekarte (aus der Karte) -----------------------------------------
@@ -467,16 +498,18 @@ function render(){
 // ---- Live-Getränkezähler (heute verkauft, dieses Gerät) -------------------
 function cName(m){                                   // kurzer Chip-Name
   return m.name.replace('Gösser ','').replace('Hollundersaft','Holler')
-               .replace('Spritzer Var.','Spritzer V.').replace(' l','');
+               .replace('Spritzer Var.','Spritzer V.').replace(' + Schwarzbrot','').replace(' l','');
 }
 function updateCounter(){
   const el = document.getElementById('dcount'); if(!el) return;
   const drinks = MENU.filter(m=> m.cat==='getraenke' && (day.items[m.id]||0)>0);
-  if(!drinks.length){ el.innerHTML = '<span class="none">🍺 heute noch keine Getränke verkauft</span>'; return; }
-  let total = 0; drinks.forEach(m=> total += day.items[m.id]);
-  el.innerHTML =
-    drinks.map(m=>`<span class="chip">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('') +
-    `<span class="chip sum">Getränke gesamt <b>${total}</b></span>`;
+  const foods  = MENU.filter(m=> m.cat==='speisen'   && (day.items[m.id]||0)>0);
+  if(!drinks.length && !foods.length){ el.innerHTML = '<span class="none">heute noch nichts verkauft</span>'; return; }
+  let html = drinks.map(m=>`<span class="chip">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('');
+  if(drinks.length){ let dt=0; drinks.forEach(m=>dt+=day.items[m.id]);
+    html += `<span class="chip sum">Getränke gesamt <b>${dt}</b></span>`; }
+  html += foods.map(m=>`<span class="chip food">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('');
+  el.innerHTML = html;
 }
 
 // ---- Rückgeld -------------------------------------------------------------
@@ -529,9 +562,12 @@ const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
 function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
 
 // aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
+const MILESTONE = 50;                                  // Feier alle 50 Getränke
+function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=day.items[m.id]||0; } return n; }
 function recordSale(){
   const ids = Object.keys(cart);
   if(ids.length===0 && pfandBack===0) return;          // nichts zu buchen
+  const prevDrinks = drinkTotalToday();
   let wareC=0, pfandOutC=0;
   ids.forEach(id=>{ const m=byId(id), q=cart[id]; if(!m) return;
     wareC += m.c*q; if(m.pfand) pfandOutC += PFAND_C*q;
@@ -542,6 +578,9 @@ function recordSale(){
   day.pfandBack+= pfandBack*PFAND_C;
   day.count    += 1;
   saveDay();
+  const nowDrinks = drinkTotalToday();
+  if(Math.floor(nowDrinks/MILESTONE) > Math.floor(prevDrinks/MILESTONE))
+    party(Math.floor(nowDrinks/MILESTONE)*MILESTONE);
 }
 
 // Summe über alle Tage (Archiv + heute)
@@ -653,6 +692,47 @@ document.getElementById('btnNew').onclick = ()=>{
   recordSale();
   cart={}; pfandBack=0; document.getElementById('given').value=''; render();
 };
+
+// ---- Abend-Modus (dunkel) --------------------------------------------------
+const DARK_KEY = 'kassa_dark';
+function applyDark(on){
+  document.body.classList.toggle('dark', on);
+  const b = document.getElementById('btnDark'); if(b) b.textContent = on ? '☀️' : '🌙';
+  const meta = document.querySelector('meta[name=theme-color]');
+  if(meta) meta.setAttribute('content', on ? '#14181e' : '#e8920c');
+}
+let dark = false; try{ dark = localStorage.getItem(DARK_KEY)==='1'; }catch(e){}
+applyDark(dark);
+document.getElementById('btnDark').onclick = ()=>{
+  dark = !dark; try{ localStorage.setItem(DARK_KEY, dark?'1':'0'); }catch(e){}
+  applyDark(dark);
+};
+
+// ---- Feier-Animation bei Bier-Meilenstein 🎉 ------------------------------
+function party(n){
+  const MSGS = [
+    `🍺 ${n} Getränke – Prost! 🎉`,
+    `🎉 ${n} verkauft – ihr seid Maschinen!`,
+    `🍻 ${n}er-Marke geknackt! Weiter zapfen!`,
+    `🍺 ${n}! Auf das Sommerfest! 🌺`,
+    `🔥 ${n} Getränke – die Hütte brennt!`
+  ];
+  const p = document.getElementById('party');
+  document.getElementById('partyMsg').textContent = MSGS[Math.floor(Math.random()*MSGS.length)];
+  p.classList.add('show');
+  const EMO = ['🍺','🎉','🍻','🌺','✨','🥨'];
+  for(let k=0;k<26;k++){
+    const s = document.createElement('div'); s.className = 'confetti';
+    s.textContent = EMO[Math.floor(Math.random()*EMO.length)];
+    s.style.left = (Math.random()*100)+'vw';
+    s.style.animationDuration = (1.2+Math.random()*1.4)+'s';
+    s.style.animationDelay = (Math.random()*0.3)+'s';
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 3000);
+  }
+  setTimeout(()=>p.classList.remove('show'), 2200);
+  if(navigator.vibrate) try{ navigator.vibrate([40,40,90]); }catch(e){}
+}
 
 // ---- Offline-Betrieb: Service Worker (lädt auch ohne Netz) -----------------
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
