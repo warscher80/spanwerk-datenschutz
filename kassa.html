@@ -391,14 +391,10 @@ function showDay(){
 }
 
 const TAG_PIN = '1234';
-let tagUnlocked = false;
 document.getElementById('btnTag').onclick = ()=>{
-  if(!tagUnlocked){
-    const pin = prompt('PIN für Tagessumme:');
-    if(pin===null) return;                 // abgebrochen
-    if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
-    tagUnlocked = true;
-  }
+  const pin = prompt('PIN für Tagessumme:');   // jedes Mal abfragen
+  if(pin===null) return;                       // abgebrochen
+  if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
   showDay();
 };
 document.getElementById('btnClose').onclick = ()=>document.getElementById('modal').classList.remove('open');
