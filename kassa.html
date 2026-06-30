@@ -462,22 +462,39 @@ function attachItem(b, id){
 buildGrid('speisen',  document.getElementById('gridSpeisen'));
 buildGrid('getraenke',document.getElementById('gridGetraenke'));
 
-// Gegeben-Schnelltasten als kleine Geldscheine (Euro-Farben)
+// Gegeben-Schnelltasten als kleine, banknotenähnliche Geldscheine (Euro-Farben)
 const NOTES = [
-  {v:5,   bg:'#cfd2d6', ink:'#23262b'},
-  {v:10,  bg:'#c0392b', ink:'#ffffff'},
-  {v:20,  bg:'#2f6fb0', ink:'#ffffff'},
-  {v:50,  bg:'#e08a1e', ink:'#ffffff'},
-  {v:100, bg:'#2e9e5b', ink:'#ffffff'}
+  {v:5,   bg:'#9fa3a9', lt:'#dfe1e4', ink:'#23262b'},
+  {v:10,  bg:'#b23b30', lt:'#dd7d72', ink:'#ffffff'},
+  {v:20,  bg:'#2f6fb0', lt:'#7aa6d6', ink:'#ffffff'},
+  {v:50,  bg:'#d9851f', lt:'#f0b766', ink:'#ffffff'},
+  {v:100, bg:'#2e9e5b', lt:'#79c79b', ink:'#ffffff'}
 ];
-function noteSvg(v, bg, ink){
-  return `<svg viewBox="0 0 80 54" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="1" width="78" height="52" rx="6" fill="${bg}" stroke="rgba(0,0,0,.3)"/>
-    <rect x="4.5" y="4.5" width="71" height="45" rx="4" fill="none" stroke="${ink}" stroke-opacity=".4"/>
-    <circle cx="62" cy="27" r="8.5" fill="${ink}" fill-opacity=".18"/>
-    <text x="9" y="33" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="22" fill="${ink}">${v}</text>
-    <text x="9.5" y="44" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="8" letter-spacing="1.5" fill="${ink}" fill-opacity=".85">EURO</text>
-    <text x="69" y="16" font-family="Arial" font-weight="800" font-size="11" fill="${ink}" fill-opacity=".9">€</text>
+function star(cx, cy, r, fill, op){
+  let p='';
+  for(let i=0;i<10;i++){ const rr=i%2?r*0.45:r; const a=-Math.PI/2+i*Math.PI/5;
+    p += (cx+rr*Math.cos(a)).toFixed(2)+','+(cy+rr*Math.sin(a)).toFixed(2)+' '; }
+  return `<polygon points="${p.trim()}" fill="${fill}" fill-opacity="${op}"/>`;
+}
+function noteSvg(n){
+  const v=n.v, bg=n.bg, lt=n.lt, ink=n.ink;
+  let stars=''; const cx=18, cy=11, R=7.5;
+  for(let k=0;k<5;k++){ const a=-Math.PI*0.78 + k*(Math.PI*0.56/4);
+    stars += star(cx+R*Math.cos(a), cy+R*Math.sin(a), 1.05, ink, .9); }
+  const arch = x => `<path d="M${x} 41 V27 a4.2 4.2 0 0 1 8.4 0 V41 Z" fill="${ink}" fill-opacity=".13"/>`;
+  return `<svg viewBox="0 0 84 54" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="g${v}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${lt}"/><stop offset="1" stop-color="${bg}"/></linearGradient></defs>
+    <rect x="1" y="1" width="82" height="52" rx="6" fill="url(#g${v})" stroke="rgba(0,0,0,.32)"/>
+    <rect x="4" y="4" width="76" height="46" rx="4" fill="none" stroke="${ink}" stroke-opacity=".45"/>
+    <rect x="5.6" y="5.6" width="72.8" height="42.8" rx="3" fill="none" stroke="${ink}" stroke-opacity=".18"/>
+    ${arch(47)}${arch(55)}${arch(63)}
+    <rect x="70" y="3.5" width="9.5" height="47" fill="${ink}" fill-opacity=".12"/>
+    ${stars}
+    <text x="8" y="41" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="25" fill="${ink}">${v}</text>
+    <text x="8.5" y="49.5" font-family="Arial" font-weight="700" font-size="6.5" letter-spacing="1.4" fill="${ink}" fill-opacity=".9">EURO</text>
+    <text x="71.5" y="46" font-family="Arial" font-weight="800" font-size="11" fill="${ink}" fill-opacity=".95">€</text>
+    <text x="70" y="13" font-family="Arial" font-weight="800" font-size="9" fill="${ink}" fill-opacity=".92">${v}</text>
   </svg>`;
 }
 (function buildNotes(){
@@ -486,7 +503,7 @@ function noteSvg(v, bg, ink){
   NOTES.forEach(n=>{
     const b = document.createElement('button');
     b.className = 'note'; b.dataset.cash = String(n.v); b.setAttribute('aria-label', n.v+' Euro');
-    b.innerHTML = noteSvg(n.v, n.bg, n.ink);
+    b.innerHTML = noteSvg(n);
     cont.insertBefore(b, clear);
   });
 })();
