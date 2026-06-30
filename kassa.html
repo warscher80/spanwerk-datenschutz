@@ -7,6 +7,7 @@
 <title>Sommerfest Kassa</title>
 <link rel="icon" href="sommerfest-logo.png">
 <link rel="apple-touch-icon" href="sommerfest-logo.png">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sommerfest Kassa">
 <style>
@@ -278,8 +279,9 @@
 
 <script>
 // ---- Speisekarte (aus der Karte) -----------------------------------------
+// Geldbeträge werden intern in GANZEN CENT gerechnet -> keine Rundungsfehler.
 // pfand:true  => 2 € Pfand pro Becher wird automatisch dazugerechnet
-const PFAND = 2.00;
+const PFAND_C = 200;                 // 2,00 € Pfand in Cent
 const MENU = [
   // Speisen
   {id:'chilli',  name:'Chilli sin carne',          price:8.50, pfand:false, cat:'speisen'},
@@ -302,17 +304,48 @@ const MENU = [
   {id:'holler50',name:'Hollundersaft 0,5 l',       price:2.50, pfand:true,  cat:'getraenke'},
   {id:'holler30',name:'Hollundersaft 0,3 l',       price:1.50, pfand:true,  cat:'getraenke'},
 ];
+MENU.forEach(m=> m.c = Math.round(m.price*100));      // Preis in Cent
+const MENU_IDS = new Set(MENU.map(m=>m.id));
 
-// ---- Zustand --------------------------------------------------------------
+// ---- Hilfsfunktionen ------------------------------------------------------
+function eur(c){                                       // Cent -> "1234,50 €"
+  c = Math.round(c);
+  const neg = c < 0; c = Math.abs(c);
+  const e = Math.floor(c/100), r = c % 100;
+  return (neg?'−':'') + e + ',' + (r<10?'0':'') + r + ' €';
+}
+function centsFromInput(s){                             // "12,50" / "12.5" -> 1250 | NaN
+  s = (s==null?'':String(s)).trim().replace(',', '.');
+  if(s==='') return NaN;
+  const f = parseFloat(s);
+  if(!isFinite(f)) return NaN;
+  return Math.round(f*100);
+}
+const byId = id => MENU.find(m=>m.id===id);
+function store(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+function load(key, def){ try{ const r=localStorage.getItem(key); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
+
+// ---- Zustand (laufende Bestellung) ----------------------------------------
 let cart = {};        // id -> menge
 let pfandBack = 0;    // Anzahl retournierter Becher (Pfand zurück)
+(function(){
+  const s = load('kassa2', {});
+  if(s && typeof s.cart==='object' && s.cart){
+    for(const id in s.cart){ const q=parseInt(s.cart[id],10);
+      if(MENU_IDS.has(id) && q>0) cart[id]=q; }       // nur gültige Artikel
+  }
+  pfandBack = Math.max(0, parseInt(s && s.pfandBack,10) || 0);
+})();
+function save(){ store('kassa2', {cart, pfandBack}); }
 
-try{ const s = JSON.parse(localStorage.getItem('kassa')||'{}');
-     cart = s.cart||{}; pfandBack = s.pfandBack||0; }catch(e){}
-
-function save(){ localStorage.setItem('kassa', JSON.stringify({cart,pfandBack})); }
-const eur = n => n.toFixed(2).replace('.',',') + ' €';
-const byId = id => MENU.find(m=>m.id===id);
+// zentrale, EINZIGE Summenberechnung (alles in Cent)
+function totals(){
+  let wareC=0, pfandC=0;
+  for(const id in cart){ const m=byId(id), q=cart[id]; if(!m) continue;
+    wareC += m.c*q; if(m.pfand) pfandC += PFAND_C*q; }
+  pfandC -= pfandBack*PFAND_C;
+  return { wareC, pfandC, totalC: wareC+pfandC };
+}
 
 // ---- Buttons rendern ------------------------------------------------------
 function buildGrid(cat, el){
@@ -323,7 +356,7 @@ function buildGrid(cat, el){
     b.innerHTML =
       `<span class="cnt"></span>
        <span class="name">${m.name}</span>
-       <span class="price">${eur(m.price)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
+       <span class="price">${eur(m.c)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
     b.addEventListener('click', ()=>add(m.id));
     el.appendChild(b);
   });
@@ -331,7 +364,7 @@ function buildGrid(cat, el){
 buildGrid('speisen',  document.getElementById('gridSpeisen'));
 buildGrid('getraenke',document.getElementById('gridGetraenke'));
 
-function add(id){ cart[id]=(cart[id]||0)+1; render(); }
+function add(id){ if(!MENU_IDS.has(id)) return; cart[id]=(cart[id]||0)+1; render(); }
 function dec(id){ if(cart[id]){ cart[id]--; if(cart[id]<=0) delete cart[id]; render(); } }
 
 // ---- Bestellliste + Summen ------------------------------------------------
@@ -352,16 +385,16 @@ function render(){
     order.innerHTML = '';
     ids.forEach(id=>{
       const m = byId(id), q = cart[id];
-      const line = m.price*q + (m.pfand?PFAND*q:0);
+      const lineC = m.c*q + (m.pfand?PFAND_C*q:0);
       const row = document.createElement('div'); row.className='row';
       row.innerHTML =
-        `<div class="lbl">${m.name}<br><small>${eur(m.price)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
+        `<div class="lbl">${m.name}<br><small>${eur(m.c)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
          <div class="qtybtns">
            <button data-d="${id}">−</button>
            <span class="q">${q}</span>
            <button data-a="${id}">+</button>
          </div>
-         <div class="sum">${eur(line)}</div>`;
+         <div class="sum">${eur(lineC)}</div>`;
       order.appendChild(row);
     });
     if(pfandBack>0){
@@ -373,7 +406,7 @@ function render(){
            <span class="q">${pfandBack}</span>
            <button data-pb="inc">+</button>
          </div>
-         <div class="sum">−${eur(pfandBack*PFAND)}</div>`;
+         <div class="sum">−${eur(pfandBack*PFAND_C)}</div>`;
       order.appendChild(row);
     }
     order.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>add(b.dataset.a));
@@ -383,57 +416,60 @@ function render(){
     });
   }
 
-  // Summen
-  let ware=0, pfand=0;
-  ids.forEach(id=>{ const m=byId(id), q=cart[id]; ware+=m.price*q; if(m.pfand) pfand+=PFAND*q; });
-  pfand -= pfandBack*PFAND;
-  const total = ware + pfand;
-  document.getElementById('lWare').textContent  = 'Ware: '+eur(ware);
-  document.getElementById('lPfand').textContent = 'Pfand: '+eur(pfand);
-  document.getElementById('totalOut').textContent = eur(total);
-  updateChange(total);
+  // Summen (eine Quelle der Wahrheit)
+  const t = totals();
+  document.getElementById('lWare').textContent    = 'Ware: '+eur(t.wareC);
+  document.getElementById('lPfand').textContent   = 'Pfand: '+eur(t.pfandC);
+  document.getElementById('totalOut').textContent = eur(t.totalC);
+  updateChange(t.totalC);
   save();
 }
 
 // ---- Rückgeld -------------------------------------------------------------
-function updateChange(total){
-  const inp = document.getElementById('given');
+function updateChange(totalC){
   const out = document.getElementById('retOut');
-  const g = parseFloat((inp.value||'').replace(',','.'));
+  const g = centsFromInput(document.getElementById('given').value);
   if(!isNaN(g) && g>0){
-    const r = g-total;
+    const r = g-totalC;
     out.innerHTML = r>=0 ? 'Rückgeld <b>'+eur(r)+'</b>'
                          : '<span style="color:var(--red)">fehlen '+eur(-r)+'</span>';
   } else { out.textContent=''; }
 }
-document.getElementById('given').addEventListener('input', ()=>{
-  let ware=0,pfand=0;
-  Object.keys(cart).forEach(id=>{const m=byId(id),q=cart[id];ware+=m.price*q;if(m.pfand)pfand+=PFAND*q;});
-  updateChange(ware+pfand-pfandBack*PFAND);
-});
+document.getElementById('given').addEventListener('input', ()=> updateChange(totals().totalC));
 
 // ---- Kasse: heutiger Tag + abgeschlossene Tage (nur DIESES Gerät) ----------
+// Alle Geld-Felder in Cent (Ganzzahl).
 const leer = ()=>({ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:'', startCash:0});
-let day = leer();      // aktuell laufender Tag
-let archive = [];      // abgeschlossene Tage (Tag 1, Tag 2, ...)
-try{ const d=JSON.parse(localStorage.getItem('kassa_tag')||'null'); if(d) day=Object.assign(leer(), d); }catch(e){}
-try{ const a=JSON.parse(localStorage.getItem('kassa_fest')||'null'); if(Array.isArray(a)) archive=a; }catch(e){}
-function saveDay(){ localStorage.setItem('kassa_tag', JSON.stringify(day)); }
-function saveFest(){ localStorage.setItem('kassa_fest', JSON.stringify(archive)); }
+function sane(d){                                       // geladene Tagesdaten absichern
+  const x = leer();
+  if(d && typeof d==='object'){
+    x.ware=Math.round(+d.ware||0); x.pfandOut=Math.round(+d.pfandOut||0);
+    x.pfandBack=Math.round(+d.pfandBack||0); x.count=Math.max(0,Math.round(+d.count||0));
+    x.start=typeof d.start==='string'?d.start:''; x.startCash=Math.max(0,Math.round(+d.startCash||0));
+    if(d.items && typeof d.items==='object'){ for(const id in d.items){ const q=Math.round(+d.items[id]||0); if(q>0) x.items[id]=q; } }
+  }
+  return x;
+}
+let day = sane(load('kassa_tag2', null));               // aktuell laufender Tag
+let archive = [];                                       // abgeschlossene Tage
+{ const a = load('kassa_fest2', []); if(Array.isArray(a)) archive = a.map(sane); }
+function saveDay(){ store('kassa_tag2', day); }
+function saveFest(){ store('kassa_fest2', archive); }
 const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
+function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
 
 // aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
 function recordSale(){
   const ids = Object.keys(cart);
-  if(ids.length===0 && pfandBack===0) return;      // nichts zu buchen
-  let ware=0, pfandOut=0;
-  ids.forEach(id=>{ const m=byId(id), q=cart[id];
-    ware+=m.price*q; if(m.pfand) pfandOut+=PFAND*q;
+  if(ids.length===0 && pfandBack===0) return;          // nichts zu buchen
+  let wareC=0, pfandOutC=0;
+  ids.forEach(id=>{ const m=byId(id), q=cart[id]; if(!m) return;
+    wareC += m.c*q; if(m.pfand) pfandOutC += PFAND_C*q;
     day.items[id]=(day.items[id]||0)+q; });
-  if(!day.start) day.start = new Date().toLocaleDateString('de-AT');
-  day.ware     += ware;
-  day.pfandOut += pfandOut;
-  day.pfandBack+= pfandBack*PFAND;
+  if(!day.start) day.start = heute();
+  day.ware     += wareC;
+  day.pfandOut += pfandOutC;
+  day.pfandBack+= pfandBack*PFAND_C;
   day.count    += 1;
   saveDay();
 }
@@ -453,14 +489,14 @@ function showDay(){
   // In der Lade jetzt = Wechselgeld (heute) + Einnahmen (heute, bar)
   const wg = day.startCash || 0;
   const einnHeute = cashOf(day);
-  document.getElementById('startCash').value = wg ? String(wg) : '';
+  document.getElementById('startCash').value = wg ? String(wg/100) : '';
   document.getElementById('dDrawer').textContent = eur(wg + einnHeute);
   document.getElementById('dDrawerCalc').textContent =
     'Wechselgeld '+eur(wg)+' + Einnahmen heute '+eur(einnHeute);
   document.getElementById('dWare').textContent      = eur(g.ware);
   document.getElementById('dPfandOut').textContent  = eur(g.pfandOut);
   document.getElementById('dPfandBack').textContent = eur(g.pfandBack);
-  document.getElementById('dCups').textContent      = Math.round((g.pfandOut-g.pfandBack)/PFAND)+' Becher';
+  document.getElementById('dCups').textContent      = Math.round((g.pfandOut-g.pfandBack)/PFAND_C)+' Becher';
   document.getElementById('dCount').textContent     = g.count;
 
   // Tage-Liste: jeder abgeschlossene Tag + heute + Gesamt
@@ -481,7 +517,7 @@ function showDay(){
   document.getElementById('modal').classList.add('open');
 }
 
-let TAG_PIN = localStorage.getItem('kassa_pin') || '1234';
+let TAG_PIN = (function(){ try{ return localStorage.getItem('kassa_pin')||'1234'; }catch(e){ return '1234'; } })();
 document.getElementById('btnTag').onclick = ()=>{
   const pin = prompt('PIN für Auswertung:');   // jedes Mal abfragen
   if(pin===null) return;                       // abgebrochen
@@ -505,14 +541,14 @@ document.getElementById('egg').addEventListener('click', ()=>{
     const v = (neu||'').trim();
     if(!/^\d{4}$/.test(v)){ alert('Bitte genau 4 Ziffern eingeben.'); return; }
     TAG_PIN = v;
-    localStorage.setItem('kassa_pin', v);
+    try{ localStorage.setItem('kassa_pin', v); }catch(e){}
     alert('PIN geändert ✓  Neuer PIN: '+v);
   }
 });
-// Wechselgeld-Start eingeben/ändern
+// Wechselgeld-Start eingeben/ändern (in Cent gespeichert)
 document.getElementById('startCash').addEventListener('input', e=>{
-  let v = parseFloat((e.target.value||'').replace(',','.'));
-  day.startCash = (isNaN(v)||v<0) ? 0 : v;
+  const c = centsFromInput(e.target.value);
+  day.startCash = (isNaN(c)||c<0) ? 0 : c;
   saveDay();
   const einnHeute = cashOf(day);
   document.getElementById('dDrawer').textContent = eur(day.startCash + einnHeute);
@@ -547,6 +583,11 @@ document.getElementById('btnNew').onclick = ()=>{
   recordSale();
   cart={}; pfandBack=0; document.getElementById('given').value=''; render();
 };
+
+// ---- Offline-Betrieb: Service Worker (lädt auch ohne Netz) -----------------
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
 
 render();
 </script>
