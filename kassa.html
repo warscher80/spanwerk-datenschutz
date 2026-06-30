@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#e8920c">
 <title>Sommerfest Kassa</title>
+<link rel="icon" href="sommerfest-logo.png">
+<link rel="apple-touch-icon" href="sommerfest-logo.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sommerfest Kassa">
 <style>
   :root{
     --orange:#e8920c; --orange-d:#c9760a;
@@ -26,7 +30,9 @@
     box-shadow:0 2px 6px rgba(0,0,0,.12);
   }
   header .hwrap{max-width:1000px; margin:0 auto;
-    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  header .logo{width:38px; height:38px; border-radius:50%; flex:0 0 auto;
+    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2)}
   header h1{margin:0; font-size:17px}
   header .by{font-size:13px; opacity:.95; font-weight:600}
   header .hint{margin:0; flex-basis:100%; font-size:12px; opacity:.9}
@@ -114,7 +120,8 @@
 <body>
 <header>
   <div class="hwrap">
-    <h1>🍺 Sommerfest Kassa</h1>
+    <img class="logo" src="sommerfest-logo.png" alt="Sommerfest Lienz 2026">
+    <h1>Sommerfest Kassa</h1>
     <span class="by">· Kassiersystem Nico Warscher</span>
     <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
   </div>
@@ -176,6 +183,8 @@ const MENU = [
   {id:'eistee',  name:'Eistee 0,3 l',              price:3.00, pfand:true,  cat:'getraenke'},
   {id:'mineral', name:'Mineral 0,3 l',             price:3.00, pfand:true,  cat:'getraenke'},
   {id:'redbull', name:'Red Bull',                  price:4.00, pfand:true,  cat:'getraenke'},
+  {id:'holler50',name:'Hollundersaft 0,5 l',       price:2.50, pfand:true,  cat:'getraenke'},
+  {id:'holler30',name:'Hollundersaft 0,3 l',       price:1.50, pfand:true,  cat:'getraenke'},
 ];
 
 // ---- Zustand --------------------------------------------------------------
