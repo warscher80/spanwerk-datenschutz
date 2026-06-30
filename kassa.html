@@ -41,6 +41,14 @@
   header .by{display:block; font-size:13px; opacity:.95; font-weight:600; margin-top:2px}
   header .by #egg{user-select:none; -webkit-user-select:none; cursor:default}
   header .hint{margin:6px 0 0; text-align:center; font-size:12px; opacity:.9}
+  /* Live-Getränkezähler (heute verkauft) */
+  .dcount{max-width:1000px; margin:7px auto 0; display:flex; flex-wrap:wrap;
+    gap:6px; justify-content:center; align-items:center}
+  .dcount .chip{background:rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.45);
+    border-radius:20px; padding:3px 10px; font-size:13px; font-weight:600; white-space:nowrap}
+  .dcount .chip b{font-weight:800; margin-left:2px}
+  .dcount .chip.sum{background:rgba(0,0,0,.16); border-color:rgba(0,0,0,.18)}
+  .dcount .none{font-size:12px; opacity:.85}
   .wrap{max-width:680px; margin:0 auto; padding:14px}
   h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
     color:var(--muted); margin:18px 0 8px}
@@ -206,6 +214,7 @@
     </div>
   </div>
   <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
+  <div class="dcount" id="dcount"></div>
 </header>
 
 <div class="wrap">
@@ -422,7 +431,23 @@ function render(){
   document.getElementById('lPfand').textContent   = 'Pfand: '+eur(t.pfandC);
   document.getElementById('totalOut').textContent = eur(t.totalC);
   updateChange(t.totalC);
+  updateCounter();
   save();
+}
+
+// ---- Live-Getränkezähler (heute verkauft, dieses Gerät) -------------------
+function cName(m){                                   // kurzer Chip-Name
+  return m.name.replace('Gösser ','').replace('Hollundersaft','Holler')
+               .replace('Spritzer Var.','Spritzer V.').replace(' l','');
+}
+function updateCounter(){
+  const el = document.getElementById('dcount'); if(!el) return;
+  const drinks = MENU.filter(m=> m.cat==='getraenke' && (day.items[m.id]||0)>0);
+  if(!drinks.length){ el.innerHTML = '<span class="none">🍺 heute noch keine Getränke verkauft</span>'; return; }
+  let total = 0; drinks.forEach(m=> total += day.items[m.id]);
+  el.innerHTML =
+    drinks.map(m=>`<span class="chip">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('') +
+    `<span class="chip sum">Getränke gesamt <b>${total}</b></span>`;
 }
 
 // ---- Rückgeld -------------------------------------------------------------
