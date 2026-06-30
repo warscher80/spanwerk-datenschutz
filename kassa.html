@@ -31,10 +31,11 @@
   }
   header .hwrap{max-width:1000px; margin:0 auto;
     display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-  header .logo{width:38px; height:38px; border-radius:50%; flex:0 0 auto;
+  header .logo{width:46px; height:46px; border-radius:50%; flex:0 0 auto;
     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2)}
-  header h1{margin:0; font-size:17px}
-  header .by{font-size:13px; opacity:.95; font-weight:600}
+  header .htext{display:flex; flex-direction:column}
+  header h1{margin:0; font-size:24px; line-height:1.1}
+  header .by{font-size:13px; opacity:.95; font-weight:600; margin-top:1px}
   header .hint{margin:0; flex-basis:100%; font-size:12px; opacity:.9}
   .wrap{max-width:680px; margin:0 auto; padding:14px}
   h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
@@ -50,6 +51,8 @@
     button.item .price{font-size:16px}
     .foot .inner{max-width:980px}
     .total .t2{font-size:34px}
+    header h1{font-size:28px}
+    header .logo{width:52px; height:52px}
   }
   /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
   @media(orientation:landscape) and (max-height:600px){
@@ -176,8 +179,10 @@
 <header>
   <div class="hwrap">
     <img class="logo" src="sommerfest-logo.png" alt="Sommerfest Lienz 2026">
-    <h1>Sommerfest Kassa</h1>
-    <span class="by">· Kassiersystem Nico Warscher</span>
+    <div class="htext">
+      <h1>Sommerfest Kassa</h1>
+      <span class="by">Kassiersystem Nico Warscher</span>
+    </div>
     <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
     <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
   </div>
