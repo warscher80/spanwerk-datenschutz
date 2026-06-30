@@ -160,7 +160,11 @@
   .mbtns button{flex:1; border:none; border-radius:11px; padding:12px;
     font-size:14px; font-weight:700; cursor:pointer}
   .btn-close{background:#e7eaee; color:var(--ink)}
-  .btn-reset{background:var(--red); color:#fff}
+  .btn-day{background:var(--green); color:#fff}
+  .btn-reset{background:#fff; color:var(--red); border:1px solid var(--red)}
+  .daysum .ir.today{font-weight:700}
+  .daysum .ir.gesamt{border-top:2px solid var(--line); margin-top:4px;
+    padding-top:6px; font-weight:800; font-size:15px}
 </style>
 </head>
 <body>
@@ -209,24 +213,31 @@
 
 <div class="modal" id="modal">
   <div class="sheet">
-    <h2>📊 Tagessumme</h2>
-    <div class="sub" id="dayInfo">nur dieses Gerät</div>
+    <h2>📊 Auswertung</h2>
+    <div class="sub">nur dieses Gerät</div>
     <div class="cash">
-      <div class="c1">Bargeld in der Kassa (soll)</div>
+      <div class="c1">Fest gesamt – Bargeld (soll)</div>
       <div class="c2" id="dCash">0,00 €</div>
     </div>
-    <div class="kv"><span>Umsatz Ware</span><span id="dWare">0,00 €</span></div>
+    <div class="itemstat">
+      <h3>Tage</h3>
+      <div class="daysum" id="dDays"></div>
+    </div>
+    <div class="kv"><span>Umsatz Ware (gesamt)</span><span id="dWare">0,00 €</span></div>
     <div class="kv"><span>Pfand erhalten</span><span id="dPfandOut">0,00 €</span></div>
     <div class="kv"><span>Pfand zurück</span><span id="dPfandBack">0,00 €</span></div>
     <div class="kv"><span>Becher noch draußen</span><span id="dCups">0</span></div>
-    <div class="kv"><span>Anzahl Verkäufe</span><span id="dCount">0</span></div>
+    <div class="kv"><span>Verkäufe gesamt</span><span id="dCount">0</span></div>
     <div class="itemstat">
-      <h3>Verkaufte Artikel</h3>
+      <h3>Verkaufte Artikel (gesamt)</h3>
       <div id="dItems"></div>
     </div>
     <div class="mbtns">
       <button class="btn-close" id="btnClose">Schließen</button>
-      <button class="btn-reset" id="btnReset">Tag zurücksetzen</button>
+      <button class="btn-day" id="btnCloseDay">✔ Tag abschließen</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
     </div>
   </div>
 </div>
@@ -367,13 +378,17 @@ document.getElementById('given').addEventListener('input', ()=>{
   updateChange(ware+pfand-pfandBack*PFAND);
 });
 
-// ---- Tageskasse (nur DIESES Gerät, kein Austausch mit anderen Tablets) -----
-let day = {ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''};
-try{ const d=JSON.parse(localStorage.getItem('kassa_tag')||'null');
-     if(d) day=Object.assign(day, d); }catch(e){}
+// ---- Kasse: heutiger Tag + abgeschlossene Tage (nur DIESES Gerät) ----------
+const leer = ()=>({ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''});
+let day = leer();      // aktuell laufender Tag
+let archive = [];      // abgeschlossene Tage (Tag 1, Tag 2, ...)
+try{ const d=JSON.parse(localStorage.getItem('kassa_tag')||'null'); if(d) day=Object.assign(leer(), d); }catch(e){}
+try{ const a=JSON.parse(localStorage.getItem('kassa_fest')||'null'); if(Array.isArray(a)) archive=a; }catch(e){}
 function saveDay(){ localStorage.setItem('kassa_tag', JSON.stringify(day)); }
+function saveFest(){ localStorage.setItem('kassa_fest', JSON.stringify(archive)); }
+const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
 
-// aktuellen Verkauf in die Tageskasse buchen (beim "Kassiert / Neu")
+// aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
 function recordSale(){
   const ids = Object.keys(cart);
   if(ids.length===0 && pfandBack===0) return;      // nichts zu buchen
@@ -389,25 +404,46 @@ function recordSale(){
   saveDay();
 }
 
+// Summe über alle Tage (Archiv + heute)
+function gesamt(){
+  const g = leer();
+  archive.concat([day]).forEach(d=>{
+    g.ware+=d.ware; g.pfandOut+=d.pfandOut; g.pfandBack+=d.pfandBack; g.count+=d.count;
+    Object.keys(d.items||{}).forEach(id=>g.items[id]=(g.items[id]||0)+d.items[id]);
+  });
+  return g;
+}
+
 function showDay(){
-  const cash = day.ware + day.pfandOut - day.pfandBack;
-  document.getElementById('dCash').textContent      = eur(cash);
-  document.getElementById('dWare').textContent      = eur(day.ware);
-  document.getElementById('dPfandOut').textContent  = eur(day.pfandOut);
-  document.getElementById('dPfandBack').textContent = eur(day.pfandBack);
-  document.getElementById('dCups').textContent      = Math.round((day.pfandOut-day.pfandBack)/PFAND)+' Becher';
-  document.getElementById('dCount').textContent     = day.count;
-  document.getElementById('dayInfo').textContent    = 'nur dieses Gerät'+(day.start?(' · seit '+day.start):'');
-  const entries = MENU.filter(m=>day.items[m.id]>0);
+  const g = gesamt();
+  document.getElementById('dCash').textContent      = eur(cashOf(g));
+  document.getElementById('dWare').textContent      = eur(g.ware);
+  document.getElementById('dPfandOut').textContent  = eur(g.pfandOut);
+  document.getElementById('dPfandBack').textContent = eur(g.pfandBack);
+  document.getElementById('dCups').textContent      = Math.round((g.pfandOut-g.pfandBack)/PFAND)+' Becher';
+  document.getElementById('dCount').textContent     = g.count;
+
+  // Tage-Liste: jeder abgeschlossene Tag + heute + Gesamt
+  let rows='';
+  archive.forEach((d,i)=>{
+    rows+=`<div class="ir"><span>Tag ${i+1}${d.start?(' · '+d.start):''}</span><span>${eur(cashOf(d))}</span></div>`;
+  });
+  rows+=`<div class="ir today"><span>Heute (läuft)${day.start?(' · '+day.start):''}</span><span>${eur(cashOf(day))}</span></div>`;
+  rows+=`<div class="ir gesamt"><span>Gesamt (alle Tage)</span><span>${eur(cashOf(g))}</span></div>`;
+  document.getElementById('dDays').innerHTML = rows;
+
+  // Artikel gesamt
+  const entries = MENU.filter(m=>g.items[m.id]>0);
   document.getElementById('dItems').innerHTML = entries.length
-    ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${day.items[m.id]}×</span></div>`).join('')
+    ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${g.items[m.id]}×</span></div>`).join('')
     : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
+
   document.getElementById('modal').classList.add('open');
 }
 
 const TAG_PIN = '1234';
 document.getElementById('btnTag').onclick = ()=>{
-  const pin = prompt('PIN für Tagessumme:');   // jedes Mal abfragen
+  const pin = prompt('PIN für Auswertung:');   // jedes Mal abfragen
   if(pin===null) return;                       // abgebrochen
   if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
   showDay();
@@ -416,10 +452,19 @@ document.getElementById('btnClose').onclick = ()=>document.getElementById('modal
 document.getElementById('modal').addEventListener('click', e=>{
   if(e.target.id==='modal') document.getElementById('modal').classList.remove('open');
 });
+// Tag abschließen -> ins Archiv legen, neuen Tag starten (Gesamt bleibt erhalten)
+document.getElementById('btnCloseDay').onclick = ()=>{
+  if(day.count===0){ alert('Heute wurde noch nichts verkauft.'); return; }
+  if(confirm('Heutigen Tag abschließen und neuen Tag starten?\nDie Summe bleibt im Gesamt erhalten.')){
+    archive.push(Object.assign(leer(), day, {items:Object.assign({}, day.items)}));
+    day = leer();
+    saveFest(); saveDay(); showDay();
+  }
+};
+// Komplettes Fest (alle Tage) auf 0 setzen
 document.getElementById('btnReset').onclick = ()=>{
-  if(confirm('Tageskasse dieses Geräts wirklich auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
-    day={ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:''};
-    saveDay(); showDay();
+  if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
+    archive=[]; day=leer(); saveFest(); saveDay(); showDay();
   }
 };
 
