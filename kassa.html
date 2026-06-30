@@ -22,16 +22,29 @@
   }
   header{
     background:var(--orange); color:#fff;
-    padding:14px 16px; position:sticky; top:0; z-index:5;
+    padding:7px 16px; position:sticky; top:0; z-index:5;
     box-shadow:0 2px 6px rgba(0,0,0,.12);
   }
-  header h1{margin:0; font-size:19px}
-  header p{margin:2px 0 0; font-size:13px; opacity:.92}
+  header .hwrap{max-width:1000px; margin:0 auto;
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  header h1{margin:0; font-size:17px}
+  header .by{font-size:13px; opacity:.95; font-weight:600}
+  header .hint{margin:0; flex-basis:100%; font-size:12px; opacity:.9}
   .wrap{max-width:680px; margin:0 auto; padding:14px}
   h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
     color:var(--muted); margin:18px 0 8px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
   @media(min-width:560px){.grid{grid-template-columns:1fr 1fr 1fr}}
+  /* Tablets / größere Bildschirme: mehr Spalten + breiteres Layout */
+  @media(min-width:820px){
+    .wrap{max-width:980px}
+    .grid{grid-template-columns:repeat(4,1fr); gap:12px}
+    button.item{min-height:88px}
+    button.item .name{font-size:15px}
+    button.item .price{font-size:16px}
+    .foot .inner{max-width:980px}
+    .total .t2{font-size:34px}
+  }
   button.item{
     border:1px solid var(--line); background:var(--card);
     border-radius:14px; padding:12px 10px; text-align:left;
@@ -100,9 +113,11 @@
 </head>
 <body>
 <header>
-  <h1>🍺 Sommerfest Kassa</h1>
-  <p>Kassiersystem Nico Warscher</p>
-  <p>Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
+  <div class="hwrap">
+    <h1>🍺 Sommerfest Kassa</h1>
+    <span class="by">· Kassiersystem Nico Warscher</span>
+    <p class="hint">Tippen → Betrag ablesen → kassieren. Pfand 2&nbsp;€ pro Becher automatisch.</p>
+  </div>
 </header>
 
 <div class="wrap">
