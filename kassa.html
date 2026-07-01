@@ -242,6 +242,7 @@
   #qrbox{display:flex; justify-content:center; margin:12px 0}
   #qrbox svg{width:min(300px,78vw); height:auto; background:#fff; padding:8px; border-radius:10px}
   .btn-send{background:#2d6cdf; color:#fff}
+  .btn-cntreset{background:#5b6573; color:#fff}
 
   /* Statistik-Bericht (empfangen, zum Speichern) */
   .report{position:fixed; inset:0; z-index:30; background:#2a2f36; display:none;
@@ -346,6 +347,9 @@
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-send" id="btnSend">📤 Statistik als QR (aufs Handy)</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-cntreset" id="btnCntReset">🔄 Getränke-/Speisezähler auf 0</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
@@ -606,13 +610,13 @@ function cName(m){                                   // kurzer Chip-Name
 }
 function updateCounter(){
   const el = document.getElementById('dcount'); if(!el) return;
-  const drinks = MENU.filter(m=> m.cat==='getraenke' && (day.items[m.id]||0)>0);
-  const foods  = MENU.filter(m=> m.cat==='speisen'   && (day.items[m.id]||0)>0);
-  if(!drinks.length && !foods.length){ el.innerHTML = '<span class="none">heute noch nichts verkauft</span>'; return; }
-  let html = drinks.map(m=>`<span class="chip">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('');
-  if(drinks.length){ let dt=0; drinks.forEach(m=>dt+=day.items[m.id]);
+  const drinks = MENU.filter(m=> m.cat==='getraenke' && (counter[m.id]||0)>0);
+  const foods  = MENU.filter(m=> m.cat==='speisen'   && (counter[m.id]||0)>0);
+  if(!drinks.length && !foods.length){ el.innerHTML = '<span class="none">Zähler bei 0 – noch nichts gezählt</span>'; return; }
+  let html = drinks.map(m=>`<span class="chip">${cName(m)} <b>×${counter[m.id]}</b></span>`).join('');
+  if(drinks.length){ let dt=0; drinks.forEach(m=>dt+=counter[m.id]);
     html += `<span class="chip sum">Getränke gesamt <b>${dt}</b></span>`; }
-  html += foods.map(m=>`<span class="chip food">${cName(m)} <b>×${day.items[m.id]}</b></span>`).join('');
+  html += foods.map(m=>`<span class="chip food">${cName(m)} <b>×${counter[m.id]}</b></span>`).join('');
   el.innerHTML = html;
 }
 
@@ -665,9 +669,15 @@ function saveFest(){ store('kassa_fest2', archive); }
 const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
 function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
 
+// separater Getränke-/Speisezähler (nur Anzeige oben, unabhängig zurücksetzbar)
+let counter = (function(){ const d=load('kassa_cnt',{}), o={};
+  if(d&&typeof d==='object'){ for(const id in d){ if(MENU_IDS.has(id)){ const q=Math.round(+d[id]||0); if(q>0) o[id]=q; } } }
+  return o; })();
+function saveCounter(){ store('kassa_cnt', counter); }
+
 // aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
 const MILESTONE = 100;                                 // Feier alle 100 Getränke
-function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=day.items[m.id]||0; } return n; }
+function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=counter[m.id]||0; } return n; }
 function recordSale(){
   const ids = Object.keys(cart);
   if(ids.length===0 && pfandBack===0) return;          // nichts zu buchen
@@ -675,7 +685,9 @@ function recordSale(){
   let wareC=0, pfandOutC=0;
   ids.forEach(id=>{ const m=byId(id), q=cart[id]; if(!m) return;
     wareC += m.c*q; if(m.pfand) pfandOutC += PFAND_C*q;
-    day.items[id]=(day.items[id]||0)+q; });
+    day.items[id]=(day.items[id]||0)+q;
+    counter[id]=(counter[id]||0)+q; });
+  saveCounter();
   if(!day.start) day.start = heute();
   day.ware     += wareC;
   day.pfandOut += pfandOutC;
@@ -780,14 +792,21 @@ document.getElementById('btnCloseDay').onclick = ()=>{
     archive.push(Object.assign(leer(), day, {items:Object.assign({}, day.items)}));
     day = leer();
     day.startCash = wgUebertrag;
-    saveFest(); saveDay(); showDay();
+    counter = {};                             // neuer Tag -> Zähler startet bei 0
+    saveFest(); saveDay(); saveCounter(); updateCounter(); showDay();
+  }
+};
+// Getränke-/Speisezähler zurücksetzen (Geld & Statistik bleiben erhalten)
+document.getElementById('btnCntReset').onclick = ()=>{
+  if(confirm('Getränke-/Speisezähler auf 0 setzen?\nGeld-Summen und die Artikel-Statistik bleiben erhalten.')){
+    counter = {}; saveCounter(); updateCounter();
   }
 };
 // Komplettes Fest (alle Tage) auf 0 setzen
 document.getElementById('btnReset').onclick = ()=>{
   if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
-    archive=[]; day=leer();
-    saveFest(); saveDay(); showDay();
+    archive=[]; day=leer(); counter={};
+    saveFest(); saveDay(); saveCounter(); updateCounter(); showDay();
   }
 };
 
