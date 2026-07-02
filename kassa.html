@@ -79,6 +79,18 @@
     header .by{font-size:12px}
     header .logo{width:92px; height:92px}
   }
+  /* Tablets (genug Höhe): großes Logo links, vertikal über die volle Kopfhöhe zentriert */
+  @media(min-width:560px) and (min-height:620px){
+    header{position:relative; display:flex; flex-direction:column; justify-content:center;
+      min-height:196px; padding:10px 216px}
+    header .hwrap{display:block; width:100%}
+    header .htext{display:block; text-align:center}
+    header h1{font-size:33px}
+    header .by{font-size:15px}
+    header .side.left{position:absolute; left:28px; top:50%; transform:translateY(-50%); flex:none; display:block}
+    header .side.right{position:absolute; right:16px; top:50%; transform:translateY(-50%); flex:none}
+    header .logo{width:176px; height:176px}
+  }
   /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
   @media(orientation:landscape) and (max-height:600px){
     body{padding-bottom:118px}
