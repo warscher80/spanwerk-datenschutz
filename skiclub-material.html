@@ -180,6 +180,20 @@
     font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px;
     cursor:pointer; padding:4px 12px}
   .menubar button .mi{font-size:19px}
+  .menubar button#mSync{position:relative}
+  .menubar button#mSync.syncon{color:var(--green-d)}
+  .menubar button#mSync.syncon .mi{filter:drop-shadow(0 0 0 var(--green))}
+  .menubar button#mSync.syncon::after{content:""; position:absolute; top:2px; right:14px;
+    width:8px; height:8px; border-radius:50%; background:var(--green); border:1.5px solid #fff}
+  /* Sync-Anleitung */
+  .guide{margin-top:14px; border:1px solid var(--line); border-radius:12px; padding:8px 12px; background:#f8fafc}
+  .guide summary{cursor:pointer; font-weight:700; font-size:14px; color:var(--blue-d); padding:4px 0}
+  .guide ol{margin:8px 0; padding-left:20px}
+  .guide li{margin:6px 0; font-size:13.5px; line-height:1.5}
+  .guide .ghint{font-size:12.5px; color:var(--muted); margin:10px 0 4px; line-height:1.5}
+  .guide code{background:#eef1f5; padding:1px 5px; border-radius:5px; font-size:12.5px}
+  .guide pre{background:#0f1b2d; color:#d7e3f4; padding:10px 12px; border-radius:10px; overflow-x:auto;
+    font-size:12px; line-height:1.45}
 
   /* Modal */
   .modal{position:fixed; inset:0; z-index:40; background:rgba(16,24,40,.55);
@@ -288,7 +302,7 @@
 <div class="menubar">
   <button id="mAdd"><span class="mi">➕</span>Neu</button>
   <button id="mLocs"><span class="mi">📍</span>Standorte</button>
-  <button id="mExport"><span class="mi">💾</span>Sichern</button>
+  <button id="mSync"><span class="mi">☁️</span>Sync</button>
   <button id="mData"><span class="mi">⋯</span>Mehr</button>
 </div>
 
@@ -365,6 +379,52 @@
   </div>
 </div>
 
+<!-- Modal: Sync -->
+<div class="modal" id="syncModal">
+  <div class="sheet">
+    <h2>☁️ Sync – auf allen Geräten gleich</h2>
+    <p class="hint" id="syncStatusLine"></p>
+    <div class="field">
+      <label for="syncCfg">1) Firebase-Konfiguration einfügen</label>
+      <textarea id="syncCfg" placeholder="Den Code-Block aus Firebase hier einfügen (const firebaseConfig = { apiKey: ..., databaseURL: ... })" style="min-height:120px"></textarea>
+    </div>
+    <div class="field">
+      <label for="syncCode">2) Vereins-Code (auf allen Geräten identisch)</label>
+      <input id="syncCode" placeholder="z. B. skiclub-lienz" autocomplete="off">
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn ghost" id="syncDisconnect">Trennen</button>
+      <button type="button" class="btn primary" id="syncConnect">Verbinden</button>
+    </div>
+
+    <details class="guide">
+      <summary>📖 Firebase einrichten – Klick für Klick (einmalig, ca. 5 Min)</summary>
+      <ol>
+        <li>Öffne <b>console.firebase.google.com</b> und melde dich mit einem Google-Konto an.</li>
+        <li><b>„Projekt hinzufügen"</b> → Name z. B. <i>SkiClub Lienz</i> → weiter (Google Analytics kannst du <b>deaktivieren</b>) → <b>Projekt erstellen</b>.</li>
+        <li>Links im Menü <b>Build → Realtime Database</b> → <b>Datenbank erstellen</b> → Standort <i>Europe</i> → im Startmodus <b>„Im Testmodus starten"</b> → aktivieren.</li>
+        <li>Menü <b>Build → Authentication</b> → <b>Los geht's</b> → <b>Anonym</b> auswählen → <b>aktivieren</b> → speichern.</li>
+        <li>Oben aufs <b>Zahnrad ⚙️ → Projekteinstellungen</b>. Runterscrollen zu <b>„Meine Apps"</b> → auf das <b>Web-Symbol &lt;/&gt;</b> klicken → App-Name eingeben → <b>App registrieren</b>.</li>
+        <li>Jetzt zeigt Firebase einen Block <code>const firebaseConfig = {…}</code>. Diesen <b>komplett kopieren</b> und oben in Feld 1 einfügen.</li>
+        <li>Vereins-Code in Feld 2 eintragen (auf Handy und PC <b>exakt gleich</b>), dann <b>Verbinden</b>.</li>
+      </ol>
+      <p class="ghint">Damit dauerhaft nur eure App zugreift, kannst du in der Realtime Database unter <b>Regeln</b> das hier einsetzen (dann sind Login-Konten nicht nötig, aber der Zugriff ist an die App gebunden):</p>
+      <pre>{
+  "rules": {
+    "clubs": {
+      "$code": { ".read": "auth != null", ".write": "auth != null" }
+    }
+  }
+}</pre>
+      <p class="ghint">Hinweis: Die Daten liegen dann bei Google Firebase (kostenloses Kontingent reicht für einen Verein locker). Wer den Vereins-Code kennt, sieht die Liste – wähl also keinen offensichtlichen Code.</p>
+    </details>
+
+    <div class="modal-acts" style="margin-top:14px">
+      <button type="button" class="btn ghost" id="syncClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -396,6 +456,12 @@
   var filterLoc = "";      // aktiver Standort-Filter ("" = alle)
   var wideMode = false;    // Tabelle (PC) statt Karten (Handy)
 
+  // Cloud/Sync-Zustand (Firebase). Standard: aus -> App läuft rein lokal.
+  var CKEY = "skiclub_cloud_v1";
+  var FB_VER = "10.12.5";
+  var cloud = { on:false, applying:false, db:null, rootRef:null, code:"", configText:"", config:null, pushTimer:null };
+  var sdkLoading = false, sdkCbs = [];
+
   /* ---------- Speicher ---------- */
   function load(){
     try{ items = JSON.parse(localStorage.getItem(IKEY)) || []; }catch(e){ items = []; }
@@ -407,9 +473,11 @@
   function saveItems(){
     try{ localStorage.setItem(IKEY, JSON.stringify(items)); }
     catch(e){ toast("Speichern fehlgeschlagen – Speicher voll?"); }
+    if(cloud.on && !cloud.applying) cloudPushSoon();
   }
   function saveLocs(){
     try{ localStorage.setItem(LKEY, JSON.stringify(locations)); }catch(e){}
+    if(cloud.on && !cloud.applying) cloudPushSoon();
   }
   function uid(){ return "m" + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36); }
 
@@ -421,6 +489,152 @@
       if(l && !have[l.toLowerCase()]){ have[l.toLowerCase()] = true; locations.push(l); }
     });
   }
+
+  /* ---------- Cloud / Sync (Firebase Realtime Database) ---------- */
+  function sanitizeCode(c){
+    return (c||"").trim().toLowerCase().replace(/[.#$\[\]\/\s]+/g,"-").replace(/^-+|-+$/g,"") || "verein";
+  }
+  function parseFirebaseConfig(text){
+    var keys = ["apiKey","authDomain","databaseURL","projectId","storageBucket","messagingSenderId","appId"];
+    var out = {};
+    keys.forEach(function(k){
+      var m = (text||"").match(new RegExp(k+"\\s*[:=]\\s*['\"]([^'\"]+)['\"]"));
+      if(m) out[k] = m[1];
+    });
+    return out;
+  }
+  function cloudSaveCfg(enabled){
+    try{ localStorage.setItem(CKEY, JSON.stringify({ configText:cloud.configText, code:cloud.code, enabled:!!enabled })); }catch(e){}
+  }
+  function cloudLoadCfg(){
+    try{ return JSON.parse(localStorage.getItem(CKEY)) || null; }catch(e){ return null; }
+  }
+  function loadFirebaseSDK(cb){
+    if(window.firebase && firebase.database && firebase.auth){ cb(true); return; }
+    sdkCbs.push(cb);
+    if(sdkLoading) return;
+    sdkLoading = true;
+    var base = "https://www.gstatic.com/firebasejs/"+FB_VER+"/";
+    var files = ["firebase-app-compat.js","firebase-auth-compat.js","firebase-database-compat.js"];
+    (function next(i){
+      if(i>=files.length){ var cbs=sdkCbs; sdkCbs=[]; sdkLoading=false; cbs.forEach(function(f){ f(true); }); return; }
+      var s = document.createElement("script"); s.src = base+files[i];
+      s.onload = function(){ next(i+1); };
+      s.onerror = function(){ var cbs=sdkCbs; sdkCbs=[]; sdkLoading=false; cbs.forEach(function(f){ f(false); }); };
+      document.head.appendChild(s);
+    })(0);
+  }
+  function cloudErr(e){ toast("Sync-Fehler: " + (e && e.message ? e.message : e)); updateSyncUI(); }
+  function normItem(x){
+    return {
+      id: x.id || uid(),
+      name: String(x.name||""),
+      cat: x.cat ? String(x.cat) : "",
+      qty: Math.max(0, Math.floor(Number(x.qty)||0)),
+      loc: x.loc ? String(x.loc) : "",
+      zust: (["gut","mittel","defekt"].indexOf(x.zust)!==-1) ? x.zust : "gut",
+      note: x.note ? String(x.note) : ""
+    };
+  }
+  function itemsToObj(){ var o={}; items.forEach(function(it){ o[it.id]=it; }); return o; }
+  function objToItems(o){
+    if(!o) return [];
+    if(Array.isArray(o)) return o.filter(Boolean);
+    return Object.keys(o).map(function(k){ return o[k]; });
+  }
+  function locsFrom(v){
+    if(Array.isArray(v)) return v.slice();
+    if(v && typeof v === "object") return Object.keys(v).map(function(k){ return v[k]; });
+    return [];
+  }
+  function applyRemote(v){
+    cloud.applying = true;
+    try{
+      items = objToItems(v && v.items).filter(function(x){ return x && x.name; }).map(normItem);
+      var locs = locsFrom(v && v.locations);
+      locations = locs.length ? locs : DEFAULT_LOCS.slice();
+      ensureLocationsFromItems();
+      saveItems(); saveLocs();
+      refreshCatList(); render();
+    } finally { cloud.applying = false; }
+  }
+  function cloudPushSoon(){
+    if(!cloud.on) return;
+    if(cloud.pushTimer) clearTimeout(cloud.pushTimer);
+    cloud.pushTimer = setTimeout(cloudPushNow, 400);
+  }
+  function cloudPushNow(){
+    cloud.pushTimer = null;
+    if(!cloud.on || !cloud.rootRef) return;
+    cloud.rootRef.set({ items: itemsToObj(), locations: locations, updated: Date.now() }).catch(cloudErr);
+  }
+  function cloudConnect(configText, code, opts){
+    opts = opts || {};
+    var cfg = parseFirebaseConfig(configText);
+    if(!cfg.apiKey || !cfg.databaseURL){ toast("Firebase-Konfig unvollständig (apiKey/databaseURL fehlt)"); return; }
+    cloud.configText = configText; cloud.config = cfg; cloud.code = sanitizeCode(code);
+    updateSyncUI("connecting");
+    loadFirebaseSDK(function(ok){
+      if(!ok){ toast("Sync: Keine Internetverbindung – SDK nicht geladen"); updateSyncUI(); return; }
+      try{
+        if(firebase.apps && firebase.apps.length){ try{ firebase.app().delete(); }catch(e){} }
+        firebase.initializeApp(cfg);
+      }catch(e){ cloudErr(e); return; }
+      var proceed = function(){
+        try{
+          cloud.db = firebase.database();
+          cloud.rootRef = cloud.db.ref("clubs/" + cloud.code);
+        }catch(e){ cloudErr(e); return; }
+        cloud.rootRef.once("value").then(function(snap){
+          var v = snap.val() || {};
+          var mergedItems = {};
+          objToItems(v.items).forEach(function(it){ if(it && it.id) mergedItems[it.id] = normItem(it); });
+          items.forEach(function(it){ mergedItems[it.id] = it; });
+          var mergedLocs = [], seen = {};
+          var addL = function(l){ l=(l||"").trim(); if(l && !seen[l.toLowerCase()]){ seen[l.toLowerCase()]=1; mergedLocs.push(l); } };
+          locsFrom(v.locations).forEach(addL); locations.forEach(addL);
+          if(!mergedLocs.length) mergedLocs = DEFAULT_LOCS.slice();
+          cloud.on = true;
+          applyRemote({ items: mergedItems, locations: mergedLocs });
+          cloud.rootRef.set({ items: mergedItems, locations: mergedLocs, updated: Date.now() })
+            .then(function(){ cloud.rootRef.on("value", function(s){ applyRemote(s.val()); }); })
+            .catch(cloudErr);
+          cloudSaveCfg(true);
+          updateSyncUI();
+          if(!opts.silent) toast("Sync aktiv – Code: " + cloud.code);
+        }).catch(function(e){
+          cloudErr(e);
+          if((""+e).toLowerCase().indexOf("permission")!==-1) toast("Zugriff verweigert – Firebase-Regeln prüfen (Anleitung im Fenster)");
+        });
+      };
+      try{ firebase.auth().signInAnonymously().then(proceed).catch(function(){ proceed(); }); }
+      catch(e){ proceed(); }
+    });
+  }
+  function cloudDisconnect(){
+    if(cloud.rootRef){ try{ cloud.rootRef.off(); }catch(e){} }
+    cloud.on = false; cloud.rootRef = null;
+    cloudSaveCfg(false); updateSyncUI();
+    toast("Sync getrennt – App läuft lokal weiter");
+  }
+  function updateSyncUI(state){
+    var btn = document.getElementById("mSync");
+    if(btn) btn.classList.toggle("syncon", !!cloud.on);
+    var line = document.getElementById("syncStatusLine");
+    if(line){
+      if(state === "connecting") line.innerHTML = "⏳ Verbinde …";
+      else if(cloud.on) line.innerHTML = '✅ <b>Sync aktiv</b> · Vereins-Code: <b>'+esc(cloud.code)+'</b>. Änderungen erscheinen auf allen Geräten mit demselben Code.';
+      else line.innerHTML = '⚪ <b>Nicht verbunden</b> – die Liste liegt nur auf diesem Gerät.';
+    }
+  }
+  function openSync(){
+    var cfg = cloudLoadCfg() || {};
+    $("syncCfg").value = cloud.configText || cfg.configText || "";
+    $("syncCode").value = cloud.code || cfg.code || "skiclub-lienz";
+    updateSyncUI();
+    $("syncModal").classList.add("open");
+  }
+  function closeSync(){ $("syncModal").classList.remove("open"); }
 
   /* ---------- Hilfen ---------- */
   function $(id){ return document.getElementById(id); }
@@ -862,11 +1076,14 @@
   $("fab").onclick = function(){ openEdit(null); };
   $("mAdd").onclick = function(){ openEdit(null); };
   $("mLocs").onclick = function(){ openLocManage(); };
-  $("mExport").onclick = function(){ exportData(); };
+  $("mSync").onclick = function(){ openSync(); };
   $("mData").onclick = function(){ openData(); };
   $("editCancel").onclick = closeEdit;
   $("locClose").onclick = closeLoc;
   $("dataClose").onclick = closeData;
+  $("syncClose").onclick = closeSync;
+  $("syncConnect").onclick = function(){ cloudConnect($("syncCfg").value, $("syncCode").value); };
+  $("syncDisconnect").onclick = function(){ cloudDisconnect(); };
   $("importFile").onchange = function(e){
     if(e.target.files && e.target.files[0]) importData(e.target.files[0]);
     e.target.value = "";
@@ -881,7 +1098,7 @@
   });
 
   // Modale schließen bei Klick auf Hintergrund
-  ["editModal","locModal","dataModal"].forEach(function(idm){
+  ["editModal","locModal","dataModal","syncModal"].forEach(function(idm){
     var m = $(idm);
     m.addEventListener("click", function(e){ if(e.target === m){ m.classList.remove("open"); $("locBody").onclick=null; } });
   });
@@ -901,7 +1118,7 @@
   });
 
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); }
+    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); }
   });
 
   // PC = Tabelle, Handy = Karten (bei Größenwechsel neu zeichnen)
@@ -923,6 +1140,16 @@
   wideMode = window.innerWidth >= 820;
   refreshCatList();
   render();
+
+  // War Sync bereits eingerichtet? Dann automatisch (leise) wieder verbinden.
+  (function(){
+    var cfg = cloudLoadCfg();
+    if(cfg && cfg.enabled && cfg.configText && cfg.code){
+      cloud.configText = cfg.configText; cloud.code = cfg.code;
+      cloudConnect(cfg.configText, cfg.code, { silent:true });
+    }
+    updateSyncUI();
+  })();
 })();
 </script>
 </body>
