@@ -33,9 +33,22 @@
   }
   header .hwrap{max-width:1100px; margin:0 auto; display:flex; align-items:center; gap:12px}
   header .logo{width:46px; height:46px; flex:0 0 auto; display:grid; place-items:center;
-    background:rgba(255,255,255,.18); border-radius:12px; font-size:26px}
+    background:rgba(255,255,255,.18); border-radius:12px; font-size:26px; cursor:pointer}
+  header .htitle{flex:1 1 auto; min-width:0}
   header h1{margin:0; font-size:21px; line-height:1.1}
   header .sub{display:block; font-size:12.5px; opacity:.9; margin-top:2px; font-weight:500}
+  /* Materialchef-Badge (zur Gaude) */
+  header .chef{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px;
+    background:none; border:none; color:#fff; cursor:pointer; padding:2px}
+  header .chef:active{transform:scale(.94)}
+  header .chefpic{width:46px; height:46px; border-radius:50%; overflow:hidden; display:block;
+    box-shadow:0 1px 4px rgba(0,0,0,.25); background:#dcebff}
+  header .chefpic svg{width:100%; height:100%; display:block}
+  header .cheflbl{font-size:10.5px; font-weight:700; letter-spacing:.2px; opacity:.95; white-space:nowrap}
+  .chefbig{width:120px; height:120px; margin:0 auto 12px; border-radius:50%; overflow:hidden;
+    box-shadow:0 3px 12px rgba(0,0,0,.18)}
+  .chefbig svg{width:100%; height:100%; display:block}
+  @media(max-width:420px){ header .cheflbl{display:none} header .chefpic{width:40px;height:40px} }
 
   .wrap{max-width:1100px; margin:0 auto; padding:14px}
 
@@ -225,11 +238,15 @@
 
 <header>
   <div class="hwrap">
-    <div class="logo">🎿</div>
-    <div>
+    <div class="logo" id="logo">🎿</div>
+    <div class="htitle">
       <h1>Materialverwaltung</h1>
       <span class="sub">SkiClub · Wer hat was, wo liegt es?</span>
     </div>
+    <button class="chef" id="chefBadge" title="Der Materialchef hat alles im Griff">
+      <span class="chefpic" id="chefPic"></span>
+      <span class="cheflbl">Materialchef</span>
+    </button>
   </div>
 </header>
 
@@ -348,6 +365,69 @@
 <script>
 (function(){
   "use strict";
+
+  /* ---------- Materialchef-Avatar (zur Gaude 🎿) ---------- */
+  var CHEF_SVG =
+    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Materialchef">'+
+      '<defs>'+
+        '<clipPath id="chefClip"><circle cx="50" cy="50" r="50"/></clipPath>'+
+        '<linearGradient id="chefBg" x1="0" y1="0" x2="0" y2="1">'+
+          '<stop offset="0" stop-color="#e2efff"/>'+
+          '<stop offset="1" stop-color="#b9d4ff"/></linearGradient>'+
+      '</defs>'+
+      '<g clip-path="url(#chefClip)">'+
+        '<rect width="100" height="100" fill="url(#chefBg)"/>'+
+        '<ellipse cx="50" cy="96" rx="42" ry="20" fill="#0d6efd" opacity=".12"/>'+
+        /* Schultern: schwarze Weste */
+        '<path d="M8 100 Q9 76 32 70 L68 70 Q91 76 92 100 Z" fill="#17181c"/>'+
+        '<path d="M32 70 Q35 72 34 100 L30 100 Q30 78 32 70Z" fill="#232428"/>'+
+        '<path d="M68 70 Q65 72 66 100 L70 100 Q70 78 68 70Z" fill="#232428"/>'+
+        /* dunkler Pulli-Kragen */
+        '<path d="M40 72 Q50 82 60 72 L60 79 Q50 88 40 79 Z" fill="#2c2d33"/>'+
+        /* Reißverschluss */
+        '<rect x="49.1" y="72" width="1.8" height="28" fill="#3d3e45"/>'+
+        '<rect x="48.4" y="80" width="3.2" height="3.2" rx="1" fill="#54555c"/>'+
+        /* Hals */
+        '<path d="M43 58 L43 71 Q50 76 57 71 L57 58 Z" fill="#d2905f"/>'+
+        '<path d="M43 63 Q50 68 57 63 L57 60 Q50 64 43 60Z" fill="#b97a4d" opacity=".5"/>'+
+        /* Ohren */
+        '<ellipse cx="27" cy="47" rx="4.5" ry="6" fill="#e2a071"/>'+
+        '<ellipse cx="73" cy="47" rx="4.5" ry="6" fill="#e2a071"/>'+
+        /* Kopf */
+        '<path d="M29 42 Q28 20 50 20 Q72 20 71 42 Q71 52 66 58 Q60 66 50 66 Q40 66 34 58 Q29 52 29 42 Z" fill="#e8ac7e"/>'+
+        /* Wangen-/Bart-Schatten (Dreitagebart) */
+        '<path d="M31 47 Q32 60 42 65 Q50 68 58 65 Q68 60 69 47 Q66 57 58 60 Q50 62 42 60 Q34 57 31 47 Z" fill="#b98a63" opacity=".45"/>'+
+        '<path d="M40 61 Q50 66 60 61 L60 63 Q50 68 40 63 Z" fill="#8f7259" opacity=".5"/>'+
+        /* kurze Haare, zurückweichender Haaransatz, dunkel mit Grau */
+        '<path d="M28 44 Q24 19 50 18 Q76 19 72 44 Q71 34 64 31 Q57 34 50 33 Q43 34 36 31 Q29 34 28 44 Z" fill="#4f473f"/>'+
+        '<path d="M28 44 Q27 32 33 30 Q31 37 31 44 Z" fill="#8c837a" opacity=".8"/>'+
+        '<path d="M72 44 Q73 32 67 30 Q69 37 69 44 Z" fill="#8c837a" opacity=".8"/>'+
+        '<path d="M40 31 Q50 29 60 31 Q50 27 40 31Z" fill="#6a6158" opacity=".6"/>'+
+        /* Augenbrauen */
+        '<path d="M36 41 Q41 38.5 46 41" stroke="#4a423b" stroke-width="2.4" fill="none" stroke-linecap="round"/>'+
+        '<path d="M54 41 Q59 38.5 64 41" stroke="#4a423b" stroke-width="2.4" fill="none" stroke-linecap="round"/>'+
+        /* Augen */
+        '<circle cx="41" cy="46" r="2.1" fill="#3a2f28"/>'+
+        '<circle cx="59" cy="46" r="2.1" fill="#3a2f28"/>'+
+        '<circle cx="41.7" cy="45.3" r=".6" fill="#fff"/>'+
+        '<circle cx="59.7" cy="45.3" r=".6" fill="#fff"/>'+
+        /* Nase */
+        '<path d="M50 46 Q48.5 52 47.5 54 Q50 56.5 52.5 54 Q51.5 52 50 46 Z" fill="#d78b56"/>'+
+        /* freundliches Lächeln */
+        '<path d="M42 58 Q50 63.5 58 58" stroke="#9c5b3a" stroke-width="2.2" fill="none" stroke-linecap="round"/>'+
+        '<path d="M43.5 56 Q50 58 56.5 56" stroke="#7a6f64" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".55"/>'+
+      '</g>'+
+      '<circle cx="50" cy="50" r="49" fill="none" stroke="#fff" stroke-width="2"/>'+
+    '</svg>';
+  var CHEF_LINES = [
+    "🎿 Der Materialchef hat alles im Griff!",
+    "📋 Fragen zum Material? Frag den Chef!",
+    "💪 Kein Ski geht verloren, solang der Chef da ist!",
+    "🏔️ Materialchef: weiß, wo alles liegt.",
+    "🍺 Nach getaner Arbeit ein Dry Aged Red für den Chef!"
+  ];
+  var chefTick = 0;
+
   var IKEY = "skiclub_material_v1";
   var LKEY = "skiclub_locations_v1";
   var DEFAULT_LOCS = ["Hier", "Zettersfeld (Container)", "Pfister", "Verliehen"];
@@ -522,9 +602,9 @@
     var data = currentFiltered();
 
     if(items.length === 0){
-      list.innerHTML = '<div class="empty"><div class="big">🎿</div>'+
+      list.innerHTML = '<div class="empty"><div class="chefbig">'+CHEF_SVG+'</div>'+
         '<h3>Noch kein Material erfasst</h3>'+
-        '<p>Leg das erste Material an – dann weiß jeder,<br>wo was liegt und wie viel da ist.</p>'+
+        '<p>Der Materialchef wartet auf Einträge!<br>Leg das erste Material an – dann weiß jeder, wo was liegt.</p>'+
         '<button class="btn primary" style="max-width:240px;margin:0 auto" id="emptyAdd">Erstes Material anlegen</button>'+
         '</div>';
       var ea = $("emptyAdd"); if(ea) ea.onclick = function(){ openEdit(null); };
@@ -872,6 +952,12 @@
     if(w !== wideMode){ wideMode = w; render(); }
   }
   window.addEventListener("resize", applyWide);
+
+  /* ---------- Materialchef Easter-Egg ---------- */
+  $("chefPic").innerHTML = CHEF_SVG;
+  function chefGaude(){ toast(CHEF_LINES[chefTick % CHEF_LINES.length]); chefTick++; }
+  $("chefBadge").onclick = chefGaude;
+  $("logo").onclick = chefGaude;
 
   /* ---------- Start ---------- */
   load();
