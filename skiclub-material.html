@@ -31,21 +31,37 @@
     position:sticky; top:0; z-index:10;
     box-shadow:0 2px 8px rgba(0,0,0,.15);
   }
-  header .hwrap{max-width:960px; margin:0 auto; display:flex; align-items:center; gap:12px}
+  header .hwrap{max-width:1100px; margin:0 auto; display:flex; align-items:center; gap:12px}
   header .logo{width:46px; height:46px; flex:0 0 auto; display:grid; place-items:center;
     background:rgba(255,255,255,.18); border-radius:12px; font-size:26px}
   header h1{margin:0; font-size:21px; line-height:1.1}
   header .sub{display:block; font-size:12.5px; opacity:.9; margin-top:2px; font-weight:500}
 
-  .wrap{max-width:960px; margin:0 auto; padding:14px}
+  .wrap{max-width:1100px; margin:0 auto; padding:14px}
 
   /* Statistik-Chips */
   .stats{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px}
   .stat{flex:1 1 120px; background:var(--card); border:1px solid var(--line);
     border-radius:var(--radius); padding:10px 12px; min-width:0}
   .stat .n{font-size:22px; font-weight:800; color:var(--blue-d); line-height:1}
+  .stat.warn .n{color:var(--red-d)}
   .stat .l{font-size:11.5px; color:var(--muted); text-transform:uppercase;
     letter-spacing:.4px; margin-top:4px; font-weight:600}
+
+  /* Standort-Leiste (Filter + Verteilung) */
+  .locbar{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:thin}
+  .locbar::-webkit-scrollbar{height:6px}
+  .locbar::-webkit-scrollbar-thumb{background:#cfd6df; border-radius:3px}
+  .lchip{flex:0 0 auto; display:inline-flex; align-items:center; gap:6px;
+    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    padding:8px 13px; font-size:14px; font-weight:600; color:var(--ink); cursor:pointer;
+    white-space:nowrap}
+  .lchip .c{background:var(--blue-l); color:var(--blue-d); border-radius:20px;
+    padding:1px 8px; font-size:12px; font-weight:800}
+  .lchip.on{background:var(--blue); color:#fff; border-color:var(--blue)}
+  .lchip.on .c{background:rgba(255,255,255,.25); color:#fff}
+  .lchip.manage{color:var(--muted); font-weight:600}
 
   /* Suchleiste + Toolbar */
   .toolbar{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap}
@@ -77,18 +93,22 @@
     font-weight:700; padding:2px 8px; border-radius:20px}
   .group h2 .gic{font-size:17px}
 
-  /* Karten */
+  /* Karten (Handy) */
   .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
     padding:12px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start}
   .card .body{flex:1 1 auto; min-width:0}
   .card .name{font-size:16px; font-weight:700; word-break:break-word}
   .card .meta{margin-top:4px; display:flex; flex-wrap:wrap; gap:6px 10px;
-    font-size:12.5px; color:var(--muted)}
+    font-size:12.5px; color:var(--muted); align-items:center}
   .card .meta .tag{display:inline-flex; align-items:center; gap:4px}
   .card .meta .cat{background:var(--blue-l); color:var(--blue-d); padding:1px 8px;
     border-radius:20px; font-weight:600}
+  .locpill{display:inline-flex; align-items:center; gap:4px; background:#eef1f5;
+    border:1px solid var(--line); color:#334; padding:2px 9px; border-radius:20px;
+    font-weight:600; cursor:pointer}
+  .locpill:active{background:var(--blue-l)}
   .card .note{margin-top:6px; font-size:13px; color:#42506a; white-space:pre-wrap; word-break:break-word}
-  .card .zust{padding:1px 8px; border-radius:20px; font-weight:600; font-size:11.5px}
+  .zust{padding:1px 8px; border-radius:20px; font-weight:600; font-size:11.5px}
   .zust.gut{background:#e3f6ea; color:var(--green-d)}
   .zust.mittel{background:#fdf3e0; color:#a56a00}
   .zust.defekt{background:#fbe4e4; color:var(--red-d)}
@@ -106,6 +126,22 @@
     border-radius:10px; cursor:pointer; font-size:15px; display:grid; place-items:center; color:var(--muted)}
   .iconbtn:active{background:#f2f4f7}
   .iconbtn.del:active{background:#fbe4e4; color:var(--red-d)}
+  .iconbtn.move:active{background:var(--blue-l)}
+
+  /* Tabelle (PC) */
+  .tblwrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--card)}
+  table.tbl{width:100%; border-collapse:collapse; font-size:14px}
+  table.tbl th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.4px;
+    color:var(--muted); font-weight:700; padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap}
+  table.tbl td{padding:9px 12px; border-bottom:1px solid #eef0f3; vertical-align:middle}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl tbody tr:hover{background:#f8fafc}
+  table.tbl td.tname{font-weight:700}
+  table.tbl td.tnote{color:#42506a; max-width:260px}
+  table.tbl .tacts{display:flex; gap:6px; justify-content:flex-end}
+  table.tbl .stepper{display:inline-flex}
+  table.tbl .stepper button{width:30px; height:30px; font-size:18px}
+  table.tbl .stepper .val{min-width:34px; font-size:15px}
 
   .empty{text-align:center; padding:50px 20px; color:var(--muted)}
   .empty .big{font-size:46px; margin-bottom:10px}
@@ -113,7 +149,7 @@
   .empty p{margin:0 0 16px; font-size:14px}
 
   /* Floating Add Button */
-  .fab{position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom)); z-index:20;
+  .fab{position:fixed; right:18px; bottom:calc(78px + env(safe-area-inset-bottom)); z-index:20;
     width:58px; height:58px; border-radius:50%; border:none; background:var(--blue);
     color:#fff; font-size:32px; line-height:1; box-shadow:0 4px 14px rgba(13,110,253,.45);
     cursor:pointer; display:grid; place-items:center}
@@ -146,6 +182,18 @@
   .field .row{display:flex; gap:10px}
   .field .row > *{flex:1 1 0}
   datalist{color:var(--ink)}
+
+  /* Standort-Auswahl (Chips) im Formular / Picker */
+  .locpick{display:flex; flex-wrap:wrap; gap:8px}
+  .locpick .pc{border:1px solid var(--line); background:var(--card); border-radius:22px;
+    padding:9px 14px; font-size:15px; font-weight:600; color:var(--ink); cursor:pointer}
+  .locpick .pc.on{background:var(--blue); color:#fff; border-color:var(--blue)}
+  .locpick .pc.add{color:var(--blue-d); border-style:dashed}
+
+  .manage-row{display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid #eef0f3}
+  .manage-row .mname{flex:1 1 auto; font-weight:600}
+  .manage-row .mcount{font-size:12px; color:var(--muted)}
+
   .modal-acts{display:flex; gap:10px; margin-top:8px}
   .btn{flex:1 1 0; padding:13px; border-radius:12px; font-size:16px; font-weight:700;
     border:none; cursor:pointer}
@@ -153,6 +201,7 @@
   .btn.primary:active{background:var(--blue-d)}
   .btn.ghost{background:#eef1f5; color:var(--ink)}
   .btn.danger{background:var(--red); color:#fff}
+  .btn.sm{flex:none; padding:8px 12px; font-size:14px}
   .sheet .hint{font-size:12.5px; color:var(--muted); margin:0 0 14px; line-height:1.5}
   .sheet .actlist{display:flex; flex-direction:column; gap:8px}
   .sheet .actlist .btn{flex:none}
@@ -164,11 +213,11 @@
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
 
   @media print{
-    header,.toolbar,.filters,.fab,.menubar,.stats .stat:nth-child(n){}
-    .fab,.menubar,.toolbar,.filters,.card .qty .stepper button,.card .acts{display:none !important}
+    .fab,.menubar,.toolbar,.filters,.locbar,.card .qty .stepper button,.card .acts,.tacts{display:none !important}
     body{padding:0; background:#fff}
     .card{break-inside:avoid; border-color:#bbb}
-    header{position:static; box-shadow:none}
+    table.tbl{font-size:12px}
+    header{position:static; box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact}
   }
 </style>
 </head>
@@ -188,6 +237,8 @@
 
   <div class="stats" id="stats"></div>
 
+  <div class="locbar" id="locbar"></div>
+
   <div class="toolbar">
     <div class="search">
       <span class="ic">🔍</span>
@@ -195,7 +246,6 @@
       <button class="clr" id="qclr" aria-label="Löschen">×</button>
     </div>
     <select id="fCat"><option value="">Alle Kategorien</option></select>
-    <select id="fLoc"><option value="">Alle Lagerorte</option></select>
   </div>
 
   <div class="filters">
@@ -215,9 +265,9 @@
 
 <div class="menubar">
   <button id="mAdd"><span class="mi">➕</span>Neu</button>
+  <button id="mLocs"><span class="mi">📍</span>Standorte</button>
   <button id="mExport"><span class="mi">💾</span>Sichern</button>
-  <button id="mImport"><span class="mi">📥</span>Laden</button>
-  <button id="mPrint"><span class="mi">🖨️</span>Drucken</button>
+  <button id="mData"><span class="mi">⋯</span>Mehr</button>
 </div>
 
 <!-- Modal: Artikel bearbeiten -->
@@ -244,9 +294,9 @@
         </div>
       </div>
       <div class="field">
-        <label for="fLocIn">Lagerort *</label>
-        <input id="fLocIn" list="locList" required placeholder="z. B. Materialraum Regal 3" autocomplete="off">
-        <datalist id="locList"></datalist>
+        <label>Standort *</label>
+        <div class="locpick" id="formLocPick"></div>
+        <input type="hidden" id="fLoc">
       </div>
       <div class="field">
         <label for="fZust">Zustand</label>
@@ -268,10 +318,22 @@
   </div>
 </div>
 
-<!-- Modal: Menü / Daten -->
+<!-- Modal: Standort schnell wählen / verwalten -->
+<div class="modal" id="locModal">
+  <div class="sheet">
+    <h2 id="locTitle">Standort</h2>
+    <p class="hint" id="locHint"></p>
+    <div id="locBody"></div>
+    <div class="modal-acts" style="margin-top:14px">
+      <button type="button" class="btn ghost" id="locClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Daten -->
 <div class="modal" id="dataModal">
   <div class="sheet">
-    <h2 id="dataTitle">Daten</h2>
+    <h2>Sichern &amp; Laden</h2>
     <p class="hint" id="dataHint"></p>
     <div class="actlist" id="dataActs"></div>
     <div class="modal-acts" style="margin-top:14px">
@@ -286,54 +348,111 @@
 <script>
 (function(){
   "use strict";
-  var KEY = "skiclub_material_v1";
+  var IKEY = "skiclub_material_v1";
+  var LKEY = "skiclub_locations_v1";
+  var DEFAULT_LOCS = ["Hier", "Zettersfeld (Container)", "Pfister", "Verliehen"];
+
   var items = [];
+  var locations = [];
   var group = "loc";
+  var filterLoc = "";      // aktiver Standort-Filter ("" = alle)
+  var wideMode = false;    // Tabelle (PC) statt Karten (Handy)
 
   /* ---------- Speicher ---------- */
   function load(){
-    try{ items = JSON.parse(localStorage.getItem(KEY)) || []; }
-    catch(e){ items = []; }
+    try{ items = JSON.parse(localStorage.getItem(IKEY)) || []; }catch(e){ items = []; }
     if(!Array.isArray(items)) items = [];
+    try{ locations = JSON.parse(localStorage.getItem(LKEY)) || null; }catch(e){ locations = null; }
+    if(!Array.isArray(locations)) locations = DEFAULT_LOCS.slice();
+    ensureLocationsFromItems();
   }
-  function save(){
-    try{ localStorage.setItem(KEY, JSON.stringify(items)); }
+  function saveItems(){
+    try{ localStorage.setItem(IKEY, JSON.stringify(items)); }
     catch(e){ toast("Speichern fehlgeschlagen – Speicher voll?"); }
   }
-  function uid(){
-    return "m" + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36);
+  function saveLocs(){
+    try{ localStorage.setItem(LKEY, JSON.stringify(locations)); }catch(e){}
+  }
+  function uid(){ return "m" + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36); }
+
+  /* Sorgt dafür, dass alle in Artikeln benutzten Orte auch in der Liste stehen */
+  function ensureLocationsFromItems(){
+    var have = {}; locations.forEach(function(l){ have[l.toLowerCase()] = true; });
+    items.forEach(function(it){
+      var l = (it.loc||"").trim();
+      if(l && !have[l.toLowerCase()]){ have[l.toLowerCase()] = true; locations.push(l); }
+    });
   }
 
-  /* ---------- Hilfsfunktionen ---------- */
+  /* ---------- Hilfen ---------- */
   function $(id){ return document.getElementById(id); }
   function esc(s){
-    return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return String(s==null?"":s).replace(/[&<>"']/g,function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
   var toastTimer;
   function toast(msg){
     var t = $("toast"); t.textContent = msg; t.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
   }
-  function uniqSorted(getter){
+  function uniqCats(){
     var set = {}, out = [];
     items.forEach(function(it){
-      var v = (getter(it)||"").trim();
+      var v = (it.cat||"").trim();
       if(v && !set[v.toLowerCase()]){ set[v.toLowerCase()] = 1; out.push(v); }
     });
     out.sort(function(a,b){ return a.localeCompare(b,"de"); });
     return out;
   }
+  function articlesAt(loc){ return items.filter(function(it){ return (it.loc||"") === loc; }).length; }
 
-  /* ---------- Render ---------- */
+  /* ---------- Standort-Leiste ---------- */
+  function renderLocBar(){
+    var bar = $("locbar");
+    var html = '<button class="lchip'+(filterLoc===""?" on":"")+'" data-loc="">'+
+      'Alle <span class="c">'+items.length+'</span></button>';
+    locations.forEach(function(l){
+      var n = articlesAt(l);
+      html += '<button class="lchip'+(filterLoc===l?" on":"")+'" data-loc="'+esc(l)+'">'+
+        esc(l)+' <span class="c">'+n+'</span></button>';
+    });
+    html += '<button class="lchip manage" data-manage="1">⚙︎ Standorte</button>';
+    bar.innerHTML = html;
+  }
+
+  /* ---------- Statistik ---------- */
+  function renderStats(){
+    var totalStk = items.reduce(function(a,it){ return a+(Number(it.qty)||0); },0);
+    var home = locations[0] || "Hier";
+    var nichtHier = items.filter(function(it){ return (it.loc||"") !== home; }).length;
+    var defekt = items.filter(function(it){ return it.zust==="defekt"; }).length;
+    $("stats").innerHTML =
+      stat(items.length,"Artikel","") +
+      stat(totalStk,"Stück gesamt","") +
+      stat(nichtHier,"Nicht hier","") +
+      stat(defekt,"Defekt", defekt? "warn":"");
+    function stat(n,l,cls){ return '<div class="stat '+cls+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+  }
+
+  function refreshCatList(){
+    var cats = uniqCats();
+    var sel = $("fCat"), keep = sel.value;
+    sel.innerHTML = '<option value="">Alle Kategorien</option>' +
+      cats.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join("");
+    if(cats.indexOf(keep) !== -1) sel.value = keep;
+    $("catList").innerHTML = cats.map(function(c){ return '<option value="'+esc(c)+'">'; }).join("");
+  }
+
+  var ZLBL = { gut:"Gut", mittel:"Prüfen", defekt:"Defekt" };
+
+  /* ---------- Filter ---------- */
   function currentFiltered(){
     var q = $("q").value.trim().toLowerCase();
-    var fc = $("fCat").value, fl = $("fLoc").value;
+    var fc = $("fCat").value;
     return items.filter(function(it){
+      if(filterLoc && (it.loc||"") !== filterLoc) return false;
       if(fc && (it.cat||"") !== fc) return false;
-      if(fl && (it.loc||"") !== fl) return false;
       if(q){
         var hay = (it.name+" "+(it.cat||"")+" "+(it.loc||"")+" "+(it.note||"")).toLowerCase();
         if(hay.indexOf(q) === -1) return false;
@@ -342,64 +461,63 @@
     });
   }
 
-  function renderStats(){
-    var totalStk = items.reduce(function(a,it){ return a + (Number(it.qty)||0); }, 0);
-    var locs = uniqSorted(function(it){ return it.loc; }).length;
-    var defekt = items.filter(function(it){ return it.zust==="defekt"; }).length;
-    var html = "";
-    html += stat(items.length, "Artikel");
-    html += stat(totalStk, "Stück gesamt");
-    html += stat(locs, "Lagerorte");
-    html += stat(defekt, "Defekt");
-    $("stats").innerHTML = html;
-    function stat(n,l){ return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+  /* ---------- Karten (Handy) ---------- */
+  function stepperHtml(it){
+    return '<div class="stepper">'+
+      '<button data-act="dec" aria-label="weniger">−</button>'+
+      '<span class="val">'+(Number(it.qty)||0)+'</span>'+
+      '<button data-act="inc" aria-label="mehr">+</button></div>';
   }
-
-  function refreshSelects(){
-    var cats = uniqSorted(function(it){ return it.cat; });
-    var locs = uniqSorted(function(it){ return it.loc; });
-    fillSelect($("fCat"), cats, "Alle Kategorien");
-    fillSelect($("fLoc"), locs, "Alle Lagerorte");
-    $("catList").innerHTML = cats.map(function(c){ return '<option value="'+esc(c)+'">'; }).join("");
-    $("locList").innerHTML = locs.map(function(c){ return '<option value="'+esc(c)+'">'; }).join("");
-  }
-  function fillSelect(sel, values, allLabel){
-    var keep = sel.value;
-    sel.innerHTML = '<option value="">'+allLabel+'</option>' +
-      values.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join("");
-    if(values.indexOf(keep) !== -1) sel.value = keep;
-  }
-
-  var ZLBL = { gut:"Gut", mittel:"Prüfen", defekt:"Defekt" };
-
   function cardHtml(it){
     var meta = [];
     if(it.cat) meta.push('<span class="tag cat">'+esc(it.cat)+'</span>');
-    if(group !== "loc" && it.loc) meta.push('<span class="tag">📍 '+esc(it.loc)+'</span>');
+    if(group !== "loc") meta.push('<button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button>');
     if(it.zust) meta.push('<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>');
     return '<div class="card" data-id="'+it.id+'">'+
-      '<div class="qty">'+
-        '<div class="stepper">'+
-          '<button data-act="dec" aria-label="weniger">−</button>'+
-          '<span class="val">'+(Number(it.qty)||0)+'</span>'+
-          '<button data-act="inc" aria-label="mehr">+</button>'+
-        '</div>'+
-        '<span class="qlbl">Stück</span>'+
-      '</div>'+
+      '<div class="qty">'+stepperHtml(it)+'<span class="qlbl">Stück</span></div>'+
       '<div class="body">'+
         '<div class="name">'+esc(it.name)+'</div>'+
         (meta.length? '<div class="meta">'+meta.join("")+'</div>' : '')+
         (it.note? '<div class="note">'+esc(it.note)+'</div>' : '')+
       '</div>'+
       '<div class="acts">'+
+        '<button class="iconbtn move" data-act="move" aria-label="Standort ändern">📍</button>'+
         '<button class="iconbtn" data-act="edit" aria-label="Bearbeiten">✏️</button>'+
         '<button class="iconbtn del" data-act="del" aria-label="Löschen">🗑️</button>'+
       '</div>'+
     '</div>';
   }
 
+  /* ---------- Tabelle (PC) ---------- */
+  function rowHtml(it){
+    return '<tr data-id="'+it.id+'">'+
+      '<td>'+stepperHtml(it)+'</td>'+
+      '<td class="tname">'+esc(it.name)+'</td>'+
+      '<td>'+(it.cat? esc(it.cat):'<span style="color:#aab">–</span>')+'</td>'+
+      '<td><button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button></td>'+
+      '<td>'+(it.zust? '<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>':'')+'</td>'+
+      '<td class="tnote">'+(it.note? esc(it.note):'')+'</td>'+
+      '<td><div class="tacts">'+
+        '<button class="iconbtn" data-act="edit" aria-label="Bearbeiten">✏️</button>'+
+        '<button class="iconbtn del" data-act="del" aria-label="Löschen">🗑️</button>'+
+      '</div></td>'+
+    '</tr>';
+  }
+  function tableHtml(arr){
+    return '<div class="tblwrap"><table class="tbl"><thead><tr>'+
+      '<th>Menge</th><th>Bezeichnung</th><th>Kategorie</th><th>Lagerort</th>'+
+      '<th>Zustand</th><th>Notiz</th><th></th></tr></thead><tbody>'+
+      arr.map(rowHtml).join("")+'</tbody></table></div>';
+  }
+
+  function renderItemsBlock(arr){
+    return wideMode ? tableHtml(arr) : arr.map(cardHtml).join("");
+  }
+
+  /* ---------- Haupt-Render ---------- */
   function render(){
     renderStats();
+    renderLocBar();
     var list = $("list");
     var data = currentFiltered();
 
@@ -407,20 +525,19 @@
       list.innerHTML = '<div class="empty"><div class="big">🎿</div>'+
         '<h3>Noch kein Material erfasst</h3>'+
         '<p>Leg das erste Material an – dann weiß jeder,<br>wo was liegt und wie viel da ist.</p>'+
-        '<button class="btn primary" style="max-width:220px;margin:0 auto" id="emptyAdd">Erstes Material anlegen</button>'+
+        '<button class="btn primary" style="max-width:240px;margin:0 auto" id="emptyAdd">Erstes Material anlegen</button>'+
         '</div>';
       var ea = $("emptyAdd"); if(ea) ea.onclick = function(){ openEdit(null); };
       return;
     }
     if(data.length === 0){
       list.innerHTML = '<div class="empty"><div class="big">🔍</div>'+
-        '<h3>Nichts gefunden</h3><p>Kein Material passt zu deiner Suche.</p></div>';
+        '<h3>Nichts gefunden</h3><p>Kein Material passt zu deiner Auswahl.</p></div>';
       return;
     }
 
     if(group === "none"){
-      var sorted = data.slice().sort(byName);
-      list.innerHTML = sorted.map(cardHtml).join("");
+      list.innerHTML = renderItemsBlock(data.slice().sort(byName));
       return;
     }
 
@@ -430,11 +547,19 @@
     var gic = group === "loc" ? "📍" : "🏷️";
 
     var groups = {};
-    data.forEach(function(it){
-      var k = getKey(it);
-      (groups[k] = groups[k] || []).push(it);
-    });
-    var keys = Object.keys(groups).sort(function(a,b){ return a.localeCompare(b,"de"); });
+    data.forEach(function(it){ var k = getKey(it); (groups[k] = groups[k]||[]).push(it); });
+
+    // Reihenfolge: bei Ort nach definierter Standort-Reihenfolge, sonst alphabetisch
+    var keys = Object.keys(groups);
+    if(group === "loc"){
+      keys.sort(function(a,b){
+        var ia = locations.indexOf(a), ib = locations.indexOf(b);
+        if(ia === -1) ia = 999; if(ib === -1) ib = 999;
+        return ia - ib || a.localeCompare(b,"de");
+      });
+    } else {
+      keys.sort(function(a,b){ return a.localeCompare(b,"de"); });
+    }
 
     list.innerHTML = keys.map(function(k){
       var arr = groups[k].sort(byName);
@@ -442,22 +567,46 @@
       return '<div class="group">'+
         '<h2><span class="gic">'+gic+'</span>'+esc(k)+
           '<span class="badge">'+arr.length+' Art. · '+stk+' Stk</span></h2>'+
-        arr.map(cardHtml).join("")+
+        renderItemsBlock(arr)+
       '</div>';
     }).join("");
   }
   function byName(a,b){ return a.name.localeCompare(b.name,"de"); }
 
+  /* ---------- Formular Standort-Chips ---------- */
+  function renderFormLocPick(selected){
+    var box = $("formLocPick");
+    box.innerHTML = locations.map(function(l){
+      return '<button type="button" class="pc'+(l===selected?" on":"")+'" data-loc="'+esc(l)+'">'+esc(l)+'</button>';
+    }).join("") + '<button type="button" class="pc add" data-add="1">+ neuer Ort</button>';
+  }
+  $("formLocPick").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    if(b.getAttribute("data-add")){
+      var name = (prompt("Neuer Standort:")||"").trim();
+      if(!name) return;
+      addLocation(name);
+      $("fLoc").value = name;
+      renderFormLocPick(name);
+      return;
+    }
+    var loc = b.getAttribute("data-loc");
+    $("fLoc").value = loc;
+    renderFormLocPick(loc);
+  });
+
   /* ---------- Bearbeiten ---------- */
   function openEdit(it){
     $("editTitle").textContent = it ? "Material bearbeiten" : "Neues Material";
-    $("fId").value   = it ? it.id : "";
-    $("fName").value = it ? it.name : "";
-    $("fCatIn").value= it ? (it.cat||"") : "";
-    $("fQty").value  = it ? (it.qty!=null?it.qty:1) : 1;
-    $("fLocIn").value= it ? (it.loc||"") : "";
-    $("fZust").value = it ? (it.zust||"gut") : "gut";
-    $("fNote").value = it ? (it.note||"") : "";
+    $("fId").value    = it ? it.id : "";
+    $("fName").value  = it ? it.name : "";
+    $("fCatIn").value = it ? (it.cat||"") : "";
+    $("fQty").value   = it ? (it.qty!=null?it.qty:1) : 1;
+    $("fZust").value  = it ? (it.zust||"gut") : "gut";
+    $("fNote").value  = it ? (it.note||"") : "";
+    var loc = it ? (it.loc||"") : (filterLoc || locations[0] || "");
+    $("fLoc").value = loc;
+    renderFormLocPick(loc);
     $("editModal").classList.add("open");
     setTimeout(function(){ $("fName").focus(); }, 60);
   }
@@ -471,60 +620,136 @@
       name: $("fName").value.trim(),
       cat:  $("fCatIn").value.trim(),
       qty:  Math.max(0, Math.floor(Number($("fQty").value)||0)),
-      loc:  $("fLocIn").value.trim(),
+      loc:  $("fLoc").value.trim(),
       zust: $("fZust").value,
       note: $("fNote").value.trim()
     };
     if(!rec.name){ toast("Bitte eine Bezeichnung eingeben"); return; }
-    if(!rec.loc){ toast("Bitte einen Lagerort angeben"); return; }
+    if(!rec.loc){ toast("Bitte einen Standort wählen"); return; }
     if(id){
       var i = items.findIndex(function(x){ return x.id === id; });
       if(i !== -1) items[i] = rec;
-    } else {
-      items.push(rec);
-    }
-    save(); refreshSelects(); render(); closeEdit();
+    } else { items.push(rec); }
+    if(locations.indexOf(rec.loc) === -1){ locations.push(rec.loc); saveLocs(); }
+    saveItems(); refreshCatList(); render(); closeEdit();
     toast(id ? "Gespeichert" : "Material angelegt");
   });
 
-  /* ---------- Klicks in der Liste ---------- */
+  /* ---------- Klicks in Liste/Tabelle ---------- */
   $("list").addEventListener("click", function(e){
-    var btn = e.target.closest("[data-act]");
-    if(!btn) return;
-    var card = e.target.closest(".card"); if(!card) return;
-    var id = card.getAttribute("data-id");
+    var btn = e.target.closest("[data-act]"); if(!btn) return;
+    var row = e.target.closest("[data-id]"); if(!row) return;
+    var id = row.getAttribute("data-id");
     var it = items.find(function(x){ return x.id === id; });
     if(!it) return;
     var act = btn.getAttribute("data-act");
 
     if(act === "inc" || act === "dec"){
       it.qty = Math.max(0, (Number(it.qty)||0) + (act==="inc"?1:-1));
-      save();
-      var val = card.querySelector(".val");
-      if(val) val.textContent = it.qty;
+      saveItems();
+      var val = row.querySelector(".val"); if(val) val.textContent = it.qty;
       renderStats();
-      // Gruppen-Badges aktualisieren (Summe kann sich ändern)
-      if(group !== "none") updateBadges();
+      if(group !== "none") render();   // Gruppensummen aktualisieren
+    } else if(act === "move"){
+      openLocPicker(it);
     } else if(act === "edit"){
       openEdit(it);
     } else if(act === "del"){
       if(confirm('"'+it.name+'" wirklich löschen?')){
         items = items.filter(function(x){ return x.id !== id; });
-        save(); refreshSelects(); render();
-        toast("Gelöscht");
+        saveItems(); refreshCatList(); render(); toast("Gelöscht");
       }
     }
   });
 
-  function updateBadges(){
-    // günstiger Weg: neu rendern der Gruppenüberschriften über kompletten Render
-    render();
+  /* ---------- Standort schnell wechseln ---------- */
+  function openLocPicker(it){
+    $("locTitle").textContent = "Standort für: " + it.name;
+    $("locHint").textContent = "Wo liegt das jetzt? Ein Tipp genügt.";
+    var body = $("locBody");
+    body.innerHTML = '<div class="locpick">' +
+      locations.map(function(l){
+        return '<button type="button" class="pc'+(l===it.loc?" on":"")+'" data-pick="'+esc(l)+'">'+esc(l)+'</button>';
+      }).join("") +
+      '<button type="button" class="pc add" data-newpick="1">+ neuer Ort</button>' +
+      '</div>';
+    body.onclick = function(e){
+      var b = e.target.closest("button"); if(!b) return;
+      var loc;
+      if(b.getAttribute("data-newpick")){
+        loc = (prompt("Neuer Standort:")||"").trim();
+        if(!loc) return;
+        addLocation(loc);
+      } else {
+        loc = b.getAttribute("data-pick");
+      }
+      it.loc = loc;
+      if(locations.indexOf(loc) === -1){ locations.push(loc); saveLocs(); }
+      saveItems(); closeLoc(); render(); toast('→ ' + loc);
+    };
+    $("locModal").classList.add("open");
+  }
+  function closeLoc(){ $("locModal").classList.remove("open"); $("locBody").onclick = null; }
+
+  /* ---------- Standorte verwalten ---------- */
+  function addLocation(name){
+    name = (name||"").trim(); if(!name) return false;
+    if(locations.some(function(l){ return l.toLowerCase() === name.toLowerCase(); })) return false;
+    locations.push(name); saveLocs(); return true;
+  }
+  function openLocManage(){
+    $("locTitle").textContent = "Standorte verwalten";
+    $("locHint").innerHTML = "Deine Orte (z. B. <b>Hier</b>, <b>Zettersfeld Container</b>, <b>Pfister</b>, <b>Verliehen</b>). "+
+      "Umbenennen ändert auch alle Artikel an diesem Ort.";
+    var body = $("locBody");
+    function draw(){
+      body.innerHTML = locations.map(function(l){
+        var n = articlesAt(l);
+        return '<div class="manage-row">'+
+          '<span class="mname">'+esc(l)+'</span>'+
+          '<span class="mcount">'+n+' Art.</span>'+
+          '<button class="btn ghost sm" data-ren="'+esc(l)+'">Umbenennen</button>'+
+          '<button class="btn danger sm" data-rm="'+esc(l)+'">✕</button>'+
+        '</div>';
+      }).join("") +
+      '<div style="margin-top:12px"><button class="btn primary" id="locAddBtn">+ Standort hinzufügen</button></div>';
+
+      $("locAddBtn").onclick = function(){
+        var name = (prompt("Name des neuen Standorts:")||"").trim();
+        if(name){ if(addLocation(name)){ draw(); renderLocBar(); } else toast("Gibt es schon"); }
+      };
+    }
+    body.onclick = function(e){
+      var b = e.target.closest("button"); if(!b) return;
+      var ren = b.getAttribute("data-ren"), rm = b.getAttribute("data-rm");
+      if(ren !== null && ren !== undefined && b.hasAttribute("data-ren")){
+        var neu = (prompt("Standort umbenennen:", ren)||"").trim();
+        if(neu && neu !== ren){
+          var i = locations.indexOf(ren); if(i !== -1) locations[i] = neu;
+          items.forEach(function(it){ if((it.loc||"") === ren) it.loc = neu; });
+          if(filterLoc === ren) filterLoc = neu;
+          saveLocs(); saveItems(); draw(); render();
+        }
+      } else if(b.hasAttribute("data-rm")){
+        var used = articlesAt(rm);
+        if(used > 0){
+          alert('"'+rm+'" wird noch von '+used+' Artikel(n) benutzt.\n\nVerschieb die Artikel zuerst an einen anderen Ort.');
+          return;
+        }
+        locations = locations.filter(function(l){ return l !== rm; });
+        if(filterLoc === rm) filterLoc = "";
+        saveLocs(); draw(); render();
+      }
+    };
+    draw();
+    $("locModal").classList.add("open");
   }
 
-  /* ---------- Daten: Export / Import / Drucken ---------- */
+  /* ---------- Daten: Export / Import ---------- */
   function exportData(){
-    var payload = { app:"skiclub-material", version:1, exported:new Date().toISOString(), items:items };
-    var blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    var payload = { app:"skiclub-material", version:2, exported:new Date().toISOString(),
+      locations:locations, items:items };
+    var blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     var d = new Date();
@@ -540,8 +765,7 @@
     var reader = new FileReader();
     reader.onload = function(){
       var data;
-      try{ data = JSON.parse(reader.result); }
-      catch(e){ toast("Datei ist keine gültige Sicherung"); return; }
+      try{ data = JSON.parse(reader.result); }catch(e){ toast("Datei ist keine gültige Sicherung"); return; }
       var incoming = Array.isArray(data) ? data : (data && data.items);
       if(!Array.isArray(incoming)){ toast("Keine Materialdaten in der Datei"); return; }
       var clean = incoming.filter(function(x){ return x && x.name; }).map(function(x){
@@ -555,6 +779,7 @@
           note: x.note ? String(x.note) : ""
         };
       });
+      var fileLocs = (data && Array.isArray(data.locations)) ? data.locations : [];
       var mode = "replace";
       if(items.length > 0){
         mode = confirm("Zu bestehenden "+items.length+" Artikeln HINZUFÜGEN?\n\nOK = hinzufügen · Abbrechen = alles ersetzen") ? "merge" : "replace";
@@ -562,11 +787,13 @@
       if(mode === "merge"){
         var byId = {}; items.forEach(function(it){ byId[it.id]=true; });
         clean.forEach(function(it){ if(byId[it.id]) it.id = uid(); items.push(it); });
+        fileLocs.forEach(function(l){ addLocation(l); });
       } else {
         items = clean;
+        locations = fileLocs.length ? fileLocs.slice() : DEFAULT_LOCS.slice();
       }
-      save(); refreshSelects(); render();
-      closeData();
+      ensureLocationsFromItems();
+      saveItems(); saveLocs(); refreshCatList(); render(); closeData();
       toast(clean.length + " Artikel geladen");
     };
     reader.readAsText(file);
@@ -574,73 +801,82 @@
 
   /* ---------- Daten-Modal ---------- */
   function openData(){
-    $("dataTitle").textContent = "Sichern & Laden";
     $("dataHint").innerHTML = "Alle Daten liegen <b>nur auf diesem Gerät</b> (offline). "+
-      "Mach regelmäßig eine Sicherung und schick die Datei an weitere Vorstandsmitglieder, "+
-      "damit alle den gleichen Stand haben.";
-    var acts = $("dataActs");
-    acts.innerHTML = "";
+      "Mach regelmäßig eine Sicherung und schick die Datei an weitere Vorstandsmitglieder, damit alle den gleichen Stand haben.";
+    var acts = $("dataActs"); acts.innerHTML = "";
     addBtn(acts, "💾 Sicherung erstellen (Download)", "primary", function(){ exportData(); });
     addBtn(acts, "📥 Sicherung laden (aus Datei)", "ghost", function(){ $("importFile").click(); });
     addBtn(acts, "🖨️ Liste drucken / als PDF", "ghost", function(){ closeData(); setTimeout(function(){ window.print(); }, 200); });
     addBtn(acts, "🗑️ Alle Daten löschen", "danger", function(){
       if(confirm("Wirklich ALLE "+items.length+" Artikel löschen? Das kann nicht rückgängig gemacht werden.")){
-        items = []; save(); refreshSelects(); render(); closeData(); toast("Alle Daten gelöscht");
+        items = []; saveItems(); render(); closeData(); toast("Alle Daten gelöscht");
       }
     });
     $("dataModal").classList.add("open");
   }
-  function addBtn(box, label, cls, fn){
+  function addBtn(box,label,cls,fn){
     var b = document.createElement("button");
-    b.type="button"; b.className="btn "+cls; b.textContent=label; b.onclick=fn;
-    box.appendChild(b);
+    b.type="button"; b.className="btn "+cls; b.textContent=label; b.onclick=fn; box.appendChild(b);
   }
   function closeData(){ $("dataModal").classList.remove("open"); }
 
   /* ---------- Events ---------- */
   $("fab").onclick = function(){ openEdit(null); };
   $("mAdd").onclick = function(){ openEdit(null); };
-  $("editCancel").onclick = closeEdit;
+  $("mLocs").onclick = function(){ openLocManage(); };
   $("mExport").onclick = function(){ exportData(); };
-  $("mImport").onclick = function(){ $("importFile").click(); };
-  $("mPrint").onclick = function(){ window.print(); };
+  $("mData").onclick = function(){ openData(); };
+  $("editCancel").onclick = closeEdit;
+  $("locClose").onclick = closeLoc;
   $("dataClose").onclick = closeData;
   $("importFile").onchange = function(e){
     if(e.target.files && e.target.files[0]) importData(e.target.files[0]);
     e.target.value = "";
   };
 
-  // Modal-Hintergrund schließt
-  [$("editModal"), $("dataModal")].forEach(function(m){
-    m.addEventListener("click", function(e){ if(e.target === m) m.classList.remove("open"); });
+  // Standort-Leiste (Filter + verwalten)
+  $("locbar").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    if(b.getAttribute("data-manage")){ openLocManage(); return; }
+    filterLoc = b.getAttribute("data-loc");
+    render();
+  });
+
+  // Modale schließen bei Klick auf Hintergrund
+  ["editModal","locModal","dataModal"].forEach(function(idm){
+    var m = $(idm);
+    m.addEventListener("click", function(e){ if(e.target === m){ m.classList.remove("open"); $("locBody").onclick=null; } });
   });
 
   // Suche
   var qEl = $("q");
-  qEl.addEventListener("input", function(){
-    $("qclr").style.display = qEl.value ? "block" : "none";
-    render();
-  });
+  qEl.addEventListener("input", function(){ $("qclr").style.display = qEl.value ? "block":"none"; render(); });
   $("qclr").onclick = function(){ qEl.value=""; $("qclr").style.display="none"; render(); qEl.focus(); };
   $("fCat").onchange = render;
-  $("fLoc").onchange = render;
 
   // Gruppierung
   $("groupSeg").addEventListener("click", function(e){
     var b = e.target.closest("button[data-g]"); if(!b) return;
     group = b.getAttribute("data-g");
     Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){ x.classList.remove("on"); });
-    b.classList.add("on");
-    render();
+    b.classList.add("on"); render();
   });
 
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeEdit(); closeData(); }
+    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); }
   });
+
+  // PC = Tabelle, Handy = Karten (bei Größenwechsel neu zeichnen)
+  function applyWide(){
+    var w = window.innerWidth >= 820;
+    if(w !== wideMode){ wideMode = w; render(); }
+  }
+  window.addEventListener("resize", applyWide);
 
   /* ---------- Start ---------- */
   load();
-  refreshSelects();
+  wideMode = window.innerWidth >= 820;
+  refreshCatList();
   render();
 })();
 </script>
