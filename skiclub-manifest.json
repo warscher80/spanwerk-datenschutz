@@ -1,0 +1,11 @@
+{
+  "name": "SkiClub Materialverwaltung",
+  "short_name": "SkiClub Material",
+  "start_url": "./skiclub-material.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d6efd",
+  "theme_color": "#0d6efd",
+  "lang": "de"
+}
