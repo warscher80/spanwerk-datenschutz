@@ -121,6 +121,9 @@
   .card .meta .tag{display:inline-flex; align-items:center; gap:4px}
   .card .meta .cat{background:var(--blue-l); color:var(--blue-d); padding:1px 8px;
     border-radius:20px; font-weight:600}
+  .card .meta .lent{background:#fdf0e0; color:#a56a00; padding:1px 8px;
+    border-radius:20px; font-weight:600}
+  table.tbl .lentto{color:#a56a00; font-weight:600; white-space:nowrap; margin-left:2px}
   .locpill{display:inline-flex; align-items:center; gap:4px; background:#eef1f5;
     border:1px solid var(--line); color:#334; padding:2px 9px; border-radius:20px;
     font-weight:600; cursor:pointer}
@@ -336,6 +339,10 @@
         <div class="locpick" id="formLocPick"></div>
         <input type="hidden" id="fLoc">
       </div>
+      <div class="field" id="fLentWrap" style="display:none">
+        <label for="fLent">Verliehen an</label>
+        <input id="fLent" placeholder="z. B. Max Huber / Familie Gruber" autocomplete="off">
+      </div>
       <div class="field">
         <label for="fZust">Zustand</label>
         <select id="fZust">
@@ -535,7 +542,8 @@
       qty: Math.max(0, Math.floor(Number(x.qty)||0)),
       loc: x.loc ? String(x.loc) : "",
       zust: (["gut","mittel","defekt"].indexOf(x.zust)!==-1) ? x.zust : "gut",
-      note: x.note ? String(x.note) : ""
+      note: x.note ? String(x.note) : "",
+      lentTo: x.lentTo ? String(x.lentTo) : ""
     };
   }
   function itemsToObj(){ var o={}; items.forEach(function(it){ o[it.id]=it; }); return o; }
@@ -708,7 +716,7 @@
       if(filterLoc && (it.loc||"") !== filterLoc) return false;
       if(fc && (it.cat||"") !== fc) return false;
       if(q){
-        var hay = (it.name+" "+(it.cat||"")+" "+(it.loc||"")+" "+(it.note||"")).toLowerCase();
+        var hay = (it.name+" "+(it.cat||"")+" "+(it.loc||"")+" "+(it.note||"")+" "+(it.lentTo||"")).toLowerCase();
         if(hay.indexOf(q) === -1) return false;
       }
       return true;
@@ -726,6 +734,7 @@
     var meta = [];
     if(it.cat) meta.push('<span class="tag cat">'+esc(it.cat)+'</span>');
     if(group !== "loc") meta.push('<button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button>');
+    if(isLent(it.loc) && it.lentTo) meta.push('<span class="tag lent">👤 an '+esc(it.lentTo)+'</span>');
     if(it.zust) meta.push('<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>');
     return '<div class="card" data-id="'+it.id+'">'+
       '<div class="qty">'+stepperHtml(it)+'<span class="qlbl">Stück</span></div>'+
@@ -748,7 +757,8 @@
       '<td>'+stepperHtml(it)+'</td>'+
       '<td class="tname">'+esc(it.name)+'</td>'+
       '<td>'+(it.cat? esc(it.cat):'<span style="color:#aab">–</span>')+'</td>'+
-      '<td><button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button></td>'+
+      '<td><button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button>'+
+        (isLent(it.loc) && it.lentTo ? '<span class="lentto"> 👤 '+esc(it.lentTo)+'</span>' : '')+'</td>'+
       '<td>'+(it.zust? '<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>':'')+'</td>'+
       '<td class="tnote">'+(it.note? esc(it.note):'')+'</td>'+
       '<td><div class="tacts">'+
@@ -828,6 +838,10 @@
   function byName(a,b){ return a.name.localeCompare(b.name,"de"); }
 
   /* ---------- Formular Standort-Chips ---------- */
+  function isLent(loc){ return /verlieh/i.test(loc||""); }
+  function updateLentVisibility(){
+    $("fLentWrap").style.display = isLent($("fLoc").value) ? "" : "none";
+  }
   function renderFormLocPick(selected){
     var box = $("formLocPick");
     box.innerHTML = locations.map(function(l){
@@ -842,11 +856,13 @@
       addLocation(name);
       $("fLoc").value = name;
       renderFormLocPick(name);
+      updateLentVisibility();
       return;
     }
     var loc = b.getAttribute("data-loc");
     $("fLoc").value = loc;
     renderFormLocPick(loc);
+    updateLentVisibility();
   });
 
   /* ---------- Bearbeiten ---------- */
@@ -858,9 +874,11 @@
     $("fQty").value   = it ? (it.qty!=null?it.qty:1) : 1;
     $("fZust").value  = it ? (it.zust||"gut") : "gut";
     $("fNote").value  = it ? (it.note||"") : "";
+    $("fLent").value  = it ? (it.lentTo||"") : "";
     var loc = it ? (it.loc||"") : (filterLoc || locations[0] || "");
     $("fLoc").value = loc;
     renderFormLocPick(loc);
+    updateLentVisibility();
     $("editModal").classList.add("open");
     setTimeout(function(){ $("fName").focus(); }, 60);
   }
@@ -876,7 +894,8 @@
       qty:  Math.max(0, Math.floor(Number($("fQty").value)||0)),
       loc:  $("fLoc").value.trim(),
       zust: $("fZust").value,
-      note: $("fNote").value.trim()
+      note: $("fNote").value.trim(),
+      lentTo: isLent($("fLoc").value) ? $("fLent").value.trim() : ""
     };
     if(!rec.name){ toast("Bitte eine Bezeichnung eingeben"); return; }
     if(!rec.loc){ toast("Bitte einen Standort wählen"); return; }
@@ -938,8 +957,15 @@
         loc = b.getAttribute("data-pick");
       }
       it.loc = loc;
+      if(isLent(loc)){
+        var an = (prompt("Verliehen an wen?", it.lentTo||"")||"").trim();
+        it.lentTo = an;
+      } else {
+        it.lentTo = "";
+      }
       if(locations.indexOf(loc) === -1){ locations.push(loc); saveLocs(); }
-      saveItems(); closeLoc(); render(); toast('→ ' + loc);
+      saveItems(); closeLoc(); render();
+      toast('→ ' + loc + (it.lentTo ? ' (an '+it.lentTo+')' : ''));
     };
     $("locModal").classList.add("open");
   }
@@ -1030,7 +1056,8 @@
           qty: Math.max(0, Math.floor(Number(x.qty)||0)),
           loc: x.loc ? String(x.loc) : "",
           zust: (["gut","mittel","defekt"].indexOf(x.zust)!==-1) ? x.zust : "gut",
-          note: x.note ? String(x.note) : ""
+          note: x.note ? String(x.note) : "",
+          lentTo: x.lentTo ? String(x.lentTo) : ""
         };
       });
       var fileLocs = (data && Array.isArray(data.locations)) ? data.locations : [];
