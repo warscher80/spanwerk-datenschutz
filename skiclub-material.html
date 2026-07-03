@@ -124,6 +124,26 @@
   .card .meta .lent{background:#fdf0e0; color:#a56a00; padding:1px 8px;
     border-radius:20px; font-weight:600}
   table.tbl .lentto{color:#a56a00; font-weight:600; white-space:nowrap; margin-left:2px}
+  .tag.low{background:#fbe4e4; color:var(--red-d); font-weight:700}
+  .stepper .val.low{color:var(--red-d)}
+  table.tbl .val.low{color:var(--red-d)}
+  /* Schnell-Aktionen (zurück / repariert) */
+  .actbtn{border:1px solid var(--line); cursor:pointer; font-weight:700;
+    padding:3px 10px; border-radius:20px; font-size:12.5px; font-family:inherit}
+  .actbtn.ret{background:#e7f0ff; color:var(--blue-d)}
+  .actbtn.fix{background:#e3f6ea; color:var(--green-d)}
+  .actbtn:active{transform:scale(.96)}
+  .iconbtn.ret:active{background:#e7f0ff}
+  .iconbtn.fix{color:var(--green-d)} .iconbtn.fix:active{background:#e3f6ea}
+  /* Klickbare Statistik-Kacheln */
+  .stat.clickable{cursor:pointer}
+  .stat.clickable:active{transform:scale(.98)}
+  .stat.active{outline:2px solid var(--blue); outline-offset:-2px}
+  /* Löschprotokoll */
+  .delrow{padding:9px 0; border-bottom:1px solid #eef0f3; font-size:13.5px}
+  .delrow .dw{font-size:11.5px; color:var(--muted); font-weight:600}
+  .delrow .dt{color:var(--ink); margin-top:1px}
+  .delrow .dm{color:var(--muted); font-weight:500}
   .locpill{display:inline-flex; align-items:center; gap:4px; background:#eef1f5;
     border:1px solid var(--line); color:#334; padding:2px 9px; border-radius:20px;
     font-weight:600; cursor:pointer}
@@ -365,6 +385,10 @@
             <label for="fQty">Anzahl</label>
             <input id="fQty" type="number" inputmode="numeric" min="0" step="1" value="1">
           </div>
+          <div>
+            <label for="fMin">Mindest <span style="text-transform:none;font-weight:400">(Warnung)</span></label>
+            <input id="fMin" type="number" inputmode="numeric" min="0" step="1" value="0" placeholder="0">
+          </div>
         </div>
       </div>
       <div class="field">
@@ -479,6 +503,18 @@
   </div>
 </div>
 
+<!-- Modal: Löschprotokoll -->
+<div class="modal" id="delModal">
+  <div class="sheet">
+    <h2>🗑️ Löschprotokoll</h2>
+    <p class="hint">Wer hat wann was gelöscht.</p>
+    <div id="delList"></div>
+    <div class="modal-acts" style="margin-top:14px">
+      <button type="button" class="btn ghost" id="delClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Login-Sperre -->
 <div class="lockscreen" id="lockScreen">
   <div class="lockbox">
@@ -564,8 +600,11 @@
   // Benutzer (geteilt/synchron) + "Ich" (pro Gerät)
   var UKEY = "skiclub_users_v1";
   var MEKEY = "skiclub_me_v1";
-  var users = [];   // { id, name, role?, avatar? }
-  var meId = "";    // wer bin ich auf diesem Gerät
+  var DKEY = "skiclub_deletions_v1";
+  var users = [];       // { id, name, role?, avatar?, pin? }
+  var meId = "";        // wer bin ich auf diesem Gerät
+  var deletions = [];   // Löschprotokoll: { id, name, qty, loc, byName, at }
+  var filterSpecial = ""; // "", "defekt", "low"
 
   function seedUsers(){
     return [
@@ -592,6 +631,23 @@
     if(!Array.isArray(users) || !users.length) users = seedUsers();
     ensureSeedUsers();
     meId = localStorage.getItem(MEKEY) || "";
+    try{ deletions = JSON.parse(localStorage.getItem(DKEY)) || []; }catch(e){ deletions = []; }
+    if(!Array.isArray(deletions)) deletions = [];
+  }
+  function saveDeletions(){
+    if(deletions.length > 200) deletions = deletions.slice(0, 200);
+    try{ localStorage.setItem(DKEY, JSON.stringify(deletions)); }catch(e){}
+    if(cloud.on && !cloud.applying && cloud.rootRef) cloud.rootRef.child("deletions").set(deletions).catch(cloudErr);
+  }
+  function logDeletion(it){
+    var u = me();
+    deletions.unshift({
+      id: uid(),
+      name: it.name || "", qty: Number(it.qty)||0, loc: it.loc||"",
+      byName: (u ? u.name : (it.by ? (userById(it.by)||{}).name : "")) || "?",
+      at: Date.now()
+    });
+    saveDeletions();
   }
   function saveItems(){
     try{ localStorage.setItem(IKEY, JSON.stringify(items)); }
@@ -665,6 +721,8 @@
       zust: (["gut","mittel","defekt"].indexOf(x.zust)!==-1) ? x.zust : "gut",
       note: x.note ? String(x.note) : "",
       lentTo: x.lentTo ? String(x.lentTo) : "",
+      lentSince: Number(x.lentSince)||0,
+      min: Math.max(0, Math.floor(Number(x.min)||0)),
       by: x.by ? String(x.by) : "",
       at: Number(x.at)||0
     };
@@ -689,7 +747,11 @@
       ensureLocationsFromItems();
       var us = objToItems(v && v.users).filter(function(x){ return x && x.id && x.name; });
       if(us.length) users = us;
+      var ds = objToItems(v && v.deletions).filter(function(x){ return x && x.at; });
+      ds.sort(function(a,b){ return (b.at||0)-(a.at||0); });
+      deletions = ds;
       saveItems(); saveLocs(); saveUsers();
+      try{ localStorage.setItem(DKEY, JSON.stringify(deletions)); }catch(e){}
       refreshCatList(); updateMeBadge(); render();
     } finally { cloud.applying = false; }
   }
@@ -736,9 +798,16 @@
           users.forEach(function(u){ if(u && u.id) mergedUsers[u.id] = u; });
           var uArr = Object.keys(mergedUsers).map(function(k){ return mergedUsers[k]; });
           if(!uArr.length) uArr = seedUsers();
+          // Löschprotokoll mergen (nach id vereinigen)
+          var mergedDel = {};
+          objToItems(v.deletions).forEach(function(d){ if(d && d.id) mergedDel[d.id] = d; });
+          deletions.forEach(function(d){ if(d && d.id) mergedDel[d.id] = d; });
+          var dArr = Object.keys(mergedDel).map(function(k){ return mergedDel[k]; });
+          dArr.sort(function(a,b){ return (b.at||0)-(a.at||0); });
+          if(dArr.length > 200) dArr = dArr.slice(0, 200);
           cloud.on = true;
-          applyRemote({ items: mergedItems, locations: mergedLocs, users: uArr });
-          cloud.rootRef.set({ items: mergedItems, locations: mergedLocs, users: uArr, updated: Date.now() })
+          applyRemote({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr });
+          cloud.rootRef.set({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr, updated: Date.now() })
             .then(function(){ cloud.rootRef.on("value", function(s){ applyRemote(s.val()); }); })
             .catch(cloudErr);
           cloudSaveCfg(true);
@@ -1016,12 +1085,18 @@
     var home = locations[0] || "Hier";
     var nichtHier = items.filter(function(it){ return (it.loc||"") !== home; }).length;
     var defekt = items.filter(function(it){ return it.zust==="defekt"; }).length;
+    var low = items.filter(isLow).length;
     $("stats").innerHTML =
-      stat(items.length,"Artikel","") +
-      stat(totalStk,"Stück gesamt","") +
-      stat(nichtHier,"Nicht hier","") +
-      stat(defekt,"Defekt", defekt? "warn":"");
-    function stat(n,l,cls){ return '<div class="stat '+cls+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+      stat(items.length,"Artikel","","") +
+      stat(totalStk,"Stück gesamt","","") +
+      stat(nichtHier,"Nicht hier","","") +
+      stat(defekt,"Defekt", defekt?"warn":"", "defekt") +
+      stat(low,"Wenig", low?"warn":"", "low");
+    function stat(n,l,cls,f){
+      var on = (f && filterSpecial===f) ? " active" : "";
+      var click = f ? ' data-filter="'+f+'"' : '';
+      return '<div class="stat '+cls+on+(f?' clickable':'')+'"'+click+'><div class="n">'+n+'</div><div class="l">'+l+'</div></div>';
+    }
   }
 
   function refreshCatList(){
@@ -1034,6 +1109,22 @@
   }
 
   var ZLBL = { gut:"Gut", mittel:"Prüfen", defekt:"Defekt" };
+  function isLow(it){ return (Number(it.min)||0) > 0 && (Number(it.qty)||0) <= (Number(it.min)||0); }
+  function fmtDate(ts){
+    if(!ts) return "";
+    var d = new Date(ts), p = function(n){ return (n<10?"0":"")+n; };
+    return p(d.getDate())+"."+p(d.getMonth()+1)+"."+d.getFullYear();
+  }
+  function daysSince(ts){
+    if(!ts) return 0;
+    return Math.floor((Date.now()-ts)/86400000);
+  }
+  function lentInfo(it){
+    var s = "seit " + fmtDate(it.lentSince);
+    var d = daysSince(it.lentSince);
+    if(d >= 1) s += " · " + d + " Tag" + (d===1?"":"e");
+    return s;
+  }
 
   /* ---------- Filter ---------- */
   function currentFiltered(){
@@ -1042,6 +1133,8 @@
     return items.filter(function(it){
       if(filterLoc && (it.loc||"") !== filterLoc) return false;
       if(fc && (it.cat||"") !== fc) return false;
+      if(filterSpecial === "defekt" && it.zust !== "defekt") return false;
+      if(filterSpecial === "low" && !isLow(it)) return false;
       if(q){
         var hay = (it.name+" "+(it.cat||"")+" "+(it.loc||"")+" "+(it.note||"")+" "+(it.lentTo||"")).toLowerCase();
         if(hay.indexOf(q) === -1) return false;
@@ -1054,21 +1147,26 @@
   function stepperHtml(it){
     return '<div class="stepper">'+
       '<button data-act="dec" aria-label="weniger">−</button>'+
-      '<span class="val">'+(Number(it.qty)||0)+'</span>'+
+      '<span class="val'+(isLow(it)?" low":"")+'">'+(Number(it.qty)||0)+'</span>'+
       '<button data-act="inc" aria-label="mehr">+</button></div>';
   }
   function cardHtml(it){
     var meta = [];
     if(it.cat) meta.push('<span class="tag cat">'+esc(it.cat)+'</span>');
     if(group !== "loc") meta.push('<button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button>');
-    if(isLent(it.loc) && it.lentTo) meta.push('<span class="tag lent">👤 an '+esc(it.lentTo)+'</span>');
+    if(isLent(it.loc) && it.lentTo) meta.push('<span class="tag lent">👤 an '+esc(it.lentTo)+(it.lentSince?' · '+lentInfo(it):'')+'</span>');
     if(it.zust) meta.push('<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>');
+    if(isLow(it)) meta.push('<span class="tag low">⚠️ wenig (min '+it.min+')</span>');
+    var acts = [];
+    if(isLent(it.loc)) acts.push('<button class="tag actbtn ret" data-act="return">↩️ zurück</button>');
+    if(it.zust === "defekt") acts.push('<button class="tag actbtn fix" data-act="fixed">✓ repariert</button>');
     var byU = it.by ? userById(it.by) : null;
     return '<div class="card" data-id="'+it.id+'">'+
       '<div class="qty">'+stepperHtml(it)+'<span class="qlbl">Stück</span></div>'+
       '<div class="body">'+
         '<div class="name">'+esc(it.name)+'</div>'+
         (meta.length? '<div class="meta">'+meta.join("")+'</div>' : '')+
+        (acts.length? '<div class="meta">'+acts.join("")+'</div>' : '')+
         (it.note? '<div class="note">'+esc(it.note)+'</div>' : '')+
         (byU? '<div class="byuser">'+avatarHtml(byU,18)+'<span>erfasst von '+esc(byU.name)+'</span></div>' : '')+
       '</div>'+
@@ -1082,16 +1180,21 @@
 
   /* ---------- Tabelle (PC) ---------- */
   function rowHtml(it){
+    var zustCell = (it.zust? '<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>':'') +
+      (isLow(it) ? ' <span class="tag low">⚠️ wenig</span>' : '');
+    var retBtn = isLent(it.loc) ? '<button class="iconbtn ret" data-act="return" title="Zurückbekommen">↩️</button>' : '';
+    var fixBtn = it.zust === "defekt" ? '<button class="iconbtn fix" data-act="fixed" title="Repariert">✓</button>' : '';
     return '<tr data-id="'+it.id+'">'+
       '<td>'+stepperHtml(it)+'</td>'+
       '<td class="tname">'+esc(it.name)+'</td>'+
       '<td>'+(it.cat? esc(it.cat):'<span style="color:#aab">–</span>')+'</td>'+
       '<td><button class="locpill" data-act="move">📍 '+esc(it.loc||"Ohne Ort")+'</button>'+
-        (isLent(it.loc) && it.lentTo ? '<span class="lentto"> 👤 '+esc(it.lentTo)+'</span>' : '')+'</td>'+
-      '<td>'+(it.zust? '<span class="zust '+it.zust+'">'+ZLBL[it.zust]+'</span>':'')+'</td>'+
+        (isLent(it.loc) && it.lentTo ? '<span class="lentto"> 👤 '+esc(it.lentTo)+(it.lentSince?' ('+lentInfo(it)+')':'')+'</span>' : '')+'</td>'+
+      '<td>'+zustCell+'</td>'+
       '<td class="tnote">'+(it.note? esc(it.note):'')+'</td>'+
       '<td>'+(function(){ var u=it.by?userById(it.by):null; return u? '<span class="byuser">'+avatarHtml(u,20)+'<span>'+esc(u.name)+'</span></span>':''; })()+'</td>'+
       '<td><div class="tacts">'+
+        retBtn + fixBtn +
         '<button class="iconbtn" data-act="edit" aria-label="Bearbeiten">✏️</button>'+
         '<button class="iconbtn del" data-act="del" aria-label="Löschen">🗑️</button>'+
       '</div></td>'+
@@ -1202,6 +1305,7 @@
     $("fName").value  = it ? it.name : "";
     $("fCatIn").value = it ? (it.cat||"") : "";
     $("fQty").value   = it ? (it.qty!=null?it.qty:1) : 1;
+    $("fMin").value   = it ? (it.min||0) : 0;
     $("fZust").value  = it ? (it.zust||"gut") : "gut";
     $("fNote").value  = it ? (it.note||"") : "";
     $("fLent").value  = it ? (it.lentTo||"") : "";
@@ -1218,6 +1322,8 @@
     e.preventDefault();
     if(!requireMe()) return;
     var id = $("fId").value;
+    var old = id ? items.find(function(x){ return x.id === id; }) : null;
+    var lent = isLent($("fLoc").value);
     var rec = {
       id: id || uid(),
       name: $("fName").value.trim(),
@@ -1226,7 +1332,9 @@
       loc:  $("fLoc").value.trim(),
       zust: $("fZust").value,
       note: $("fNote").value.trim(),
-      lentTo: isLent($("fLoc").value) ? $("fLent").value.trim() : "",
+      lentTo: lent ? $("fLent").value.trim() : "",
+      lentSince: lent ? ((old && old.lentSince) ? old.lentSince : Date.now()) : 0,
+      min:  Math.max(0, Math.floor(Number($("fMin").value)||0)),
       by: meId || "", at: Date.now()
     };
     if(!rec.name){ toast("Bitte eine Bezeichnung eingeben"); return; }
@@ -1256,15 +1364,26 @@
       saveItems();
       var val = row.querySelector(".val"); if(val) val.textContent = it.qty;
       renderStats();
-      if(group !== "none") render();   // Gruppensummen aktualisieren
+      render();   // Gruppensummen + Warnungen aktualisieren
     } else if(act === "move"){
       openLocPicker(it);
     } else if(act === "edit"){
       openEdit(it);
+    } else if(act === "return"){
+      if(!requireMe()) return;
+      var home = locations[0] || "Hier";
+      it.loc = home; it.lentTo = ""; it.lentSince = 0; it.by = meId || it.by; it.at = Date.now();
+      saveItems(); render(); toast("Zurück: " + home);
+    } else if(act === "fixed"){
+      if(!requireMe()) return;
+      it.zust = "gut"; it.by = meId || it.by; it.at = Date.now();
+      saveItems(); render(); toast("Als repariert markiert ✓");
     } else if(act === "del"){
+      if(!requireMe()) return;
       if(confirm('"'+it.name+'" wirklich löschen?')){
+        logDeletion(it);
         items = items.filter(function(x){ return x.id !== id; });
-        saveItems(); refreshCatList(); render(); toast("Gelöscht");
+        saveItems(); refreshCatList(); render(); toast("Gelöscht (im Protokoll vermerkt)");
       }
     }
   });
@@ -1295,8 +1414,9 @@
       if(isLent(loc)){
         var an = (prompt("Verliehen an wen?", it.lentTo||"")||"").trim();
         it.lentTo = an;
+        if(!it.lentSince) it.lentSince = Date.now();
       } else {
-        it.lentTo = "";
+        it.lentTo = ""; it.lentSince = 0;
       }
       it.by = meId || it.by; it.at = Date.now();
       if(locations.indexOf(loc) === -1){ locations.push(loc); saveLocs(); }
@@ -1363,8 +1483,8 @@
 
   /* ---------- Daten: Export / Import ---------- */
   function exportData(){
-    var payload = { app:"skiclub-material", version:2, exported:new Date().toISOString(),
-      locations:locations, items:items };
+    var payload = { app:"skiclub-material", version:3, exported:new Date().toISOString(),
+      locations:locations, items:items, users:users, deletions:deletions };
     var blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -1424,11 +1544,14 @@
       "Mach regelmäßig eine Sicherung und schick die Datei an weitere Vorstandsmitglieder, damit alle den gleichen Stand haben.";
     var acts = $("dataActs"); acts.innerHTML = "";
     addBtn(acts, "👥 Benutzer verwalten", "ghost", function(){ closeData(); openUsers(); });
+    addBtn(acts, "🗑️ Löschprotokoll ("+deletions.length+")", "ghost", function(){ closeData(); openDeletionLog(); });
     addBtn(acts, "💾 Sicherung erstellen (Download)", "primary", function(){ exportData(); });
     addBtn(acts, "📥 Sicherung laden (aus Datei)", "ghost", function(){ $("importFile").click(); });
     addBtn(acts, "🖨️ Liste drucken / als PDF", "ghost", function(){ closeData(); setTimeout(function(){ window.print(); }, 200); });
     addBtn(acts, "🗑️ Alle Daten löschen", "danger", function(){
+      if(!requireMe()) return;
       if(confirm("Wirklich ALLE "+items.length+" Artikel löschen? Das kann nicht rückgängig gemacht werden.")){
+        items.forEach(function(it){ logDeletion(it); });
         items = []; saveItems(); render(); closeData(); toast("Alle Daten gelöscht");
       }
     });
@@ -1440,6 +1563,24 @@
   }
   function closeData(){ $("dataModal").classList.remove("open"); }
 
+  function openDeletionLog(){
+    var box = $("delList");
+    if(!deletions.length){
+      box.innerHTML = '<p class="hint" style="text-align:center;padding:20px 0">Noch nichts gelöscht.</p>';
+    } else {
+      box.innerHTML = deletions.map(function(d){
+        var dt = new Date(d.at);
+        var p = function(n){ return (n<10?"0":"")+n; };
+        var when = fmtDate(d.at) + " " + p(dt.getHours()) + ":" + p(dt.getMinutes());
+        return '<div class="delrow"><div class="dw">'+esc(when)+'</div>'+
+          '<div class="dt"><b>'+esc(d.byName||"?")+'</b> hat <b>'+esc(d.name)+'</b> gelöscht'+
+          '<span class="dm"> ('+(Number(d.qty)||0)+' Stk · '+esc(d.loc||"–")+')</span></div></div>';
+      }).join("");
+    }
+    $("delModal").classList.add("open");
+  }
+  function closeDeletionLog(){ $("delModal").classList.remove("open"); }
+
   /* ---------- Events ---------- */
   $("fab").onclick = function(){ openEdit(null); };
   $("mAdd").onclick = function(){ openEdit(null); };
@@ -1449,6 +1590,7 @@
   $("editCancel").onclick = closeEdit;
   $("locClose").onclick = closeLoc;
   $("dataClose").onclick = closeData;
+  $("delClose").onclick = closeDeletionLog;
   $("syncClose").onclick = closeSync;
   $("syncConnect").onclick = function(){ cloudConnect($("syncCfg").value, $("syncCode").value); };
   $("syncDisconnect").onclick = function(){ cloudDisconnect(); };
@@ -1489,8 +1631,16 @@
     render();
   });
 
+  // Statistik-Kacheln als Filter (Defekt / Wenig)
+  $("stats").addEventListener("click", function(e){
+    var s = e.target.closest("[data-filter]"); if(!s) return;
+    var f = s.getAttribute("data-filter");
+    filterSpecial = (filterSpecial === f) ? "" : f;
+    render();
+  });
+
   // Modale schließen bei Klick auf Hintergrund
-  ["editModal","locModal","dataModal","syncModal"].forEach(function(idm){
+  ["editModal","locModal","dataModal","syncModal","delModal"].forEach(function(idm){
     var m = $(idm);
     m.addEventListener("click", function(e){ if(e.target === m){ m.classList.remove("open"); $("locBody").onclick=null; } });
   });
@@ -1510,7 +1660,7 @@
   });
 
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); closeAdmin(); }
+    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); closeAdmin(); closeDeletionLog(); }
   });
 
   // PC = Tabelle, Handy = Karten (bei Größenwechsel neu zeichnen)
