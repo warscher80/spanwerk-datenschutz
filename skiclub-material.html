@@ -231,6 +231,25 @@
   .rolebadge{background:var(--blue-l); color:var(--blue-d); font-size:11px; font-weight:700;
     padding:1px 7px; border-radius:20px; margin-left:4px}
   .pinbadge{font-size:11px; margin-left:2px}
+  /* Login-Sperre */
+  .lockscreen{position:fixed; inset:0; z-index:90; display:none;
+    background:linear-gradient(135deg,var(--blue),var(--blue-d));
+    align-items:center; justify-content:center; padding:24px;
+    padding-top:calc(24px + env(safe-area-inset-top))}
+  .lockbox{width:100%; max-width:420px; text-align:center; color:#fff}
+  .lockbox .locklogo{background:#fff; border-radius:14px; padding:8px 16px; display:inline-flex;
+    box-shadow:0 2px 8px rgba(0,0,0,.25); margin-bottom:18px}
+  .lockbox .locklogo img{height:46px; width:auto; display:block}
+  .lockbox h2{margin:0; font-size:24px}
+  .lockbox .locksub{margin:6px 0 20px; opacity:.92; font-size:14px}
+  .lockusers{display:flex; flex-direction:column; gap:10px}
+  .lockchip{display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.3); border-radius:16px; padding:9px 14px; cursor:pointer;
+    color:#fff; font-size:17px; font-weight:600; text-align:left}
+  .lockchip:active{background:rgba(255,255,255,.28)}
+  .lockchip .ln{flex:1 1 auto; min-width:0}
+  .lockchip .lp{font-size:11.5px; opacity:.85; font-weight:600; white-space:nowrap}
+  .lockhint{margin-top:18px; font-size:12.5px; opacity:.82}
   /* Benutzer-Auswahl "Wer bist du?" */
   .userpick{display:flex; flex-wrap:wrap; gap:8px}
   .userpick .uchip{display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line);
@@ -446,6 +465,17 @@
   </div>
 </div>
 
+<!-- Login-Sperre -->
+<div class="lockscreen" id="lockScreen">
+  <div class="lockbox">
+    <span class="locklogo"><img id="lockLogo" alt="Ski Club Lienz"></span>
+    <h2>Materialverwaltung</h2>
+    <p class="locksub">Bitte anmelden – wer bist du?</p>
+    <div class="lockusers" id="lockUsers"></div>
+    <p class="lockhint">🔒 Nur Vereinsmitglieder mit PIN haben Zugriff.</p>
+  </div>
+</div>
+
 <!-- Modal: Benutzer -->
 <div class="modal" id="userModal">
   <div class="sheet">
@@ -461,6 +491,7 @@
     </div>
     <input type="file" id="userFile" accept="image/*" style="display:none">
     <div class="modal-acts" style="margin-top:8px">
+      <button type="button" class="btn danger" id="userLogout">🔒 Abmelden</button>
       <button type="button" class="btn ghost" id="userClose">Schließen</button>
     </div>
   </div>
@@ -514,8 +545,14 @@
     return [
       { id:"u_edgar",   name:"Edgar Ebner",        role:"Materialchef", pin:"1972", avatar: CHEF_SRC },
       { id:"u_michael", name:"Michael Oberforcher", role:"", pin:"1987", avatar:"" },
-      { id:"u_jakob",   name:"Jakob Ebner",         role:"", pin:"2007", avatar: JAKOB_SRC }
+      { id:"u_jakob",   name:"Jakob Ebner",         role:"", pin:"2007", avatar: JAKOB_SRC },
+      { id:"u_nico",    name:"Nico Warscher",       role:"", pin:"1998", avatar:"" }
     ];
+  }
+  // Bekannte Vereinsmitglieder immer sicherstellen (auch nach Updates)
+  function ensureSeedUsers(){
+    var have = {}; users.forEach(function(u){ have[u.id] = true; });
+    seedUsers().forEach(function(su){ if(!have[su.id]) users.push(su); });
   }
 
   /* ---------- Speicher ---------- */
@@ -527,6 +564,7 @@
     ensureLocationsFromItems();
     try{ users = JSON.parse(localStorage.getItem(UKEY)) || null; }catch(e){ users = null; }
     if(!Array.isArray(users) || !users.length) users = seedUsers();
+    ensureSeedUsers();
     meId = localStorage.getItem(MEKEY) || "";
   }
   function saveItems(){
@@ -735,8 +773,8 @@
   function me(){ return userById(meId); }
   function requireMe(){
     if(meId && userById(meId)) return true;
-    toast("Bitte zuerst wählen, wer du bist");
-    openUsers();
+    toast("Bitte zuerst anmelden");
+    showLock();
     return false;
   }
   function setMe(id){ meId = id; saveMe(); updateMeBadge(); render(); }
@@ -840,6 +878,36 @@
     r.onload = function(){ img.src = r.result; };
     r.readAsDataURL(file);
   }
+
+  /* ---------- Login-Sperre ---------- */
+  var unlocked = false;
+  function showLock(){
+    unlocked = false; meId = "";
+    updateMeBadge();
+    drawLockUsers();
+    $("lockScreen").style.display = "flex";
+  }
+  function hideLock(){ unlocked = true; $("lockScreen").style.display = "none"; }
+  function drawLockUsers(){
+    var last = localStorage.getItem(MEKEY) || "";
+    var ordered = users.slice().sort(function(a,b){ return (b.id===last?1:0) - (a.id===last?1:0); });
+    $("lockUsers").innerHTML = ordered.map(function(u){
+      return '<button type="button" class="lockchip" data-login="'+u.id+'">'+
+        avatarHtml(u,56)+'<span class="ln">'+esc(u.name)+'</span>'+
+        (u.pin?'<span class="lp">🔒 PIN</span>':'<span class="lp">offen</span>')+'</button>';
+    }).join("");
+  }
+  function doLogin(id){
+    var u = userById(id); if(!u) return;
+    if(u.pin){
+      var pw = prompt("Passwort für " + u.name + ":");
+      if(pw === null) return;
+      if(String(pw).trim() !== String(u.pin)){ toast("Falsches Passwort"); return; }
+    }
+    meId = id; saveMe(); hideLock(); updateMeBadge(); render();
+    toast("Willkommen, " + u.name.split(/\s+/)[0] + "!");
+  }
+  function logout(){ closeUsers(); showLock(); }
 
   /* ---------- Hilfen ---------- */
   function $(id){ return document.getElementById(id); }
@@ -1326,6 +1394,10 @@
   };
   // Benutzer
   $("userClose").onclick = closeUsers;
+  $("userLogout").onclick = logout;
+  $("lockScreen").addEventListener("click", function(e){
+    var b = e.target.closest("[data-login]"); if(b) doLogin(b.getAttribute("data-login"));
+  });
   $("userModal").addEventListener("click", function(e){ if(e.target === $("userModal")){ closeUsers(); return; } handleUsersClick(e); });
   $("userFile").onchange = function(e){
     var f = e.target.files && e.target.files[0];
@@ -1379,6 +1451,7 @@
 
   /* ---------- Logo + Benutzer + Easter-Egg ---------- */
   document.getElementById("logoImg").src = LOGO_SRC;
+  document.getElementById("lockLogo").src = LOGO_SRC;
   function chefGaude(){ toast(CHEF_LINES[chefTick % CHEF_LINES.length]); chefTick++; }
   $("logo").onclick = chefGaude;
   $("meBadge").onclick = function(){ openUsers(); };
@@ -1400,6 +1473,9 @@
     }
     updateSyncUI();
   })();
+
+  // Immer mit Anmeldung starten (Zugriffsschutz)
+  showLock();
 })();
 </script>
 </body>
