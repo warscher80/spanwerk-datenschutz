@@ -256,6 +256,8 @@
     background:var(--card); border-radius:24px; padding:5px 12px 5px 5px; font-size:15px;
     font-weight:600; color:var(--ink); cursor:pointer}
   .userpick .uchip.on{background:var(--blue); color:#fff; border-color:var(--blue)}
+  .profile-acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px}
+  .btn.sm[disabled]{opacity:.5; cursor:default}
   /* "erfasst von" auf Karte/Tabelle */
   .byuser{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); font-weight:600}
   .card .byuser{margin-top:6px}
@@ -461,6 +463,18 @@
 
     <div class="modal-acts" style="margin-top:14px">
       <button type="button" class="btn ghost" id="syncClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Materialchef-Verwaltung -->
+<div class="modal" id="adminModal">
+  <div class="sheet">
+    <h2>🔧 Materialchef-Verwaltung</h2>
+    <p class="hint">Nur der Materialchef: Benutzer anlegen &amp; löschen und Passwörter aller ändern.</p>
+    <div id="adminList"></div>
+    <div class="modal-acts" style="margin-top:14px">
+      <button type="button" class="btn ghost" id="adminClose">Schließen</button>
     </div>
   </div>
 </div>
@@ -794,31 +808,30 @@
     drawUsers();
   }
   function closeUsers(){ $("userModal").classList.remove("open"); }
+  function isAdmin(){ var u = me(); return !!(u && u.role === "Materialchef"); }
+
   function drawUsers(){
-    // "Wer bist du?" – Auswahl
+    // "Wer bist du?" – Anmeldung
     $("userMe").innerHTML = users.map(function(u){
       return '<button type="button" class="uchip'+(u.id===meId?" on":"")+'" data-me="'+u.id+'">'+
         avatarHtml(u,30)+'<span>'+esc(u.name)+'</span></button>';
     }).join("");
-    // Verwalten
-    $("userList").innerHTML = users.map(function(u){
-      return '<div class="manage-row">'+avatarHtml(u,34)+
-        '<span class="mname">'+esc(u.name)+(u.role?' <span class="rolebadge">'+esc(u.role)+'</span>':'')+
-          (u.pin?' <span class="pinbadge">🔒</span>':'')+'</span>'+
-        '<button class="btn ghost sm" data-photo="'+u.id+'">Foto</button>'+
-        '<button class="btn ghost sm" data-uren="'+u.id+'">Name</button>'+
-        '<button class="btn ghost sm" data-upin="'+u.id+'">PIN</button>'+
-        '<button class="btn danger sm" data-urm="'+u.id+'">✕</button>'+
-      '</div>';
-    }).join("") +
-    '<div style="margin-top:12px"><button class="btn primary" id="userAddBtn">+ Benutzer hinzufügen</button></div>';
-    $("userAddBtn").onclick = function(){
-      var name = (prompt("Name des Benutzers:")||"").trim();
-      if(!name) return;
-      var pin = (prompt("Passwort/PIN für "+name+" (leer = ohne):")||"").trim();
-      users.push({ id:uidU(), name:name, role:"", pin:pin, avatar:"" });
-      saveUsers(); drawUsers();
-    };
+    // Nur eigenes Profil
+    var u = me(), html = "";
+    if(u){
+      html += '<div class="manage-row">'+avatarHtml(u,40)+
+        '<span class="mname">'+esc(u.name)+(u.role?' <span class="rolebadge">'+esc(u.role)+'</span>':'')+'</span></div>'+
+        '<div class="profile-acts">'+
+          '<button class="btn ghost sm" data-myphoto="1">📷 Foto ändern</button>'+
+          '<button class="btn ghost sm" data-myname="1">Name ändern</button>'+
+          '<button class="btn ghost sm" data-mypin="1">Mein Passwort ändern</button>'+
+        '</div>';
+      if(isAdmin())
+        html += '<div style="margin-top:14px"><button class="btn primary" data-admin="1">🔧 Materialchef-Verwaltung</button></div>';
+    } else {
+      html += '<p class="hint">Bitte oben anmelden.</p>';
+    }
+    $("userList").innerHTML = html;
   }
   function handleUsersClick(e){
     var b = e.target.closest("button"); if(!b) return;
@@ -832,33 +845,72 @@
       }
       setMe(meSel); drawUsers(); toast("Angemeldet als " + mu.name); return;
     }
-    var pinId = b.getAttribute("data-upin");
-    if(pinId){
-      var pu = userById(pinId); if(!pu) return;
-      if(pu.pin){ var old = prompt("Aktuelles Passwort von "+pu.name+":"); if(old===null) return;
-        if(String(old).trim() !== String(pu.pin)){ toast("Falsches Passwort"); return; } }
-      var np = prompt("Neues Passwort/PIN (leer = entfernen):", pu.pin||"");
-      if(np === null) return;
-      pu.pin = String(np).trim(); saveUsers(); drawUsers(); toast("Passwort aktualisiert");
+    if(b.getAttribute("data-myphoto")){ userPhotoTarget = meId; $("userFile").click(); return; }
+    if(b.getAttribute("data-myname")){
+      var un = me(); if(!un) return;
+      var neu = (prompt("Deinen Namen ändern:", un.name)||"").trim();
+      if(neu){ un.name = neu; saveUsers(); updateMeBadge(); drawUsers(); render(); }
       return;
     }
-    var ph = b.getAttribute("data-photo");
+    if(b.getAttribute("data-mypin")){
+      var up = me(); if(!up) return;
+      if(up.pin){ var old = prompt("Aktuelles Passwort:"); if(old===null) return;
+        if(String(old).trim() !== String(up.pin)){ toast("Falsches Passwort"); return; } }
+      var np = prompt("Neues Passwort/PIN (leer = ohne):", up.pin||""); if(np===null) return;
+      up.pin = String(np).trim(); saveUsers(); toast("Passwort geändert"); return;
+    }
+    if(b.getAttribute("data-admin")){ openUsersClose_openAdmin(); return; }
+  }
+  function openUsersClose_openAdmin(){ closeUsers(); openAdmin(); }
+
+  /* ---------- Materialchef-Verwaltung (eigenes Menü) ---------- */
+  function openAdmin(){
+    if(!isAdmin()){ toast("Nur der Materialchef darf das"); return; }
+    $("adminModal").classList.add("open"); drawAdmin();
+  }
+  function closeAdmin(){ $("adminModal").classList.remove("open"); }
+  function drawAdmin(){
+    $("adminList").innerHTML = users.map(function(u){
+      var chef = (u.role === "Materialchef");
+      return '<div class="manage-row">'+avatarHtml(u,34)+
+        '<span class="mname">'+esc(u.name)+(u.role?' <span class="rolebadge">'+esc(u.role)+'</span>':'')+
+          (u.pin?' <span class="pinbadge">🔒</span>':'')+'</span>'+
+        '<button class="btn ghost sm" data-aphoto="'+u.id+'">Foto</button>'+
+        '<button class="btn ghost sm" data-aname="'+u.id+'">Name</button>'+
+        '<button class="btn ghost sm" data-apin="'+u.id+'">PIN</button>'+
+        (chef ? '<button class="btn ghost sm" disabled title="Materialchef bleibt">🔒</button>'
+              : '<button class="btn danger sm" data-arm="'+u.id+'">✕</button>')+
+      '</div>';
+    }).join("") +
+    '<div style="margin-top:12px"><button class="btn primary" id="adminAddBtn">+ Benutzer hinzufügen</button></div>';
+    $("adminAddBtn").onclick = function(){
+      var name = (prompt("Name des Benutzers:")||"").trim(); if(!name) return;
+      var pin = (prompt("Passwort/PIN für "+name+" (leer = ohne):")||"").trim();
+      users.push({ id:uidU(), name:name, role:"", pin:pin, avatar:"" });
+      saveUsers(); drawAdmin();
+    };
+  }
+  function handleAdminClick(e){
+    if(!isAdmin()){ closeAdmin(); return; }
+    var b = e.target.closest("button"); if(!b) return;
+    var ph = b.getAttribute("data-aphoto");
     if(ph){ userPhotoTarget = ph; $("userFile").click(); return; }
-    var ren = b.getAttribute("data-uren");
-    if(ren){
-      var u = userById(ren); if(!u) return;
+    var an = b.getAttribute("data-aname");
+    if(an){ var u = userById(an); if(!u) return;
       var neu = (prompt("Name ändern:", u.name)||"").trim();
-      if(neu){ u.name = neu; saveUsers(); updateMeBadge(); drawUsers(); render(); }
-      return;
-    }
-    var rm = b.getAttribute("data-urm");
-    if(rm){
+      if(neu){ u.name = neu; saveUsers(); updateMeBadge(); drawAdmin(); render(); } return; }
+    var pin = b.getAttribute("data-apin");
+    if(pin){ var pu = userById(pin); if(!pu) return;
+      var np = prompt("Neues Passwort/PIN für "+pu.name+" (leer = entfernen):", pu.pin||""); if(np===null) return;
+      pu.pin = String(np).trim(); saveUsers(); drawAdmin(); toast("Passwort aktualisiert"); return; }
+    var rm = b.getAttribute("data-arm");
+    if(rm){ var t = userById(rm); if(!t) return;
+      if(t.role === "Materialchef"){ toast("Materialchef kann nicht gelöscht werden"); return; }
       var used = items.filter(function(x){ return x.by === rm; }).length;
-      var msg = "Benutzer wirklich löschen?" + (used? "\n\n"+used+" Eintrag/Einträge sind von dieser Person – die bleiben erhalten (nur der Name wird nicht mehr angezeigt).":"");
-      if(confirm(msg)){
+      if(confirm("Benutzer \""+t.name+"\" löschen?"+(used?"\n\n"+used+" Einträge bleiben erhalten (Name wird nicht mehr angezeigt).":""))){
         users = users.filter(function(x){ return x.id !== rm; });
         if(meId === rm){ meId = ""; saveMe(); updateMeBadge(); }
-        saveUsers(); drawUsers(); render();
+        saveUsers(); drawAdmin(); render();
       }
     }
   }
@@ -1395,6 +1447,8 @@
   // Benutzer
   $("userClose").onclick = closeUsers;
   $("userLogout").onclick = logout;
+  $("adminClose").onclick = closeAdmin;
+  $("adminModal").addEventListener("click", function(e){ if(e.target === $("adminModal")){ closeAdmin(); return; } handleAdminClick(e); });
   $("lockScreen").addEventListener("click", function(e){
     var b = e.target.closest("[data-login]"); if(b) doLogin(b.getAttribute("data-login"));
   });
@@ -1404,7 +1458,12 @@
     if(f && userPhotoTarget){
       var u = userById(userPhotoTarget);
       fileToAvatar(f, function(dataUri){
-        if(u && dataUri){ u.avatar = dataUri; saveUsers(); updateMeBadge(); drawUsers(); render(); toast("Foto gespeichert"); }
+        if(u && dataUri){
+          u.avatar = dataUri; saveUsers(); updateMeBadge();
+          if($("userModal").classList.contains("open")) drawUsers();
+          if($("adminModal").classList.contains("open")) drawAdmin();
+          render(); toast("Foto gespeichert");
+        }
       });
     }
     userPhotoTarget = null; e.target.value = "";
@@ -1439,7 +1498,7 @@
   });
 
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); }
+    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); closeAdmin(); }
   });
 
   // PC = Tabelle, Handy = Karten (bei Größenwechsel neu zeichnen)
