@@ -549,6 +549,18 @@
   var cloud = { on:false, applying:false, db:null, rootRef:null, code:"", configText:"", config:null, pushTimer:null };
   var sdkLoading = false, sdkCbs = [];
 
+  // Fest eingebaute Firebase-Konfiguration (SkiClub Lienz) + fester Vereins-Code.
+  // Damit synchronisieren alle Geräte automatisch, ohne Einrichtung pro Gerät.
+  var BUILTIN_CONFIG_TEXT =
+    'apiKey: "AIzaSyA__i4LJb3DBiBoIYOvAga4Gp_uUvXBJIg", ' +
+    'authDomain: "skiclublienz.firebaseapp.com", ' +
+    'databaseURL: "https://skiclublienz-default-rtdb.europe-west1.firebasedatabase.app", ' +
+    'projectId: "skiclublienz", ' +
+    'storageBucket: "skiclublienz.firebasestorage.app", ' +
+    'messagingSenderId: "413106258379", ' +
+    'appId: "1:413106258379:web:67b6fff44c28efeae8b64e"';
+  var BUILTIN_CLUB_CODE = "scl-lienz-material";
+
   // Benutzer (geteilt/synchron) + "Ich" (pro Gerät)
   var UKEY = "skiclub_users_v1";
   var MEKEY = "skiclub_me_v1";
@@ -759,8 +771,8 @@
   }
   function openSync(){
     var cfg = cloudLoadCfg() || {};
-    $("syncCfg").value = cloud.configText || cfg.configText || "";
-    $("syncCode").value = cloud.code || cfg.code || "skiclub-lienz";
+    $("syncCfg").value = cloud.configText || cfg.configText || BUILTIN_CONFIG_TEXT;
+    $("syncCode").value = cloud.code || cfg.code || BUILTIN_CLUB_CODE;
     updateSyncUI();
     $("syncModal").classList.add("open");
   }
@@ -1523,13 +1535,15 @@
   updateMeBadge();
   render();
 
-  // War Sync bereits eingerichtet? Dann automatisch (leise) wieder verbinden.
+  // Auto-Sync: standardmäßig mit der eingebauten Konfiguration verbinden,
+  // außer der Nutzer hat den Sync auf diesem Gerät bewusst getrennt.
   (function(){
     var cfg = cloudLoadCfg();
-    if(cfg && cfg.enabled && cfg.configText && cfg.code){
-      cloud.configText = cfg.configText; cloud.code = cfg.code;
-      cloudConnect(cfg.configText, cfg.code, { silent:true });
-    }
+    if(cfg && cfg.enabled === false) { updateSyncUI(); return; }  // bewusst getrennt
+    var conf = (cfg && cfg.configText) ? cfg.configText : BUILTIN_CONFIG_TEXT;
+    var code = (cfg && cfg.code) ? cfg.code : BUILTIN_CLUB_CODE;
+    cloud.configText = conf; cloud.code = code;
+    cloudConnect(conf, code, { silent:true });
     updateSyncUI();
   })();
 
