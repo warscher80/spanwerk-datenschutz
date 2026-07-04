@@ -110,6 +110,10 @@
   .group h2 .badge{background:var(--blue-l); color:var(--blue-d); font-size:12px;
     font-weight:700; padding:2px 8px; border-radius:20px}
   .group h2 .gic{font-size:17px}
+  .lenthead{display:flex; align-items:center; gap:10px; font-size:19px; font-weight:800;
+    color:var(--amber); margin:2px 0 12px}
+  .lenthead .badge{background:#fdf0e0; color:#a56a00; font-size:12px; font-weight:700;
+    padding:2px 9px; border-radius:20px}
 
   /* Karten (Handy) */
   .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
@@ -1313,6 +1317,21 @@
     if(data.length === 0){
       list.innerHTML = '<div class="empty"><div class="big">🔍</div>'+
         '<h3>Nichts gefunden</h3><p>Kein Material passt zu deiner Auswahl.</p></div>';
+      return;
+    }
+
+    // Sonderansicht "Verliehen": nach Ausleiher gruppiert (Name + Anzahl)
+    if(filterLoc && isLent(filterLoc)){
+      var bg = {};
+      data.forEach(function(it){ var k=(it.lentTo||"").trim() || "Ohne Namen"; (bg[k]=bg[k]||[]).push(it); });
+      var bkeys = Object.keys(bg).sort(function(a,b){ return a.localeCompare(b,"de"); });
+      list.innerHTML =
+        '<div class="lenthead">🤝 Verliehen<span class="badge">'+data.length+' Artikel · '+bkeys.length+' Personen</span></div>' +
+        bkeys.map(function(k){
+          var arr = bg[k].sort(byName);
+          return '<div class="group"><h2><span class="gic">👤</span>'+esc(k)+
+            '<span class="badge">'+arr.length+'</span></h2>'+ renderItemsBlock(arr) +'</div>';
+        }).join("");
       return;
     }
 
