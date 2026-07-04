@@ -63,6 +63,7 @@
     border-radius:var(--radius); padding:10px 12px; min-width:0}
   .stat .n{font-size:22px; font-weight:800; color:var(--blue-d); line-height:1}
   .stat.warn .n{color:var(--red-d)}
+  .stat.lentstat .n{color:var(--amber)}
   .stat .l{font-size:11.5px; color:var(--muted); text-transform:uppercase;
     letter-spacing:.4px; margin-top:4px; font-weight:600}
 
@@ -1205,10 +1206,16 @@
     var nichtHier = items.filter(function(it){ return (it.loc||"") !== home; }).length;
     var defekt = items.filter(function(it){ return it.zust==="defekt"; }).length;
     var low = items.filter(isLow).length;
+    var verliehen = items.filter(function(it){ return isLent(it.loc); }).length;
+    var lentLoc = "Verliehen";
+    for(var li=0; li<locations.length; li++){ if(isLent(locations[li])){ lentLoc = locations[li]; break; } }
+    var von = (filterLoc === lentLoc) ? " active" : "";
     $("stats").innerHTML =
       stat(items.length,"Artikel","","") +
       stat(totalStk,"Stück gesamt","","") +
       stat(nichtHier,"Nicht hier","","") +
+      '<div class="stat lentstat clickable'+von+'" data-locfilter="'+esc(lentLoc)+'">'+
+        '<div class="n">'+verliehen+'</div><div class="l">Verliehen</div></div>' +
       stat(defekt,"Defekt", defekt?"warn":"", "defekt") +
       stat(low,"Wenig", low?"warn":"", "low");
     function stat(n,l,cls,f){
@@ -1771,7 +1778,9 @@
 
   // Statistik-Kacheln als Filter (Defekt / Wenig)
   $("stats").addEventListener("click", function(e){
-    var s = e.target.closest("[data-filter]"); if(!s) return;
+    var s = e.target.closest("[data-filter],[data-locfilter]"); if(!s) return;
+    var lf = s.getAttribute("data-locfilter");
+    if(lf){ filterLoc = (filterLoc === lf) ? "" : lf; filterSpecial = ""; render(); return; }
     var f = s.getAttribute("data-filter");
     filterSpecial = (filterSpecial === f) ? "" : f;
     render();
