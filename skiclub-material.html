@@ -151,6 +151,23 @@
   .delrow.del .dw{color:var(--red-d)}
   .delrow .dt{color:var(--ink); margin-top:1px}
   .delrow .dm{color:var(--muted); font-weight:500}
+  /* Pack-Listen */
+  .packrow{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line);
+    border-radius:12px; margin-bottom:8px; cursor:pointer; background:var(--card)}
+  .packrow:active{background:#f2f4f7}
+  .pkinfo{flex:1 1 auto; min-width:0}
+  .pkname{font-weight:700}
+  .pkbar{height:7px; background:#eef1f5; border-radius:4px; overflow:hidden; margin:6px 0}
+  .pkbar.big{height:11px; margin:10px 0}
+  .pkbar span{display:block; height:100%; background:var(--green); border-radius:4px; transition:width .25s}
+  .pkcount{font-size:12px; color:var(--muted); font-weight:600}
+  .packitem{display:flex; align-items:center; gap:11px; padding:10px 4px; border-bottom:1px solid #eef0f3; cursor:pointer}
+  .packitem input{width:22px; height:22px; flex:0 0 auto; accent-color:var(--green)}
+  .packitem .pit{flex:1 1 auto; font-size:15px; word-break:break-word}
+  .packitem.done .pit{text-decoration:line-through; color:var(--muted)}
+  .packadd{display:flex; gap:8px; margin-top:14px}
+  .packadd input{flex:1 1 auto; padding:11px; border:1px solid var(--line); border-radius:12px; font-size:16px; min-width:0}
+  .packadd .btn.sm{flex:0 0 auto; padding:11px 16px}
   .locpill{display:inline-flex; align-items:center; gap:4px; background:#eef1f5;
     border:1px solid var(--line); color:#334; padding:2px 9px; border-radius:20px;
     font-weight:600; cursor:pointer}
@@ -550,6 +567,18 @@
   </div>
 </div>
 
+<!-- Modal: Pack-Listen -->
+<div class="modal" id="packModal">
+  <div class="sheet">
+    <h2 id="packTitle">✅ Pack-Listen</h2>
+    <p class="hint">Was muss mit ans Zettersfeld? Anlegen &amp; abhaken – für alle sichtbar.</p>
+    <div id="packBody"></div>
+    <div class="modal-acts" style="margin-top:14px">
+      <button type="button" class="btn ghost" id="packClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Login-Sperre -->
 <div class="lockscreen" id="lockScreen">
   <div class="lockbox">
@@ -692,9 +721,12 @@
   var UKEY = "skiclub_users_v1";
   var MEKEY = "skiclub_me_v1";
   var DKEY = "skiclub_deletions_v1";
+  var PKEY = "skiclub_packlists_v1";
   var users = [];       // { id, name, role?, avatar?, pin? }
   var meId = "";        // wer bin ich auf diesem Gerät
   var deletions = [];   // Löschprotokoll: { id, name, qty, loc, byName, at }
+  var packlists = [];   // Pack-Listen: { id, name, at, items:[{id,text,done}] }
+  var currentPackId = null; // aktuell geöffnete Liste
   var filterSpecial = ""; // "", "defekt", "low"
 
   function seedUsers(){
@@ -735,11 +767,17 @@
     meId = localStorage.getItem(MEKEY) || "";
     try{ deletions = JSON.parse(localStorage.getItem(DKEY)) || []; }catch(e){ deletions = []; }
     if(!Array.isArray(deletions)) deletions = [];
+    try{ packlists = JSON.parse(localStorage.getItem(PKEY)) || []; }catch(e){ packlists = []; }
+    if(!Array.isArray(packlists)) packlists = [];
   }
   function saveDeletions(){
     if(deletions.length > 300) deletions = deletions.slice(0, 300);
     try{ localStorage.setItem(DKEY, JSON.stringify(deletions)); }catch(e){}
     if(cloud.on && !cloud.applying && cloud.rootRef) cloud.rootRef.child("deletions").set(deletions).catch(cloudErr);
+  }
+  function savePacklists(){
+    try{ localStorage.setItem(PKEY, JSON.stringify(packlists)); }catch(e){}
+    if(cloud.on && !cloud.applying && cloud.rootRef) cloud.rootRef.child("packlists").set(packlists).catch(cloudErr);
   }
   // Protokoll-Eintrag: type = "add" (hinzugefügt) oder "del" (gelöscht)
   function logActivity(type, it){
@@ -855,9 +893,13 @@
       var ds = objToItems(v && v.deletions).filter(function(x){ return x && x.at; });
       ds.sort(function(a,b){ return (b.at||0)-(a.at||0); });
       deletions = ds;
+      var pls = objToItems(v && v.packlists).filter(function(x){ return x && x.id && x.name; });
+      packlists = pls;
       saveItems(); saveLocs(); saveUsers();
       try{ localStorage.setItem(DKEY, JSON.stringify(deletions)); }catch(e){}
+      try{ localStorage.setItem(PKEY, JSON.stringify(packlists)); }catch(e){}
       refreshCatList(); updateMeBadge(); render();
+      if($("packModal") && $("packModal").classList.contains("open")) drawPacklists();
     } finally { cloud.applying = false; }
   }
   function cloudPushSoon(){
@@ -910,9 +952,14 @@
           var dArr = Object.keys(mergedDel).map(function(k){ return mergedDel[k]; });
           dArr.sort(function(a,b){ return (b.at||0)-(a.at||0); });
           if(dArr.length > 200) dArr = dArr.slice(0, 200);
+          // Pack-Listen mergen (nach id, lokal gewinnt)
+          var mergedPack = {};
+          objToItems(v.packlists).forEach(function(pl){ if(pl && pl.id) mergedPack[pl.id] = pl; });
+          packlists.forEach(function(pl){ if(pl && pl.id) mergedPack[pl.id] = pl; });
+          var pArr = Object.keys(mergedPack).map(function(k){ return mergedPack[k]; });
           cloud.on = true;
-          applyRemote({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr });
-          cloud.rootRef.set({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr, updated: Date.now() })
+          applyRemote({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr, packlists: pArr });
+          cloud.rootRef.set({ items: mergedItems, locations: mergedLocs, users: uArr, deletions: dArr, packlists: pArr, updated: Date.now() })
             .then(function(){ cloud.rootRef.on("value", function(s){ applyRemote(s.val()); applyBuiltinAvatars(); }); })
             .catch(cloudErr);
           cloudSaveCfg(true);
@@ -1631,7 +1678,7 @@
   /* ---------- Daten: Export / Import ---------- */
   function exportData(){
     var payload = { app:"skiclub-material", version:3, exported:new Date().toISOString(),
-      locations:locations, items:items, users:users, deletions:deletions };
+      locations:locations, items:items, users:users, deletions:deletions, packlists:packlists };
     var blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -1691,6 +1738,7 @@
       "Mach regelmäßig eine Sicherung und schick die Datei an weitere Vorstandsmitglieder, damit alle den gleichen Stand haben.";
     var acts = $("dataActs"); acts.innerHTML = "";
     addBtn(acts, "👥 Benutzer verwalten", "ghost", function(){ closeData(); openUsers(); });
+    addBtn(acts, "✅ Pack-Listen ("+packlists.length+")", "ghost", function(){ closeData(); openPacklists(); });
     addBtn(acts, "📋 Protokoll ("+deletions.length+")", "ghost", function(){ closeData(); openDeletionLog(); });
     addBtn(acts, "💾 Sicherung erstellen (Download)", "primary", function(){ exportData(); });
     addBtn(acts, "📥 Sicherung laden (aus Datei)", "ghost", function(){ $("importFile").click(); });
@@ -1731,6 +1779,90 @@
   }
   function closeDeletionLog(){ $("delModal").classList.remove("open"); }
 
+  /* ---------- Pack-Listen ---------- */
+  function packById(id){ for(var i=0;i<packlists.length;i++) if(packlists[i].id===id) return packlists[i]; return null; }
+  function packProgress(pl){
+    var arr = pl.items || [];
+    return { done: arr.filter(function(x){ return x.done; }).length, total: arr.length };
+  }
+  function openPacklists(){ currentPackId = null; $("packModal").classList.add("open"); drawPacklists(); }
+  function closePacklists(){ $("packModal").classList.remove("open"); }
+  function drawPacklists(){
+    var body = $("packBody");
+    if(!currentPackId){
+      var html = "";
+      if(!packlists.length){
+        html += '<p class="hint" style="text-align:center;padding:16px 0">Noch keine Pack-Liste.<br>Leg eine an – z. B. „Rennen Zettersfeld".</p>';
+      } else {
+        html += packlists.map(function(pl){
+          var pr = packProgress(pl), pct = pr.total ? Math.round(pr.done/pr.total*100) : 0;
+          var full = pr.total && pr.done === pr.total;
+          return '<div class="packrow" data-open="'+pl.id+'">'+
+            '<div class="pkinfo"><div class="pkname">'+esc(pl.name)+(full?' ✅':'')+'</div>'+
+              '<div class="pkbar"><span style="width:'+pct+'%"></span></div>'+
+              '<div class="pkcount">'+pr.done+' / '+pr.total+' gepackt</div></div>'+
+            '<button class="iconbtn del" data-delpack="'+pl.id+'" title="Löschen">🗑️</button></div>';
+        }).join("");
+      }
+      html += '<div style="margin-top:12px"><button class="btn primary" id="packAddBtn">+ Neue Pack-Liste</button></div>';
+      $("packTitle").textContent = "✅ Pack-Listen";
+      body.innerHTML = html;
+      $("packAddBtn").onclick = function(){
+        var nm = (prompt("Name der Pack-Liste (z. B. Rennen Zettersfeld 12.01.):")||"").trim();
+        if(!nm) return;
+        packlists.unshift({ id:"p"+uid(), name:nm, at:Date.now(), items:[] });
+        savePacklists(); currentPackId = packlists[0].id; drawPacklists();
+      };
+    } else {
+      var pl = packById(currentPackId);
+      if(!pl){ currentPackId = null; drawPacklists(); return; }
+      var pr = packProgress(pl), pct = pr.total ? Math.round(pr.done/pr.total*100) : 0;
+      $("packTitle").textContent = pl.name;
+      var h = '<button class="btn ghost sm" id="packBack">← Alle Listen</button>'+
+        '<div class="pkbar big"><span style="width:'+pct+'%"></span></div>'+
+        '<div class="pkcount" style="margin:4px 0 12px">'+pr.done+' von '+pr.total+' gepackt'+
+          (pr.total && pr.done===pr.total ? ' – alles dabei! 🎿' : '')+'</div>';
+      h += (pl.items && pl.items.length ? pl.items.map(function(it){
+        return '<label class="packitem'+(it.done?' done':'')+'"><input type="checkbox" data-check="'+it.id+'"'+(it.done?' checked':'')+'>'+
+          '<span class="pit">'+esc(it.text)+'</span>'+
+          '<button class="iconbtn" data-delitem="'+it.id+'" title="Entfernen">✕</button></label>';
+      }).join("") : '<p class="hint">Noch nichts drin – unten eintippen und mit + hinzufügen.</p>');
+      h += '<div class="packadd"><input id="packItemIn" list="packMatList" placeholder="Was einpacken? (tippen oder Material wählen)" autocomplete="off">'+
+        '<datalist id="packMatList">'+ items.map(function(x){ return '<option value="'+esc(x.name)+'">'; }).join("") +'</datalist>'+
+        '<button class="btn primary sm" id="packItemAdd">+</button></div>';
+      body.innerHTML = h;
+      $("packBack").onclick = function(){ currentPackId = null; drawPacklists(); };
+      var addFn = function(){
+        var t = ($("packItemIn").value||"").trim(); if(!t) return;
+        pl.items = pl.items || []; pl.items.push({ id:"i"+uid(), text:t, done:false });
+        savePacklists(); drawPacklists();
+        setTimeout(function(){ var f=$("packItemIn"); if(f) f.focus(); }, 30);
+      };
+      $("packItemAdd").onclick = addFn;
+      $("packItemIn").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); addFn(); } });
+    }
+  }
+  function handlePackClick(e){
+    var dp = e.target.closest("[data-delpack]");
+    if(dp){ var id=dp.getAttribute("data-delpack"); var pl=packById(id);
+      if(pl && confirm('Pack-Liste "'+pl.name+'" wirklich löschen?')){
+        packlists = packlists.filter(function(x){ return x.id!==id; }); savePacklists(); drawPacklists(); }
+      return; }
+    var di = e.target.closest("[data-delitem]");
+    if(di){ var iid=di.getAttribute("data-delitem"); var pl2=packById(currentPackId);
+      if(pl2){ pl2.items=(pl2.items||[]).filter(function(x){ return x.id!==iid; }); savePacklists(); drawPacklists(); }
+      return; }
+    var op = e.target.closest("[data-open]");
+    if(op){ currentPackId = op.getAttribute("data-open"); drawPacklists(); }
+  }
+  function handlePackChange(e){
+    var c = e.target.closest("[data-check]"); if(!c) return;
+    var pl = packById(currentPackId); if(!pl) return;
+    var iid = c.getAttribute("data-check");
+    var it = (pl.items||[]).filter(function(x){ return x.id===iid; })[0];
+    if(it){ it.done = c.checked; it.doneBy = c.checked ? meId : ""; savePacklists(); drawPacklists(); }
+  }
+
   /* ---------- Events ---------- */
   $("fab").onclick = function(){ openEdit(null); };
   $("mAdd").onclick = function(){ openEdit(null); };
@@ -1741,6 +1873,9 @@
   $("locClose").onclick = closeLoc;
   $("dataClose").onclick = closeData;
   $("delClose").onclick = closeDeletionLog;
+  $("packClose").onclick = closePacklists;
+  $("packBody").addEventListener("click", handlePackClick);
+  $("packBody").addEventListener("change", handlePackChange);
   $("syncClose").onclick = closeSync;
   $("syncConnect").onclick = function(){ cloudConnect($("syncCfg").value, $("syncCode").value); };
   $("syncDisconnect").onclick = function(){ cloudDisconnect(); };
@@ -1793,7 +1928,7 @@
   });
 
   // Modale schließen bei Klick auf Hintergrund
-  ["editModal","locModal","dataModal","syncModal","delModal"].forEach(function(idm){
+  ["editModal","locModal","dataModal","syncModal","delModal","packModal"].forEach(function(idm){
     var m = $(idm);
     m.addEventListener("click", function(e){ if(e.target === m){ m.classList.remove("open"); $("locBody").onclick=null; } });
   });
@@ -1813,7 +1948,7 @@
   });
 
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); closeAdmin(); closeDeletionLog(); }
+    if(e.key === "Escape"){ closeEdit(); closeLoc(); closeData(); closeSync(); closeUsers(); closeAdmin(); closeDeletionLog(); closePacklists(); }
   });
 
   // PC = Tabelle, Handy = Karten (bei Größenwechsel neu zeichnen)
