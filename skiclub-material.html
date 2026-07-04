@@ -165,9 +165,17 @@
   .packitem input{width:22px; height:22px; flex:0 0 auto; accent-color:var(--green)}
   .packitem .pit{flex:1 1 auto; font-size:15px; word-break:break-word}
   .packitem.done .pit{text-decoration:line-through; color:var(--muted)}
-  .packadd{display:flex; gap:8px; margin-top:14px}
-  .packadd input{flex:1 1 auto; padding:11px; border:1px solid var(--line); border-radius:12px; font-size:16px; min-width:0}
+  .packadd{display:flex; gap:8px; margin-top:14px; align-items:flex-start}
+  .pac-wrap{flex:1 1 auto; position:relative; min-width:0}
+  .pac-wrap input{width:100%; padding:11px; border:1px solid var(--line); border-radius:12px; font-size:16px}
   .packadd .btn.sm{flex:0 0 auto; padding:11px 16px}
+  .pac-drop{display:none; position:absolute; left:0; right:0; bottom:calc(100% + 6px); z-index:5;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow:0 6px 18px rgba(0,0,0,.16); max-height:230px; overflow-y:auto}
+  .pac-drop.show{display:block}
+  .pac-item{padding:11px 13px; font-size:15px; cursor:pointer; border-bottom:1px solid #eef0f3}
+  .pac-item:last-child{border-bottom:none}
+  .pac-item:hover,.pac-item:active{background:var(--blue-l); color:var(--blue-d)}
   .locpill{display:inline-flex; align-items:center; gap:4px; background:#eef1f5;
     border:1px solid var(--line); color:#334; padding:2px 9px; border-radius:20px;
     font-weight:600; cursor:pointer}
@@ -1828,19 +1836,36 @@
           '<span class="pit">'+esc(it.text)+'</span>'+
           '<button class="iconbtn" data-delitem="'+it.id+'" title="Entfernen">✕</button></label>';
       }).join("") : '<p class="hint">Noch nichts drin – unten eintippen und mit + hinzufügen.</p>');
-      h += '<div class="packadd"><input id="packItemIn" list="packMatList" placeholder="Was einpacken? (tippen oder Material wählen)" autocomplete="off">'+
-        '<datalist id="packMatList">'+ items.map(function(x){ return '<option value="'+esc(x.name)+'">'; }).join("") +'</datalist>'+
+      h += '<div class="packadd"><div class="pac-wrap"><input id="packItemIn" placeholder="Was einpacken? (tippen …)" autocomplete="off">'+
+        '<div class="pac-drop" id="packSug"></div></div>'+
         '<button class="btn primary sm" id="packItemAdd">+</button></div>';
       body.innerHTML = h;
       $("packBack").onclick = function(){ currentPackId = null; drawPacklists(); };
-      var addFn = function(){
-        var t = ($("packItemIn").value||"").trim(); if(!t) return;
+      var addFn = function(txt){
+        var t = (txt != null ? txt : ($("packItemIn").value||"")).trim(); if(!t) return;
         pl.items = pl.items || []; pl.items.push({ id:"i"+uid(), text:t, done:false });
         savePacklists(); drawPacklists();
         setTimeout(function(){ var f=$("packItemIn"); if(f) f.focus(); }, 30);
       };
-      $("packItemAdd").onclick = addFn;
-      $("packItemIn").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); addFn(); } });
+      // eindeutige Materialnamen für Vorschläge
+      var matNames = []; var seenN = {};
+      items.forEach(function(x){ var n=(x.name||"").trim(); if(n && !seenN[n.toLowerCase()]){ seenN[n.toLowerCase()]=1; matNames.push(n); } });
+      matNames.sort(function(a,b){ return a.localeCompare(b,"de"); });
+      var inp = $("packItemIn"), sug = $("packSug");
+      function renderSug(){
+        var q = (inp.value||"").trim().toLowerCase();
+        if(!q){ sug.innerHTML = ""; sug.classList.remove("show"); return; }
+        var m = matNames.filter(function(n){ return n.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+        if(!m.length){ sug.innerHTML = ""; sug.classList.remove("show"); return; }
+        sug.innerHTML = m.map(function(n){ return '<div class="pac-item" data-sug="'+esc(n)+'">'+esc(n)+'</div>'; }).join("");
+        sug.classList.add("show");
+      }
+      inp.addEventListener("input", renderSug);
+      inp.addEventListener("focus", renderSug);
+      inp.addEventListener("blur", function(){ setTimeout(function(){ sug.classList.remove("show"); }, 150); });
+      sug.addEventListener("mousedown", function(e){ var s=e.target.closest("[data-sug]"); if(s){ e.preventDefault(); addFn(s.getAttribute("data-sug")); } });
+      $("packItemAdd").onclick = function(){ addFn(); };
+      inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); addFn(); } });
     }
   }
   function handlePackClick(e){
