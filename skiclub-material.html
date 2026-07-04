@@ -244,11 +244,11 @@
   /* Menü unten */
   .menubar{position:fixed; left:0; right:0; bottom:0; z-index:15;
     background:var(--card); border-top:1px solid var(--line);
-    padding:6px 12px calc(6px + env(safe-area-inset-bottom));
-    display:flex; gap:8px; justify-content:center}
-  .menubar button{border:none; background:none; color:var(--muted); font-size:12px;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+    display:flex; gap:2px; justify-content:space-around}
+  .menubar button{border:none; background:none; color:var(--muted); font-size:11.5px;
     font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px;
-    cursor:pointer; padding:4px 12px}
+    cursor:pointer; padding:4px 6px; flex:1 1 0; min-width:0; white-space:nowrap}
   .menubar button .mi{font-size:19px}
   .menubar button#mSync{position:relative}
   .menubar button#mSync.syncon{color:var(--green-d)}
@@ -409,9 +409,10 @@
 <button class="edgar-mascot" id="edgarMascot" title="Edgar hat was zu sagen" aria-label="Edgar-Spruch"></button>
 
 <div class="menubar">
+  <button id="mPack"><span class="mi">🎒</span>Packliste</button>
   <button id="mAdd"><span class="mi">➕</span>Neu</button>
   <button id="mLocs"><span class="mi">📍</span>Standorte</button>
-  <button id="mSync"><span class="mi">🔄</span>Aktualisieren</button>
+  <button id="mSync"><span class="mi">🔄</span>Aktual.</button>
   <button id="mData"><span class="mi">⋯</span>Mehr</button>
 </div>
 
@@ -1869,6 +1870,7 @@
   $("mLocs").onclick = function(){ openLocManage(); };
   $("mSync").onclick = function(){ syncRefresh(); };
   $("mData").onclick = function(){ openData(); };
+  $("mPack").onclick = function(){ openPacklists(); };
   $("editCancel").onclick = closeEdit;
   $("locClose").onclick = closeLoc;
   $("dataClose").onclick = closeData;
