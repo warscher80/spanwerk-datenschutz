@@ -625,33 +625,38 @@
   /* ---------- Comic-Edgar (Sprücheklopfer) ---------- */
   var EDGAR_COMIC_SVG =
     '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Comic Edgar">'+
-      '<circle cx="50" cy="50" r="47" fill="#ffd23f" stroke="#1a1a1a" stroke-width="3"/>'+
-      /* Vest/Schultern */
-      '<path d="M30 94 Q50 78 70 94 L70 100 30 100 Z" fill="#17181c" stroke="#1a1a1a" stroke-width="2.5"/>'+
-      '<path d="M46 82 Q50 88 54 82 L54 92 46 92 Z" fill="#2c2d33"/>'+
+      '<circle cx="50" cy="50" r="47" fill="#f3e2c2" stroke="#1a1a1a" stroke-width="3"/>'+
+      /* schwarze Steppweste */
+      '<path d="M24 96 Q28 75 40 71 L60 71 Q72 75 76 96 L76 100 24 100 Z" fill="#1c1d21" stroke="#111" stroke-width="2.5"/>'+
+      '<path d="M34 77 Q33 87 33 96 M42 74 Q42 86 43 96 M58 74 Q58 86 57 96 M66 77 Q67 87 67 96" stroke="#000" stroke-width="1" opacity=".35" fill="none"/>'+
+      /* dunkler Pulli + Reißverschluss */
+      '<path d="M44 73 Q50 82 56 73 L56 96 44 96 Z" fill="#111318"/>'+
+      '<rect x="49.2" y="73" width="1.6" height="23" fill="#3a3b40"/>'+
+      /* Hals */
+      '<path d="M43 65 L43 74 Q50 79 57 74 L57 65 Z" fill="#d99a6c"/>'+
       /* Ohren */
-      '<ellipse cx="26" cy="50" rx="4" ry="5.5" fill="#f0b184" stroke="#1a1a1a" stroke-width="2.5"/>'+
-      '<ellipse cx="74" cy="50" rx="4" ry="5.5" fill="#f0b184" stroke="#1a1a1a" stroke-width="2.5"/>'+
+      '<ellipse cx="27" cy="48" rx="4" ry="5.5" fill="#e8ac7e" stroke="#1a1a1a" stroke-width="2.5"/>'+
+      '<ellipse cx="73" cy="48" rx="4" ry="5.5" fill="#e8ac7e" stroke="#1a1a1a" stroke-width="2.5"/>'+
       /* Kopf */
-      '<path d="M28 48 Q28 24 50 24 Q72 24 72 48 Q72 64 61 71 Q50 78 39 71 Q28 64 28 48 Z" fill="#f0b184" stroke="#1a1a1a" stroke-width="3"/>'+
-      /* Dreitagebart-Schatten */
-      '<path d="M32 54 Q34 68 44 72 Q50 75 56 72 Q66 68 68 54 Q64 64 56 66 Q50 68 44 66 Q36 64 32 54 Z" fill="#c98f66" opacity=".55"/>'+
-      /* Haare: kurz, grau-braun, Geheimratsecken */
-      '<path d="M27 46 Q23 22 50 22 Q77 22 73 46 Q70 34 62 32 Q56 34 50 33 Q44 34 38 32 Q30 34 27 46 Z" fill="#5b544c" stroke="#1a1a1a" stroke-width="3"/>'+
-      '<path d="M28 46 Q27 34 34 32 Q31 39 31 46 Z" fill="#9a918a"/>'+
-      '<path d="M72 46 Q73 34 66 32 Q69 39 69 46 Z" fill="#9a918a"/>'+
-      /* Augenbrauen (frech hochgezogen) */
-      '<path d="M35 43 Q40 38 46 42" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round"/>'+
-      '<path d="M54 42 Q60 38 65 43" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round"/>'+
-      /* Auge offen + Zwinkern */
-      '<circle cx="41" cy="49" r="3" fill="#1a1a1a"/>'+
-      '<circle cx="42" cy="48" r="1" fill="#fff"/>'+
-      '<path d="M55 49 Q60 46 64 49" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round"/>'+
+      '<path d="M29 46 Q29 23 50 23 Q71 23 71 46 Q71 62 61 69 Q50 75 39 69 Q29 62 29 46 Z" fill="#edb083" stroke="#1a1a1a" stroke-width="3"/>'+
+      /* graumelierter Dreitagebart */
+      '<path d="M33 53 Q35 66 44 71 Q50 74 56 71 Q65 66 67 53 Q63 63 56 65 Q50 67 44 65 Q37 63 33 53 Z" fill="#a99a8c" opacity=".55"/>'+
+      /* kurze braune Haare, Geheimratsecken, graue Schläfen */
+      '<path d="M28 45 Q25 22 50 21 Q75 22 72 45 Q69 33 61 31 Q55 33 50 32 Q45 33 39 31 Q31 33 28 45 Z" fill="#5a4a38" stroke="#1a1a1a" stroke-width="3"/>'+
+      '<path d="M29 45 Q28 34 35 31 Q31 38 31 45 Z" fill="#9a908a"/>'+
+      '<path d="M71 45 Q72 34 65 31 Q69 38 69 45 Z" fill="#9a908a"/>'+
       /* Nase */
-      '<path d="M50 50 Q46 57 50 58" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>'+
-      /* breites Grinsen mit Zähnen */
-      '<path d="M37 60 Q50 74 63 60 Q57 65 50 65 Q43 65 37 60 Z" fill="#fff" stroke="#1a1a1a" stroke-width="3"/>'+
-      '<path d="M40 61.5 Q50 65 60 61.5" stroke="#1a1a1a" stroke-width="1.6" fill="none"/>'+
+      '<path d="M50 51 Q46.5 58 50 59" stroke="#1a1a1a" stroke-width="2.2" fill="none" stroke-linecap="round"/>'+
+      /* freches, geschlossenes Grinsen */
+      '<path d="M41 63 Q50 69 59 63" stroke="#1a1a1a" stroke-width="2.6" fill="none" stroke-linecap="round"/>'+
+      '<path d="M41 63 Q45 61 48 62 M59 63 Q55 61 52 62" stroke="#a67c55" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".6"/>'+
+      /* gold-gelbe Sonnenbrille */
+      '<path d="M33 47 L28 48 M67 47 L72 48" stroke="#c8951f" stroke-width="3" stroke-linecap="round"/>'+
+      '<rect x="32.5" y="42" width="16" height="11.5" rx="4.5" fill="#15161a" stroke="#e6b12e" stroke-width="2.8"/>'+
+      '<rect x="51.5" y="42" width="16" height="11.5" rx="4.5" fill="#15161a" stroke="#e6b12e" stroke-width="2.8"/>'+
+      '<path d="M48.5 45 Q50 43.2 51.5 45" stroke="#e6b12e" stroke-width="2.8" fill="none" stroke-linecap="round"/>'+
+      '<path d="M35 45 L40.5 44.5 L37 49 Z" fill="#fff" opacity=".38"/>'+
+      '<path d="M54 45 L59.5 44.5 L56 49 Z" fill="#fff" opacity=".38"/>'+
     '</svg>';
 
   var IKEY = "skiclub_material_v1";
