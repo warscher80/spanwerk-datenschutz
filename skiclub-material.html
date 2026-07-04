@@ -1158,7 +1158,7 @@
     }
     meId = id; saveMe(); hideLock(); updateMeBadge(); render();
     toast("Willkommen, " + u.name.split(/\s+/)[0] + "!");
-    setTimeout(function(){ edgarSpruch(); }, 700);
+    setTimeout(function(){ edgarSpruch(null, true); }, 700);
   }
   function logout(){ closeUsers(); showLock(); }
 
@@ -1822,7 +1822,22 @@
   document.getElementById("lockLogo").src = LOGO_SRC;
   $("edgarMascot").innerHTML = EDGAR_COMIC_SVG;
   var edgarBubbleTimer = null, edgarLast = -1;
-  function edgarSpruch(txt){
+  function speakEdgar(text){
+    if(!("speechSynthesis" in window)) return;
+    try{
+      var clean = String(text).replace(/[\u{1F000}-\u{1FAFF}☀-➿️]/gu, "").replace(/\s+/g," ").trim();
+      if(!clean) return;
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(clean);
+      u.lang = "de-DE"; u.pitch = 0.85; u.rate = 1.0;
+      var vs = window.speechSynthesis.getVoices() || [];
+      var de = vs.filter(function(v){ return /^de/i.test(v.lang) || /deutsch|german/i.test(v.name); });
+      var male = de.filter(function(v){ return /male|mann|markus|conrad|stefan|bernd/i.test(v.name); });
+      if(male.length) u.voice = male[0]; else if(de.length) u.voice = de[0];
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  function edgarSpruch(txt, speak){
     if(!txt){
       var i = Math.floor(Math.random() * CHEF_LINES.length);
       if(i === edgarLast) i = (i + 1) % CHEF_LINES.length; // nicht 2x hintereinander gleich
@@ -1833,8 +1848,11 @@
     var mascot = $("edgarMascot"); if(mascot){ mascot.classList.remove("wob"); void mascot.offsetWidth; mascot.classList.add("wob"); }
     clearTimeout(edgarBubbleTimer);
     edgarBubbleTimer = setTimeout(function(){ b.classList.remove("show"); }, 4800);
+    if(speak) speakEdgar(txt);
   }
-  function chefGaude(){ edgarSpruch(); }
+  function chefGaude(){ edgarSpruch(null, true); }   // Antippen -> Edgar redet
+  // Stimmen früh laden (manche Browser liefern sie erst nach diesem Event)
+  if("speechSynthesis" in window){ try{ window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = function(){}; }catch(e){} }
   $("logo").onclick = chefGaude;
   $("edgarMascot").onclick = chefGaude;
   $("meBadge").onclick = function(){ openUsers(); };
