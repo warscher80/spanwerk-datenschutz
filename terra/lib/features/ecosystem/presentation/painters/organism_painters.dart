@@ -251,17 +251,42 @@ void _paintWaterLens(Canvas canvas, OrganismVisual v) {
   final accent = _living(v.species, v.vitality, accent: true);
   final count = (2 + v.vitality * 5).round();
 
-  for (var i = 0; i < count; i++) {
-    final ox = v.anchor.dx + rng.range(-v.size * 0.5, v.size * 0.5);
-    final oy = v.anchor.dy - rng.range(0, v.size * 0.12);
-    final bob = _sway(v, 1.6, i.toDouble());
-    final r = v.size * rng.range(0.1, 0.2) * (0.5 + v.vitality);
+  // Flache Wasserfläche, auf der die Linsen treiben (mit sanftem Schimmer).
+  final poolW = v.size * (0.9 + 0.6 * v.vitality);
+  final poolRect = Rect.fromCenter(
+      center: Offset(v.anchor.dx, v.anchor.dy),
+      width: poolW,
+      height: poolW * 0.34);
+  canvas.drawOval(
+      poolRect,
+      Paint()
+        ..shader = Gradient.radial(
+          poolRect.center,
+          poolRect.width * 0.5,
+          [
+            const Color(0xFF2C4A52).withValues(alpha: 0.75),
+            const Color(0xFF16282C).withValues(alpha: 0.6),
+          ],
+        ));
+  // Reflexions-Glanzband auf dem Wasser.
+  final shimmer = math.sin(v.t * 2 * math.pi) * poolW * 0.06;
+  canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(v.anchor.dx + shimmer, v.anchor.dy - poolW * 0.05),
+          width: poolW * 0.5,
+          height: poolW * 0.06),
+      Paint()..color = const Color(0xFFBFE0DA).withValues(alpha: 0.16));
 
+  for (var i = 0; i < count; i++) {
+    final ox = v.anchor.dx + rng.range(-poolW * 0.4, poolW * 0.4);
+    final oy = v.anchor.dy - rng.range(-poolW * 0.06, poolW * 0.06);
+    final bob = _sway(v, 1.4, i.toDouble());
+    final r = v.size * rng.range(0.09, 0.17) * (0.5 + v.vitality);
     final rect = Rect.fromCenter(
-        center: Offset(ox, oy + bob), width: r * 2, height: r * 1.1);
-    canvas.drawOval(rect, Paint()..color = color.withValues(alpha: 0.92));
-    canvas.drawOval(
-        rect.deflate(r * 0.55), Paint()..color = accent.withValues(alpha: 0.7));
+        center: Offset(ox, oy + bob), width: r * 2, height: r * 1.15);
+    canvas.drawOval(rect, Paint()..color = color.withValues(alpha: 0.94));
+    canvas.drawOval(rect.deflate(r * 0.5),
+        Paint()..color = accent.withValues(alpha: 0.7));
   }
 }
 
@@ -323,38 +348,60 @@ void _paintSnail(Canvas canvas, OrganismVisual v) {
 void _paintBeetle(Canvas canvas, OrganismVisual v) {
   final body = _living(v.species, v.vitality);
   final sheen = _living(v.species, v.vitality, accent: true);
-  final wander = math.sin(v.t * 2 * math.pi + v.seed % 6) * v.size * 0.5 * v.vitality;
+  final wander =
+      math.sin(v.t * 2 * math.pi + v.seed % 6) * v.size * 0.5 * v.vitality;
   final cx = v.anchor.dx + wander;
-  final cy = v.anchor.dy - v.size * 0.12;
-  final s = v.size * (0.3 + 0.3 * v.vitality);
+  final cy = v.anchor.dy - v.size * 0.55;
+  final s = v.size * (0.42 + 0.32 * v.vitality);
 
-  // Beine (zappeln).
+  // Sechs Beine (drei je Seite), leichtes Zappeln beim Wandern.
   final leg = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.2
+    ..strokeWidth = math.max(1.0, s * 0.09)
     ..strokeCap = StrokeCap.round
-    ..color = body;
-  for (var i = -1; i <= 1; i++) {
-    final wiggle = math.sin(v.t * 6 * math.pi + i) * 1.5;
-    canvas.drawLine(Offset(cx + i * s * 0.4, cy + s * 0.3),
-        Offset(cx + i * s * 0.7 + wiggle, cy + s * 0.7), leg);
+    ..color = Color.lerp(body, const Color(0xFF000000), 0.3)!;
+  for (var i = 0; i < 3; i++) {
+    final ly = cy - s * 0.2 + i * s * 0.42;
+    final wig = math.sin(v.t * 6 * math.pi + i + v.seed % 4) * s * 0.12;
+    canvas.drawLine(Offset(cx - s * 0.55, ly),
+        Offset(cx - s * 1.05 + wig, ly + s * 0.28), leg);
+    canvas.drawLine(Offset(cx + s * 0.55, ly),
+        Offset(cx + s * 1.05 - wig, ly + s * 0.28), leg);
   }
 
-  // Panzer.
-  final shell = Rect.fromCenter(center: Offset(cx, cy), width: s * 1.6, height: s * 1.9);
+  // Kopf.
+  canvas.drawCircle(Offset(cx, cy - s * 0.95), s * 0.42, Paint()..color = body);
+  // Fühler.
+  final ant = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = math.max(1.0, s * 0.07)
+    ..strokeCap = StrokeCap.round
+    ..color = leg.color;
+  canvas.drawLine(Offset(cx - s * 0.2, cy - s * 1.2),
+      Offset(cx - s * 0.5, cy - s * 1.6), ant);
+  canvas.drawLine(Offset(cx + s * 0.2, cy - s * 1.2),
+      Offset(cx + s * 0.5, cy - s * 1.6), ant);
+
+  // Gewölbter Panzer.
+  final shell = Rect.fromCenter(center: Offset(cx, cy), width: s * 1.7, height: s * 2.1);
   canvas.drawOval(shell, Paint()..color = body);
-  // Glanzstreifen.
-  canvas.drawArc(shell.deflate(s * 0.2), -math.pi * 0.9, math.pi * 0.5, false,
+  // Flügeldecken-Naht.
+  canvas.drawLine(Offset(cx, cy - s * 0.95), Offset(cx, cy + s * 0.95),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = sheen.withValues(alpha: 0.8));
-  // Mittelnaht.
-  canvas.drawLine(Offset(cx, cy - s * 0.85), Offset(cx, cy + s * 0.85),
+        ..strokeWidth = math.max(1.0, s * 0.08)
+        ..color = Color.lerp(body, const Color(0xFF000000), 0.35)!);
+  // Glanzlicht (chitin-schimmer).
+  canvas.drawArc(
+      shell.deflate(s * 0.25).translate(-s * 0.12, -s * 0.1),
+      math.pi * 1.05,
+      math.pi * 0.5,
+      false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = sheen.withValues(alpha: 0.5));
+        ..strokeWidth = math.max(1.2, s * 0.12)
+        ..strokeCap = StrokeCap.round
+        ..color = sheen.withValues(alpha: 0.7));
 }
 
 // ---------------------------------------------------------------------------

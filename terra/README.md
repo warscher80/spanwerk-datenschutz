@@ -17,7 +17,12 @@ So wird Life-Balance visuell greifbar.
 - **Einzigartigkeit:** Komposition aus einem aus Nutzerdaten abgeleiteten Seed →
   jedes Terrarium ist visuell einmalig.
 - **Tag/Nacht-Zyklus** nach Gerätezeit: Licht, Farbstimmung und Aktivität ändern sich;
-  nachts leuchten Pilze und Glühwürmchen.
+  nachts leuchten Pilze und Glühwürmchen, es erscheinen Mond und funkelnde Sterne,
+  zur Dämmerung ein warmes Horizontglühen.
+- **Atmosphäre:** diffuser Lichtschacht, schwebende Sporen, Bodennebel, Kiesel,
+  Tiefen-Silhouetten, Kondenströpfchen und Glasreflexe – „screensaver-schön".
+- **Antippbar:** Tippt man ein Lebewesen an, zeigt ein Schildchen, zu welchem
+  Habit es gehört (Spezies, Vitalität, Streak).
 
 ## Architektur
 
@@ -70,6 +75,8 @@ flutter run                      # Android (Ziel) / iOS-kompatibel
 - `test/habit_repository_test.dart` – Integration der Data-Schicht mit echter
   In-Memory-Drift-DB: Habit/Organismus anlegen, gedeihen, verkümmern,
   Persistenz, Löschen.
+- `test/terrarium_layout_test.dart` – deterministische Komposition und
+  Tap-Trefferlogik des Terrariums.
 
 Die UI-Schicht (Screens, `CustomPainter`, Provider) ist über `flutter analyze`
 vollständig typgeprüft.
