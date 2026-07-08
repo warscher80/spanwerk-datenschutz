@@ -93,35 +93,44 @@ void _paintMoss(Canvas canvas, OrganismVisual v) {
   final color = _living(v.species, v.vitality);
   final accent = _living(v.species, v.vitality, accent: true);
 
-  final double w = v.size * 0.9;
-  final double h = v.size * (0.35 + 0.5 * v.vitality);
+  final double w = v.size * 1.5;
+  final double h = v.size * (0.45 + 0.55 * v.vitality);
 
-  // Weiches Bodenpolster.
-  final moundPaint = Paint()..color = color.withValues(alpha: 0.9);
-  final mound = Path()
-    ..moveTo(v.anchor.dx - w / 2, v.anchor.dy)
-    ..quadraticBezierTo(
-        v.anchor.dx, v.anchor.dy - h * 0.7, v.anchor.dx + w / 2, v.anchor.dy)
-    ..close();
-  canvas.drawPath(mound, moundPaint);
+  // Zwei überlagerte Polster-Höcker (dunkel hinten, heller vorne) für Volumen.
+  final backColor = Color.lerp(color, const Color(0xFF000000), 0.25)!;
+  void mound(double cx, double mw, double mh, Color c) {
+    final path = Path()
+      ..moveTo(cx - mw / 2, v.anchor.dy)
+      ..cubicTo(cx - mw * 0.32, v.anchor.dy - mh, cx + mw * 0.32,
+          v.anchor.dy - mh, cx + mw / 2, v.anchor.dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = c);
+  }
 
-  // Einzelne Halme.
-  final blades = (4 + v.vitality * 10).round();
+  mound(v.anchor.dx - w * 0.14, w * 0.7, h * 0.78, backColor);
+  mound(v.anchor.dx + w * 0.18, w * 0.62, h * 0.72, backColor);
+  mound(v.anchor.dx, w, h, color);
+
+  // Kurze, dichte Halme über das Polster verteilt.
+  final blades = (10 + v.vitality * 22).round();
   final bladePaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.4
-    ..strokeCap = StrokeCap.round
-    ..color = accent;
+    ..strokeWidth = 1.3
+    ..strokeCap = StrokeCap.round;
 
   for (var i = 0; i < blades; i++) {
-    final bx = v.anchor.dx + rng.range(-w / 2, w / 2);
-    final bh = h * rng.range(0.4, 1.0);
+    final frac = rng.range(-0.5, 0.5);
+    final bx = v.anchor.dx + frac * w;
+    // Halme folgen der Polster-Kuppe (Mitte höher).
+    final domeY = v.anchor.dy - h * (1 - (frac * 2).abs() * 0.7).clamp(0.0, 1.0);
+    final bh = v.size * rng.range(0.12, 0.30);
     final phase = rng.range(0, 2 * math.pi);
-    final tip = _sway(v, v.size * 0.06, phase);
+    final tip = _sway(v, v.size * 0.05, phase);
+    bladePaint.color = i.isEven ? accent : color;
     final path = Path()
-      ..moveTo(bx, v.anchor.dy)
-      ..quadraticBezierTo(bx + tip * 0.5, v.anchor.dy - bh * 0.6, bx + tip,
-          v.anchor.dy - bh);
+      ..moveTo(bx, domeY + 2)
+      ..quadraticBezierTo(
+          bx + tip * 0.5, domeY - bh * 0.6, bx + tip, domeY - bh);
     canvas.drawPath(path, bladePaint);
   }
 }
@@ -184,34 +193,52 @@ void _paintMushroom(Canvas canvas, OrganismVisual v) {
   final count = (1 + v.vitality * 3).round();
 
   for (var i = 0; i < count; i++) {
-    final ox = v.anchor.dx + rng.range(-v.size * 0.4, v.size * 0.4);
-    final scale = rng.range(0.6, 1.0);
+    final ox = v.anchor.dx + rng.range(-v.size * 0.45, v.size * 0.45);
+    final scale = rng.range(0.55, 1.0);
     final hh = v.size * (0.4 + 0.4 * v.vitality) * scale;
-    final capR = v.size * 0.22 * scale;
+    final capR = v.size * 0.24 * scale;
     final sway = _sway(v, v.size * 0.04, i.toDouble());
-
     final capCenter = Offset(ox + sway, v.anchor.dy - hh);
 
-    // Nächtliches Glühen unter dem Hut.
+    // Nächtliches, weiches Glimmen (dezent).
     if (v.nightGlow > 0.05) {
-      final glow = Paint()
-        ..color = capColor.withValues(alpha: 0.35 * v.nightGlow * v.vitality)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, capR * 1.4);
-      canvas.drawCircle(capCenter, capR * 1.8, glow);
+      canvas.drawCircle(
+        capCenter,
+        capR * 2.2,
+        Paint()
+          ..color = capColor.withValues(alpha: 0.22 * v.nightGlow * v.vitality)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, capR * 1.6),
+      );
     }
 
-    // Stiel.
-    final stem = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = capR * 0.5
-      ..strokeCap = StrokeCap.round
-      ..color = stemColor;
-    canvas.drawLine(Offset(ox, v.anchor.dy), capCenter, stem);
+    // Stiel (leicht geschwungen, unten dicker).
+    final stemPath = Path()
+      ..moveTo(ox - capR * 0.22, v.anchor.dy)
+      ..quadraticBezierTo(ox + sway * 0.5, v.anchor.dy - hh * 0.5,
+          capCenter.dx - capR * 0.14, capCenter.dy)
+      ..lineTo(capCenter.dx + capR * 0.14, capCenter.dy)
+      ..quadraticBezierTo(ox + sway * 0.5, v.anchor.dy - hh * 0.5,
+          ox + capR * 0.22, v.anchor.dy)
+      ..close();
+    canvas.drawPath(stemPath, Paint()..color = stemColor);
 
-    // Hut als Halbellipse.
+    // Runder Hut (Dome) mit weichem Rand.
     final capRect = Rect.fromCenter(
-        center: capCenter, width: capR * 2, height: capR * 1.6);
+        center: capCenter, width: capR * 2, height: capR * 1.7);
     canvas.drawArc(capRect, math.pi, math.pi, true, Paint()..color = capColor);
+    // Kleiner Glanz oben.
+    canvas.drawArc(
+      capRect.deflate(capR * 0.35).translate(-capR * 0.12, capR * 0.12),
+      math.pi * 1.15,
+      math.pi * 0.5,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = capR * 0.16
+        ..strokeCap = StrokeCap.round
+        ..color = Color.lerp(capColor, const Color(0xFFFFFFFF), 0.4)!
+            .withValues(alpha: 0.5),
+    );
   }
 }
 
@@ -343,14 +370,28 @@ void _paintFirefly(Canvas canvas, OrganismVisual v) {
 
   // Pulsierendes Leuchten: tagsüber schwach, nachts stark.
   final pulse = 0.5 + 0.5 * math.sin(v.t * 4 * math.pi + v.seed % 3);
-  final intensity = (0.25 + 0.75 * v.nightGlow) * v.vitality * (0.5 + 0.5 * pulse);
-  final r = v.size * 0.12;
+  final intensity =
+      (0.2 + 0.8 * v.nightGlow) * v.vitality * (0.45 + 0.55 * pulse);
+  final r = v.size * 0.09;
 
-  final halo = Paint()
-    ..color = glowColor.withValues(alpha: 0.4 * intensity)
-    ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 3);
-  canvas.drawCircle(c, r * 3, halo);
-
+  // Großer, weicher Lichthof.
   canvas.drawCircle(
-      c, r, Paint()..color = glowColor.withValues(alpha: 0.85 * (0.4 + intensity)));
+    c,
+    r * 4.5,
+    Paint()
+      ..color = glowColor.withValues(alpha: 0.28 * intensity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 3.5),
+  );
+  // Warmer Kern.
+  canvas.drawCircle(
+    c,
+    r * 1.6,
+    Paint()
+      ..color = glowColor.withValues(alpha: 0.5 * intensity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r),
+  );
+  // Heller Funke.
+  canvas.drawCircle(
+      c, r * 0.7, Paint()..color = Color.lerp(glowColor, const Color(0xFFFFFDF0), 0.6)!
+        .withValues(alpha: 0.35 + 0.6 * intensity));
 }

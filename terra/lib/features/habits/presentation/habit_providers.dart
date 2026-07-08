@@ -25,13 +25,7 @@ final habitsProvider = StreamProvider<List<Habit>>((ref) {
 /// Abhaken invalidiert.
 final completedTodayProvider = FutureProvider<Set<int>>((ref) async {
   final repo = ref.watch(habitRepositoryProvider);
-  final habits = await repo.getHabits();
-  final now = DateTime.now();
-  final result = <int>{};
-  for (final h in habits) {
-    if (await repo.isCompletedOn(h.id, now)) result.add(h.id);
-  }
-  return result;
+  return repo.completedHabitIdsOn(DateTime.now());
 });
 
 /// Aktuelle Streak (aufeinanderfolgende Tage) je Habit-ID.

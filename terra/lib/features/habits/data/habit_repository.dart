@@ -122,6 +122,19 @@ class HabitRepository {
     return row.isNotEmpty;
   }
 
+  /// Alle Habit-IDs, die am lokalen Tag von [day] bereits erledigt wurden –
+  /// in einer einzigen Abfrage (statt N Einzelabfragen).
+  Future<Set<int>> completedHabitIdsOn(DateTime day) async {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    final rows = await (_db.select(_db.habitCompletions)
+          ..where((c) =>
+              c.completedAt.isBiggerOrEqualValue(start) &
+              c.completedAt.isSmallerThanValue(end)))
+        .get();
+    return rows.map((r) => r.habitId).toSet();
+  }
+
   // ---------------------------------------------------------------------------
   // Ökosystem-Zustand
   // ---------------------------------------------------------------------------

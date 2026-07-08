@@ -45,12 +45,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final ecosystem = ref.watch(ecosystemProvider);
     final balance = ecosystem.valueOrNull?.overallBalance ?? 0;
+    final habits = ref.watch(habitsProvider).valueOrNull ?? const [];
 
     return Scaffold(
       body: SafeArea(
         child: Stack(
           children: [
             const Positioned.fill(child: TerrariumView()),
+            if (habits.isEmpty) const Positioned.fill(child: _EmptyHint()),
             Positioned(
               top: 4,
               left: 16,
@@ -62,6 +64,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               right: 0,
               bottom: 0,
               child: _HabitStrip(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sanfter Hinweis im leeren Terrarium – lädt zum ersten Habit ein.
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 96),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.spa_outlined,
+                size: 40, color: const Color(0xFFE7E2D6).withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text(
+              'Dein Terrarium ist noch leer.',
+              style: TextStyle(
+                fontSize: 16,
+                color: const Color(0xFFE7E2D6).withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tippe auf +, um dein erstes\nLebewesen zu pflanzen.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: const Color(0xFFE7E2D6).withValues(alpha: 0.5),
+              ),
             ),
           ],
         ),

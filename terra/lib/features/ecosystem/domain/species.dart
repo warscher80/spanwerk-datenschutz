@@ -85,8 +85,8 @@ class Species {
       growthPerCompletion: 0.26,
       dailyDecay: 0.16,
       glowsAtNight: true,
-      baseColor: Color(0xFF6B5B7A),
-      accentColor: Color(0xFF9BE8D8),
+      baseColor: Color(0xFF8A7E93),
+      accentColor: Color(0xFF86C7B4),
     ),
     SpeciesType.waterLens: SpeciesTraits(
       type: SpeciesType.waterLens,

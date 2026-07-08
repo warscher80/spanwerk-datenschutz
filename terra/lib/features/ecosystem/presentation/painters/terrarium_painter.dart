@@ -42,6 +42,7 @@ class TerrariumPainter extends CustomPainter {
     _paintParticles(canvas, jar);
     _paintSoil(canvas, jar);
     _paintOrganisms(canvas, jar);
+    _paintVignette(canvas, jar);
 
     canvas.restore();
 
@@ -98,12 +99,14 @@ class TerrariumPainter extends CustomPainter {
   // --- Lichtstrahl von oben --------------------------------------------------
 
   void _paintLightBeam(Canvas canvas, Rect jar) {
-    final intensity = 0.10 + 0.22 * dayNight.daylight;
+    // Weicher, diffuser Sonnenschacht – bewusst zurückhaltend, kein Scheinwerfer.
+    final intensity = 0.035 + 0.075 * dayNight.daylight;
+    final soilY = _soilYOf(jar);
     final beam = Path()
-      ..moveTo(jar.left + jar.width * 0.30, jar.top)
-      ..lineTo(jar.left + jar.width * 0.55, jar.top)
-      ..lineTo(jar.left + jar.width * 0.78, _soilYOf(jar))
-      ..lineTo(jar.left + jar.width * 0.18, _soilYOf(jar))
+      ..moveTo(jar.left + jar.width * 0.34, jar.top)
+      ..lineTo(jar.left + jar.width * 0.54, jar.top)
+      ..lineTo(jar.left + jar.width * 0.72, soilY)
+      ..lineTo(jar.left + jar.width * 0.22, soilY)
       ..close();
     final paint = Paint()
       ..shader = LinearGradient(
@@ -111,10 +114,13 @@ class TerrariumPainter extends CustomPainter {
         end: Alignment.bottomCenter,
         colors: [
           const Color(0xFFFFF6D8).withValues(alpha: intensity),
+          const Color(0xFFFFF6D8).withValues(alpha: intensity * 0.35),
           const Color(0xFFFFF6D8).withValues(alpha: 0),
         ],
+        stops: const [0.0, 0.55, 1.0],
       ).createShader(jar)
-      ..blendMode = BlendMode.plus;
+      ..blendMode = BlendMode.plus
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
     canvas.drawPath(beam, paint);
   }
 
@@ -146,9 +152,10 @@ class TerrariumPainter extends CustomPainter {
 
   void _paintSoil(Canvas canvas, Rect jar) {
     // Vernachlässigung verdunkelt den Boden (Nachbar-/Balance-Effekt).
-    final health = overallBalance;
+    // Ein leeres Terrarium ist "frische Erde", nicht toter Boden.
+    final health = organisms.isEmpty ? 0.55 : overallBalance;
     final soilColor = Color.lerp(
-        const Color(0xFF14100C), TerraColors.soil, (0.3 + 0.7 * health))!;
+        const Color(0xFF1A140E), TerraColors.soil, (0.3 + 0.7 * health))!;
 
     final soil = Path()
       ..moveTo(jar.left, _soilYOf(jar) + 6)
@@ -174,59 +181,87 @@ class TerrariumPainter extends CustomPainter {
 
   // --- Lebewesen -------------------------------------------------------------
 
+  /// Referenzgröße je Spezies als Anteil der Glashöhe. Bewusst klein gehalten,
+  /// damit das Terrarium lebendig-dicht statt clipart-blockig wirkt. Kreaturen
+  /// sind deutlich kleiner als Pflanzen.
+  double _speciesSize(SpeciesType s, double v, double jarH) {
+    final f = switch (s) {
+      SpeciesType.moss => 0.070 + 0.045 * v,
+      SpeciesType.fern => 0.110 + 0.075 * v,
+      SpeciesType.glowMushroom => 0.080 + 0.050 * v,
+      SpeciesType.waterLens => 0.060 + 0.040 * v,
+      SpeciesType.snail => 0.048 + 0.028 * v,
+      SpeciesType.beetle => 0.040 + 0.022 * v,
+      SpeciesType.firefly => 0.045 + 0.020 * v,
+    };
+    return jarH * f;
+  }
+
   void _paintOrganisms(Canvas canvas, Rect jar) {
     if (organisms.isEmpty) return;
 
-    // Boden-Bewohner deterministisch anordnen (stabil über Seeds).
-    final ground = organisms
-        .where((o) => o.speciesType != SpeciesType.firefly)
+    bool isCreature(SpeciesType s) =>
+        s == SpeciesType.snail || s == SpeciesType.beetle;
+
+    // Pflanzen hinten, Kreaturen davor, Glühwürmchen im Luftraum – ergibt Tiefe.
+    final plants = organisms
+        .where((o) =>
+            o.speciesType != SpeciesType.firefly && !isCreature(o.speciesType))
+        .toList()
+      ..sort((a, b) => a.seed.compareTo(b.seed));
+    final creatures = organisms
+        .where((o) => isCreature(o.speciesType))
         .toList()
       ..sort((a, b) => a.seed.compareTo(b.seed));
     final fliers =
         organisms.where((o) => o.speciesType == SpeciesType.firefly).toList()
           ..sort((a, b) => a.seed.compareTo(b.seed));
 
-    final usableLeft = jar.left + jar.width * 0.12;
-    final usableWidth = jar.width * 0.76;
+    final soilY = _soilYOf(jar);
+    final usableLeft = jar.left + jar.width * 0.10;
+    final usableWidth = jar.width * 0.80;
 
-    for (var i = 0; i < ground.length; i++) {
-      final o = ground[i];
-      final rng = SeedRandom(o.seed ^ ambientSeed);
-      final slot = ground.length == 1
-          ? 0.5
-          : (i + 0.5) / ground.length;
-      final jitter = rng.range(-0.04, 0.04);
-      final x = usableLeft + (slot + jitter).clamp(0.02, 0.98) * usableWidth;
-      final orgSize = jar.height * (0.16 + 0.14 * o.vitality);
-
-      paintOrganism(
-        canvas,
-        OrganismVisual(
-          species: o.speciesType,
-          anchor: Offset(x, _soilYOf(jar) + 2),
-          size: orgSize,
-          vitality: o.vitality,
-          stage: o.stage,
-          seed: o.seed,
-          t: t,
-          nightGlow: dayNight.nightGlow,
-        ),
-      );
+    void placeGround(List<Organism> list, {required double baseline}) {
+      for (var i = 0; i < list.length; i++) {
+        final o = list[i];
+        final rng = SeedRandom(o.seed ^ ambientSeed);
+        final slot = list.length == 1 ? 0.5 : (i + 0.5) / list.length;
+        final jitter = rng.range(-0.05, 0.05);
+        final x =
+            usableLeft + (slot + jitter).clamp(0.02, 0.98) * usableWidth;
+        // Leichter Tiefenversatz: manche etwas tiefer eingebettet.
+        final depth = rng.range(-4, 8);
+        paintOrganism(
+          canvas,
+          OrganismVisual(
+            species: o.speciesType,
+            anchor: Offset(x, baseline + depth),
+            size: _speciesSize(o.speciesType, o.vitality, jar.height),
+            vitality: o.vitality,
+            stage: o.stage,
+            seed: o.seed,
+            t: t,
+            nightGlow: dayNight.nightGlow,
+          ),
+        );
+      }
     }
+
+    placeGround(plants, baseline: soilY + 2);
+    placeGround(creatures, baseline: soilY + 6);
 
     // Glühwürmchen schweben im Luftraum über dem Boden.
     for (var i = 0; i < fliers.length; i++) {
       final o = fliers[i];
       final rng = SeedRandom(o.seed ^ (ambientSeed + 7));
       final x = usableLeft + rng.range(0.1, 0.9) * usableWidth;
-      final y = jar.top + jar.height * rng.range(0.25, 0.6);
-      final orgSize = jar.height * (0.14 + 0.1 * o.vitality);
+      final y = jar.top + jar.height * rng.range(0.28, 0.62);
       paintOrganism(
         canvas,
         OrganismVisual(
           species: o.speciesType,
           anchor: Offset(x, y),
-          size: orgSize,
+          size: _speciesSize(o.speciesType, o.vitality, jar.height),
           vitality: o.vitality,
           stage: o.stage,
           seed: o.seed,
@@ -235,6 +270,23 @@ class TerrariumPainter extends CustomPainter {
         ),
       );
     }
+  }
+
+  // --- Vignette: sanfte Tiefe zu den Rändern ---------------------------------
+
+  void _paintVignette(Canvas canvas, Rect jar) {
+    final paint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(0, -0.15),
+        radius: 0.95,
+        colors: [
+          Colors.transparent,
+          Colors.black.withValues(alpha: 0.06),
+          Colors.black.withValues(alpha: 0.28),
+        ],
+        stops: const [0.55, 0.82, 1.0],
+      ).createShader(jar);
+    canvas.drawRect(jar, paint);
   }
 
   // --- Glas: Reflexe + Rand --------------------------------------------------
@@ -249,18 +301,18 @@ class TerrariumPainter extends CustomPainter {
         ..color = Colors.black.withValues(alpha: 0.25),
     );
 
-    // Weicher Glanzstreifen links.
+    // Sehr zarter, breiter Glanzstreifen links (Glasreflexion).
     final highlight = Path()
-      ..moveTo(jar.left + jar.width * 0.14, jar.top + jar.height * 0.06)
-      ..lineTo(jar.left + jar.width * 0.20, jar.top + jar.height * 0.06)
-      ..lineTo(jar.left + jar.width * 0.10, jar.bottom - jar.height * 0.12)
-      ..lineTo(jar.left + jar.width * 0.05, jar.bottom - jar.height * 0.12)
+      ..moveTo(jar.left + jar.width * 0.13, jar.top + jar.height * 0.05)
+      ..lineTo(jar.left + jar.width * 0.19, jar.top + jar.height * 0.05)
+      ..lineTo(jar.left + jar.width * 0.11, jar.bottom - jar.height * 0.18)
+      ..lineTo(jar.left + jar.width * 0.06, jar.bottom - jar.height * 0.18)
       ..close();
     canvas.drawPath(
       highlight,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.06)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        ..color = Colors.white.withValues(alpha: 0.03)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
 
     // Heller Randlicht-Kontur.

@@ -12,8 +12,8 @@ class TerraColors {
   static const Color glassTint = Color(0xFFBFD8C4);
 
   // Tag/Nacht-Himmel im Glas (oben -> unten).
-  static const Color dayTop = Color(0xFFEAE3C9);
-  static const Color dayBottom = Color(0xFF9FB08A);
+  static const Color dayTop = Color(0xFFCFCFB2);
+  static const Color dayBottom = Color(0xFF97A97F);
   static const Color nightTop = Color(0xFF1B2A3A);
   static const Color nightBottom = Color(0xFF0C1620);
 
