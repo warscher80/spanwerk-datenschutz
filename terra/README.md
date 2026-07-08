@@ -23,6 +23,8 @@ So wird Life-Balance visuell greifbar.
   Tiefen-Silhouetten, Kondenströpfchen und Glasreflexe – „screensaver-schön".
 - **Antippbar:** Tippt man ein Lebewesen an, zeigt ein Schildchen, zu welchem
   Habit es gehört (Spezies, Vitalität, Streak).
+- **Aufblühen:** Beim Abhaken blüht das zugehörige Lebewesen direkt im
+  Terrarium auf (Lichtring + Funken) – eine befriedigende Micro-Interaktion.
 
 ## Architektur
 

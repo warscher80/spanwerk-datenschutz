@@ -16,6 +16,8 @@ class EcosystemNotifier extends AsyncNotifier<EcosystemState> {
     return repo.advanceToNow(DateTime.now());
   }
 
+  int _pulseSeq = 0;
+
   /// Habit abhaken -> Lebewesen gedeiht sofort sichtbar.
   Future<void> completeHabit(int habitId) async {
     final repo = ref.read(habitRepositoryProvider);
@@ -25,6 +27,9 @@ class EcosystemNotifier extends AsyncNotifier<EcosystemState> {
     state = AsyncData(next);
     ref.invalidate(completedTodayProvider);
     ref.invalidate(streaksProvider);
+    // Aufblüh-Effekt am erledigten Lebewesen auslösen.
+    ref.read(completionPulseProvider.notifier).state =
+        CompletionPulse(habitId, ++_pulseSeq);
   }
 
   /// Neu berechnen (z. B. beim App-Resume).
@@ -38,6 +43,16 @@ final ecosystemProvider =
     AsyncNotifierProvider<EcosystemNotifier, EcosystemState>(
   EcosystemNotifier.new,
 );
+
+/// Einmaliges Signal, dass ein bestimmtes Habit gerade erledigt wurde – löst
+/// den „Aufblüh"-Effekt im Terrarium aus. [seq] macht jede Erledigung eindeutig.
+class CompletionPulse {
+  const CompletionPulse(this.habitId, this.seq);
+  final int habitId;
+  final int seq;
+}
+
+final completionPulseProvider = StateProvider<CompletionPulse?>((ref) => null);
 
 /// Tag/Nacht-Zustand für einen konkreten Zeitpunkt. Die UI liest dies pro
 /// Frame über die Animationsuhr, daher hier als reine Ableitung bereitgestellt.
