@@ -56,6 +56,6 @@ class BloomPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant BloomPainter old) =>
-      old.progress != progress || old.center != center;
+  bool shouldRepaint(covariant BloomPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.center != center;
 }

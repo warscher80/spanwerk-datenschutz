@@ -42,7 +42,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: "3.24.3"
+          # 3.27+ nötig: Der Code nutzt die neuere API Color.withValues(...).
+          flutter-version: "3.27.4"
           cache: true
 
       - name: Abhängigkeiten holen
