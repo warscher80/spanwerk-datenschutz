@@ -3,12 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/onboarding/onboarding_service.dart';
 import '../../../core/theme.dart';
 import '../../ecosystem/domain/day_night.dart';
 import '../../ecosystem/presentation/providers/ecosystem_providers.dart';
 import '../../ecosystem/presentation/terrarium_view.dart';
 import '../../habits/domain/habit.dart';
 import '../../habits/presentation/habit_providers.dart';
+import '../../onboarding/onboarding_screen.dart';
+import 'terrarium_voice.dart';
+import 'update_banner.dart';
 
 /// Home: Terrarium groß im Fokus, Habit-Liste als schlanke Leiste unten.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -24,6 +28,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Beim allerersten Start die Intro zeigen.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final seen = await ref.read(onboardingSeenProvider.future);
+      if (!seen && mounted) {
+        await _openIntro(firstRun: true);
+      }
+    });
+  }
+
+  Future<void> _openIntro({required bool firstRun}) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => OnboardingScreen(firstRun: firstRun),
+      ),
+    );
+    if (firstRun) {
+      await markOnboardingSeen();
+      if (mounted) ref.invalidate(onboardingSeenProvider);
+    }
   }
 
   @override
@@ -57,7 +81,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               top: 4,
               left: 16,
               right: 16,
-              child: _TopBar(balance: balance),
+              child: _TopBar(
+                balance: balance,
+                onInfo: () => _openIntro(firstRun: false),
+              ),
+            ),
+            const Positioned(
+              top: 42,
+              left: 16,
+              right: 16,
+              child: TerrariumVoice(),
+            ),
+            const Positioned(
+              top: 78,
+              left: 16,
+              right: 16,
+              child: UpdateBanner(),
             ),
             const Positioned(
               left: 0,
@@ -112,8 +151,9 @@ class _EmptyHint extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.balance});
+  const _TopBar({required this.balance, required this.onInfo});
   final double balance;
+  final VoidCallback onInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +180,14 @@ class _TopBar extends StatelessWidget {
         Icon(icon, size: 18, color: const Color(0xFFE7E2D6).withValues(alpha: 0.7)),
         const SizedBox(width: 10),
         _BalanceDot(balance: balance),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: onInfo,
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Was ist Terra?',
+          icon: Icon(Icons.info_outline,
+              size: 18, color: const Color(0xFFE7E2D6).withValues(alpha: 0.6)),
+        ),
       ],
     );
   }
