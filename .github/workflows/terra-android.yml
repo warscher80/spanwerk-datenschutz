@@ -1,0 +1,91 @@
+name: Terra Android Build
+
+# Baut eine installierbare Android-APK für die Terra-App und stellt sie
+# als Release-Download bereit (direkt auf dem Handy installierbar).
+
+on:
+  push:
+    branches:
+      - main
+      - claude/terra-habit-ecosystem-932x4q
+    paths:
+      - "terra/**"
+      - ".github/workflows/terra-android.yml"
+  workflow_dispatch: {}
+
+# Für das Anlegen/Aktualisieren des Release nötig.
+permissions:
+  contents: write
+
+concurrency:
+  group: terra-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terra
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Java (JDK 17) einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@v2
+        with:
+          # Neueste stabile Version: Das Android-Scaffolding nutzt Gradle 9.1
+          # und AGP 9.0.1, was nur von einer aktuellen Flutter-Version
+          # unterstützt wird. Der Code selbst nutzt Color.withValues (>= 3.27).
+          channel: stable
+          cache: true
+
+      - name: Abhängigkeiten holen
+        run: flutter pub get
+
+      - name: Statische Analyse
+        run: flutter analyze --no-fatal-infos
+
+      - name: Tests
+        run: flutter test
+
+      - name: Release-APK bauen (universal, installierbar)
+        run: flutter build apk --release
+
+      - name: APK umbenennen
+        run: |
+          mkdir -p ../dist
+          cp build/app/outputs/flutter-apk/app-release.apk ../dist/terra-release.apk
+          ls -lh ../dist
+
+      - name: APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: terra-release-apk
+          path: dist/terra-release.apk
+          if-no-files-found: error
+
+      - name: Als Release-Download veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: terra-latest
+          name: "Terra – neuester Android-Build"
+          body: |
+            Installierbare APK der Terra-App (universal, mit Debug-Key signiert).
+
+            **Installation auf dem Handy:**
+            1. Diese Seite auf dem Handy öffnen und `terra-release.apk` herunterladen.
+            2. Beim Öffnen der Datei „Installieren aus unbekannten Quellen“ für den Browser erlauben.
+            3. Installieren – fertig.
+
+            Automatisch gebaut aus Commit ${{ github.sha }}.
+          prerelease: true
+          make_latest: false
+          files: dist/terra-release.apk

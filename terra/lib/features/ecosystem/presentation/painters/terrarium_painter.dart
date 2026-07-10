@@ -360,10 +360,10 @@ class TerrariumPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant TerrariumPainter old) {
-    return old.t != t ||
-        old.overallBalance != overallBalance ||
-        old.organisms != organisms ||
-        old.dayNight.daylight != dayNight.daylight;
+  bool shouldRepaint(covariant TerrariumPainter oldDelegate) {
+    return oldDelegate.t != t ||
+        oldDelegate.overallBalance != overallBalance ||
+        oldDelegate.organisms != organisms ||
+        oldDelegate.dayNight.daylight != dayNight.daylight;
   }
 }
