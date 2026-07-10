@@ -8,9 +8,11 @@ import '../../../core/theme.dart';
 import '../../ecosystem/domain/day_night.dart';
 import '../../ecosystem/presentation/providers/ecosystem_providers.dart';
 import '../../ecosystem/presentation/terrarium_view.dart';
+import '../../ecosystem/presentation/visitor_layer.dart';
 import '../../habits/domain/habit.dart';
 import '../../habits/presentation/habit_providers.dart';
 import '../../onboarding/onboarding_screen.dart';
+import 'streak_celebration.dart';
 import 'terrarium_voice.dart';
 import 'update_banner.dart';
 
@@ -76,6 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: Stack(
           children: [
             const Positioned.fill(child: TerrariumView()),
+            Positioned.fill(child: VisitorLayer(balance: balance)),
             if (habits.isEmpty) const Positioned.fill(child: _EmptyHint()),
             Positioned(
               top: 4,
@@ -341,6 +344,16 @@ class _HabitPillState extends ConsumerState<_HabitPill>
       ..value = 0.0
       ..animateTo(1.0, curve: Curves.elasticOut);
     await ref.read(ecosystemProvider.notifier).completeHabit(widget.habit.id);
+
+    // Erledigen von heute macht aus dem bisherigen Streak einen um 1 höheren.
+    final newStreak = widget.streak + 1;
+    if (isStreakMilestone(newStreak) && mounted) {
+      await showStreakMilestone(
+        context,
+        species: widget.habit.species.displayName,
+        streak: newStreak,
+      );
+    }
   }
 
   @override
