@@ -24,6 +24,11 @@ dependencies:
   # Navigation
   go_router: ^14.2.0
 
+  # Automatische Update-Prüfung (sideloadete APK via GitHub-Release)
+  http: ^1.2.0
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

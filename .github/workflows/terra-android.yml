@@ -57,13 +57,27 @@ jobs:
         run: flutter test
 
       - name: Release-APK bauen (universal, installierbar)
-        run: flutter build apk --release
+        # Build-Nummer = Run-Nummer: So kann die installierte App per
+        # latest.json erkennen, ob ein neuerer Build verfügbar ist.
+        run: >-
+          flutter build apk --release
+          --build-name=1.0.${{ github.run_number }}
+          --build-number=${{ github.run_number }}
 
-      - name: APK umbenennen
+      - name: APK + Update-Metadaten vorbereiten
         run: |
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-release.apk ../dist/terra-release.apk
+          cat > ../dist/latest.json <<EOF
+          {
+            "version": "1.0.${{ github.run_number }}",
+            "buildNumber": ${{ github.run_number }},
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/terra-latest/terra-release.apk",
+            "notes": "Automatischer Build aus Commit ${{ github.sha }}."
+          }
+          EOF
           ls -lh ../dist
+          cat ../dist/latest.json
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4
@@ -79,13 +93,19 @@ jobs:
           name: "Terra – neuester Android-Build"
           body: |
             Installierbare APK der Terra-App (universal, mit Debug-Key signiert).
+            Version 1.0.${{ github.run_number }}
 
             **Installation auf dem Handy:**
             1. Diese Seite auf dem Handy öffnen und `terra-release.apk` herunterladen.
             2. Beim Öffnen der Datei „Installieren aus unbekannten Quellen“ für den Browser erlauben.
             3. Installieren – fertig.
 
+            Ab dieser Version meldet sich die App künftig selbst, wenn ein
+            neuer Build verfügbar ist.
+
             Automatisch gebaut aus Commit ${{ github.sha }}.
           prerelease: true
           make_latest: false
-          files: dist/terra-release.apk
+          files: |
+            dist/terra-release.apk
+            dist/latest.json

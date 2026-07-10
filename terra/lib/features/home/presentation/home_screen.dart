@@ -9,6 +9,7 @@ import '../../ecosystem/presentation/providers/ecosystem_providers.dart';
 import '../../ecosystem/presentation/terrarium_view.dart';
 import '../../habits/domain/habit.dart';
 import '../../habits/presentation/habit_providers.dart';
+import 'update_banner.dart';
 
 /// Home: Terrarium groß im Fokus, Habit-Liste als schlanke Leiste unten.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -58,6 +59,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               left: 16,
               right: 16,
               child: _TopBar(balance: balance),
+            ),
+            const Positioned(
+              top: 44,
+              left: 16,
+              right: 16,
+              child: UpdateBanner(),
             ),
             const Positioned(
               left: 0,
