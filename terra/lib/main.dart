@@ -6,12 +6,11 @@ import 'app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Vollflächiges, ruhiges Erlebnis – Systemleisten transparent.
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Color(0xFF0E1512),
+      systemNavigationBarColor: Color(0xFF080B14),
     ),
   );
-  runApp(const ProviderScope(child: TerraApp()));
+  runApp(const ProviderScope(child: NovaApp()));
 }
