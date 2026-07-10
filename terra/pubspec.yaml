@@ -1,7 +1,7 @@
 name: terra
-description: "Terra – ein Habit-Tracker als lebendiges, sich selbst erhaltendes Mikro-Ökosystem im Glas."
+description: "Nova – ein kosmisches Merge-Aufbauspiel. Verschmilz Sternenstaub zu Planeten, Sternen und ganzen Galaxien."
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -14,15 +14,8 @@ dependencies:
   # State Management
   flutter_riverpod: ^2.5.1
 
-  # Lokale DB (SQLite)
-  drift: ^2.18.0
-  sqlite3: ">=2.4.0 <4.0.0" # von drift auf die passende 3.x-Version aufgelöst
-  sqlite3_flutter_libs: ^0.5.24
+  # Lokales Speichern von Spielstand & Sammlung
   path_provider: ^2.1.3
-  path: ^1.9.0
-
-  # Navigation
-  go_router: ^14.2.0
 
   # Automatische Update-Prüfung (sideloadete APK via GitHub-Release)
   http: ^1.2.0
@@ -33,10 +26,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-
-  # Drift Codegen
-  drift_dev: ^2.18.0
-  build_runner: ^2.4.11
 
 flutter:
   uses-material-design: true

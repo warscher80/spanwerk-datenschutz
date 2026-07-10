@@ -90,9 +90,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: terra-latest
-          name: "Terra – neuester Android-Build"
+          name: "Nova – neuester Android-Build"
           body: |
-            Installierbare APK der Terra-App (universal, mit Debug-Key signiert).
+            Installierbare APK von **Nova** (universal, mit Debug-Key signiert).
             Version 1.0.${{ github.run_number }}
 
             **Installation auf dem Handy:**
