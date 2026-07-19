@@ -120,7 +120,12 @@ class FootyMatch {
   final int? homeGoals;
   final int? awayGoals;
 
-  const FootyMatch({
+  // Anzeige-Name der Liga/des Wettbewerbs (z. B. "🇦🇹 2. Liga"),
+  // wird nach dem Laden gesetzt, damit man in der Ansicht "Aktuell" sieht,
+  // zu welcher Liga ein Spiel gehört.
+  String? competition;
+
+  FootyMatch({
     required this.id,
     required this.kickoff,
     required this.round,
@@ -129,6 +134,7 @@ class FootyMatch {
     required this.finished,
     required this.homeGoals,
     required this.awayGoals,
+    this.competition,
   });
 
   bool get hasResult => homeGoals != null && awayGoals != null;
@@ -260,6 +266,7 @@ class Api {
         final ko = l.cupCandidates.where((c) => c > 3).toList();
         pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko));
         for (final m in pool) {
+          m.competition = l.label;
           byId[m.id] = m;
         }
         await Future.delayed(const Duration(milliseconds: 200));
@@ -285,6 +292,7 @@ class Api {
       }
       // (Kein eventspast: „Aktuell" zeigt ohnehin nur noch nicht gespielte Spiele.)
       for (final m in pool) {
+        m.competition = l.label;
         byId[m.id] = m;
       }
     }

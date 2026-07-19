@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.12.0",
+  "versionCode": 26,
+  "versionName": "1.12.1",
   "url": "https://github.com/warscher80/spanwerk-datenschutz/raw/claude/football-betting-apk-m9fb1c/KickProphet.apk",
-  "notes": "Neu: In-App-Tor-Alarm (zeigt 'TOR!' bei laufenden Spielen, solange die App offen ist)"
+  "notes": "Neu: Jede Partie zeigt jetzt die Liga (z. B. '🇦🇹 2. Liga') – praktisch in der Ansicht 'Aktuell'."
 }

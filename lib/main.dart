@@ -205,6 +205,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         m = await _fetchMatches();
       }
       if (!_currentMode && !_isCup) await _store.setLastRound(_league.id, _day);
+      // In den Einzel-Liga-Ansichten den Liga-Namen an jede Partie hängen
+      // (in „Aktuell" setzt die API-Schicht ihn bereits pro Liga).
+      if (!_currentMode) {
+        for (final x in m) {
+          x.competition = _league.label;
+        }
+      }
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
@@ -1018,12 +1025,43 @@ class _MatchCard extends StatelessWidget {
     } else {
       status = 'Termin offen';
     }
-    final left = (match.round >= 1 && match.round < 100) ? '${match.round}. Spieltag' : '';
+    final league = match.competition;
+    final spieltag = (match.round >= 1 && match.round < 100) ? '${match.round}. Spieltag' : '';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(left, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-        Text(status, style: TextStyle(color: col, fontSize: 11, fontWeight: FontWeight.w600)),
+        Expanded(
+          child: Row(
+            children: [
+              if (league != null && league.isNotEmpty)
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _accent.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      league,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: _accent, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              if (spieltag.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text(spieltag,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(status,
+            style: TextStyle(color: col, fontSize: 11, fontWeight: FontWeight.w600)),
       ],
     );
   }
