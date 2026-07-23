@@ -14,9 +14,15 @@ zurück) vorgesehen.
 
 | Datei | Zweck |
 |---|---|
-| `Foliensatz_Man-sieht-es-mir-nicht-an.pptx` | 39 Folien, ruhiges Design, mit **Sprechernotizen** und **Animationsempfehlungen** auf jeder Folie |
+| `Foliensatz_Man-sieht-es-mir-nicht-an.pptx` | 40 Folien, helles/freundliches Design mit Bildern, große Schrift, **Sprechernotizen** und **Animationsempfehlungen** auf jeder Folie |
 | `Trainerhandbuch_Seminarunterlage.docx` | Vollständiger Ablauf, Sprechtexte, didaktisches Konzept, alle 7 Übungen, 5 Diskussionsfragen, Umgang mit schwierigen Situationen, Anlaufstellen, Checkliste |
-| `Arbeitsblaetter_Kopiervorlagen.docx` | Teilnehmer-Handout, Übungskarten, Fallbeispiele, Beobachtungsbogen, Ampelbogen, Reflexionsbogen, Anlaufstellen zum Mitnehmen (A1–A10) |
+| `Arbeitsblaetter_Kopiervorlagen.docx` | Teilnehmer-Handout, Übungskarten, Fallbeispiele, Beobachtungsbogen, Ampelbogen, Reflexionsbogen, Anlaufstellen (A1–A10) – jedes Blatt einzeln kopierbar |
+| `Infoblatt_Man-sieht-es-mir-nicht-an.pdf` | Kompaktes Info-Blatt für Laien/Teilnehmer – öffnet auf jedem PC & Handy ohne App, zum Verteilen und Ausdrucken |
+
+**Hinweis zu den Bildern:** Die verwendeten Fotos stammen aus freien Quellen
+(Flickr/Creative Commons). Für internen Einsatz geeignet; bei öffentlicher oder
+kommerzieller Nutzung durch eigene oder lizenzfreie Fotos (z. B. Unsplash/Pexels)
+ersetzen.
 
 ## Aufbau des Workshops (roter Faden)
 
