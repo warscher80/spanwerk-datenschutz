@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Trainerhandbuch – Man sieht es mir nicht an</title>
+<style>
+:root{
+  --leaf:#7cc496;--green:#57a773;--green-d:#3f8f60;--sage:#9cbfa8;
+  --mint:#eaf6ee;--mint-2:#dcefe3;--cloud:#f5f8f6;--paper:#fff;
+  --ink:#2c3b32;--muted:#63756a;--line:#cdddd3;--line-2:#b7ccc0;
+  --sun:#f4c95d;--sun-d:#e0ab34;--coral:#e59a86;--coral-d:#cf7e69;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);
+  background:var(--mint);line-height:1.62;font-size:15px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;line-height:1.18}
+a{color:var(--green-d)}
+
+.bar{position:sticky;top:0;z-index:20;background:var(--green-d);color:#fff;padding:12px 20px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.bar .t{font-weight:800;font-size:16px}.bar .s{opacity:.9;font-size:13.5px}
+.bar button{margin-left:auto;background:#fff;color:var(--green-d);border:none;font-weight:800;
+  padding:10px 18px;border-radius:100px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;gap:8px}
+.bar button svg{width:18px;height:18px}
+
+.doc{max-width:880px;margin:22px auto;background:var(--paper);box-shadow:0 8px 30px rgba(63,143,96,.16);
+  padding:48px 56px 64px}
+@media(max-width:640px){.doc{padding:26px 20px 40px;margin:10px}}
+
+/* Cover */
+.cover{border-bottom:3px solid var(--leaf);padding-bottom:24px;margin-bottom:28px}
+.cover .kick{font-size:12.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--green-d)}
+.cover h1{font-size:clamp(30px,5.4vw,46px);margin:12px 0 8px;letter-spacing:-.01em}
+.cover .sub{color:var(--muted);font-size:18px}
+.cover .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.cover .badges span{background:var(--mint-2);color:var(--green-d);border-radius:100px;padding:6px 14px;font-size:12.5px;font-weight:700}
+
+h2.sec{font-size:24px;color:var(--ink);margin:38px 0 8px;padding-left:14px;border-left:5px solid var(--leaf);scroll-margin-top:70px}
+h3.sub3{font-size:18px;color:var(--green-d);margin:22px 0 6px}
+.lead{color:var(--muted);margin:0 0 16px}
+p{margin:0 0 12px}
+ul,ol{margin:0 0 12px;padding-left:22px}
+li{margin:5px 0}
+
+/* Inhaltsverzeichnis */
+.toc{background:var(--cloud);border:1px solid var(--line);border-radius:14px;padding:20px 24px;margin:8px 0 8px}
+.toc h4{font-size:12.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--sage);margin-bottom:10px}
+.toc ol{margin:0;padding-left:20px;columns:2;column-gap:34px}
+@media(max-width:640px){.toc ol{columns:1}}
+.toc li{margin:6px 0;font-weight:600}
+.toc a{text-decoration:none}
+.toc a:hover{text-decoration:underline}
+
+/* Steckbrief / Kennzahlen */
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+@media(max-width:640px){.facts{grid-template-columns:1fr 1fr}}
+.fact{background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:14px}
+.fact .n{font-size:22px;font-weight:800;color:var(--green-d);line-height:1}
+.fact .l{font-size:12.5px;color:var(--muted);margin-top:4px;font-weight:600}
+
+/* Referentenkarte */
+.referent{display:flex;align-items:center;gap:20px;background:var(--cloud);border:1px solid var(--line);
+  border-radius:14px;padding:18px 20px;margin:18px 0}
+.referent img{width:104px;height:104px;border-radius:50%;object-fit:cover;flex:0 0 auto;
+  border:3px solid var(--mint-2);box-shadow:0 4px 12px rgba(63,143,96,.18)}
+.referent .rk{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--sage)}
+.referent .rn{font-size:20px;font-weight:800;color:var(--green-d);margin:2px 0 4px}
+.referent .rr{font-size:13px;font-weight:700;color:var(--green-d);margin-bottom:8px}
+.referent p{margin:0;color:var(--muted);font-size:14px}
+@media(max-width:560px){.referent{flex-direction:column;text-align:center}}
+
+/* Modulkarte */
+.mod{border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin:18px 0;background:#fff;
+  box-shadow:0 3px 12px rgba(63,143,96,.06);page-break-inside:avoid}
+.mod .mh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.mod .mn{width:34px;height:34px;border-radius:10px;background:var(--green);color:#fff;display:grid;place-items:center;
+  font-weight:800;font-size:16px;flex:0 0 auto}
+.mod h3{font-size:20px;color:var(--ink)}
+.mod .time{margin-left:auto;background:var(--mint-2);color:var(--green-d);border-radius:100px;padding:4px 12px;
+  font-size:12.5px;font-weight:800;white-space:nowrap}
+.mod .slides{font-size:12px;color:var(--sage);font-weight:700;margin-bottom:12px}
+.mod .blk{margin:12px 0}
+.mod .blk .lab{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);margin-bottom:5px}
+
+/* „So sagen Sie es" – Skriptbox */
+.script{background:#fffdf6;border:1px solid #f0e4c4;border-left:5px solid var(--sun);border-radius:0 12px 12px 0;
+  padding:14px 18px;margin:10px 0;font-family:Georgia,serif;font-style:italic;color:#5c5326;font-size:15px}
+.script b{font-style:normal;font-family:inherit}
+
+/* Tipp / Achtung / Krise Callouts */
+.call{display:flex;gap:12px;border-radius:0 12px 12px 0;padding:14px 18px;margin:12px 0;font-size:14px}
+.call .ic{flex:0 0 auto;font-size:20px;line-height:1.3}
+.call.tip{background:var(--mint);border-left:5px solid var(--leaf)}
+.call.tip b{color:var(--green-d)}
+.call.warn{background:#fdf3e3;border-left:5px solid var(--sun-d)}
+.call.warn b{color:var(--sun-d)}
+.call.crisis{background:#fbeee9;border-left:5px solid var(--coral-d)}
+.call.crisis b{color:var(--coral-d)}
+
+/* Methoden-Chips */
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px}
+.tags span{background:var(--cloud);border:1px solid var(--line);border-radius:100px;padding:3px 11px;font-size:12px;font-weight:700;color:var(--muted)}
+
+/* Tabellen */
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{border:1.5px solid var(--line-2);padding:9px 11px;text-align:left;font-size:13.5px;vertical-align:top}
+th{background:var(--mint-2);color:var(--green-d);font-size:12px;font-weight:800}
+td b{color:var(--green-d)}
+
+/* Q&A */
+.qa{border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:10px 0;background:#fff}
+.qa .q{font-weight:800;color:var(--ink);margin-bottom:4px}
+.qa .q::before{content:"F: ";color:var(--sage)}
+.qa .a{color:var(--muted);font-size:14px}
+.qa .a::before{content:"A: ";color:var(--green-d);font-weight:800}
+
+/* Checkliste */
+.check{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:14px}
+.check .box{width:17px;height:17px;border:2px solid var(--sage);border-radius:5px;flex:0 0 auto;margin-top:2px}
+
+.thread{background:linear-gradient(135deg,var(--green),var(--leaf));color:#fff;border-radius:14px;padding:20px 24px;margin:16px 0}
+.thread .l{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.thread .t{font-size:18px;font-weight:800;margin-top:4px}
+
+.foot{margin-top:40px;border-top:1.5px solid var(--line);padding-top:16px;color:var(--muted);font-size:12.5px;text-align:center}
+
+@media print{
+  body{background:#fff}.bar{display:none!important}
+  .doc{box-shadow:none;margin:0;max-width:none;padding:12mm 15mm}
+  .mod,.qa,.call,.referent{page-break-inside:avoid}
+  h2.sec{page-break-after:avoid}
+  a{color:inherit;text-decoration:none}
+  @page{size:A4;margin:14mm}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="t">Trainerhandbuch · „Man sieht es mir nicht an"</span>
+  <span class="s">Anleitung zur Durchführung des Workshops</span>
+  <button onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg>Drucken / als PDF speichern</button>
+</div>
+
+<article class="doc">
+  <div class="cover">
+    <div class="kick">Fortbildung · Psychische Gesundheit · Handbuch für Referent:innen</div>
+    <h1>Trainerhandbuch</h1>
+    <p class="sub">„Man sieht es mir nicht an" – so führen Sie den Workshop sicher, warm und wirkungsvoll durch.</p>
+    <div class="badges"><span>Schritt-für-Schritt</span><span>Mit Moderationsskript</span><span>Inkl. Krisenprotokoll</span></div>
+  </div>
+
+  <p class="lead">Dieses Handbuch begleitet Sie von der Vorbereitung bis zur Nachbereitung. Es beschreibt Haltung, Ablauf, jedes Modul, alle Übungen und den Umgang mit schwierigen Situationen. Sie müssen kein Fachmensch sein – Sie brauchen Offenheit, Struktur und diese Anleitung.</p>
+
+  <div class="referent">
+    <img src="markus-warscher-portrait.jpg" alt="Markus Warscher, Referent">
+    <div>
+      <div class="rk">Konzept &amp; Referent</div>
+      <div class="rn">Markus Warscher</div>
+      <div class="rr">Musiker · Trauervertrauensperson (ÖBB Produktion) · Gleichstellungsbeauftragter in Ausbildung (ÖBB Konzern)</div>
+      <p>Markus spricht nicht nur über psychische Gesundheit – er hat sie selbst durchlebt. Aus dieser Erfahrung ist dieses Seminar entstanden.</p>
+    </div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="n">4–5&nbsp;h</div><div class="l">Dauer inkl. Pausen</div></div>
+    <div class="fact"><div class="n">8–100</div><div class="l">Teilnehmende</div></div>
+    <div class="fact"><div class="n">28</div><div class="l">Folien / 9 Module</div></div>
+    <div class="fact"><div class="n">7</div><div class="l">Arbeitsblätter</div></div>
+  </div>
+
+  <div class="toc">
+    <h4>Inhalt</h4>
+    <ol>
+      <li><a href="#a1">Ziel &amp; Haltung</a></li>
+      <li><a href="#a2">Zielgruppen &amp; Anpassung</a></li>
+      <li><a href="#a3">Vorbereitung: Raum, Technik, Material</a></li>
+      <li><a href="#a4">Die Haltung des Referenten</a></li>
+      <li><a href="#a5">Ihre persönliche Geschichte einsetzen</a></li>
+      <li><a href="#a6">Sicherheits- &amp; Krisenprotokoll</a></li>
+      <li><a href="#a7">Ablaufplan mit Zeiten</a></li>
+      <li><a href="#a8">Modul-für-Modul-Leitfaden</a></li>
+      <li><a href="#a9">Die Übungen im Detail</a></li>
+      <li><a href="#a10">Der rote Faden „Hilfe annehmen"</a></li>
+      <li><a href="#a11">Häufige Fragen &amp; gute Antworten</a></li>
+      <li><a href="#a12">Schwierige Situationen meistern</a></li>
+      <li><a href="#a13">Nach dem Seminar</a></li>
+      <li><a href="#a14">Checklisten</a></li>
+    </ol>
+  </div>
+
+  <!-- 1 -->
+  <h2 class="sec" id="a1">1 · Ziel &amp; Haltung des Seminars</h2>
+  <p>Der Workshop verfolgt vier Ziele: psychische Erkrankungen <b>verständlich</b> machen, <b>Vorurteile abbauen</b>, zeigen, wie man <b>ins Gespräch kommt</b>, und ermutigen, <b>Hilfe anzunehmen</b>. Er ist bewusst kein medizinischer Fachvortrag, sondern ein empathisches Gespräch auf Augenhöhe.</p>
+  <div class="thread">
+    <div class="l">Drei Botschaften tragen den ganzen Tag</div>
+    <div class="t">1. Psychische Erkrankungen sind echte Erkrankungen. &nbsp;2. Hilfe anzunehmen ist Stärke. &nbsp;3. Genesung ist möglich.</div>
+  </div>
+  <p>Der Titel „Man sieht es mir nicht an" ist Programm: Viele Betroffene wirken nach außen stabil. Genau deshalb geht das Thema alle an – und deshalb lohnt es sich, genauer hinzuschauen und offener zu sprechen.</p>
+
+  <!-- 2 -->
+  <h2 class="sec" id="a2">2 · Zielgruppen &amp; Anpassung</h2>
+  <p>Das Seminar eignet sich für Betriebe, Vereine, Schulen und öffentliche Einrichtungen. Die Inhalte bleiben gleich – Beispiele und Betonung passen Sie an:</p>
+  <table>
+    <tr><th style="width:24%">Zielgruppe</th><th>Worauf Sie den Fokus legen</th></tr>
+    <tr><td><b>Betriebe</b></td><td>Burnout, Frühwarnung im Team, Gespräch mit Kolleg:innen, betriebliche Anlaufstellen (Betriebsärzt:in, EAP).</td></tr>
+    <tr><td><b>Vereine</b></td><td>Gemeinschaft als Schutzfaktor, Ehrenamt &amp; Überlastung, Füreinander-Dasein.</td></tr>
+    <tr><td><b>Schulen</b></td><td>Jugendliche, Leistungsdruck, Ansprechpartner, Rat auf Draht 147. Sprache jugendgerecht halten.</td></tr>
+    <tr><td><b>Öffentl. Einrichtungen</b></td><td>Vorbildwirkung, Umgang mit Bürger:innen in Krisen, Selbstfürsorge in belastenden Berufen.</td></tr>
+  </table>
+  <div class="call tip"><div class="ic">💡</div><div><b>Tipp:</b> Fragen Sie vorab die auftraggebende Stelle, ob es aktuelle Belastungen gibt (z. B. Umstrukturierung, ein Todesfall im Team). Dann können Sie sensibel darauf eingehen – oder bewusst Abstand halten.</div></div>
+
+  <!-- 3 -->
+  <h2 class="sec" id="a3">3 · Vorbereitung: Raum, Technik &amp; Material</h2>
+  <h3 class="sub3">Raum</h3>
+  <ul>
+    <li>Stuhlkreis oder Inseln statt Frontalreihen, wenn möglich – fördert Offenheit.</li>
+    <li>Ausreichend Licht, Wasser, Taschentücher (unauffällig bereitstellen).</li>
+    <li>Ein ruhiger Rückzugsplatz in der Nähe, falls jemand kurz raus möchte.</li>
+  </ul>
+  <h3 class="sub3">Technik</h3>
+  <ul>
+    <li>Beamer/Bildschirm für die <b>Präsentation</b> (<code>praesentation.html</code>) – läuft in jedem Browser, kein PowerPoint nötig.</li>
+    <li>Steuerung: Pfeiltasten oder Leertaste. Taste <b>N</b> blendet Ihre Sprechernotizen ein, <b>P</b> erzeugt ein PDF.</li>
+    <li>Sprechernotizen am besten auf einem zweiten Gerät (Laptop/Tablet) mit gedrückter Taste N mitlaufen lassen.</li>
+  </ul>
+  <h3 class="sub3">Material zum Ausdrucken</h3>
+  <ul>
+    <li><b>Arbeitsblätter</b> (<code>arbeitsblaetter.html</code>) – pro Person 1 Satz. Blatt 2b (Abstimmungskarten grün/rot) am besten auf festeres Papier.</li>
+    <li><b>Seminarunterlage</b> (<code>unterlage.html</code>) – als Handout zum Mitnehmen.</li>
+    <li>Flipchart/Whiteboard + Stifte für gesammelte Erwartungen und Zurufe.</li>
+  </ul>
+
+  <!-- 4 -->
+  <h2 class="sec" id="a4">4 · Die Haltung des Referenten</h2>
+  <p>Ihre Haltung wirkt stärker als jede Folie. Fünf Grundsätze:</p>
+  <ul>
+    <li><b>Echtheit vor Perfektion.</b> Sie dürfen berührt sein. Das macht Sie glaubwürdig, nicht schwach.</li>
+    <li><b>Nicht diagnostizieren.</b> Sie klären auf und ermutigen – Sie stellen keine Diagnosen und geben keine Therapie.</li>
+    <li><b>Führen, nicht drängen.</b> Niemand muss etwas Persönliches teilen. Freiwilligkeit schützt.</li>
+    <li><b>Stille aushalten.</b> Nach schweren Aussagen ruhig ein paar Sekunden Pause lassen.</li>
+    <li><b>Sich selbst schützen.</b> Achten Sie auf die eigene Tagesform (siehe Abschnitt 5 und 13).</li>
+  </ul>
+  <div class="call tip"><div class="ic">🌿</div><div><b>Vor dem Start:</b> zwei Minuten für sich. Durchatmen, ankommen, sich das Ziel vergegenwärtigen: „Ich bin heute für die Menschen im Raum da."</div></div>
+
+  <!-- 5 -->
+  <h2 class="sec" id="a5">5 · Ihre persönliche Geschichte einsetzen</h2>
+  <p>Ihre eigene Erfahrung (schwerer Verkehrsunfall, daraus folgende Depression und PTBS, der Weg zurück) ist das stärkste Element des Seminars. Sie zeigt lebendig: <b>Aus der dunkelsten Zeit führt ein Weg heraus.</b> Genau deshalb muss sie sorgsam dosiert werden.</p>
+  <h3 class="sub3">Struktur in drei Schritten</h3>
+  <table>
+    <tr><th style="width:20%">Schritt</th><th>Inhalt</th></tr>
+    <tr><td><b>1. Was geschah</b></td><td>Knapp und ohne grafische Details: ein schwerer Verkehrsunfall, Menschen kamen ums Leben, Schwerverletzte, eigene schwere Verletzungen.</td></tr>
+    <tr><td><b>2. Was folgte</b></td><td>Wie sich Depression und PTBS anfühlten – der Rückzug, die Flashbacks, die Leere. Aus der Innensicht, nicht als Aufzählung von Symptomen.</td></tr>
+    <tr><td><b>3. Was half</b></td><td>Der Wendepunkt: Hilfe annehmen. Therapie, Zeit, Menschen. Landepunkt: „Ich stehe heute hier."</td></tr>
+  </table>
+  <div class="call warn"><div class="ic">⚖️</div><div><b>Leitplanken:</b> Zweck ist Nähe und Hoffnung – nicht Betroffenheit oder Mitleid. Keine grafischen Unfalldetails. Nicht dramatisieren, nicht instrumentalisieren. Erzählen Sie nur so viel, wie Ihnen an diesem Tag guttut – Sie dürfen Grenzen setzen.</div></div>
+  <p><b>Wo im Ablauf?</b> Angedeutet auf der Referenten-Folie (Modul 1), vertieft im Kapitel Depression (Rückzug &amp; erster Gegenschritt) und am stärksten – aber am sorgsamsten – im Kapitel PTBS. Danach direkt zur Botschaft „Hilfe annehmen ist Stärke" überleiten.</p>
+  <div class="call tip"><div class="ic">🎵</div><div><b>Ihre Ressourcen einbauen:</b> Musik und Ehrenamt (Trauervertrauensperson) sind Teil Ihres Weges. Ein kurzer Hinweis, was Ihnen Halt gegeben hat, macht Schutzfaktoren greifbar und authentisch.</div></div>
+
+  <!-- 6 -->
+  <h2 class="sec" id="a6">6 · Sicherheits- &amp; Krisenprotokoll</h2>
+  <p>Beim Thema psychische Gesundheit kann es vorkommen, dass jemand stark bewegt ist oder sich öffnet. Bereiten Sie sich darauf vor – dann bleiben Sie ruhig und handlungsfähig.</p>
+  <h3 class="sub3">Wenn jemand während des Seminars weint oder überwältigt ist</h3>
+  <ul>
+    <li>Ruhe ausstrahlen, nicht in den Mittelpunkt rücken. Kurz normalisieren: „Das Thema berührt – das ist völlig in Ordnung."</li>
+    <li>Anbieten (nicht drängen): kurze Pause, ein Glas Wasser, gemeinsam kurz vor die Tür.</li>
+    <li>In der Pause behutsam nachfragen, ob die Person Unterstützung möchte.</li>
+  </ul>
+  <h3 class="sub3">Wenn jemand von akuter Not oder Suizidgedanken spricht</h3>
+  <div class="call crisis"><div class="ic">🚨</div><div><b>Ernst nehmen, nicht allein lassen, Hilfe holen.</b> Direkt und ruhig ansprechen ist erlaubt und richtig: „Denkst du daran, dir das Leben zu nehmen?" Offen fragen erhöht das Risiko nicht – es entlastet.</div></div>
+  <ol>
+    <li><b>Da bleiben</b> und zuhören, ohne zu bewerten. Die Person nicht allein lassen.</li>
+    <li><b>Gemeinsam</b> Hilfe kontaktieren: Telefonseelsorge <b>142</b> (24 h, kostenlos, anonym). Bei akuter Gefahr <b>Rettung 144</b> bzw. <b>Euronotruf 112</b>.</li>
+    <li><b>Verbindlich bleiben:</b> nicht mit einem vagen „Melde dich mal" verabschieden – konkret den nächsten Schritt begleiten.</li>
+    <li><b>Danach</b> für sich selbst sorgen und, wenn möglich, mit einer Vertrauensperson oder Fachstelle nachbesprechen.</li>
+  </ol>
+  <div class="call warn"><div class="ic">📇</div><div><b>Vorher festlegen:</b> Halten Sie die regionalen Nummern und die interne Anlaufstelle (Betriebsärzt:in, Schulpsychologie, Krisendienst) griffbereit auf einer Karte. So müssen Sie im Ernstfall nicht suchen.</div></div>
+
+  <!-- 7 -->
+  <h2 class="sec" id="a7">7 · Ablaufplan mit Zeiten</h2>
+  <p>Richtwerte für einen halben Tag (ca. 4,5 Stunden inkl. Pausen). Lieber ein Thema vertiefen als alles durchhetzen.</p>
+  <table>
+    <tr><th style="width:12%">Zeit</th><th style="width:44%">Modul</th><th>Methode</th></tr>
+    <tr><td>00:00</td><td>1 · Ankommen, Referent, Rahmen</td><td>Vortrag, Zuruffrage</td></tr>
+    <tr><td>00:20</td><td>2 · Psychische Gesundheit verstehen</td><td>Vortrag, Infografik, Diskussion</td></tr>
+    <tr><td>00:45</td><td>3 · Übung „Mythos oder Wahrheit"</td><td>Aktivierung, Abstimmung</td></tr>
+    <tr><td>01:05</td><td>4 · Depression</td><td>Vortrag, persönliche Geschichte, AB 4</td></tr>
+    <tr><td colspan="3" style="background:var(--mint);text-align:center;font-weight:700;color:var(--green-d)">Pause · 15 min</td></tr>
+    <tr><td>01:45</td><td>5 · Angst &amp; Panik</td><td>Vortrag, Atemübung</td></tr>
+    <tr><td>02:10</td><td>6 · Burnout</td><td>Vortrag, Selbstcheck AB 4</td></tr>
+    <tr><td>02:35</td><td>7 · PTBS</td><td>Vortrag, persönliche Geschichte</td></tr>
+    <tr><td colspan="3" style="background:var(--mint);text-align:center;font-weight:700;color:var(--green-d)">Pause · 10 min</td></tr>
+    <tr><td>03:05</td><td>8 · Warnzeichen &amp; Gespräch</td><td>Ampel, Rollenspiel AB 5, Perspektivwechsel AB 3</td></tr>
+    <tr><td>03:45</td><td>9 · Wege zur Hilfe &amp; Schutzfaktoren</td><td>Vortrag, Notfallplan AB 6</td></tr>
+    <tr><td>04:10</td><td>Reflexion, Hoffnung &amp; Abschluss</td><td>Reflexionsbogen AB 7, Abschluss</td></tr>
+    <tr><td>04:30</td><td>Ende</td><td></td></tr>
+  </table>
+
+  <!-- 8 -->
+  <h2 class="sec" id="a8">8 · Modul-für-Modul-Leitfaden</h2>
+  <p>Jedes Modul: Ziel · Kernbotschaften · ein Moderationsimpuls („So sagen Sie es") · Methode · Moderationstipps. Die ausführlichen Notizen liegen zusätzlich in der Präsentation (Taste N).</p>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">1</span><h3>Ankommen, Referent &amp; Rahmen</h3><span class="time">ca. 20 min</span></div>
+    <div class="slides">Folien 1–4 · Titel, Ihr Referent, Rahmen, Warum</div>
+    <div class="tags"><span>Vortrag</span><span>Zuruffrage</span><span>Flipchart</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Sicherheit schaffen, Vertrauen aufbauen, das Thema als „betrifft uns alle" verankern.</div>
+    <div class="blk"><div class="lab">Kernbotschaften</div>Geschützter Raum · kein Fachvortrag · psychische Gesundheit geht jede:n an.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Wer von Ihnen kennt jemanden – in Familie, Freundeskreis oder Arbeit – der schon einmal seelisch in einer schweren Phase war?" (Hände gehen hoch.) „Genau darum sind wir heute hier."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Erwartungen sammeln und am Flipchart sichtbar machen (am Ende darauf zurückkommen). Die vier Rahmen-Punkte (Vertraulichkeit, Respekt, Freiwilligkeit, Ich-Form) bewusst mit einem Nicken der Gruppe bestätigen lassen.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">2</span><h3>Psychische Gesundheit verstehen</h3><span class="time">ca. 25 min</span></div>
+    <div class="slides">Folien 5–7 · Kontinuum, Stress→Krise→Erkrankung, Entstigmatisierung</div>
+    <div class="tags"><span>Vortrag</span><span>Infografik</span><span>Diskussion</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Verständnis, dass Gesundheit ein Kontinuum ist und aus Dauerstress eine Erkrankung werden kann.</div>
+    <div class="blk"><div class="lab">Kernbotschaften</div>Bewegung in beide Richtungen ist normal · früh hinhören lohnt sich · psychische Erkrankungen sind echte Erkrankungen.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Denken Sie an Ihre körperliche Fitness – mal topfit, mal ausgelaugt. Mit der Seele ist es genauso. Man muss nicht ‚krank' sein, um gut für sich zu sorgen."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Frage in die Runde: „Was schiebt uns Richtung Wohlbefinden – und was Richtung Belastung?" Antworten sammeln; sie greifen später bei den Schutzfaktoren wieder.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">3</span><h3>Übung „Mythos oder Wahrheit"</h3><span class="time">ca. 20 min</span></div>
+    <div class="slides">Folie 8 · Übungsfolie · Arbeitsblatt 2 &amp; 2b</div>
+    <div class="tags"><span>Aktivierung</span><span>Abstimmung</span><span>Gespräch</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Vorurteile sichtbar und besprechbar machen – ohne Zeigefinger.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Ich lese eine Aussage vor. Grüne Karte heißt Wahrheit, rote Karte heißt Mythos. Es gibt kein Falsch – interessant ist, woher unsere Bilder kommen."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Bewegung nutzen (Aufstehen/Karten hochhalten). Nicht bewerten, wer „falsch" liegt. Details siehe Abschnitt 9.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">4</span><h3>Depression</h3><span class="time">ca. 25 min</span></div>
+    <div class="slides">Folien 9–12 · Kapitel, Anzeichen, Teufelskreis, Hilfe-Botschaft</div>
+    <div class="tags"><span>Vortrag</span><span>Persönliche Geschichte</span><span>Merksatz</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Depression als Erkrankung verstehen; den Teufelskreis und den Ausweg zeigen.</div>
+    <div class="blk"><div class="lab">Kernbotschaften</div>Mehr als Traurigkeit · Zwei-Wochen-Regel · der Kreis lässt sich durchbrechen · Hilfe holen ist Stärke.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Antriebslosigkeit ist nicht ‚keine Lust'. Es ist, als wäre die Batterie leer und das Ladekabel funktioniert nicht mehr."</div>
+    <div class="call warn"><div class="ic">📌</div><div><b>Persönliche Geschichte (dosiert):</b> hier der Rückzug und der <i>erste kleine Gegenschritt</i>. Den Warnhinweis zu Suizidgedanken ruhig und sachlich vorlesen, auf die Anlaufstellen verweisen.</div></div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">5</span><h3>Angst &amp; Panik</h3><span class="time">ca. 25 min</span></div>
+    <div class="slides">Folien 13–14 · Kapitel, Panikspirale</div>
+    <div class="tags"><span>Vortrag</span><span>Atemübung live</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Angst normalisieren, die Panikspirale erklären, Soforthilfe erlebbar machen.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Eine Panikattacke fühlt sich bedrohlich an – ist aber nicht gefährlich. Der Körper kann diesen Alarm nicht ewig halten."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Die 4-6-8-Atmung gemeinsam eine Runde durchführen – verlangsamt sofort den Raum und macht die Wirkung spürbar.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">6</span><h3>Burnout</h3><span class="time">ca. 25 min</span></div>
+    <div class="slides">Folien 15–16 · Kapitel, Belastungsskala &amp; Warnzeichen</div>
+    <div class="tags"><span>Vortrag</span><span>Selbstcheck AB 4</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Burnout entstigmatisieren (trifft die Engagierten) und Frühwarnung betonen.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Wer ausbrennt, hat vorher gebrannt – für die Arbeit, die Familie, die Sache. Das ist keine Schwäche, das ist ein Warnsignal."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Selbstcheck (Arbeitsblatt 4) still ausfüllen lassen; betonen: nur für sich, kein Test, keine Diagnose.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">7</span><h3>Posttraumatische Belastungsstörung</h3><span class="time">ca. 25 min</span></div>
+    <div class="slides">Folien 17–19 · Kapitel, Anzeichen &amp; Geschichte, Hilfe-Botschaft</div>
+    <div class="tags"><span>Vortrag</span><span>Persönliche Geschichte</span><span>Hoffnung</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Trauma verständlich machen und zeigen: Behandlung wirkt, Rückkehr ins Leben ist möglich.</div>
+    <div class="call warn"><div class="ic">📌</div><div><b>Stärkster, aber sorgsamster Platz der persönlichen Geschichte.</b> Vorher an die Selbstfürsorge der Gruppe erinnern („Rausgehen ist okay"). Nach der Geschichte direkt zur Botschaft „Hilfe annehmen ist Stärke" überleiten.</div></div>
+    <div class="script"><b>So sagen Sie es:</b> „Ohne den Schritt, mir helfen zu lassen, würde ich heute nicht vor Ihnen stehen."</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">8</span><h3>Warnzeichen &amp; das unterstützende Gespräch</h3><span class="time">ca. 40 min</span></div>
+    <div class="slides">Folien 20–21 · Warnzeichen, Ampel · Arbeitsblätter 3 &amp; 5</div>
+    <div class="tags"><span>Ampel</span><span>Rollenspiel</span><span>Perspektivwechsel</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Vom Wissen ins Handeln: Veränderungen erkennen und ansprechen können.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Man muss nichts ‚lösen'. Der Satz ‚Du musst das nicht allein schaffen' öffnet fast immer eine Tür."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Rollenspiel (AB 5) in Paaren, Rollen tauschen; danach kurz auswerten. Häufigste Sorge „Was, wenn ich etwas Falsches sage?" entlasten: „Aufrichtiges Interesse macht selten etwas kaputt – Wegschauen schon." Details siehe Abschnitt 9.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">9</span><h3>Wege zur Hilfe, Schutzfaktoren &amp; Abschluss</h3><span class="time">ca. 45 min</span></div>
+    <div class="slides">Folien 22–28 · Wege zur Hilfe, Schutzfaktoren, Hoffnung, Reflexion, Anlaufstellen, Danke</div>
+    <div class="tags"><span>Vortrag</span><span>Notfallplan AB 6</span><span>Reflexion AB 7</span></div>
+    <div class="blk"><div class="lab">Ziel</div>Konkrete Wege aufzeigen, Zuversicht stärken, mit einem Handlungsimpuls enden.</div>
+    <div class="script"><b>So sagen Sie es:</b> „Speichern Sie heute eine dieser Nummern ins Handy – für sich oder für jemanden, den Sie mögen."</div>
+    <div class="blk"><div class="lab">Moderationstipps</div>Nicht mit Betroffenheit enden, sondern mit dem „einen Schritt" aus dem Reflexionsbogen. Auf gesammelte Erwartungen (Flipchart) zurückkommen. Warm verabschieden.</div>
+  </div>
+
+  <!-- 9 Übungen -->
+  <h2 class="sec" id="a9">9 · Die Übungen im Detail</h2>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">A</span><h3>Mythos oder Wahrheit</h3><span class="time">15–20 min</span></div>
+    <div class="blk"><div class="lab">Material</div>Arbeitsblatt 2 (Karten mit Auflösung), Arbeitsblatt 2b (grüne/rote Abstimmungskarten je Person).</div>
+    <div class="blk"><div class="lab">Ablauf</div>Aussage vorlesen → alle stimmen mit Karte ab → auflösen und kurz besprechen: „Woher kommt dieses Bild?"</div>
+    <div class="blk"><div class="lab">Auswertung</div>Nicht auf Richtig/Falsch fokussieren, sondern auf die Herkunft der Vorurteile. Eigene frühere Denkfehler ehrlich zugeben – das entlastet die Gruppe.</div>
+    <div class="blk"><div class="lab">Variante</div>Bei großen Gruppen: zwei Raumseiten „Wahrheit"/„Mythos", Teilnehmende positionieren sich körperlich.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">B</span><h3>Perspektivwechsel</h3><span class="time">10–15 min</span></div>
+    <div class="blk"><div class="lab">Material</div>Arbeitsblatt 3.</div>
+    <div class="blk"><div class="lab">Ablauf</div>Situation vorlesen (still gewordener Kollege). Einzeln in beide Perspektiven versetzen und die Tabelle ausfüllen. Anschließend Austausch zu zweit.</div>
+    <div class="blk"><div class="lab">Auswertung</div>Sammeln, welche ersten Sätze möglich sind – ohne Bewertung, mit echtem Interesse. Überleitung zum Rollenspiel.</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">C</span><h3>Rollenspiel: Das unterstützende Gespräch</h3><span class="time">15 min</span></div>
+    <div class="blk"><div class="lab">Material</div>Arbeitsblatt 5 (Rollenkarten A und B).</div>
+    <div class="blk"><div class="lab">Ablauf</div>Paare bilden, Rollen verteilen, ca. 5 Min. spielen, dann tauschen. Danach Beobachtungsfelder ausfüllen.</div>
+    <div class="blk"><div class="lab">Auswertung</div>„Wie hat es sich angefühlt – als betroffene und als zuhörende Person? Was hat geholfen, was war schwierig?"</div>
+    <div class="call tip"><div class="ic">💡</div><div><b>Tipp:</b> Wer nicht spielen möchte, kann beobachten und Rückmeldung geben. Freiwilligkeit wahren.</div></div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">D</span><h3>Ampelübung</h3><span class="time">integriert</span></div>
+    <div class="blk"><div class="lab">Ablauf</div>Die drei Ampelfelder (Grün: tun · Gelb: Vorsicht · Rot: Grenzen) gemeinsam durchgehen. An Beispielen zeigen, was in welche Kategorie fällt.</div>
+    <div class="blk"><div class="lab">Wichtig</div>Ampel-Rot ernst, aber ruhig behandeln – Brücke zum Krisenprotokoll (Abschnitt 6).</div>
+  </div>
+
+  <div class="mod">
+    <div class="mh"><span class="mn">E</span><h3>Reflexionsbogen</h3><span class="time">10 min</span></div>
+    <div class="blk"><div class="lab">Material</div>Arbeitsblatt 7.</div>
+    <div class="blk"><div class="lab">Ablauf</div>3 Minuten still ausfüllen (Erkenntnis · ein Schritt · ein Satz), dann freiwilliges Teilen im Plenum oder in Kleingruppen.</div>
+    <div class="blk"><div class="lab">Auswertung</div>Der „eine konkrete Schritt" ist das Wichtigste – er verwandelt Betroffenheit in Handlung.</div>
+  </div>
+
+  <!-- 10 -->
+  <h2 class="sec" id="a10">10 · Der rote Faden „Hilfe annehmen"</h2>
+  <p>Eine Botschaft zieht sich bewusst durch den ganzen Tag und kehrt mehrfach wieder – in Depression, PTBS, im Hilfe-Kapitel und im Abschluss:</p>
+  <div class="thread">
+    <div class="l">Roter Faden</div>
+    <div class="t">Therapeut:innen, Psycholog:innen und Psychiater:innen sind nicht der Feind. Sie möchten helfen. Hilfe anzunehmen ist Stärke – nicht Schwäche.</div>
+  </div>
+  <p>Sprechen Sie diese Sätze langsam, mit Blickkontakt und Pausen. Verankern Sie sie an Ihrer eigenen Geschichte: Sie sind der lebende Beweis, dass es wirkt.</p>
+
+  <!-- 11 -->
+  <h2 class="sec" id="a11">11 · Häufige Fragen &amp; gute Antworten</h2>
+  <div class="qa"><div class="q">Was, wenn ich jemanden anspreche und mich irre?</div><div class="a">Aufrichtiges Interesse schadet fast nie. Ein „Mir ist aufgefallen … – wie geht es dir?" ist immer okay. Wegschauen richtet mehr Schaden an.</div></div>
+  <div class="qa"><div class="q">Macht es alles schlimmer, wenn ich Suizid direkt anspreche?</div><div class="a">Nein. Offen und ruhig zu fragen entlastet und öffnet die Tür zu Hilfe. Das ist wissenschaftlich gut belegt.</div></div>
+  <div class="qa"><div class="q">Sind Medikamente nicht nur Symptomunterdrückung?</div><div class="a">Bei mittelschweren bis schweren Verläufen können sie wichtig sein, oft in Kombination mit Psychotherapie. Die Entscheidung trifft ärztliches Fachpersonal individuell.</div></div>
+  <div class="qa"><div class="q">Ich habe selbst keine Erfahrung damit – darf ich helfen?</div><div class="a">Ja. Sie müssen nichts „reparieren". Zuhören, ernst nehmen und zur Hilfe ermutigen ist bereits echte Unterstützung.</div></div>
+  <div class="qa"><div class="q">Wie lange dauert es, bis man wieder gesund ist?</div><div class="a">Das ist sehr unterschiedlich. Wichtig ist die Botschaft: Genesung ist möglich – oft nicht „wie vorher", aber zu einem guten, tragfähigen Leben.</div></div>
+
+  <!-- 12 -->
+  <h2 class="sec" id="a12">12 · Schwierige Situationen meistern</h2>
+  <table>
+    <tr><th style="width:30%">Situation</th><th>Ihr Umgang</th></tr>
+    <tr><td><b>Vielredner:in</b></td><td>Wertschätzen und begrenzen: „Danke – ich möchte auch andere Stimmen hören." Blickkontakt zur Runde öffnen.</td></tr>
+    <tr><td><b>Skepsis / „alles Modeerscheinung"</b></td><td>Nicht bekämpfen. Zahlen und die Kontinuum-Idee anbieten, Raum für die Meinung lassen. Oft kippt die Haltung durch die persönliche Geschichte.</td></tr>
+    <tr><td><b>Betroffene:r öffnet sich stark</b></td><td>Ruhe, Dank für das Vertrauen, kurz normalisieren, in der Pause behutsam nachfragen (siehe Abschnitt 6).</td></tr>
+    <tr><td><b>Lähmende Stille</b></td><td>Aushalten. Danach eine konkrete, niedrigschwellige Frage: „Was davon kennen Sie aus dem Alltag?"</td></tr>
+    <tr><td><b>Unangebrachte Witze</b></td><td>Freundlich, aber klar: „Ich verstehe den Reflex – und gleichzeitig nehmen wir das Thema hier ernst."</td></tr>
+  </table>
+
+  <!-- 13 -->
+  <h2 class="sec" id="a13">13 · Nach dem Seminar</h2>
+  <ul>
+    <li><b>Handout &amp; Anlaufstellen</b> zum Mitnehmen anbieten; auf die Notfallnummern hinweisen.</li>
+    <li><b>Feedback</b> einholen (kurzer Bogen oder Blitzlichtrunde) – für die eigene Weiterentwicklung.</li>
+    <li><b>Ansprechbar bleiben:</b> in der Pause und direkt danach für Einzelgespräche zur Verfügung stehen.</li>
+    <li><b>Selbstfürsorge:</b> Ein Seminar über Trauma und Krise kann auch Sie fordern. Planen Sie danach etwas Gutes ein – Musik, Bewegung, ein Gespräch. Bei Bedarf kollegiale Nachbesprechung.</li>
+  </ul>
+  <div class="call tip"><div class="ic">🌿</div><div><b>Merke:</b> Sie geben viel. Nur wer selbst aufgeladen ist, kann für andere da sein. Achten Sie auf Ihre eigenen Schutzfaktoren.</div></div>
+
+  <!-- 14 -->
+  <h2 class="sec" id="a14">14 · Checklisten</h2>
+  <h3 class="sub3">Vorbereitung (1–2 Tage vorher)</h3>
+  <div class="check"><span class="box"></span>Präsentation auf dem Vorführgerät getestet (Browser, Beamer, Ton)</div>
+  <div class="check"><span class="box"></span>Sprechernotizen auf Zweitgerät eingerichtet (Taste N)</div>
+  <div class="check"><span class="box"></span>Arbeitsblätter gedruckt (pro Person 1 Satz; 2b auf festem Papier)</div>
+  <div class="check"><span class="box"></span>Seminarunterlagen als Handout gedruckt</div>
+  <div class="check"><span class="box"></span>Regionale Anlaufstellen &amp; interne Kontakte auf Notfallkarte notiert</div>
+  <div class="check"><span class="box"></span>Persönliche Geschichte durchdacht: Was erzähle ich, was nicht?</div>
+  <h3 class="sub3">Am Seminartag</h3>
+  <div class="check"><span class="box"></span>Raum gestellt (Kreis/Inseln), Wasser, Taschentücher, Flipchart</div>
+  <div class="check"><span class="box"></span>Grüne/rote Karten &amp; Stifte verteilt bzw. bereit</div>
+  <div class="check"><span class="box"></span>Zwei Minuten für sich zum Ankommen</div>
+  <h3 class="sub3">Danach</h3>
+  <div class="check"><span class="box"></span>Für Einzelgespräche zur Verfügung gestanden</div>
+  <div class="check"><span class="box"></span>Feedback gesichert</div>
+  <div class="check"><span class="box"></span>Für die eigene Erholung gesorgt</div>
+
+  <div class="foot">
+    Trainerhandbuch zum Seminar „Man sieht es mir nicht an" · Konzept &amp; Referent: Markus Warscher<br>
+    Bildungsunterlage – ersetzt keine ärztliche oder psychotherapeutische Beratung. Im Ernstfall: 144 · 142 · 147 · 141.
+  </div>
+</article>
+
+</body>
+</html>
