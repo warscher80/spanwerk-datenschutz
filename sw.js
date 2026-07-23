@@ -3,8 +3,9 @@
    - kassa.html: network-first (frische Version wenn online, Cache wenn offline)
    - Logo/Manifest: cache-first
    Greift NUR auf die Kassa-Dateien zu, lässt alles andere unangetastet. */
-const CACHE = 'kassa-v2';
-const ASSETS = ['./kassa.html', './sommerfest-logo.png', './manifest.json', './qrcode.js'];
+const CACHE = 'kassa-v3';
+const ASSETS = ['./kassa.html', './sommerfest-logo.png', './manifest.json', './qrcode.js',
+                './fsgl-logo.svg', './scl-logo.png', './scl-emblem.png'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -26,7 +27,7 @@ self.addEventListener('fetch', e => {
   try { url = new URL(req.url); } catch (_) { return; }
 
   const isHtml   = url.pathname.endsWith('/kassa.html');
-  const isAsset  = url.pathname.endsWith('/sommerfest-logo.png') || url.pathname.endsWith('/manifest.json') || url.pathname.endsWith('/qrcode.js');
+  const isAsset  = /\/(sommerfest-logo\.png|manifest\.json|qrcode\.js|fsgl-logo\.svg|scl-logo\.png|scl-emblem\.png)$/.test(url.pathname);
   const isAppNav = req.mode === 'navigate' && isHtml;
 
   if (isHtml || isAppNav) {
