@@ -34,8 +34,11 @@
     display:flex; align-items:center; gap:8px}
   header .side{flex:1 1 0; min-width:0; display:flex; align-items:center}
   header .side.right{justify-content:flex-end}
-  header .logo{width:118px; height:118px; border-radius:50%; flex:0 0 auto;
-    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  header .logo{width:118px; height:118px; border-radius:14px; flex:0 0 auto;
+    object-fit:contain; background:transparent}
+  header .clubname{font-size:.6em; font-weight:800; opacity:.95; vertical-align:middle;
+    background:rgba(255,255,255,.22); border:1px solid rgba(255,255,255,.5);
+    border-radius:8px; padding:1px 8px; margin-left:4px; white-space:nowrap}
   header .htext{flex:0 1 auto; text-align:center; line-height:1.1}
   header h1{margin:0; font-size:26px; line-height:1.05}
   header .by{display:block; font-size:13px; opacity:.95; font-weight:600; margin-top:2px}
@@ -269,6 +272,23 @@
     font-weight:700; cursor:pointer}
   #reportSave{background:var(--green); color:#fff}
   #reportClose{background:#e7eaee; color:#23262b}
+
+  /* Vereins-Auswahl (Picker) */
+  .picker{position:fixed; inset:0; z-index:50; background:var(--orange); display:none;
+    align-items:center; justify-content:center; padding:20px}
+  .picker.open{display:flex}
+  .picker .pcard{background:#fff; border-radius:18px; padding:26px 22px; max-width:540px;
+    width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .picker h2{margin:0 0 6px; font-size:24px; color:var(--ink)}
+  .picker p{margin:0 0 20px; color:var(--muted); font-size:15px}
+  .picker .pclubs{display:flex; gap:14px; flex-wrap:wrap; justify-content:center}
+  .picker .pclubs button{flex:1 1 190px; min-width:160px; background:#f4f5f7;
+    border:2px solid var(--line); border-radius:16px; padding:20px 12px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:12px}
+  .picker .pclubs button:active{background:#e9ebee}
+  .picker .pclubs img{height:76px; width:auto; max-width:92%; object-fit:contain}
+  .picker .pclubs span{font-size:21px; font-weight:800; color:var(--ink)}
+  .btn-club{background:#5b6573; color:#fff}
 </style>
 </head>
 <body>
@@ -278,7 +298,7 @@
       <img class="logo" src="sommerfest-logo.png" alt="Sommerfest Lienz 2026">
     </div>
     <div class="htext">
-      <h1>Sommerfest Kassa</h1>
+      <h1>Sommerfest Kassa <span class="clubname" id="clubName"></span></h1>
       <span class="by">Kassiersystem à la <span id="egg">Nico</span> Warscher</span>
     </div>
     <div class="side right">
@@ -366,6 +386,9 @@
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
     </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-club" id="btnClub">🔁 Verein wechseln</button>
+    </div>
   </div>
 </div>
 
@@ -392,44 +415,164 @@
   </div>
 </div>
 
+<div class="picker" id="picker">
+  <div class="pcard">
+    <h2>Verein wählen</h2>
+    <p>Bitte deinen Verein auswählen und den Vereins-Code eingeben.</p>
+    <div class="pclubs">
+      <button data-club="fsgl"><img src="fsgl-logo.svg" alt="FSGL"><span>FSGL</span></button>
+      <button data-club="scl"><img src="scl-logo.png" alt="SCL"><span>SCL</span></button>
+    </div>
+  </div>
+</div>
+
 <script src="qrcode.js"></script>
 <script>
-// ---- Speisekarte (aus der Karte) -----------------------------------------
-// Geldbeträge werden intern in GANZEN CENT gerechnet -> keine Rundungsfehler.
-// pfand:true  => 2 € Pfand pro Becher wird automatisch dazugerechnet
+// ---- Kern: Cent-Rechnung + QR-Bericht (funktioniert auch OHNE Vereinswahl) -
 const PFAND_C = 200;                 // 2,00 € Pfand in Cent
-const MENU = [
-  // Speisen
-  {id:'chilli',  name:'Chilli sin carne',          price:8.50, pfand:false, cat:'speisen'},
-  {id:'wurst',   name:'Bauernwurst + Schwarzbrot', price:7.00, pfand:false, cat:'speisen'},
-  {id:'brezen',  name:'Laugenbrezen',              price:2.50, pfand:false, cat:'speisen'},
-  // Getränke
-  {id:'b50',     name:'Gösser Bier 0,5 l',         price:4.50, pfand:true,  cat:'getraenke'},
-  {id:'b30',     name:'Gösser Bier 0,3 l',         price:3.50, pfand:true,  cat:'getraenke'},
-  {id:'ws50',    name:'Weißer Spritzer 0,5 l',     price:4.50, pfand:true,  cat:'getraenke'},
-  {id:'ws30',    name:'Weißer Spritzer 0,3 l',     price:3.50, pfand:true,  cat:'getraenke'},
-  {id:'sv50',    name:'Spritzer Var. 0,5 l',       price:5.00, pfand:true,  cat:'getraenke'},
-  {id:'sv30',    name:'Spritzer Var. 0,3 l',       price:4.00, pfand:true,  cat:'getraenke'},
-  {id:'gt',      name:'Gin Tonic 0,2 l',           price:7.50, pfand:true,  cat:'getraenke'},
-  {id:'vs',      name:'Vodka Soda 0,2 l',          price:6.00, pfand:true,  cat:'getraenke'},
-  {id:'bl',      name:'Berliner Luft',             price:3.00, pfand:true,  cat:'getraenke'},
-  {id:'cola',    name:'Cola 0,3 l',                price:3.00, pfand:true,  cat:'getraenke'},
-  {id:'eistee',  name:'Eistee 0,3 l',              price:3.00, pfand:true,  cat:'getraenke'},
-  {id:'mineral', name:'Mineral 0,3 l',             price:3.00, pfand:true,  cat:'getraenke'},
-  {id:'redbull', name:'Red Bull',                  price:4.00, pfand:true,  cat:'getraenke'},
-  {id:'holler50',name:'Hollundersaft 0,5 l',       price:2.50, pfand:true,  cat:'getraenke'},
-  {id:'holler30',name:'Hollundersaft 0,3 l',       price:1.50, pfand:true,  cat:'getraenke'},
-];
-MENU.forEach(m=> m.c = Math.round(m.price*100));      // Preis in Cent
-const MENU_IDS = new Set(MENU.map(m=>m.id));
-
-// ---- Hilfsfunktionen ------------------------------------------------------
-function eur(c){                                       // Cent -> "1234,50 €"
+function eur(c){                      // Cent -> "1234,50 €"
   c = Math.round(c);
   const neg = c < 0; c = Math.abs(c);
   const e = Math.floor(c/100), r = c % 100;
   return (neg?'−':'') + e + ',' + (r<10?'0':'') + r + ' €';
 }
+function b64urlEncode(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
+
+// ---- Empfangene Statistik (QR gescannt) als speicherbares Bild ------------
+function renderReportCanvas(p){
+  const items = Array.isArray(p.it) ? p.it : [];
+  const days  = Array.isArray(p.days) ? p.days : [];
+  const W = 760, S = 2, M = 36, RH = 30;
+  let H = 150 + 36 + (days.length+1)*RH + 30 + 34 + 6*RH + 30 + 34 + items.length*RH + 50;
+  const c = document.createElement('canvas'); c.width = W*S; c.height = H*S;
+  const x = c.getContext('2d'); x.scale(S,S);
+  x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+  x.fillStyle = '#e8920c'; x.fillRect(0,0,W,110);
+  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
+  x.font = '800 30px Arial,sans-serif'; x.fillText('Sommerfest Lienz 2026'+(p.club?' · '+p.club:''), M, 46);
+  x.font = '700 19px Arial,sans-serif'; x.fillText('Kassa-Statistik · erstellt '+(p.t||''), M, 78);
+  x.font = '600 15px Arial,sans-serif'; x.fillText('Kassiersystem à la Nico Warscher', M, 99);
+  const ck = n => eur(n);
+  const sep = y => { x.strokeStyle = '#e3e6ea'; x.lineWidth = 1; x.beginPath(); x.moveTo(M,y); x.lineTo(W-M,y); x.stroke(); };
+  const head = (t,y) => { x.fillStyle = '#6b7585'; x.font = '700 14px Arial'; x.fillText(t.toUpperCase(), M, y); };
+  const row = (l,r,y,bold) => {
+    x.fillStyle = '#1a2330'; x.font = (bold?'800 ':'600 ')+'18px Arial';
+    x.textAlign = 'left';  x.fillText(l, M, y);
+    x.textAlign = 'right'; x.fillText(r, W-M, y); x.textAlign = 'left';
+  };
+  let y = 150;
+  head('Einnahmen pro Tag', y); y += 26;
+  days.forEach((d,i)=>{ row('Tag '+(i+1)+(d.s?' · '+d.s:''), ck(+d.cash||0), y); y += RH; sep(y-RH+6); });
+  row('Gesamt (alle Tage)', ck(p.w+p.po-p.pb), y, true); y += RH + 22;
+  head('Übersicht', y); y += 26;
+  row('Einnahmen gesamt', ck(p.w+p.po-p.pb), y, true); y += RH;
+  row('Umsatz Ware', ck(p.w), y); y += RH;
+  row('Pfand erhalten', ck(p.po), y); y += RH;
+  row('Pfand zurück', ck(p.pb), y); y += RH;
+  row('Becher noch draußen', Math.round((p.po-p.pb)/PFAND_C)+' Becher', y); y += RH;
+  row('Verkäufe gesamt', String(p.c||0), y); y += RH + 22;
+  head('Verkaufte Artikel', y); y += 26;
+  items.forEach(it=>{ row(String(it.n||''), (+it.q||0)+'×', y); y += RH; });
+  return c;
+}
+let reportDataUrl = '';
+function showReport(p){
+  let canvas; try{ canvas = renderReportCanvas(p); reportDataUrl = canvas.toDataURL('image/png'); }
+  catch(e){ alert('Bericht konnte nicht erstellt werden.'); return; }
+  document.getElementById('reportImg').src = reportDataUrl;
+  document.getElementById('report').classList.add('open');
+}
+document.getElementById('reportClose').onclick = ()=>document.getElementById('report').classList.remove('open');
+document.getElementById('reportSave').onclick = ()=>{
+  if(!reportDataUrl) return;
+  try{ const a=document.createElement('a'); a.href=reportDataUrl; a.download='sommerfest-statistik.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('Zum Speichern: lange auf das Bild drücken → „Bild sichern“.'); }
+};
+function handleReportUrl(){
+  const m = (location.hash||'').match(/^#r=(.+)$/);
+  if(!m) return false;
+  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
+  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}
+  if(!p || p.v!==2) return false;
+  p.w=+p.w||0; p.po=+p.po||0; p.pb=+p.pb||0; p.c=+p.c||0;
+  p.it = Array.isArray(p.it)?p.it:[]; p.days = Array.isArray(p.days)?p.days:[];
+  showReport(p); return true;
+}
+
+if(handleReportUrl()){ /* Nur die empfangene Statistik zeigen – keine App/Vereinswahl */ }
+else {
+
+// ===== Vereins-Auswahl (Code-geschützt) ====================================
+const CLUBS = {
+  fsgl: { name:'FSGL', code:'1989', logo:'fsgl-logo.svg', menu:[
+    {id:'chilli',  name:'Chilli sin carne',          price:8.50, pfand:false, cat:'speisen'},
+    {id:'wurst',   name:'Bauernwurst + Schwarzbrot', price:7.00, pfand:false, cat:'speisen'},
+    {id:'brezen',  name:'Laugenbrezen',              price:2.50, pfand:false, cat:'speisen'},
+    {id:'b50',     name:'Gösser Bier 0,5 l',         price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'b30',     name:'Gösser Bier 0,3 l',         price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'ws50',    name:'Weißer Spritzer 0,5 l',     price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'ws30',    name:'Weißer Spritzer 0,3 l',     price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'sv50',    name:'Spritzer Var. 0,5 l',       price:5.00, pfand:true,  cat:'getraenke'},
+    {id:'sv30',    name:'Spritzer Var. 0,3 l',       price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'gt',      name:'Gin Tonic 0,2 l',           price:7.50, pfand:true,  cat:'getraenke'},
+    {id:'vs',      name:'Vodka Soda 0,2 l',          price:6.00, pfand:true,  cat:'getraenke'},
+    {id:'bl',      name:'Berliner Luft',             price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'cola',    name:'Cola 0,3 l',                price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'eistee',  name:'Eistee 0,3 l',              price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'mineral', name:'Mineral 0,3 l',             price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'redbull', name:'Red Bull',                  price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'holler50',name:'Hollundersaft 0,5 l',       price:2.50, pfand:true,  cat:'getraenke'},
+    {id:'holler30',name:'Hollundersaft 0,3 l',       price:1.50, pfand:true,  cat:'getraenke'}
+  ]},
+  scl: { name:'SCL', code:'1610', logo:'scl-emblem.png', menu:[
+    {id:'schlipf',    name:'Schlipfkrapfen',          price:9.00, pfand:false, cat:'speisen'},
+    {id:'verhackert', name:'Verhackertes Brot',       price:4.50, pfand:false, cat:'speisen'},
+    {id:'bier30',   name:'Bier/Radler 0,3 l',        price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'bier50',   name:'Bier/Radler 0,5 l',        price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'sclws30',  name:'Weißer Spritzer 0,3 l',    price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'sclws50',  name:'Weißer Spritzer 0,5 l',    price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'afrei',    name:'Alkoholfrei 0,3 l',        price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'sclholl30',name:'Hollersaft 0,3 l',         price:1.50, pfand:true,  cat:'getraenke'},
+    {id:'sclholl50',name:'Hollersaft 0,5 l',         price:2.50, pfand:true,  cat:'getraenke'},
+    {id:'soda',     name:'Aufpreis Soda',            price:0.50, pfand:false, cat:'getraenke'},
+    {id:'hspritz',  name:'Holler Spritz 0,3 l',      price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'prosecco', name:'Prosecco 0,3 l',           price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'schnaps',  name:'Schifahrer 2cl',           price:2.50, pfand:false, cat:'getraenke'}
+  ]}
+};
+let CLUB = (function(){ try{ const c=localStorage.getItem('kassa_club'); return CLUBS[c]?c:null; }catch(e){ return null; } })();
+
+if(!CLUB){
+  // Auswahl-Bildschirm: Verein wählen + Code eingeben
+  const ov = document.getElementById('picker');
+  if(ov){
+    ov.classList.add('open');
+    ov.querySelectorAll('[data-club]').forEach(btn=> btn.addEventListener('click', ()=>{
+      const c = btn.dataset.club;
+      const code = prompt(CLUBS[c].name + ' – Code eingeben:');
+      if(code===null) return;
+      if(String(code).trim() !== CLUBS[c].code){ alert('Falscher Code.'); return; }
+      try{ localStorage.setItem('kassa_club', c); }catch(e){}
+      location.reload();
+    }));
+  }
+}
+else {
+
+const CLUBCFG = CLUBS[CLUB];
+(function(){                                    // Logo + Vereinsname in den Kopf
+  const img = document.querySelector('header .logo');
+  if(img){ img.src = CLUBCFG.logo; img.alt = CLUBCFG.name; img.classList.add('logo-'+CLUB); }
+  const nm = document.getElementById('clubName'); if(nm) nm.textContent = CLUBCFG.name;
+})();
+
+const MENU = CLUBCFG.menu;
+MENU.forEach(m=> m.c = Math.round(m.price*100));       // Preis in Cent
+const MENU_IDS = new Set(MENU.map(m=>m.id));
+
+// ---- App-Hilfsfunktionen (Speicher pro Verein getrennt) -------------------
 function centsFromInput(s){                             // "12,50" / "12.5" -> 1250 | NaN
   s = (s==null?'':String(s)).trim().replace(',', '.');
   if(s==='') return NaN;
@@ -438,10 +581,8 @@ function centsFromInput(s){                             // "12,50" / "12.5" -> 1
   return Math.round(f*100);
 }
 const byId = id => MENU.find(m=>m.id===id);
-function store(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
-function load(key, def){ try{ const r=localStorage.getItem(key); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
-function b64urlEncode(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-function b64urlDecode(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
+function store(key, val){ try{ localStorage.setItem(key+'_'+CLUB, JSON.stringify(val)); }catch(e){} }
+function load(key, def){ try{ const r=localStorage.getItem(key+'_'+CLUB); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
 
 // ---- Zustand (laufende Bestellung) ----------------------------------------
 let cart = {};        // id -> menge
@@ -821,13 +962,21 @@ document.getElementById('btnReset').onclick = ()=>{
     saveFest(); saveDay(); saveCounter(); updateCounter(); showDay();
   }
 };
+// Verein wechseln (Code des anderen Vereins nötig)
+document.getElementById('btnClub').onclick = ()=>{
+  if(confirm('Verein wechseln?\nDanach musst du den Code des anderen Vereins eingeben.\nDie Zahlen dieses Vereins bleiben gespeichert.')){
+    try{ localStorage.removeItem('kassa_club'); }catch(e){}
+    location.reload();
+  }
+};
 
 // ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
 function makeTransfer(){
   if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return; }
   const g = gesamt();
+  const it = MENU.filter(m=>g.items[m.id]>0).map(m=>({ n:m.name, q:g.items[m.id] }));
   const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
-  const payload = { v:2, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it:g.items, days };
+  const payload = { v:2, club:CLUBCFG.name, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
   const url = location.href.split('#')[0] + '#r=' + b64urlEncode(JSON.stringify(payload));
   try{
     const qr = qrcode(0,'L'); qr.addData(url); qr.make();
@@ -842,72 +991,7 @@ document.getElementById('qrmodal').addEventListener('click', e=>{
   if(e.target.id==='qrmodal') document.getElementById('qrmodal').classList.remove('open');
 });
 
-// ---- Statistik-Bericht als speicherbares Bild zeichnen --------------------
-function renderReportCanvas(p){
-  const items = MENU.filter(m => (p.it && p.it[m.id]) > 0);
-  const days  = Array.isArray(p.days) ? p.days : [];
-  const W = 760, S = 2, M = 36, RH = 30;
-  let H = 150 + 36 + (days.length+1)*RH + 30 + 34 + 6*RH + 30 + 34 + items.length*RH + 50;
-  const c = document.createElement('canvas'); c.width = W*S; c.height = H*S;
-  const x = c.getContext('2d'); x.scale(S,S);
-  x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
-  // Kopf
-  x.fillStyle = '#e8920c'; x.fillRect(0,0,W,110);
-  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
-  x.font = '800 32px Arial,sans-serif'; x.fillText('Sommerfest Lienz 2026', M, 48);
-  x.font = '700 19px Arial,sans-serif'; x.fillText('Kassa-Statistik · erstellt '+(p.t||''), M, 80);
-  x.font = '600 15px Arial,sans-serif'; x.fillText('Kassiersystem à la Nico Warscher', M, 100);
-  const ck = n => eur(n);
-  const sep = y => { x.strokeStyle = '#e3e6ea'; x.lineWidth = 1; x.beginPath(); x.moveTo(M,y); x.lineTo(W-M,y); x.stroke(); };
-  const head = (t,y) => { x.fillStyle = '#6b7585'; x.font = '700 14px Arial'; x.fillText(t.toUpperCase(), M, y); };
-  const row = (l,r,y,bold) => {
-    x.fillStyle = '#1a2330'; x.font = (bold?'800 ':'600 ')+'18px Arial';
-    x.textAlign = 'left';  x.fillText(l, M, y);
-    x.textAlign = 'right'; x.fillText(r, W-M, y); x.textAlign = 'left';
-  };
-  let y = 150;
-  head('Einnahmen pro Tag', y); y += 26;
-  days.forEach((d,i)=>{ row('Tag '+(i+1)+(d.s?' · '+d.s:''), ck(+d.cash||0), y); y += RH; sep(y-RH+6); });
-  row('Gesamt (alle Tage)', ck(p.w+p.po-p.pb), y, true); y += RH + 22;
-  head('Übersicht', y); y += 26;
-  row('Einnahmen gesamt', ck(p.w+p.po-p.pb), y, true); y += RH;
-  row('Umsatz Ware', ck(p.w), y); y += RH;
-  row('Pfand erhalten', ck(p.po), y); y += RH;
-  row('Pfand zurück', ck(p.pb), y); y += RH;
-  row('Becher noch draußen', Math.round((p.po-p.pb)/PFAND_C)+' Becher', y); y += RH;
-  row('Verkäufe gesamt', String(p.c||0), y); y += RH + 22;
-  head('Verkaufte Artikel', y); y += 26;
-  items.forEach(m=>{ row(m.name, (p.it[m.id])+'×', y); y += RH; });
-  return c;
-}
-
-let reportDataUrl = '';
-function showReport(p){
-  let canvas; try{ canvas = renderReportCanvas(p); reportDataUrl = canvas.toDataURL('image/png'); }
-  catch(e){ alert('Bericht konnte nicht erstellt werden.'); return; }
-  document.getElementById('reportImg').src = reportDataUrl;
-  document.getElementById('report').classList.add('open');
-}
-document.getElementById('reportClose').onclick = ()=>document.getElementById('report').classList.remove('open');
-document.getElementById('reportSave').onclick = ()=>{
-  if(!reportDataUrl) return;
-  try{
-    const a = document.createElement('a');
-    a.href = reportDataUrl; a.download = 'sommerfest-statistik.png';
-    document.body.appendChild(a); a.click(); a.remove();
-  }catch(e){ alert('Zum Speichern: lange auf das Bild drücken → „Bild sichern“.'); }
-};
-
-// Statistik aus der URL (#r=...) anzeigen (Handy hat den QR gescannt)
-(function reportFromUrl(){
-  const m = (location.hash||'').match(/^#r=(.+)$/);
-  if(!m) return;
-  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
-  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}   // Hash entfernen
-  if(!p || p.v!==2) return;
-  p.w=+p.w||0; p.po=+p.po||0; p.pb=+p.pb||0; p.c=+p.c||0; p.it=(p.it&&typeof p.it==='object')?p.it:{};
-  showReport(p);
-})();
+// (Statistik-Bericht wird oben – vereinsunabhängig – gezeichnet und angezeigt)
 
 // ---- Aktionen -------------------------------------------------------------
 document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
@@ -978,7 +1062,19 @@ document.addEventListener('visibilitychange', ()=>{       // beim Zurückkehren 
 window.addEventListener('pointerdown', ensureWake);       // spätestens bei erster Berührung aktivieren
 ensureWake();
 
+// interner Zugriff (nur für Tests/Diagnose – enthält keine Geheimnisse)
+try{ window.KASSA = { CLUB, MENU, MENU_IDS, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
+  totals, recordSale, render, gesamt, cashOf, leer, saveDay, saveFest, saveCounter, updateCounter,
+  get cart(){return cart}, set cart(v){cart=v},
+  get pfandBack(){return pfandBack}, set pfandBack(v){pfandBack=v},
+  get day(){return day}, set day(v){day=v},
+  get archive(){return archive}, set archive(v){archive=v},
+  get counter(){return counter}, set counter(v){counter=v} }; }catch(e){}
+
 render();
+
+}   // Ende: Verein gewählt
+}   // Ende: kein empfangener QR-Bericht
 </script>
 </body>
 </html>
