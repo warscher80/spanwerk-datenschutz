@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Arbeitsblätter – Über die Seele sprechen</title>
+<style>
+/* ============================================================
+   ARBEITSBLÄTTER  ·  A4, druck- & kopierfertig
+   Helles, freundliches Grün · Mint · Salbei · Weiß · Hellgrau
+   ============================================================ */
+:root{
+  --leaf:#7cc496; --green:#57a773; --green-d:#3f8f60; --sage:#9cbfa8;
+  --mint:#eaf6ee; --mint-2:#dcefe3; --cloud:#f5f8f6; --paper:#fff;
+  --ink:#2c3b32; --muted:#63756a; --line:#cdddd3; --line-2:#b7ccc0;
+  --sun:#f4c95d; --coral:#e59a86;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  color:var(--ink); background:var(--mint); line-height:1.5;
+  font-size:15px; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0;line-height:1.15}
+
+/* Bildschirm-Werkzeugleiste */
+.bar{position:sticky;top:0;z-index:20;background:var(--green-d);color:#fff;
+  padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.bar .t{font-weight:800;font-size:16px}
+.bar .s{opacity:.9;font-size:13.5px}
+.bar button{margin-left:auto;background:#fff;color:var(--green-d);border:none;
+  font-weight:800;padding:10px 18px;border-radius:100px;cursor:pointer;font-size:14px;
+  display:inline-flex;align-items:center;gap:8px}
+.bar button svg{width:18px;height:18px}
+.hint{max-width:820px;margin:16px auto 0;padding:0 16px;color:var(--muted);font-size:13.5px;text-align:center}
+
+/* A4-Seite */
+.sheet{
+  width:210mm; min-height:297mm; background:var(--paper);
+  margin:20px auto; padding:18mm 18mm 20mm;
+  box-shadow:0 8px 30px rgba(63,143,96,.16); position:relative;
+  display:flex; flex-direction:column;
+}
+/* Kopf */
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  border-bottom:3px solid var(--leaf);padding-bottom:12px;margin-bottom:6px}
+.head .brand{display:flex;align-items:center;gap:12px}
+.head .logo{width:44px;height:44px;border-radius:12px;background:var(--mint-2);
+  display:grid;place-items:center;flex:0 0 auto}
+.head .logo svg{width:26px;height:26px}
+.head .prog{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--green-d)}
+.head .prog small{display:block;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--muted);font-size:12px;margin-top:2px}
+.head .ab{text-align:right;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sage)}
+.head .ab b{display:block;font-size:22px;color:var(--green-d);letter-spacing:0}
+
+/* Name/Datum */
+.meta{display:flex;gap:24px;margin:14px 0 18px}
+.meta .f{flex:1;display:flex;align-items:flex-end;gap:8px}
+.meta .f label{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;padding-bottom:3px}
+.meta .f .ln{flex:1;border-bottom:1.5px solid var(--line-2);height:22px}
+
+/* Titel */
+h2.sheet-title{font-size:23px;color:var(--ink);margin-bottom:4px}
+.sheet-sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+
+/* Aufgaben-Block */
+.task{margin-bottom:18px}
+.task .q{display:flex;gap:10px;align-items:flex-start;font-weight:700;font-size:15.5px;margin-bottom:10px}
+.task .q .no{flex:0 0 auto;width:26px;height:26px;border-radius:8px;background:var(--mint-2);
+  color:var(--green-d);font-weight:800;display:grid;place-items:center;font-size:14px}
+.task .hint2{color:var(--muted);font-weight:500;font-size:13px;margin:-4px 0 8px 36px}
+
+/* Schreiblinien */
+.lines{display:block}
+.lines .l{height:30px;border-bottom:1.5px solid var(--line);margin:0 0 2px}
+.lines.tight .l{height:26px}
+
+/* Kästchen zum Ankreuzen */
+.check{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.check .box{width:18px;height:18px;border:2px solid var(--sage);border-radius:5px;flex:0 0 auto}
+.check .tx{font-size:14.5px}
+.check:last-child{border-bottom:none}
+
+/* Schreibkasten */
+.wbox{border:1.5px solid var(--line-2);border-radius:12px;background:var(--cloud);
+  padding:12px 14px;min-height:90px}
+.wbox.lg{min-height:130px}
+.wbox .cap{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);margin-bottom:8px}
+
+/* Tabellen */
+table{width:100%;border-collapse:collapse;margin:6px 0}
+th,td{border:1.5px solid var(--line-2);padding:9px 10px;text-align:left;vertical-align:top;font-size:14px}
+th{background:var(--mint-2);color:var(--green-d);font-size:12.5px;font-weight:800;letter-spacing:.04em}
+td.fill{height:44px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+
+/* Info-/Merk-Kasten */
+.note{border-left:5px solid var(--leaf);background:var(--mint);border-radius:0 10px 10px 0;
+  padding:12px 16px;font-size:13.5px;color:#3a4a42;margin:14px 0}
+.note b{color:var(--green-d)}
+.note.warn{border-color:var(--coral);background:#fbeee9}
+.note.warn b{color:#c06a53}
+
+/* Karten (Mythos/Wahrheit, Rollen) zum Ausschneiden */
+.cut-hint{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;margin:10px 0}
+.cut-hint svg{width:16px;height:16px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.cutcard{border:1.5px dashed var(--line-2);padding:14px;min-height:118px;display:flex;flex-direction:column}
+.cutcard .cnum{font-size:11px;font-weight:800;color:var(--sage);letter-spacing:.1em}
+.cutcard .claim{font-weight:700;font-size:14.5px;margin:6px 0 8px}
+.cutcard .ans{margin-top:auto;font-size:12.5px}
+.cutcard .badge{display:inline-block;font-weight:800;font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 9px;border-radius:100px}
+.badge.myth{background:#f6dcd3;color:#c06a53}
+.badge.truth{background:#d8efdf;color:var(--green-d)}
+
+/* Antwortkarten grün/rot */
+.votecards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+.vc{border:2px dashed var(--line-2);border-radius:14px;padding:22px;text-align:center;font-weight:800;font-size:18px}
+.vc.g{background:#e4f4ea;color:var(--green-d)}
+.vc.r{background:#fbeae4;color:#c06a53}
+.vc .em{font-size:30px;display:block;margin-bottom:6px}
+
+/* Rollenkarten */
+.role{border:1.5px solid var(--line-2);border-radius:12px;padding:14px;background:var(--cloud)}
+.role h4{font-size:15px;color:var(--green-d);margin:0 0 6px}
+.role ul{margin:0;padding-left:18px}
+.role li{font-size:13px;margin:4px 0}
+
+/* Ampel Selbstcheck */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 12px}
+.leg{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700}
+.leg .d{width:14px;height:14px;border-radius:50%}
+.leg .g{background:var(--green)}.leg .y{background:var(--sun)}.leg .r{background:var(--coral)}
+
+/* Fußzeile */
+.foot{margin-top:auto;padding-top:12px;border-top:1.5px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}
+.foot .pg b{color:var(--green-d)}
+
+/* Skala 1–10 */
+.scale{display:flex;gap:6px;margin-top:6px}
+.scale .s{flex:1;text-align:center;border:1.5px solid var(--line-2);border-radius:8px;
+  padding:8px 0;font-weight:800;color:var(--muted);font-size:13px}
+
+@media print{
+  body{background:#fff}
+  .bar,.hint{display:none!important}
+  .sheet{box-shadow:none;margin:0;width:auto;min-height:auto;page-break-after:always;padding:14mm 15mm 16mm}
+  .sheet:last-child{page-break-after:auto}
+  @page{size:A4;margin:0}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="t">Arbeitsblätter · „Über die Seele sprechen"</span>
+  <span class="s">7 druckfertige Seiten – ideal in Schwarz-Weiß kopierbar</span>
+  <button onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg>Drucken / als PDF speichern</button>
+</div>
+<p class="hint">Tipp: Beim Drucken „Hintergrundgrafiken" aktivieren für die farbigen Flächen – oder ohne, für sparsames Schwarz-Weiß-Kopieren. Jedes Blatt liegt auf einer eigenen A4-Seite.</p>
+
+<!-- Wiederverwendbarer Kopf-Baustein wird pro Blatt eingesetzt -->
+
+<!-- ============================================================ AB 1 ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>1</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Mein Bild von psychischer Gesundheit</h2>
+  <p class="sheet-sub">Ein ehrlicher Einstieg – nur für Sie. Es gibt keine richtigen oder falschen Antworten.</p>
+
+  <div class="task">
+    <div class="q"><span class="no">1</span><span>Wenn ich „psychisch gesund" höre, denke ich an …</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div></div>
+  </div>
+
+  <div class="task">
+    <div class="q"><span class="no">2</span><span>Was tut meiner Seele gut? Was belastet sie?</span></div>
+    <div class="two">
+      <div class="wbox"><div class="cap">Tut mir gut</div></div>
+      <div class="wbox"><div class="cap">Belastet mich</div></div>
+    </div>
+  </div>
+
+  <div class="task">
+    <div class="q"><span class="no">3</span><span>Wie voll ist mein „innerer Akku" gerade? Kreuzen Sie an.</span></div>
+    <div class="scale">
+      <div class="s">1</div><div class="s">2</div><div class="s">3</div><div class="s">4</div><div class="s">5</div>
+      <div class="s">6</div><div class="s">7</div><div class="s">8</div><div class="s">9</div><div class="s">10</div>
+    </div>
+    <p class="hint2" style="margin-left:0;margin-top:6px">1 = völlig leer &nbsp;·&nbsp; 10 = voll aufgeladen</p>
+  </div>
+
+  <div class="task">
+    <div class="q"><span class="no">4</span><span>Eine Frage, die ich mich bisher nicht getraut habe zu stellen …</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div></div>
+  </div>
+
+  <div class="note"><b>Gedanke zum Mitnehmen:</b> Über die eigene Seele nachzudenken ist keine Schwäche – es ist der erste Schritt, gut für sich zu sorgen.</div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>1</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 2 ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>2</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Mythos oder Wahrheit?</h2>
+  <p class="sheet-sub">Übungskarten mit Auflösung. Erst tippen – dann die Auflösung lesen und darüber sprechen.</p>
+
+  <div class="cut-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8L20 18M8.5 16L20 6"/></svg>Karten entlang der gestrichelten Linien ausschneiden – oder gemeinsam im Plenum vorlesen.</div>
+
+  <div class="cards">
+    <div class="cutcard"><div class="cnum">KARTE 1</div><div class="claim">„Wer depressiv ist, muss sich nur zusammenreißen."</div><div class="ans"><span class="badge myth">Mythos</span> &nbsp;Depression ist eine Erkrankung, kein Willensproblem.</div></div>
+    <div class="cutcard"><div class="cnum">KARTE 2</div><div class="claim">„Über Suizidgedanken zu sprechen, macht es schlimmer."</div><div class="ans"><span class="badge truth">Wahrheit&nbsp;ist:&nbsp;Mythos</span> &nbsp;Offen fragen entlastet und öffnet Hilfe.</div></div>
+    <div class="cutcard"><div class="cnum">KARTE 3</div><div class="claim">„Psychisch Kranke sind gefährlich."</div><div class="ans"><span class="badge myth">Mythos</span> &nbsp;Betroffene sind häufiger Opfer als Täter.</div></div>
+    <div class="cutcard"><div class="cnum">KARTE 4</div><div class="claim">„Auch starke, erfolgreiche Menschen erkranken."</div><div class="ans"><span class="badge truth">Wahrheit</span> &nbsp;Erkrankung fragt nicht nach Stärke oder Beruf.</div></div>
+    <div class="cutcard"><div class="cnum">KARTE 5</div><div class="claim">„Psychotherapie ist nur etwas für ‚Verrückte'."</div><div class="ans"><span class="badge myth">Mythos</span> &nbsp;Therapie ist Pflege für die Seele – für jede:n.</div></div>
+    <div class="cutcard"><div class="cnum">KARTE 6</div><div class="claim">„Aus einer Depression kann man wieder gesund werden."</div><div class="ans"><span class="badge truth">Wahrheit</span> &nbsp;Sehr viele Menschen genesen vollständig.</div></div>
+  </div>
+
+  <div class="task" style="margin-top:16px">
+    <div class="q"><span class="no">✎</span><span>Welcher Mythos hat mich überrascht – und warum?</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div></div>
+  </div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>2</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 2b · Antwortkarten ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>2b</b></div>
+  </div>
+  <h2 class="sheet-title">Abstimmungskarten zum Ausschneiden</h2>
+  <p class="sheet-sub">Jede:r Teilnehmer:in erhält eine grüne und eine rote Karte. Bei jeder Aussage hochhalten.</p>
+  <div class="cut-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8L20 18M8.5 16L20 6"/></svg>Ausschneiden – am besten auf festeres Papier kopieren oder laminieren.</div>
+  <div class="votecards">
+    <div class="vc g"><span class="em">✓</span>WAHRHEIT</div>
+    <div class="vc r"><span class="em">✗</span>MYTHOS</div>
+    <div class="vc g"><span class="em">✓</span>WAHRHEIT</div>
+    <div class="vc r"><span class="em">✗</span>MYTHOS</div>
+    <div class="vc g"><span class="em">✓</span>WAHRHEIT</div>
+    <div class="vc r"><span class="em">✗</span>MYTHOS</div>
+  </div>
+  <div class="note">Diese Karten lassen sich für viele Übungen wiederverwenden – etwa für spontane „Wie sehen Sie das?"-Abfragen.</div>
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>3</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 3 · Perspektivwechsel ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>3</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Perspektivwechsel</h2>
+  <p class="sheet-sub">Lesen Sie die kurze Situation und versetzen Sie sich nacheinander in beide Personen.</p>
+
+  <div class="note"><b>Situation:</b> Ein Kollege, der früher offen und humorvoll war, wirkt seit Wochen still, kommt zu spät, macht ungewohnte Fehler und lehnt jede Einladung ab. Heute sagt er leise: „Ich weiß auch nicht mehr weiter."</div>
+
+  <table>
+    <tr><th style="width:50%">Aus Sicht des Kollegen …</th><th>Aus meiner Sicht (Kolleg:in) …</th></tr>
+    <tr><td class="fill">Was könnte er gerade fühlen?</td><td class="fill">Was löst die Situation in mir aus?</td></tr>
+    <tr><td class="fill">Was befürchtet er vielleicht, wenn er sich öffnet?</td><td class="fill">Welche Sorge hält mich vom Ansprechen ab?</td></tr>
+    <tr><td class="fill">Was würde ihm jetzt guttun?</td><td class="fill">Was kann ich konkret anbieten?</td></tr>
+  </table>
+
+  <div class="task" style="margin-top:12px">
+    <div class="q"><span class="no">✎</span><span>Mein erster Satz an ihn wäre …</span></div>
+    <div class="wbox"><div class="cap">Formulierung ohne Bewertung, mit echtem Interesse</div></div>
+  </div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>4</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 4 · Selbstcheck Ampel ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>4</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Belastungs-Selbstcheck</h2>
+  <p class="sheet-sub">Wie geht es Ihnen in den letzten zwei Wochen? Kreuzen Sie ehrlich an – nur für Sie.</p>
+
+  <div class="legend">
+    <span class="leg"><span class="d g"></span>Selten / nie</span>
+    <span class="leg"><span class="d y"></span>Manchmal</span>
+    <span class="leg"><span class="d r"></span>Oft / fast täglich</span>
+  </div>
+
+  <table>
+    <tr><th style="width:58%">In den letzten zwei Wochen …</th><th style="text-align:center">Selten</th><th style="text-align:center">Manchmal</th><th style="text-align:center">Oft</th></tr>
+    <tr><td>… fühlte ich mich erschöpft und ausgelaugt.</td><td></td><td></td><td></td></tr>
+    <tr><td>… fiel es mir schwer, mich zu freuen.</td><td></td><td></td><td></td></tr>
+    <tr><td>… schlief ich schlecht oder unruhig.</td><td></td><td></td><td></td></tr>
+    <tr><td>… war ich gereizt oder dünnhäutig.</td><td></td><td></td><td></td></tr>
+    <tr><td>… zog ich mich von anderen zurück.</td><td></td><td></td><td></td></tr>
+    <tr><td>… hatte ich das Gefühl, nichts zu schaffen.</td><td></td><td></td><td></td></tr>
+    <tr><td>… fiel mir Konzentration schwer.</td><td></td><td></td><td></td></tr>
+  </table>
+
+  <div class="note"><b>So lese ich das Ergebnis:</b> Viele Kreuze im gelben und roten Bereich sind ein freundlicher Hinweis Ihres Körpers – kein Urteil. Halten die Zeichen länger an, sprechen Sie mit einer Vertrauensperson oder Ihrer Hausärztin / Ihrem Hausarzt.</div>
+  <div class="note warn"><b>Sofort Hilfe holen</b>, wenn Gedanken auftauchen, nicht mehr leben zu wollen: Telefonseelsorge <b>142</b> (24 h, kostenlos, anonym) · in akuter Gefahr <b>144</b>.</div>
+
+  <div class="task" style="margin-top:6px">
+    <div class="q"><span class="no">✎</span><span>Ein kleiner Schritt, der mir diese Woche guttun würde:</span></div>
+    <div class="lines tight"><div class="l"></div></div>
+  </div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>5</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 5 · Rollenspiel ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>5</b></div>
+  </div>
+  <h2 class="sheet-title">Rollenspiel: Das unterstützende Gespräch</h2>
+  <p class="sheet-sub">Zu zweit. Eine Runde à ca. 5 Minuten, dann Rollen tauschen. Danach kurz austauschen: Wie hat es sich angefühlt?</p>
+
+  <div class="two">
+    <div class="role">
+      <h4>Rolle A · Die zuhörende Person</h4>
+      <ul>
+        <li>Sprich an, was dir aufgefallen ist – ohne Vorwurf: „Mir ist aufgefallen, dass …"</li>
+        <li>Stelle eine offene Frage: „Wie geht es dir wirklich?"</li>
+        <li>Höre zu, ohne sofort Lösungen zu liefern.</li>
+        <li>Halte auch Stille aus.</li>
+        <li>Biete konkret an: „Ich helfe dir, Unterstützung zu finden."</li>
+      </ul>
+    </div>
+    <div class="role">
+      <h4>Rolle B · Die belastete Person</h4>
+      <ul>
+        <li>Du fühlst dich seit Wochen erschöpft und allein.</li>
+        <li>Du bist zunächst zurückhaltend – „Ist schon okay."</li>
+        <li>Öffne dich langsam, wenn du dich ernst genommen fühlst.</li>
+        <li>Achte darauf, was dir guttut und was nicht.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="task" style="margin-top:14px">
+    <div class="q"><span class="no">✓</span><span>Beobachtung: Was hat im Gespräch geholfen?</span></div>
+    <div class="two">
+      <div class="wbox"><div class="cap">Das hat gutgetan</div></div>
+      <div class="wbox"><div class="cap">Das war schwierig</div></div>
+    </div>
+  </div>
+
+  <div class="note"><b>Merke:</b> Man muss nichts „reparieren". Aufrichtiges Interesse und Dableiben sind bereits echte Hilfe. Der Satz „Du musst das nicht allein schaffen" öffnet fast immer eine Tür.</div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>6</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 6 · Notfallplan / Wege zur Hilfe ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>6</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Mein persönlicher Halt-Plan</h2>
+  <p class="sheet-sub">Ausfüllen, ausschneiden, ins Portemonnaie oder ans Handy. Für gute und für schwere Tage.</p>
+
+  <div class="task">
+    <div class="q"><span class="no">1</span><span>Diese Menschen kann ich anrufen, wenn es mir schlecht geht:</span></div>
+    <table>
+      <tr><th style="width:55%">Name</th><th>Telefon</th></tr>
+      <tr><td class="fill"></td><td class="fill"></td></tr>
+      <tr><td class="fill"></td><td class="fill"></td></tr>
+    </table>
+  </div>
+
+  <div class="task">
+    <div class="q"><span class="no">2</span><span>Das hilft mir, wenn es mir nicht gut geht (3 Dinge):</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div><div class="l"></div></div>
+  </div>
+
+  <div class="task">
+    <div class="q"><span class="no">3</span><span>Professionelle Anlaufstellen – rund um die Uhr, kostenlos &amp; anonym:</span></div>
+    <table>
+      <tr><th style="width:26%">Nummer</th><th>Wofür</th></tr>
+      <tr><td><b>144</b></td><td>Rettung – bei akuter Lebensgefahr</td></tr>
+      <tr><td><b>142</b></td><td>Telefonseelsorge – für jede seelische Not (24 h)</td></tr>
+      <tr><td><b>147</b></td><td>Rat auf Draht – für Kinder &amp; Jugendliche (24 h)</td></tr>
+      <tr><td><b>141</b></td><td>Ärztefunkdienst – ärztlicher Bereitschaftsdienst</td></tr>
+      <tr><td class="fill" style="text-align:center"></td><td class="fill">Meine regionale Stelle (Hausarzt, Krisendienst, pro mente …)</td></tr>
+    </table>
+  </div>
+
+  <div class="note"><b>Denken Sie an den roten Faden:</b> Hilfe anzunehmen ist Stärke, nicht Schwäche. Therapeut:innen, Psycholog:innen und Psychiater:innen sind nicht der Feind – sie möchten helfen.</div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Seite <b>7</b> von 7</span></div>
+</section>
+
+<!-- ============================================================ AB 7 · Reflexionsbogen ============================================================ -->
+<section class="sheet">
+  <div class="head">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div class="prog">Über die Seele sprechen<small>Fortbildung psychische Gesundheit</small></div>
+    </div>
+    <div class="ab">Arbeitsblatt<b>7</b></div>
+  </div>
+  <div class="meta">
+    <div class="f"><label>Name (freiwillig)</label><div class="ln"></div></div>
+    <div class="f"><label>Datum</label><div class="ln"></div></div>
+  </div>
+  <h2 class="sheet-title">Reflexionsbogen zum Abschluss</h2>
+  <p class="sheet-sub">Ihr persönlicher Rückblick auf den heutigen Tag.</p>
+
+  <div class="task">
+    <div class="q"><span class="no">1</span><span>Meine wichtigste Erkenntnis heute:</span></div>
+    <div class="wbox"></div>
+  </div>
+  <div class="task">
+    <div class="q"><span class="no">2</span><span>Das ändert sich an meinem Blick auf psychische Erkrankungen:</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div></div>
+  </div>
+  <div class="task">
+    <div class="q"><span class="no">3</span><span>Ein konkreter Schritt, den ich diese Woche gehe – für mich oder für jemand anderen:</span></div>
+    <div class="lines tight"><div class="l"></div><div class="l"></div></div>
+  </div>
+  <div class="task">
+    <div class="q"><span class="no">4</span><span>Wie sehr hat mich das Seminar erreicht?</span></div>
+    <div class="scale">
+      <div class="s">1</div><div class="s">2</div><div class="s">3</div><div class="s">4</div><div class="s">5</div>
+      <div class="s">6</div><div class="s">7</div><div class="s">8</div><div class="s">9</div><div class="s">10</div>
+    </div>
+  </div>
+
+  <div class="note"><b>Zum Schluss:</b> Reden wir über die Seele – so selbstverständlich, wie wir über den Körper reden. Danke, dass Sie heute dabei waren.</div>
+
+  <div class="foot"><span>© Seminar „Über die Seele sprechen"</span><span class="pg">Reflexion</span></div>
+</section>
+
+</body>
+</html>

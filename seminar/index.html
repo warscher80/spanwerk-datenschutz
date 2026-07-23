@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Über die Seele sprechen – Seminar zu psychischer Gesundheit</title>
+<style>
+:root{
+  --leaf:#7cc496;--green:#57a773;--green-d:#3f8f60;--sage:#9cbfa8;
+  --mint:#eaf6ee;--mint-2:#dcefe3;--cloud:#f5f8f6;--paper:#fff;--grayl:#eef1f0;
+  --ink:#2c3b32;--muted:#63756a;--line:#dbe6df;--sun:#f4c95d;
+  --radius:22px;--shadow:0 14px 40px rgba(63,143,96,.14);--shadow-s:0 6px 20px rgba(63,143,96,.10);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}body{margin:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);
+  background:linear-gradient(180deg,#f0f9f3,var(--mint));line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;line-height:1.14}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+/* Hero */
+.hero{position:relative;overflow:hidden;padding:clamp(48px,9vh,110px) 0 clamp(40px,6vh,72px)}
+.orb{position:absolute;border-radius:50%;filter:blur(2px);z-index:0;pointer-events:none}
+.hero .inner{position:relative;z-index:2;max-width:760px}
+.badge{display:inline-flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);
+  padding:9px 18px;border-radius:100px;font-weight:800;font-size:14px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--green-d);box-shadow:var(--shadow-s)}
+.badge .dot{width:10px;height:10px;border-radius:50%;background:var(--leaf)}
+h1{font-size:clamp(38px,7vw,72px);font-weight:800;letter-spacing:-.02em;margin:22px 0 0}
+.tag{font-size:clamp(19px,2.6vw,27px);color:var(--muted);margin:18px 0 0;max-width:34ch}
+.pills{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);
+  border-radius:100px;padding:8px 16px;font-weight:600;font-size:15px;box-shadow:var(--shadow-s)}
+.pill svg{width:19px;height:19px}
+
+/* Karten */
+.section{padding:clamp(30px,6vh,60px) 0}
+.h2{font-size:clamp(26px,3.6vw,38px);font-weight:800;margin-bottom:10px}
+.sub{color:var(--muted);font-size:clamp(16px,2vw,20px);max-width:60ch;margin-bottom:30px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+@media(max-width:880px){.cards{grid-template-columns:1fr}}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  box-shadow:var(--shadow-s);display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.card .top{height:130px;display:grid;place-items:center;position:relative}
+.card .top.c1{background:linear-gradient(135deg,#7cc496,#57a773)}
+.card .top.c2{background:linear-gradient(135deg,#cfe6ef,#9cbfa8)}
+.card .top.c3{background:linear-gradient(135deg,#f9dd93,#f0c96a)}
+.card .top svg{width:56px;height:56px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card .bd{padding:22px 24px 26px;display:flex;flex-direction:column;flex:1}
+.card .kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sage)}
+.card h3{font-size:22px;margin:6px 0 8px}
+.card p{color:var(--muted);font-size:15.5px;margin:0 0 18px}
+.card .go{margin-top:auto;display:inline-flex;align-items:center;gap:8px;font-weight:800;color:var(--green-d)}
+.card .go svg{width:18px;height:18px;stroke:var(--green-d)}
+
+/* Merkmale */
+.feat{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+@media(max-width:880px){.feat{grid-template-columns:1fr 1fr}}
+.f{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow-s)}
+.f .ic{width:44px;height:44px;border-radius:12px;background:var(--mint-2);display:grid;place-items:center;margin-bottom:12px}
+.f .ic svg{width:24px;height:24px;stroke:var(--green-d);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.f h4{font-size:16.5px;margin:0 0 4px}
+.f p{color:var(--muted);font-size:14px;margin:0}
+
+.referent{display:flex;align-items:center;gap:clamp(20px,4vw,40px);background:var(--paper);border:1px solid var(--line);
+  border-radius:var(--radius);padding:clamp(20px,3vw,34px);box-shadow:var(--shadow-s);margin-bottom:22px}
+.referent .portrait{width:clamp(96px,16vw,140px);height:clamp(96px,16vw,140px);border-radius:50%;object-fit:cover;
+  flex:0 0 auto;box-shadow:0 6px 18px rgba(63,143,96,.22);border:4px solid var(--mint-2)}
+.referent .rtx h3{font-size:clamp(22px,3vw,30px);margin:6px 0 8px}
+.referent .rtx p{color:var(--muted);font-size:16.5px;margin:0;max-width:56ch}
+@media(max-width:620px){.referent{flex-direction:column;text-align:center}.referent .rtx p{margin:0 auto}}
+.quote{background:var(--paper);border:1px solid var(--line);border-left:6px solid var(--leaf);
+  border-radius:0 var(--radius) var(--radius) 0;padding:clamp(24px,4vw,40px);box-shadow:var(--shadow-s);margin-top:10px}
+.quote .q{font-family:Georgia,serif;font-style:italic;font-size:clamp(21px,3vw,30px);color:var(--green-d)}
+.quote .by{color:var(--muted);font-weight:600;margin-top:12px}
+
+footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center}
+footer .em{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);
+  border-radius:100px;padding:8px 16px;margin:0 6px 8px;font-weight:700;box-shadow:var(--shadow-s)}
+footer .em b{color:var(--green-d)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="orb" style="width:360px;height:360px;background:var(--leaf);opacity:.4;top:-120px;right:-80px"></div>
+  <div class="orb" style="width:240px;height:240px;background:var(--sun);opacity:.3;bottom:-80px;left:-60px"></div>
+  <div class="wrap inner">
+    <span class="badge"><span class="dot"></span>Fortbildung · Psychische Gesundheit</span>
+    <h1>Über die Seele sprechen.</h1>
+    <p class="tag">Ein Seminar, das psychische Erkrankungen verständlich macht, Vorurteile abbaut – und Mut macht, Hilfe anzunehmen.</p>
+    <div class="pills">
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg>Empathisch &amp; modern</span>
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Fachlich fundiert</span>
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h13"/></svg>Für Betriebe, Vereine &amp; Schulen</span>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="section">
+  <div class="wrap">
+    <h2 class="h2">Die drei Bausteine</h2>
+    <p class="sub">Alles, was Sie für die Durchführung brauchen – aufeinander abgestimmt und sofort einsatzbereit.</p>
+    <div class="cards">
+      <a class="card" href="praesentation.html">
+        <div class="top c1"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div class="bd">
+          <span class="kicker">Präsentation · 27 Folien</span>
+          <h3>Die Seminar&shy;präsentation</h3>
+          <p>Moderne, helle Folien mit Bildern, Infografiken, Merksätzen und Zitaten. Inklusive umfangreicher Sprechernotizen und Animationsempfehlungen.</p>
+          <span class="go">Präsentation öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+      <a class="card" href="arbeitsblaetter.html">
+        <div class="top c2"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 12h6M9 16h4"/></svg></div>
+        <div class="bd">
+          <span class="kicker">7 Arbeitsblätter · A4</span>
+          <h3>Die Arbeits&shy;blätter</h3>
+          <p>Druck- und kopierfertig: mit Linien, Kästchen, Tabellen, Übungskarten zum Ausschneiden sowie Feldern für Name und Datum.</p>
+          <span class="go">Arbeitsblätter öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+      <a class="card" href="unterlage.html">
+        <div class="top c3"><svg viewBox="0 0 24 24" stroke="#fff"><path d="M4 5a2 2 0 012-2h6v18H6a2 2 0 01-2-2z"/><path d="M20 5a2 2 0 00-2-2h-6v18h6a2 2 0 002-2z"/></svg></div>
+        <div class="bd">
+          <span class="kicker">Reader · zum Nachlesen</span>
+          <h3>Die Seminar&shy;unterlage</h3>
+          <p>Kompakte Begleitunterlage für Referent:innen und Teilnehmende: Kernaussagen jedes Kapitels, Ablaufplan und alle Anlaufstellen auf einen Blick.</p>
+          <span class="go">Unterlage öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2 class="h2">Worauf dieses Seminar Wert legt</h2>
+    <p class="sub">Emotional erreichen. Verständlich bleiben. Professionell wirken.</p>
+    <div class="feat">
+      <div class="f"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div><h4>Empathie</h4><p>Menschen erreichen, statt Fachwissen abzuladen.</p></div>
+      <div class="f"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M12 8v5l3 2"/></svg></div><h4>Entstigmatisierung</h4><p>Psychische Erkrankungen sind echte Erkrankungen.</p></div>
+      <div class="f"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 11a3 3 0 106 0 3 3 0 00-6 0z"/><path d="M5 20a7 7 0 0114 0"/></svg></div><h4>Hilfe annehmen</h4><p>Ein roter Faden: Hilfe zu holen ist Stärke.</p></div>
+      <div class="f"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v6M12 3a5 5 0 015 5c0 4-5 10-5 10S7 12 7 8a5 5 0 015-5z"/></svg></div><h4>Hoffnung</h4><p>Genesung ist möglich – diese Botschaft trägt.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="referent">
+      <img class="portrait" src="markus-warscher-portrait.jpg" alt="Markus Warscher, Referent des Seminars">
+      <div class="rtx">
+        <span class="kicker" style="color:var(--sage)">Ihr Referent</span>
+        <h3>Markus Warscher</h3>
+        <p>Markus spricht nicht nur <em>über</em> psychische Gesundheit – er hat sie selbst durchlebt. Aus dieser Erfahrung ist dieses Seminar entstanden: ehrlich, warm und mit der Botschaft, dass aus jeder Krise ein Weg herausführt.</p>
+      </div>
+    </div>
+    <div class="quote">
+      <div class="q">„Reden wir über die Seele – so selbstverständlich, wie wir über den Körper reden."</div>
+      <div class="by">Leitgedanke des Seminars</div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div style="margin-bottom:14px;font-weight:700;color:var(--ink)">Hilfe im Ernstfall – kostenlos &amp; anonym</div>
+    <span class="em"><b>144</b> Rettung</span>
+    <span class="em"><b>142</b> Telefonseelsorge</span>
+    <span class="em"><b>147</b> Rat auf Draht</span>
+    <span class="em"><b>141</b> Ärztefunkdienst</span>
+    <p style="margin-top:20px">Seminar „Über die Seele sprechen" · Fortbildung zu psychischer Gesundheit.<br>Bildungsunterlage – ersetzt keine ärztliche oder psychotherapeutische Beratung.</p>
+  </div>
+</footer>
+
+</body>
+</html>

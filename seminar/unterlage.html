@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Seminarunterlage – Über die Seele sprechen</title>
+<style>
+:root{
+  --leaf:#7cc496;--green:#57a773;--green-d:#3f8f60;--sage:#9cbfa8;
+  --mint:#eaf6ee;--mint-2:#dcefe3;--cloud:#f5f8f6;--paper:#fff;
+  --ink:#2c3b32;--muted:#63756a;--line:#cdddd3;--line-2:#b7ccc0;
+  --sun:#f4c95d;--coral:#e59a86;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);
+  background:var(--mint);line-height:1.62;font-size:15px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;line-height:1.18}
+.bar{position:sticky;top:0;z-index:20;background:var(--green-d);color:#fff;padding:12px 20px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.bar .t{font-weight:800;font-size:16px}.bar .s{opacity:.9;font-size:13.5px}
+.bar button{margin-left:auto;background:#fff;color:var(--green-d);border:none;font-weight:800;
+  padding:10px 18px;border-radius:100px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;gap:8px}
+.bar button svg{width:18px;height:18px}
+
+.doc{max-width:840px;margin:22px auto;background:var(--paper);box-shadow:0 8px 30px rgba(63,143,96,.16);
+  padding:46px 54px 60px}
+@media(max-width:640px){.doc{padding:28px 22px 40px;margin:12px}}
+
+/* Titelkopf */
+.cover{border-bottom:3px solid var(--leaf);padding-bottom:22px;margin-bottom:30px}
+.cover .kick{font-size:12.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--green-d)}
+.cover h1{font-size:clamp(30px,5vw,44px);margin:12px 0 8px;letter-spacing:-.01em}
+.cover .sub{color:var(--muted);font-size:18px}
+.cover .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.cover .badges span{background:var(--mint-2);color:var(--green-d);border-radius:100px;padding:6px 14px;
+  font-size:12.5px;font-weight:700}
+
+.referent{display:flex;align-items:center;gap:20px;background:var(--cloud);border:1px solid var(--line);
+  border-radius:14px;padding:18px 20px;margin:18px 0 6px}
+.referent img{width:96px;height:96px;border-radius:50%;object-fit:cover;flex:0 0 auto;
+  border:3px solid var(--mint-2);box-shadow:0 4px 12px rgba(63,143,96,.18)}
+.referent .rk{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--sage)}
+.referent .rn{font-size:20px;font-weight:800;color:var(--green-d);margin:2px 0 6px}
+.referent p{margin:0;color:var(--muted);font-size:14px}
+@media(max-width:560px){.referent{flex-direction:column;text-align:center}}
+h2.sec{font-size:23px;color:var(--ink);margin:34px 0 6px;padding-left:14px;border-left:5px solid var(--leaf)}
+.lead{color:var(--muted);margin:0 0 16px}
+p{margin:0 0 12px}
+
+.toc{background:var(--cloud);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin:6px 0 8px}
+.toc ol{margin:0;padding-left:20px;columns:2;column-gap:30px}
+@media(max-width:640px){.toc ol{columns:1}}
+.toc li{margin:5px 0;font-weight:600}
+
+.flow{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.flow .st{background:var(--mint-2);border-radius:10px;padding:8px 12px;font-weight:700;font-size:13.5px;color:var(--green-d)}
+.flow .ar{align-self:center;color:var(--sage);font-weight:800}
+
+/* Kapitelkarte */
+.chap{border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin:16px 0;background:#fff}
+.chap h3{font-size:19px;color:var(--green-d);margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.chap h3 .n{width:28px;height:28px;border-radius:8px;background:var(--mint-2);color:var(--green-d);
+  display:grid;place-items:center;font-size:14px;font-weight:800;flex:0 0 auto}
+.chap .core{font-size:13px;color:var(--muted);margin:2px 0 12px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:14px}
+.kv .k{font-weight:800;color:var(--sage);text-transform:uppercase;letter-spacing:.05em;font-size:11.5px;padding-top:3px}
+.kv .v{margin:0}
+.kv .v b{color:var(--green-d)}
+
+.merk{display:flex;gap:12px;background:var(--mint);border-left:5px solid var(--leaf);border-radius:0 12px 12px 0;
+  padding:14px 18px;margin:14px 0}
+.merk .ic{flex:0 0 auto;font-size:20px}
+.merk .tx b{color:var(--green-d)}
+.thread{background:linear-gradient(135deg,var(--green),var(--leaf));color:#fff;border-radius:14px;padding:18px 22px;margin:16px 0}
+.thread .l{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.thread .t{font-size:18px;font-weight:800;margin-top:4px}
+
+table{width:100%;border-collapse:collapse;margin:8px 0}
+th,td{border:1.5px solid var(--line-2);padding:9px 11px;text-align:left;font-size:14px;vertical-align:top}
+th{background:var(--mint-2);color:var(--green-d);font-size:12.5px;font-weight:800}
+td b{color:var(--green-d)}
+
+.note.warn{border-left:5px solid var(--coral);background:#fbeee9;border-radius:0 12px 12px 0;padding:14px 18px;margin:14px 0;font-size:14px}
+.note.warn b{color:#c06a53}
+
+.foot{margin-top:36px;border-top:1.5px solid var(--line);padding-top:16px;color:var(--muted);font-size:12.5px;text-align:center}
+
+@media print{
+  body{background:#fff}.bar{display:none!important}
+  .doc{box-shadow:none;margin:0;max-width:none;padding:14mm 16mm}
+  .chap{page-break-inside:avoid}
+  @page{size:A4;margin:14mm}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="t">Seminarunterlage · „Über die Seele sprechen"</span>
+  <span class="s">Begleitreader zum Nachlesen &amp; Vorbereiten</span>
+  <button onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg>Drucken / als PDF speichern</button>
+</div>
+
+<article class="doc">
+  <div class="cover">
+    <div class="kick">Fortbildung · Psychische Gesundheit</div>
+    <h1>Über die Seele sprechen</h1>
+    <p class="sub">Seminarunterlage für Referent:innen und Teilnehmende</p>
+    <div class="badges"><span>Empathisch &amp; modern</span><span>Fachlich fundiert</span><span>Für Betriebe · Vereine · Schulen</span></div>
+  </div>
+
+  <p class="lead">Diese Unterlage fasst die Kernaussagen des Seminars zusammen. Sie dient Referent:innen zur Vorbereitung und Teilnehmenden zum Nachlesen. Sie ersetzt keine ärztliche oder psychotherapeutische Beratung.</p>
+
+  <div class="referent">
+    <img src="markus-warscher-portrait.jpg" alt="Markus Warscher, Referent">
+    <div>
+      <div class="rk">Ihr Referent</div>
+      <div class="rn">Markus Warscher</div>
+      <p>Markus spricht nicht nur über psychische Gesundheit – er hat sie selbst durchlebt. Aus dieser Erfahrung ist dieses Seminar entstanden.</p>
+    </div>
+  </div>
+
+  <h2 class="sec">Ziel &amp; Haltung</h2>
+  <p>Das Seminar macht psychische Erkrankungen verständlich, baut Vorurteile ab und ermutigt dazu, im Ernstfall Hilfe anzunehmen. Es ist bewusst <b>kein medizinischer Fachvortrag</b>, sondern ein empathisches Gespräch auf Augenhöhe. Drei Botschaften tragen den ganzen Tag:</p>
+  <div class="merk"><div class="ic">💚</div><div class="tx"><b>Psychische Erkrankungen sind echte Erkrankungen.</b> Niemand entscheidet sich freiwillig dafür. Hilfe anzunehmen ist Stärke. Und: Genesung ist möglich.</div></div>
+
+  <h2 class="sec">Ablauf im Überblick</h2>
+  <div class="toc">
+    <ol>
+      <li>Ankommen &amp; gemeinsamer Rahmen</li>
+      <li>Psychische Gesundheit verstehen</li>
+      <li>Depression</li>
+      <li>Angst &amp; Panik</li>
+      <li>Burnout</li>
+      <li>Posttraumatische Belastungsstörung (PTBS)</li>
+      <li>Warnzeichen &amp; das unterstützende Gespräch</li>
+      <li>Wege zur Hilfe &amp; Schutzfaktoren</li>
+      <li>Reflexion, Hoffnung &amp; Abschluss</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">Denkmodell: Gesundheit ist ein Weg</h2>
+  <p>Niemand ist einfach „gesund" oder „krank". Wir bewegen uns auf einem Kontinuum – und Bewegung in beide Richtungen ist normal:</p>
+  <div class="flow"><span class="st">Wohlbefinden</span><span class="ar">→</span><span class="st">Belastung</span><span class="ar">→</span><span class="st">Krise</span><span class="ar">→</span><span class="st">Erkrankung</span></div>
+  <p>Aus Stress wird nicht über Nacht eine Erkrankung – aber Dauerlast ohne Erholung kann kippen. <b>Je früher man auf Warnzeichen hört, desto leichter ist der Weg zurück.</b></p>
+
+  <h2 class="sec">Die vier großen Themen</h2>
+
+  <div class="chap">
+    <h3><span class="n">1</span>Depression</h3>
+    <div class="core">Die stille Erschöpfung – mehr als „schlechte Laune".</div>
+    <div class="kv">
+      <div class="k">Anzeichen</div><p class="v">Anhaltende Leere &amp; Freudlosigkeit, Antriebslosigkeit, Grübeln, Selbstzweifel, veränderter Schlaf/Appetit – <b>länger als zwei Wochen</b>.</p>
+      <div class="k">Teufelskreis</div><p class="v">Gedrückte Stimmung → Rückzug → weniger schöne Erlebnisse → „Ich schaffe nichts" → noch gedrücktere Stimmung.</p>
+      <div class="k">Ausweg</div><p class="v">Kleine, machbare Schritte + fachliche Begleitung (Psychotherapie, bei Bedarf Medikamente) durchbrechen den Kreis.</p>
+    </div>
+    <div class="note warn"><b>Achtung:</b> Bei Gedanken, nicht mehr leben zu wollen, sofort Hilfe holen – Telefonseelsorge <b>142</b>, in akuter Gefahr <b>144</b>. Solche Gedanken sind ein Symptom und behandelbar.</div>
+  </div>
+
+  <div class="chap">
+    <h3><span class="n">2</span>Angst &amp; Panik</h3>
+    <div class="core">Wenn der Körper Alarm schlägt, obwohl keine echte Gefahr besteht.</div>
+    <div class="kv">
+      <div class="k">Panikspirale</div><p class="v">Auslöser → Körpersignal (Herzklopfen, Enge) → Fehldeutung („etwas Schlimmes passiert") → mehr Angst.</p>
+      <div class="k">Beruhigend</div><p class="v">Eine Panikattacke ist nicht gefährlich und endet von selbst – meist nach wenigen Minuten.</p>
+      <div class="k">Soforthilfe</div><p class="v"><b>4-6-8-Atmung:</b> 4 Sek. einatmen · 6 Sek. halten · 8 Sek. langsam ausatmen.</p>
+    </div>
+  </div>
+
+  <div class="chap">
+    <h3><span class="n">3</span>Burnout</h3>
+    <div class="core">Ausgebrannt ist nicht, wer zu wenig leistet – sondern wer zu lange zu viel gegeben hat.</div>
+    <div class="kv">
+      <div class="k">Verlauf</div><p class="v">Engagement → immer mehr Einsatz → Rückzug &amp; Zynismus → Erschöpfung.</p>
+      <div class="k">Warnzeichen</div><p class="v">Ständige Müdigkeit, nachlassende Konzentration, Gereiztheit/Zynismus, Rückzug von Menschen.</p>
+      <div class="k">Wichtig</div><p class="v">Frühe Entlastung wirkt; im rechten Bereich der Skala braucht es fast immer professionelle Hilfe.</p>
+    </div>
+  </div>
+
+  <div class="chap">
+    <h3><span class="n">4</span>Posttraumatische Belastungsstörung</h3>
+    <div class="core">Wenn ein überwältigendes Erlebnis nicht loslässt – zwischen Schatten und Licht.</div>
+    <div class="kv">
+      <div class="k">Vier Spuren</div><p class="v">Wiedererleben (Flashbacks, Albträume) · Vermeidung · Übererregung (Schreckhaftigkeit, Schlafprobleme) · emotionale Taubheit.</p>
+      <div class="k">Hoffnung</div><p class="v">Traumatherapie ist gut erforscht und wirksam. Menschen kehren nach einer PTBS in ein erfülltes Leben zurück.</p>
+    </div>
+    <div class="merk"><div class="ic">📌</div><div class="tx"><b>Hinweis für Referent:innen:</b> An dieser Stelle kann die persönliche Geschichte (schwerer Verkehrsunfall, daraus folgende Depression und PTBS, der Weg heraus) erzählt werden – ehrlich und ruhig, ohne zu dramatisieren oder zu instrumentalisieren. Fokus: „Ich habe mir Hilfe geholt – und ich stehe heute hier."</div></div>
+  </div>
+
+  <h2 class="sec">Warnzeichen erkennen</h2>
+  <p>Nicht ein einzelnes Zeichen zählt, sondern die <b>Veränderung</b>: Jemand ist plötzlich anders als sonst – zieht sich zurück, wirkt gereizt oder freudlos, ist erschöpft, äußert Hoffnungslosigkeit. Faustregel: Hält das länger als zwei Wochen an oder schränkt den Alltag deutlich ein, ansprechen und Hilfe anbieten. Wir stellen keine Diagnosen – wir sind aufmerksame Mitmenschen.</p>
+
+  <h2 class="sec">Das unterstützende Gespräch – die Ampel</h2>
+  <table>
+    <tr><th style="width:22%">Ampel</th><th>Orientierung</th></tr>
+    <tr><td><b>Grün · Tun</b></td><td>„Mir ist aufgefallen … Wie geht es dir wirklich?" Zuhören, ernst nehmen, da sein, zu Hilfe ermutigen.</td></tr>
+    <tr><td><b>Gelb · Vorsicht</b></td><td>Nicht bagatellisieren („Kopf hoch!"), keine Ratschläge aufdrängen, nicht drängen. Geduld statt Druck.</td></tr>
+    <tr><td><b>Rot · Grenzen</b></td><td>Bei Hinweisen auf Suizid, Gewalt oder akute Not nicht allein tragen – professionelle Hilfe einschalten (<b>144 / 142</b>).</td></tr>
+  </table>
+  <p>Man muss nichts „lösen". Der Satz <b>„Du musst das nicht allein schaffen"</b> öffnet fast immer eine Tür.</p>
+
+  <h2 class="sec">Wege zur Hilfe</h2>
+  <div class="flow"><span class="st">Vertrauensperson</span><span class="ar">→</span><span class="st">Hausarzt</span><span class="ar">→</span><span class="st">Beratungsstelle</span><span class="ar">→</span><span class="st">Psychotherapie</span><span class="ar">→</span><span class="st">Psychiatrie</span></div>
+  <p>Man muss den Weg nicht kennen, nur beginnen. Der erste Schritt ist der schwerste – und der wichtigste.</p>
+
+  <div class="thread">
+    <div class="l">Roter Faden</div>
+    <div class="t">Therapeut:innen, Psycholog:innen und Psychiater:innen sind nicht der Feind. Sie möchten helfen. Hilfe anzunehmen ist Stärke – nicht Schwäche.</div>
+  </div>
+
+  <h2 class="sec">Was die Seele stark macht – Schutzfaktoren</h2>
+  <p>Verbindung zu Menschen · Erholung &amp; Schlaf · Bewegung · Sinn &amp; Aufgaben · Gefühle zulassen und darüber reden · gesunde Grenzen · Akzeptanz, dass nicht alles glatt sein muss · und: früh Hilfe holen. Kein Faktor allein schützt – zusammen tragen sie.</p>
+
+  <h2 class="sec">Hilfe im Ernstfall (Österreich)</h2>
+  <table>
+    <tr><th style="width:22%">Nummer</th><th>Wofür</th></tr>
+    <tr><td><b>144</b></td><td>Rettung – bei akuter Lebensgefahr</td></tr>
+    <tr><td><b>142</b></td><td>Telefonseelsorge – für jede seelische Not, 24 h, kostenlos, anonym</td></tr>
+    <tr><td><b>147</b></td><td>Rat auf Draht – für Kinder &amp; Jugendliche, 24 h</td></tr>
+    <tr><td><b>141</b></td><td>Ärztefunkdienst – ärztlicher Bereitschaftsdienst</td></tr>
+  </table>
+  <p style="color:var(--muted);font-size:13.5px">Ergänzend: Hausärzt:in, psychosoziale Dienste (z. B. pro mente, Caritas), regionale Kriseninterventionszentren, Selbsthilfegruppen. Bitte regionale Angebote vor dem Seminar prüfen und ergänzen.</p>
+
+  <div class="foot">
+    Seminar „Über die Seele sprechen" · Fortbildung zu psychischer Gesundheit<br>
+    Bildungsunterlage – ersetzt keine ärztliche oder psychotherapeutische Beratung.
+  </div>
+</article>
+
+</body>
+</html>
