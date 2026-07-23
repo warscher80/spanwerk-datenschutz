@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Über die Seele sprechen – Seminar zu psychischer Gesundheit</title>
+<style>
+/* ============================================================
+   FARB- & DESIGNSYSTEM  –  hell, freundlich, Hoffnung
+   Hauptfarbe: freundliches Hellgrün · Mint · Salbei · Weiß · Hellgrau
+   ============================================================ */
+:root{
+  --leaf:#7cc496;        /* helles, freundliches Grün (Hauptfarbe) */
+  --green:#57a773;       /* Grün für Flächen/Buttons */
+  --green-d:#3f8f60;     /* etwas kräftiger für Text-Akzente (kein Waldgrün) */
+  --sage:#9cbfa8;        /* Salbei */
+  --mint:#eaf6ee;        /* sehr helles Mint (Hintergrund) */
+  --mint-2:#dcefe3;      /* Mint für Karten */
+  --cloud:#f5f8f6;       /* fast weiß, leicht grün */
+  --paper:#ffffff;
+  --grayl:#eef1f0;       /* hellgrau */
+  --ink:#2c3b32;         /* weiches Dunkelgrün-Grau für Text */
+  --muted:#63756a;
+  --line:#dbe6df;
+  --sun:#f4c95d;         /* warmes Gelb – Hoffnung, sparsam */
+  --sun-d:#e0ab34;
+  --sky:#cfe6ef;         /* zartes Blau */
+  --sky-d:#7fb4c6;
+  --amber:#edb95e;       /* Ampel gelb (weich) */
+  --coral:#e59a86;       /* Ampel „rot" – weich, nicht aggressiv */
+  --coral-d:#cf7e69;
+  --radius:20px;
+  --shadow:0 10px 34px rgba(63,143,96,.12);
+  --shadow-s:0 4px 16px rgba(63,143,96,.10);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  color:var(--ink);
+  background:var(--mint);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{line-height:1.12;margin:0}
+
+/* ---------- Slide-Grundgerüst ---------- */
+.deck{scroll-snap-type:y proximity}
+.slide{
+  position:relative;
+  min-height:100vh;
+  padding:clamp(28px,5vh,64px) clamp(22px,6vw,100px);
+  display:flex;flex-direction:column;justify-content:center;
+  scroll-snap-align:start;
+  overflow:hidden;
+  border-bottom:1px solid rgba(255,255,255,.4);
+}
+.slide-inner{width:100%;max-width:1120px;margin:0 auto;position:relative;z-index:2}
+
+/* Kapitelnummer / Eyebrow */
+.eyebrow{
+  display:inline-flex;align-items:center;gap:10px;
+  font-size:clamp(13px,1.5vw,16px);font-weight:800;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--green-d);
+  background:var(--paper);border:1px solid var(--line);
+  padding:8px 16px;border-radius:100px;box-shadow:var(--shadow-s);
+  margin-bottom:22px;
+}
+.eyebrow .dot{width:10px;height:10px;border-radius:50%;background:var(--leaf)}
+
+/* Titel-Skala – gut lesbar vor 100 Personen */
+h1.title{font-size:clamp(34px,6vw,64px);font-weight:800;letter-spacing:-.01em}
+h2.title{font-size:clamp(28px,4.6vw,48px);font-weight:800;letter-spacing:-.01em}
+.subtitle{font-size:clamp(19px,2.4vw,28px);color:var(--muted);margin-top:18px;font-weight:500;max-width:30ch}
+.lead{font-size:clamp(18px,2.1vw,24px);max-width:60ch}
+p{margin:0 0 1em}
+.slide p:last-child{margin-bottom:0}
+
+/* Hintergründe (dezent, Text bleibt lesbar) */
+.bg-mint{background:var(--mint)}
+.bg-cloud{background:var(--cloud)}
+.bg-paper{background:var(--paper)}
+.bg-soft{background:linear-gradient(160deg,var(--paper) 0%,var(--mint) 100%)}
+.bg-hero{background:linear-gradient(160deg,#f0f9f3 0%,#e2f1e8 55%,#d6ecdf 100%)}
+
+/* Deko-Blätter/Formen im Hintergrund – transparent, dezent */
+.orb{position:absolute;border-radius:50%;filter:blur(2px);opacity:.5;z-index:1;pointer-events:none}
+
+/* ---------- Karten & Bausteine ---------- */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+  padding:clamp(20px,2.6vw,34px);box-shadow:var(--shadow-s)}
+.grid{display:grid;gap:clamp(14px,2vw,24px)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}.hide-sm{display:none}}
+
+.split{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(24px,4vw,56px);align-items:center}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+
+/* Merksatz / Zitat */
+.pull{
+  border-left:6px solid var(--leaf);
+  background:var(--paper);
+  padding:clamp(20px,3vw,34px) clamp(22px,3.4vw,40px);
+  border-radius:0 var(--radius) var(--radius) 0;
+  box-shadow:var(--shadow-s);
+}
+.pull .q{font-family:Georgia,"Times New Roman",serif;font-size:clamp(22px,3vw,34px);
+  font-style:italic;line-height:1.25;color:var(--green-d)}
+.pull .by{margin-top:14px;font-size:clamp(14px,1.6vw,17px);color:var(--muted);font-weight:600}
+
+/* Merksatz-Badge */
+.merk{display:flex;gap:16px;align-items:flex-start;background:var(--mint-2);
+  border:1px solid var(--line);border-radius:var(--radius);padding:clamp(18px,2.4vw,26px);
+  box-shadow:var(--shadow-s)}
+.merk .ic{flex:0 0 auto;width:52px;height:52px;border-radius:14px;background:var(--paper);
+  display:grid;place-items:center;box-shadow:var(--shadow-s)}
+.merk .ic svg{width:28px;height:28px}
+.merk .mk-l{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--green-d);margin-bottom:4px}
+.merk .mk-t{font-size:clamp(18px,2.2vw,24px);font-weight:700;color:var(--ink);line-height:1.3}
+
+/* Aufzählungen mit Icon-Punkten */
+ul.clean{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+ul.clean li{display:flex;gap:14px;align-items:flex-start;font-size:clamp(17px,1.9vw,21px)}
+ul.clean li .b{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:var(--mint-2);
+  display:grid;place-items:center;margin-top:2px}
+ul.clean li .b svg{width:18px;height:18px}
+
+/* kleine Icon-Chips */
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);
+  border-radius:100px;padding:8px 16px;font-weight:600;font-size:clamp(14px,1.6vw,18px);box-shadow:var(--shadow-s)}
+.chip svg{width:20px;height:20px}
+
+/* Statistik-Kacheln */
+.stat .n{font-size:clamp(38px,6vw,64px);font-weight:800;color:var(--green-d);line-height:1}
+.stat .l{font-size:clamp(15px,1.7vw,19px);color:var(--muted);margin-top:8px;font-weight:500}
+
+/* Icons Standardfarbe */
+svg .st{stroke:var(--green-d);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+svg .stf{fill:var(--green-d)}
+svg .leaf{stroke:var(--leaf)}
+
+/* Hero-Illustration Rahmen */
+.hero-art{width:100%;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+  background:var(--paper);border:1px solid var(--line)}
+.hero-art svg{display:block;width:100%;height:auto}
+
+/* Kapitel-Deckblatt */
+.chapter{color:#fff}
+.chapter .slide-inner{max-width:1120px}
+.chapter .eyebrow{background:rgba(255,255,255,.9);color:var(--green-d);border-color:transparent}
+.chapter h2.title,.chapter .subtitle{color:#fff}
+.chapter .subtitle{opacity:.95}
+.chapter .scrim{position:absolute;inset:0;z-index:1}
+
+/* Ampel */
+.ampel{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.amp{border-radius:var(--radius);padding:clamp(16px,2.2vw,24px);color:#3a463d;box-shadow:var(--shadow-s);
+  border:1px solid rgba(0,0,0,.05)}
+.amp.g{background:#d8efdf}.amp.y{background:#fbeecb}.amp.r{background:#f6dcd3}
+.amp .h{display:flex;align-items:center;gap:10px;font-weight:800;font-size:clamp(17px,2vw,21px);margin-bottom:8px}
+.amp .light{width:22px;height:22px;border-radius:50%}
+.amp.g .light{background:var(--green)}.amp.y .light{background:var(--amber)}.amp.r .light{background:var(--coral-d)}
+.amp p{font-size:clamp(15px,1.7vw,18px);margin:0}
+
+/* Prozess / Flow-Infografik */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.flow .step{flex:1 1 160px;background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  padding:18px 16px;box-shadow:var(--shadow-s);text-align:center;position:relative}
+.flow .arr{display:grid;place-items:center;padding:0 6px;color:var(--sage);font-size:28px;font-weight:800}
+.flow .step .t{font-weight:800;font-size:clamp(17px,2vw,22px);color:var(--green-d)}
+.flow .step .d{font-size:14.5px;color:var(--muted);margin-top:6px}
+@media(max-width:760px){.flow{flex-direction:column}.flow .arr{transform:rotate(90deg);padding:4px 0}}
+
+/* Teufelskreis / Kreis-Infografik */
+.cycle{position:relative;width:min(460px,86vw);aspect-ratio:1/1;margin:0 auto}
+.cycle .node{position:absolute;width:44%;background:var(--paper);border:1px solid var(--line);
+  border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-s);text-align:center;
+  font-weight:600;font-size:clamp(13px,1.6vw,16px)}
+.cycle .n1{top:0;left:28%}.cycle .n2{top:28%;right:0}
+.cycle .n3{bottom:0;left:28%}.cycle .n4{top:28%;left:0}
+.cycle .core{position:absolute;inset:34%;border-radius:50%;background:var(--mint-2);
+  display:grid;place-items:center;text-align:center;font-weight:800;color:var(--green-d);
+  font-size:clamp(13px,1.5vw,16px);border:2px dashed var(--sage)}
+
+/* Karten „Mythos oder Wahrheit" */
+.mw{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+@media(max-width:760px){.mw{grid-template-columns:1fr}}
+.mwcard{border-radius:16px;padding:20px;box-shadow:var(--shadow-s);border:1px solid var(--line);background:var(--paper)}
+.mwcard .tag{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:13px;
+  letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:100px;margin-bottom:12px}
+.mwcard.myth .tag{background:#f6dcd3;color:var(--coral-d)}
+.mwcard.truth .tag{background:#d8efdf;color:var(--green-d)}
+.mwcard .claim{font-size:clamp(17px,2vw,20px);font-weight:700;margin-bottom:8px}
+.mwcard .expl{font-size:15.5px;color:var(--muted)}
+
+/* Persönliche-Geschichte-Hinweis (nur für Referent:in) */
+.cue{display:flex;gap:14px;align-items:flex-start;background:#fff7e6;border:1px dashed var(--sun-d);
+  border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-s)}
+.cue .ic{flex:0 0 auto;width:40px;height:40px;border-radius:12px;background:var(--sun);
+  display:grid;place-items:center}
+.cue .ic svg{width:22px;height:22px;stroke:#7a5a10}
+.cue .l{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sun-d)}
+.cue .t{font-size:clamp(15px,1.8vw,18px);font-weight:600;color:#6b551f;margin-top:2px}
+
+/* Hilfe-Botschaft (roter Faden) */
+.thread{background:linear-gradient(135deg,var(--green) 0%,var(--leaf) 100%);color:#fff;
+  border-radius:var(--radius);padding:clamp(22px,3vw,34px);box-shadow:var(--shadow)}
+.thread .l{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.9;margin-bottom:10px;
+  display:inline-flex;align-items:center;gap:8px}
+.thread .t{font-size:clamp(20px,2.6vw,30px);font-weight:800;line-height:1.25}
+.thread .s{font-size:clamp(16px,1.8vw,20px);opacity:.95;margin-top:10px}
+
+/* ---------- Navigation / Steuerung ---------- */
+.topbar{position:fixed;top:0;left:0;right:0;height:6px;background:rgba(255,255,255,.5);z-index:60}
+.topbar .fill{height:100%;width:0;background:linear-gradient(90deg,var(--leaf),var(--green));transition:width .2s}
+.nav{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;gap:8px;align-items:center}
+.nav button, .toolbtn{
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);
+  width:52px;height:52px;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:var(--shadow-s);
+  display:grid;place-items:center;transition:transform .1s,background .15s}
+.nav button:hover,.toolbtn:hover{background:var(--mint-2)}
+.nav button:active{transform:scale(.94)}
+.counter{background:var(--paper);border:1px solid var(--line);border-radius:100px;padding:0 16px;height:52px;
+  display:flex;align-items:center;font-weight:700;color:var(--muted);box-shadow:var(--shadow-s);font-variant-numeric:tabular-nums}
+.toolbar{position:fixed;left:18px;bottom:18px;z-index:60;display:flex;gap:8px}
+.toolbtn{width:auto;min-width:52px;padding:0 16px;border-radius:100px;font-size:15px;font-weight:700;gap:8px}
+.toolbtn svg{width:20px;height:20px}
+.toolbtn.on{background:var(--green);color:#fff;border-color:var(--green)}
+.toolbtn.on svg .st{stroke:#fff}
+
+/* Sprechernotizen */
+.notes{margin-top:26px;background:#fffdf6;border:1px solid #f0e4c4;border-left:6px solid var(--sun);
+  border-radius:0 16px 16px 0;padding:18px 22px;display:none}
+body.show-notes .notes{display:block}
+.notes .nh{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--sun-d);
+  display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.notes ul{margin:0;padding-left:18px}
+.notes li{margin:6px 0;font-size:15.5px;color:#5c5326;line-height:1.5}
+.notes li b{color:#4a4213}
+.notes .anim{display:inline-block;background:#eef6f0;color:var(--green-d);border:1px solid var(--line);
+  border-radius:100px;padding:1px 10px;font-size:12.5px;font-weight:700;margin-right:6px}
+
+/* Reveal-Animation (Einblenden / Verblassen) */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* Fußzeile pro Slide */
+.foot{position:absolute;left:clamp(22px,6vw,100px);bottom:16px;font-size:12.5px;color:var(--muted);z-index:2;
+  display:flex;align-items:center;gap:8px}
+.foot .fl{width:18px;height:18px}
+
+/* Agenda-Liste */
+.agenda{display:grid;gap:12px}
+.agenda .it{display:flex;align-items:center;gap:16px;background:var(--paper);border:1px solid var(--line);
+  border-radius:14px;padding:14px 18px;box-shadow:var(--shadow-s)}
+.agenda .num{flex:0 0 auto;width:40px;height:40px;border-radius:12px;background:var(--mint-2);color:var(--green-d);
+  font-weight:800;display:grid;place-items:center;font-size:18px}
+.agenda .tx{font-size:clamp(16px,1.9vw,20px);font-weight:600}
+.agenda .tm{margin-left:auto;color:var(--muted);font-weight:600;font-size:14.5px}
+@media(max-width:640px){.agenda .tm{display:none}}
+
+/* Notruf-Kacheln */
+.emerg{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(max-width:760px){.emerg{grid-template-columns:1fr}}
+.emerg .e{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+  display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-s)}
+.emerg .e .num{font-size:clamp(24px,3.4vw,34px);font-weight:800;color:var(--green-d);min-width:74px}
+.emerg .e .d .t{font-weight:700;font-size:16.5px}
+.emerg .e .d .s{color:var(--muted);font-size:14px}
+
+/* Print-Hinweis auf Bildschirm ausblenden */
+@media print{
+  .nav,.toolbar,.topbar{display:none!important}
+  .slide{min-height:auto;page-break-after:always;border:none}
+  body.show-notes .notes{display:block}
+}
+/* Hinweisbanner Bedienung */
+.help{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:60;background:var(--ink);color:#fff;
+  padding:8px 16px;border-radius:100px;font-size:13.5px;box-shadow:var(--shadow);display:flex;gap:14px;align-items:center;
+  opacity:.96;transition:opacity .4s}
+.help.gone{opacity:0;pointer-events:none}
+.help b{color:var(--sun)}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="fill" id="progFill"></div></div>
+
+<div class="help" id="helpBar">
+  <span>Navigation: <b>← →</b> oder <b>Leertaste</b> · <b>N</b> = Sprechernotizen · <b>P</b> = Drucken</span>
+</div>
+
+<main class="deck" id="deck">
+
+<!-- ============================================================ 1 · TITEL ============================================================ -->
+<section class="slide bg-hero" data-title="Titel">
+  <div class="orb" style="width:320px;height:320px;background:var(--leaf);top:-80px;right:-60px"></div>
+  <div class="orb" style="width:220px;height:220px;background:var(--sun);bottom:-60px;left:-40px;opacity:.35"></div>
+  <div class="slide-inner">
+    <div class="split">
+      <div>
+        <div class="eyebrow reveal"><span class="dot"></span>Seminar · Psychische Gesundheit</div>
+        <h1 class="title reveal">Über die Seele<br>sprechen.</h1>
+        <p class="subtitle reveal">Psychische Erkrankungen verstehen · Vorurteile abbauen · Hilfe zulassen.</p>
+        <div class="reveal" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+          <span class="chip"><svg viewBox="0 0 24 24"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg>Empathisch</span>
+          <span class="chip"><svg viewBox="0 0 24 24"><path class="st" d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 21l-4.9 2.6.9-5.5-4-3.9L9.5 8z"/></svg>Auf Augenhöhe</span>
+          <span class="chip"><svg viewBox="0 0 24 24"><circle class="st" cx="12" cy="12" r="9"/><path class="st" d="M8 12l3 3 5-6"/></svg>Wissenschaftlich fundiert</span>
+        </div>
+      </div>
+      <div class="reveal hide-sm">
+        <div class="hero-art">
+          <!-- Sonnenaufgang über Hügeln, kleine Figur – Hoffnung -->
+          <svg viewBox="0 0 520 400" role="img" aria-label="Sonnenaufgang über sanften Hügeln">
+            <defs>
+              <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#eaf6ee"/><stop offset="1" stop-color="#fff7e6"/>
+              </linearGradient>
+              <radialGradient id="sunG" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="#f9dd93"/><stop offset="1" stop-color="#f4c95d"/>
+              </radialGradient>
+            </defs>
+            <rect width="520" height="400" fill="url(#skyG)"/>
+            <circle cx="260" cy="188" r="70" fill="url(#sunG)"/>
+            <circle cx="260" cy="188" r="96" fill="none" stroke="#f6d585" stroke-width="2" opacity=".5"/>
+            <circle cx="260" cy="188" r="122" fill="none" stroke="#f6d585" stroke-width="2" opacity=".3"/>
+            <path d="M0 300 Q130 250 260 290 T520 280 V400 H0 Z" fill="#c9e6d4"/>
+            <path d="M0 330 Q160 290 320 330 T520 320 V400 H0 Z" fill="#a9d6bb"/>
+            <path d="M0 360 Q140 335 300 360 T520 358 V400 H0 Z" fill="#8bc5a2"/>
+            <g stroke="#3f8f60" stroke-width="3" fill="none" stroke-linecap="round">
+              <line x1="360" y1="352" x2="360" y2="322"/>
+              <circle cx="360" cy="312" r="7" fill="#3f8f60" stroke="none"/>
+              <path d="M360 328 l-14 -8 M360 328 l14 -8"/>
+            </g>
+            <g opacity=".7" fill="#7cc496">
+              <path d="M120 360 q-8 -18 0 -30 q8 12 0 30z"/>
+              <path d="M138 360 q-6 -14 0 -24 q6 10 0 24z"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><svg class="fl" viewBox="0 0 24 24"><path class="st leaf" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg> Über die Seele sprechen · Fortbildung psychische Gesundheit</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Ankommen lassen.</b> Erst begrüßen, wenn Ruhe eingekehrt ist. Kurz durchatmen – auch Sie als Referent:in.</li>
+      <li><b>Einstieg (Frage in den Raum):</b> „Wer von Ihnen kennt jemanden – im Freundeskreis, in der Familie, am Arbeitsplatz – der schon einmal seelisch in einer schweren Phase war?" Fast alle Hände gehen hoch. Das ist der Türöffner: <b>Wir reden heute über etwas, das uns alle betrifft.</b></li>
+      <li><b>Ton setzen:</b> Kein medizinischer Fachvortrag. Ein geschützter Raum, in dem man Fragen stellen darf – auch die „dummen".</li>
+      <li><b>Roter Faden ankündigen:</b> „Eine Botschaft wird uns heute begleiten – Hilfe anzunehmen ist keine Schwäche, sondern Stärke."</li>
+      <li><span class="anim">Animation</span> Titel <b>einblenden</b>, Illustration mit <b>Verblassen</b> nachziehen. Dezent.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 2 · ABLAUF ============================================================ -->
+<section class="slide bg-cloud" data-title="Ablauf">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Ihr Weg durch den Tag</div>
+    <h2 class="title reveal" style="margin-bottom:26px">Ablauf des Seminars</h2>
+    <div class="agenda">
+      <div class="it reveal"><div class="num">1</div><div class="tx">Ankommen &amp; gemeinsamer Rahmen</div><div class="tm">15 min</div></div>
+      <div class="it reveal"><div class="num">2</div><div class="tx">Psychische Gesundheit verstehen</div><div class="tm">30 min</div></div>
+      <div class="it reveal"><div class="num">3</div><div class="tx">Die vier großen Themen: Depression · Angst · Burnout · PTBS</div><div class="tm">60 min</div></div>
+      <div class="it reveal"><div class="num">4</div><div class="tx">Warnzeichen erkennen &amp; ins Gespräch kommen</div><div class="tm">30 min</div></div>
+      <div class="it reveal"><div class="num">5</div><div class="tx">Wege zur Hilfe – und warum Hilfe Stärke ist</div><div class="tm">25 min</div></div>
+      <div class="it reveal"><div class="num">6</div><div class="tx">Reflexion, Hoffnung &amp; Abschluss</div><div class="tm">20 min</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Erwartungen abholen:</b> „Was möchten Sie heute mitnehmen?" 2–3 Stimmen sammeln, sichtbar auf Flipchart notieren, am Ende darauf zurückkommen.</li>
+      <li><b>Pausen ankündigen</b> – gibt Sicherheit. Hinweis: „Wenn ein Thema Sie persönlich berührt, dürfen Sie jederzeit rausgehen. Das ist völlig in Ordnung."</li>
+      <li>Zeiten sind Richtwerte – bei lebendiger Diskussion lieber ein Thema vertiefen als alles durchhetzen.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 3 · GEMEINSAMER RAHMEN ============================================================ -->
+<section class="slide bg-soft" data-title="Rahmen">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Damit sich alle sicher fühlen</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Unser gemeinsamer Rahmen</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:26px">Vier einfache Vereinbarungen – sie machen offenes Sprechen erst möglich.</p>
+    <div class="grid g4">
+      <div class="card reveal">
+        <div style="width:48px;height:48px;border-radius:14px;background:var(--mint-2);display:grid;place-items:center;margin-bottom:14px"><svg viewBox="0 0 24 24" width="26" height="26"><path class="st" d="M12 2a7 7 0 00-7 7c0 3 2 5 2 7h10c0-2 2-4 2-7a7 7 0 00-7-7z"/><path class="st" d="M9 21h6"/></svg></div>
+        <h3 style="font-size:20px;margin-bottom:6px">Vertraulichkeit</h3>
+        <p style="color:var(--muted);font-size:16px;margin:0">Was hier erzählt wird, bleibt hier.</p>
+      </div>
+      <div class="card reveal">
+        <div style="width:48px;height:48px;border-radius:14px;background:var(--mint-2);display:grid;place-items:center;margin-bottom:14px"><svg viewBox="0 0 24 24" width="26" height="26"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+        <h3 style="font-size:20px;margin-bottom:6px">Respekt</h3>
+        <p style="color:var(--muted);font-size:16px;margin:0">Jede Erfahrung zählt. Kein Urteil.</p>
+      </div>
+      <div class="card reveal">
+        <div style="width:48px;height:48px;border-radius:14px;background:var(--mint-2);display:grid;place-items:center;margin-bottom:14px"><svg viewBox="0 0 24 24" width="26" height="26"><path class="st" d="M4 5h16v11H8l-4 4z"/></svg></div>
+        <h3 style="font-size:20px;margin-bottom:6px">Freiwilligkeit</h3>
+        <p style="color:var(--muted);font-size:16px;margin:0">Niemand muss etwas Persönliches teilen.</p>
+      </div>
+      <div class="card reveal">
+        <div style="width:48px;height:48px;border-radius:14px;background:var(--mint-2);display:grid;place-items:center;margin-bottom:14px"><svg viewBox="0 0 24 24" width="26" height="26"><path class="st" d="M9 11a3 3 0 106 0 3 3 0 00-6 0z"/><path class="st" d="M5 20a7 7 0 0114 0"/></svg></div>
+        <h3 style="font-size:20px;margin-bottom:6px">Ich spreche für mich</h3>
+        <p style="color:var(--muted);font-size:16px;margin:0">In der Ich-Form, aus eigener Sicht.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Diese Folie ist entscheidend.</b> Ohne Sicherheit gibt es keine Offenheit. Nehmen Sie sich Zeit.</li>
+      <li>Kurze Übung: „Nicken Sie, wenn Sie mit diesen vier Punkten einverstanden sind." – So entsteht ein bewusstes Ja der ganzen Gruppe.</li>
+      <li><b>Hinweis zur Selbstfürsorge:</b> Es kann sein, dass Themen heute etwas in Ihnen anrühren. Anlaufstellen stehen am Ende auf einer Folie – und ich bin in den Pausen ansprechbar.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 4 · WARUM ============================================================ -->
+<section class="slide bg-paper" data-title="Warum">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Warum dieses Thema uns alle angeht</div>
+    <h2 class="title reveal" style="margin-bottom:26px">Psychische Gesundheit betrifft jede:n</h2>
+    <div class="grid g3" style="margin-bottom:28px">
+      <div class="card stat reveal"><div class="n">1&nbsp;von&nbsp;4</div><div class="l">Menschen erlebt im Laufe des Lebens eine psychische Erkrankung.</div></div>
+      <div class="card stat reveal"><div class="n">~50&nbsp;%</div><div class="l">aller psychischen Erkrankungen beginnen vor dem 18. Lebensjahr.</div></div>
+      <div class="card stat reveal"><div class="n">Ø&nbsp;Jahre</div><div class="l">vergehen oft, bis Betroffene sich Hilfe holen – meist aus Scham.</div></div>
+    </div>
+    <div class="pull reveal">
+      <div class="q">„Es gibt keine Gesundheit – ohne seelische Gesundheit."</div>
+      <div class="by">Grundsatz der Weltgesundheitsorganisation (WHO)</div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Zahlen menschlich machen:</b> „1 von 4 – schauen Sie sich kurz in Ihrer Reihe um. Statistisch ist das hier, in diesem Raum, sehr real."</li>
+      <li><b>Die dritte Kachel</b> bewusst offen lassen: „Im Schnitt vergehen Jahre. Jahre, in denen jemand leidet – oft schweigend. Genau das wollen wir heute verkürzen."</li>
+      <li>Kein Erschrecken erzeugen, sondern Normalität: <b>Psychische Belastung ist menschlich, nicht selten.</b></li>
+      <li><span class="anim">Animation</span> Kacheln nacheinander <b>einblenden</b> (Wischen von unten), Zitat zum Schluss.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 5 · KONTINUUM ============================================================ -->
+<section class="slide bg-cloud" data-title="Kontinuum">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Ein hilfreiches Denkmodell</div>
+    <h2 class="title reveal" style="margin-bottom:10px">Gesundheit ist kein Schalter – sie ist ein Weg</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Niemand ist „gesund" oder „krank". Wir alle bewegen uns auf einem Kontinuum – mal hierhin, mal dorthin.</p>
+    <div class="card reveal" style="padding:clamp(20px,3vw,36px)">
+      <svg viewBox="0 0 900 150" style="width:100%;height:auto" role="img" aria-label="Kontinuum von seelischem Wohlbefinden bis Erkrankung">
+        <defs><linearGradient id="cont" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#7cc496"/><stop offset="0.5" stop-color="#f4c95d"/><stop offset="1" stop-color="#e59a86"/>
+        </linearGradient></defs>
+        <rect x="20" y="60" width="860" height="20" rx="10" fill="url(#cont)"/>
+        <g font-family="Segoe UI,sans-serif">
+          <circle cx="120" cy="70" r="12" fill="#fff" stroke="#57a773" stroke-width="3"/>
+          <circle cx="380" cy="70" r="12" fill="#fff" stroke="#e0ab34" stroke-width="3"/>
+          <circle cx="640" cy="70" r="12" fill="#fff" stroke="#cf7e69" stroke-width="3"/>
+          <circle cx="810" cy="70" r="12" fill="#fff" stroke="#cf7e69" stroke-width="3"/>
+          <text x="120" y="115" text-anchor="middle" font-size="19" font-weight="700" fill="#3f8f60">Wohlbefinden</text>
+          <text x="380" y="115" text-anchor="middle" font-size="19" font-weight="700" fill="#b98a1f">Belastung</text>
+          <text x="640" y="115" text-anchor="middle" font-size="19" font-weight="700" fill="#cf7e69">Krise</text>
+          <text x="810" y="115" text-anchor="middle" font-size="19" font-weight="700" fill="#cf7e69">Erkrankung</text>
+          <text x="120" y="42" text-anchor="middle" font-size="14" fill="#63756a">stabil, belastbar</text>
+          <text x="380" y="42" text-anchor="middle" font-size="14" fill="#63756a">gereizt, erschöpft</text>
+          <text x="640" y="42" text-anchor="middle" font-size="14" fill="#63756a">überfordert</text>
+          <text x="810" y="42" text-anchor="middle" font-size="14" fill="#63756a">behandlungs&#173;bedürftig</text>
+        </g>
+      </svg>
+    </div>
+    <div class="merk reveal" style="margin-top:24px">
+      <div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div><div class="mk-l">Merksatz</div><div class="mk-t">Bewegung in beide Richtungen ist normal. Wichtig ist, zu erkennen, wann man Unterstützung braucht.</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Bild aus dem Alltag:</b> „Denken Sie an Ihre körperliche Fitness. Manchmal topfit, manchmal ausgelaugt, manchmal krank. Mit der Seele ist es genauso."</li>
+      <li>Entlastende Botschaft: Man muss nicht „krank" sein, um sich Unterstützung zu holen. Auch bei „Belastung" darf man sich früh Hilfe suchen – das verhindert oft die Krise.</li>
+      <li><b>Frage an die Gruppe:</b> „Was schiebt uns nach links Richtung Wohlbefinden – und was nach rechts?" Antworten sammeln, führt später zu Schutzfaktoren.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 6 · STRESS-INFOGRAFIK ============================================================ -->
+<section class="slide bg-paper" data-title="Stressverlauf">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Infografik</div>
+    <h2 class="title reveal" style="margin-bottom:22px">Wie aus Stress eine Erkrankung werden kann</h2>
+    <div class="flow reveal" style="margin-bottom:24px">
+      <div class="step"><div class="t">Stress</div><div class="d">Belastung von außen: Termine, Konflikte, Sorgen</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Dauerlast</div><div class="d">Keine Erholung, Anspannung wird zum Normalzustand</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Krise</div><div class="d">Schlaf, Antrieb, Stimmung kippen; erste Warnzeichen</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Erkrankung</div><div class="d">Beschwerden verselbstständigen sich – jetzt braucht es Behandlung</div></div>
+    </div>
+    <div class="thread reveal">
+      <div class="l"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z" fill="#fff"/></svg> Roter Faden</div>
+      <div class="t">Je früher man auf die Warnzeichen hört, desto leichter ist der Weg zurück.</div>
+      <div class="s">Frühzeitig Hilfe zu suchen ist kein Alarmismus – es ist klug.</div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Bild vom Krug:</b> „Stellen Sie sich einen Krug vor, in den ständig Wasser läuft. Solange er sich leeren kann, ist alles gut. Läuft er über, entsteht die Krise. Erholung ist das Ventil."</li>
+      <li>Betonen: Der Übergang ist <b>fließend</b> und für Betroffene oft nicht spürbar – das Umfeld sieht es manchmal früher.</li>
+      <li><b>Überleitung:</b> „Bevor wir uns die einzelnen Krankheitsbilder anschauen, räumen wir mit ein paar hartnäckigen Irrtümern auf."</li>
+      <li><span class="anim">Animation</span> Pfeile &amp; Schritte nacheinander <b>wischen</b> – zeigt Entwicklung über Zeit.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 7 · ENTSTIGMATISIERUNG ============================================================ -->
+<section class="slide bg-hero" data-title="Echte Erkrankungen">
+  <div class="orb" style="width:280px;height:280px;background:var(--leaf);bottom:-90px;right:-70px;opacity:.4"></div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Entstigmatisierung</div>
+    <h2 class="title reveal" style="margin-bottom:24px">Vier Wahrheiten, die alles verändern</h2>
+    <div class="grid g2">
+      <div class="merk reveal"><div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 19l-4.8 2.5.9-5.4L4.2 8l5.4-.8z"/></svg></div><div><div class="mk-l">Wahrheit 1</div><div class="mk-t">Psychische Erkrankungen sind echte Erkrankungen – mit körperlichen Ursachen im Gehirn.</div></div></div>
+      <div class="merk reveal"><div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M6 18L18 6M6 6l12 12"/></svg></div><div><div class="mk-l">Wahrheit 2</div><div class="mk-t">Niemand entscheidet sich freiwillig dafür. Es ist keine Charakterschwäche, keine Faulheit.</div></div></div>
+      <div class="merk reveal"><div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M6 12l4 4 8-8"/></svg></div><div><div class="mk-l">Wahrheit 3</div><div class="mk-t">Hilfe anzunehmen ist mutig – nicht schwach.</div></div></div>
+      <div class="merk reveal"><div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M12 3v4M12 3a6 6 0 016 6c0 4-6 12-6 12S6 13 6 9a6 6 0 016-6z"/></svg></div><div><div class="mk-l">Wahrheit 4</div><div class="mk-t">Genesung ist möglich. Sehr viele Menschen werden wieder gesund.</div></div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Vergleich, der sitzt:</b> „Niemand sagt zu einem Menschen mit gebrochenem Bein: ‚Stell dich nicht so an, geh halt.' Bei der Seele passiert das ständig."</li>
+      <li>Zur ersten Wahrheit: Bei Depression sind u. a. Botenstoffe und Hirnstoffwechsel verändert – das ist messbar. „Reiß dich zusammen" hilft so wenig wie bei einer Lungenentzündung.</li>
+      <li><b>Diese vier Sätze sind Anker.</b> Wir kommen bei jedem Thema darauf zurück. Ruhig hier schon ankündigen.</li>
+      <li>Raum geben: „Welche Vorurteile haben Sie selbst schon gehört – oder vielleicht früher selbst gedacht?" Ehrlichkeit wertschätzen, nicht bloßstellen.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 8 · ÜBUNG MYTHOS ODER WAHRHEIT ============================================================ -->
+<section class="slide bg-cloud" data-title="Mythos oder Wahrheit">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Übung · Interaktiv</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Mythos oder Wahrheit?</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:22px">Wir lesen eine Aussage vor. Sie zeigen: <b>Karte Grün</b> = Wahrheit, <b>Karte Rot</b> = Mythos. Dann sprechen wir darüber.</p>
+    <div class="mw">
+      <div class="mwcard myth reveal"><span class="tag">Mythos</span><div class="claim">„Wer depressiv ist, muss sich einfach mehr zusammenreißen."</div><div class="expl">Depression ist eine Erkrankung, kein Willensproblem. Antrieb lässt sich nicht „herbeizwingen".</div></div>
+      <div class="mwcard truth reveal"><span class="tag">Wahrheit</span><div class="claim">„Über Suizidgedanken zu sprechen, erhöht das Risiko nicht."</div><div class="expl">Im Gegenteil: offen nachzufragen entlastet und öffnet die Tür zu Hilfe.</div></div>
+      <div class="mwcard myth reveal"><span class="tag">Mythos</span><div class="claim">„Menschen mit psychischer Erkrankung sind gefährlich."</div><div class="expl">Betroffene sind weit häufiger Opfer als Täter. Das Bild stammt aus Filmen, nicht aus der Realität.</div></div>
+      <div class="mwcard truth reveal"><span class="tag">Wahrheit</span><div class="claim">„Auch starke, erfolgreiche Menschen erkranken."</div><div class="expl">Psychische Erkrankung fragt nicht nach Beruf, Stärke oder Disziplin.</div></div>
+    </div>
+    <p class="reveal" style="margin-top:18px;color:var(--muted);font-size:15px">➜ Vollständiges Karten-Set mit Auflösung: <b>Arbeitsblatt 2</b>.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Aktivierung!</b> Menschen aufstehen / Karten hochhalten lassen. Bewegung lockert und macht Meinungen sichtbar.</li>
+      <li>Nicht bewerten, wer „falsch" liegt. Interessant ist das Gespräch danach: „Woher kommt dieses Bild? Wer hat es uns erzählt?"</li>
+      <li><b>Karten austeilen:</b> je Teilnehmer:in eine grüne und eine rote Karte (siehe Arbeitsblatt 2, zum Ausschneiden).</li>
+      <li>Ziel der Übung: Vorurteile sichtbar und besprechbar machen – ohne Zeigefinger.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 9 · KAPITEL DEPRESSION (Deckblatt) ============================================================ -->
+<section class="slide chapter" data-title="Kapitel Depression">
+  <div class="scrim">
+    <!-- Hintergrundbild: einsame Person auf Bank, verregneter, aber nicht düsterer Tag -->
+    <svg viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%">
+      <defs><linearGradient id="depSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9db9c4"/><stop offset="1" stop-color="#c7d6cf"/></linearGradient></defs>
+      <rect width="1200" height="675" fill="url(#depSky)"/>
+      <g stroke="#ffffff" stroke-opacity=".28" stroke-width="2"><line x1="200" y1="0" x2="150" y2="675"/><line x1="450" y1="0" x2="410" y2="675"/><line x1="720" y1="0" x2="690" y2="675"/><line x1="980" y1="0" x2="950" y2="675"/><line x1="1120" y1="0" x2="1095" y2="675"/></g>
+      <path d="M0 560 Q300 520 600 545 T1200 535 V675 H0Z" fill="#8fae9e" opacity=".8"/>
+      <!-- Bank -->
+      <g transform="translate(430,470)" stroke="#4a5a52" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85">
+        <line x1="0" y1="40" x2="220" y2="40"/><line x1="0" y1="60" x2="220" y2="60"/>
+        <line x1="0" y1="0" x2="220" y2="0"/><line x1="0" y1="20" x2="220" y2="20"/>
+        <line x1="10" y1="60" x2="10" y2="110"/><line x1="210" y1="60" x2="210" y2="110"/>
+        <line x1="0" y1="0" x2="0" y2="60"/><line x1="220" y1="0" x2="220" y2="60"/>
+      </g>
+      <!-- Person, in sich gekehrt -->
+      <g transform="translate(505,405)" fill="#41544b" opacity=".92">
+        <circle cx="30" cy="20" r="20"/>
+        <path d="M6 40 Q30 34 54 40 L60 120 Q30 130 0 120 Z"/>
+      </g>
+    </svg>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(44,59,50,.72) 0%,rgba(44,59,50,.42) 55%,rgba(44,59,50,.15) 100%)"></div>
+  </div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Kapitel 1 · Die stille Erschöpfung</div>
+    <h2 class="title reveal">Depression</h2>
+    <p class="subtitle reveal">Wenn die Farben aus dem Leben weichen – und wie sie zurückkommen.</p>
+  </div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Ton wechseln:</b> ruhiger, langsamer sprechen. Wir betreten ein sensibles Thema.</li>
+      <li>Einstiegsbild: „Stellen Sie sich vor, jemand sitzt auf einer Bank im Regen. Nicht, weil kein Bus kommt – sondern weil die Kraft fehlt, aufzustehen. So ungefähr fühlt sich Depression an."</li>
+      <li class="anim"><span class="anim">Hinweis</span> Persönliche Geschichte wird im Verlauf dieses Kapitels vorbereitet – siehe eigene Cue-Folie.</li>
+      <li>Wichtig: Depression ist <b>nicht</b> „Traurigkeit". Traurigkeit hat einen Grund und geht vorbei. Depression ist eine anhaltende Leere.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 10 · DEPRESSION SYMPTOME ============================================================ -->
+<section class="slide bg-paper" data-title="Depression · Anzeichen">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Depression · Woran man sie erkennt</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Mehr als „schlechte Laune"</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Depression zeigt sich in Körper, Denken und Gefühl. Halten die Anzeichen <b>länger als zwei Wochen</b> an, ist es Zeit für Unterstützung.</p>
+    <div class="grid g3">
+      <div class="card reveal">
+        <div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Gefühl</div>
+        <ul class="clean">
+          <li><span class="b"><svg viewBox="0 0 24 24"><circle class="st" cx="12" cy="12" r="9"/><path class="st" d="M8 15c2-2 6-2 8 0"/></svg></span>Anhaltende Leere, Freudlosigkeit</li>
+          <li><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M12 3v18"/></svg></span>Innere Gefühllosigkeit</li>
+        </ul>
+      </div>
+      <div class="card reveal">
+        <div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Denken</div>
+        <ul class="clean">
+          <li><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M4 6h16M4 12h10M4 18h7"/></svg></span>Grübeln, Selbstzweifel</li>
+          <li><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M12 8v5M12 16h.01"/><circle class="st" cx="12" cy="12" r="9"/></svg></span>„Ich bin nichts wert"</li>
+        </ul>
+      </div>
+      <div class="card reveal">
+        <div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Körper</div>
+        <ul class="clean">
+          <li><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M4 12h4l2-5 4 10 2-5h4"/></svg></span>Schlaf &amp; Appetit verändert</li>
+          <li><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M6 20c0-4 3-6 6-6s6 2 6 6"/><circle class="st" cx="12" cy="7" r="3"/></svg></span>Kraftlosigkeit, kein Antrieb</li>
+        </ul>
+      </div>
+    </div>
+    <div class="merk reveal" style="margin-top:24px;background:#f6dcd3">
+      <div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M12 8v5M12 16h.01"/><circle class="st" cx="12" cy="12" r="9"/></svg></div>
+      <div><div class="mk-l" style="color:var(--coral-d)">Wichtig</div><div class="mk-t">Bei Gedanken, nicht mehr leben zu wollen: sofort Hilfe holen. Telefonseelsorge <b>142</b> · Notruf <b>144</b>. Diese Gedanken sind ein Symptom – und behandelbar.</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Zwei-Wochen-Regel</b> betonen: Ein schlechter Tag ist keine Depression. Es geht um Dauer, Anzahl und Leidensdruck.</li>
+      <li>Antriebslosigkeit erklären: „Es ist nicht ‚keine Lust'. Es ist, als wäre die Batterie leer und das Ladekabel funktioniert nicht mehr."</li>
+      <li><b>Umgang mit dem Warnhinweis:</b> ruhig, sachlich, nicht dramatisierend vorlesen. Signalisieren: Darüber darf man sprechen. Auf die Anlaufstellen-Folie am Ende verweisen.</li>
+      <li>Frage: „Was glauben Sie – woran erkennt das Umfeld eine Depression oft zuerst?" (Rückzug, Reizbarkeit, Leistungsabfall.)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 11 · TEUFELSKREIS DEPRESSION ============================================================ -->
+<section class="slide bg-cloud" data-title="Teufelskreis Depression">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Infografik · Teufelskreis</div>
+    <h2 class="title reveal" style="margin-bottom:20px">Warum Depression sich selbst verstärkt</h2>
+    <div class="split">
+      <div class="reveal">
+        <div class="cycle">
+          <div class="core">Negativ&shy;spirale</div>
+          <div class="node n1">Gedrückte Stimmung</div>
+          <div class="node n2">Rückzug &amp; weniger Aktivität</div>
+          <div class="node n3">Weniger schöne Erlebnisse</div>
+          <div class="node n4">„Ich schaffe nichts"</div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="thread">
+          <div class="l"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z" fill="#fff"/></svg> Der Ausweg</div>
+          <div class="t">Der Kreis lässt sich durchbrechen.</div>
+          <div class="s">Kleine, machbare Schritte + fachliche Begleitung holen die Aktivität zurück – und mit ihr die Stimmung. Genau dabei helfen Psychotherapie und, wo nötig, Medikamente.</div>
+        </div>
+        <div class="cue reveal" style="margin-top:18px">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M5 10l7-7 7 7"/></svg></div>
+          <div><div class="l">Nur für Referent:in</div><div class="t">Hier eigene Erfahrung schildern: Wie sich der Rückzug angefühlt hat – und welcher erste kleine Schritt geholfen hat.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Kreis erklären:</b> „Wer sich schlecht fühlt, zieht sich zurück. Wer sich zurückzieht, erlebt weniger Schönes. Wer weniger Schönes erlebt, fühlt sich schlechter." So schließt sich der Ring.</li>
+      <li><b>Persönliche Geschichte (dosiert):</b> Beschreiben Sie <i>einen</i> konkreten Moment des Rückzugs nach dem Unfall – z. B. Einladungen abgesagt. Dann: der erste kleine Gegenschritt (ein Spaziergang, ein Anruf). <b>Nicht dramatisieren</b> – die Botschaft ist der Weg heraus, nicht das Leid.</li>
+      <li>Überleiten zur Kernbotschaft: „Ich habe diesen Kreis nicht allein durchbrochen. Ich habe mir Hilfe geholt."</li>
+      <li><span class="anim">Animation</span> Knoten im Kreis nacheinander <b>einblenden</b>, dann Pfeil-Bewegung andeuten.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 12 · HILFE-BOTSCHAFT (roter Faden – Depression) ============================================================ -->
+<section class="slide bg-hero" data-title="Hilfe ist Stärke">
+  <div class="orb" style="width:300px;height:300px;background:var(--sun);top:-90px;left:-60px;opacity:.3"></div>
+  <div class="slide-inner" style="text-align:center;max-width:920px">
+    <div class="eyebrow reveal" style="margin:0 auto 24px"><span class="dot"></span>Roter Faden</div>
+    <h2 class="title reveal" style="font-size:clamp(30px,5vw,54px);margin-bottom:22px">Therapeut:innen, Psycholog:innen<br>und Psychiater:innen sind nicht der Feind.</h2>
+    <p class="reveal" style="font-size:clamp(20px,2.6vw,30px);color:var(--green-d);font-weight:700;margin-bottom:8px">Sie möchten helfen.</p>
+    <p class="reveal" style="font-size:clamp(22px,3vw,34px);font-weight:800;margin:0">Hilfe anzunehmen ist Stärke – nicht Schwäche.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Kernbotschaft des ganzen Seminars.</b> Langsam. Pausen zulassen. Blickkontakt.</li>
+      <li>Vergleich: „Bei Zahnschmerzen gehen wir zum Zahnarzt, ohne uns zu schämen. Warum nicht auch, wenn die Seele schmerzt?"</li>
+      <li>Widerstand ansprechen: „Viele denken: ‚Das schaffe ich allein.' Ich habe das auch gedacht. Es hat mich Zeit gekostet, die ich mir hätte sparen können."</li>
+      <li>Diese Folie kehrt bewusst mehrfach im Seminar wieder (Depression, PTBS, Hilfe, Abschluss).</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 13 · KAPITEL ANGST (Deckblatt) ============================================================ -->
+<section class="slide chapter" data-title="Kapitel Angst">
+  <div class="scrim">
+    <!-- Tunnel mit Licht am Ende -->
+    <svg viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%">
+      <defs><radialGradient id="tunG" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#fdf3d6"/><stop offset="0.35" stop-color="#a9c7b8"/><stop offset="1" stop-color="#5c7a6c"/></radialGradient></defs>
+      <rect width="1200" height="675" fill="url(#tunG)"/>
+      <g fill="none" stroke="#41544b" stroke-opacity=".5" stroke-width="3">
+        <rect x="470" y="255" width="260" height="165" rx="6"/>
+        <rect x="410" y="215" width="380" height="245" rx="8"/>
+        <rect x="340" y="170" width="520" height="335" rx="10"/>
+        <rect x="255" y="120" width="690" height="435" rx="12"/>
+        <rect x="150" y="60" width="900" height="555" rx="14"/>
+      </g>
+      <circle cx="600" cy="337" r="70" fill="#fdf3d6" opacity=".9"/>
+      <g transform="translate(575,470)" fill="#3a4a42" opacity=".6"><circle cx="25" cy="16" r="16"/><path d="M4 32 Q25 26 46 32 L52 96 Q25 104 -2 96 Z"/></g>
+    </svg>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(44,59,50,.7) 0%,rgba(44,59,50,.35) 60%,rgba(44,59,50,.1) 100%)"></div>
+  </div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Kapitel 2 · Wenn der Körper Alarm schlägt</div>
+    <h2 class="title reveal">Angst &amp; Panik</h2>
+    <p class="subtitle reveal">Am Ende des Tunnels ist Licht – auch wenn man es gerade nicht sieht.</p>
+  </div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Normalisieren:</b> Angst ist überlebenswichtig – sie hat uns über Jahrtausende geschützt. Zum Problem wird sie, wenn sie ohne echte Gefahr Daueralarm schlägt.</li>
+      <li>Bild vom Tunnel: eng, dunkel – aber es gibt einen Ausgang. Genau das erleben Betroffene oft nicht mehr.</li>
+      <li>Frage: „Wer kennt das Herzrasen vor einer Prüfung oder einem wichtigen Gespräch?" – Brücke zur Alltagserfahrung.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 14 · PANIKSPIRALE ============================================================ -->
+<section class="slide bg-paper" data-title="Panikspirale">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Infografik · Panikspirale</div>
+    <h2 class="title reveal" style="margin-bottom:20px">Wie eine Panikattacke entsteht</h2>
+    <div class="flow reveal" style="margin-bottom:22px">
+      <div class="step"><div class="t">Auslöser</div><div class="d">Ein Reiz, ein Gedanke, manchmal „aus dem Nichts"</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Körpersignal</div><div class="d">Herzklopfen, Enge, Schwindel</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Fehldeutung</div><div class="d">„Etwas Schlimmes passiert mit mir!"</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">Mehr Angst</div><div class="d">Der Körper verstärkt die Signale – die Spirale dreht sich</div></div>
+    </div>
+    <div class="split">
+      <div class="merk reveal"><div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M3 12h4l2-6 4 12 2-6h4"/></svg></div><div><div class="mk-l">Beruhigend zu wissen</div><div class="mk-t">Eine Panikattacke ist nicht gefährlich und endet immer von selbst – meist nach wenigen Minuten.</div></div></div>
+      <div class="card reveal" style="background:var(--mint-2)">
+        <div class="mk-l" style="color:var(--green-d);margin-bottom:10px">Soforthilfe: 4-6-8-Atmung</div>
+        <ul class="clean">
+          <li><span class="b">4</span>Sekunden ruhig einatmen</li>
+          <li><span class="b">6</span>Sekunden Atem sanft halten</li>
+          <li><span class="b">8</span>Sekunden langsam ausatmen</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Übung optional live:</b> Gemeinsam eine Runde 4-6-8 atmen. Verlangsamt sofort den Raum und macht die Wirkung erlebbar.</li>
+      <li>Kernbotschaft gegen die Angst vor der Angst: „Der Körper kann diesen Alarm nicht ewig halten. Er fährt immer wieder herunter."</li>
+      <li>Abgrenzen: einmalige Panikattacke ≠ Angststörung. Erst wenn Vermeidung das Leben einschränkt, wird Behandlung wichtig – und sie wirkt sehr gut.</li>
+      <li><span class="anim">Animation</span> Spiralschritte <b>einblenden</b>, Atem-Kästen im Takt langsam <b>verblassen</b> ein.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 15 · KAPITEL BURNOUT (Deckblatt) ============================================================ -->
+<section class="slide chapter" data-title="Kapitel Burnout">
+  <div class="scrim">
+    <!-- Überfüllter Schreibtisch / erschöpft, aber hell -->
+    <svg viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%">
+      <defs><linearGradient id="boG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3ead6"/><stop offset="1" stop-color="#d8ddc9"/></linearGradient></defs>
+      <rect width="1200" height="675" fill="url(#boG)"/>
+      <rect x="0" y="470" width="1200" height="205" fill="#c9bfa2" opacity=".7"/>
+      <!-- Papierstapel -->
+      <g fill="#fff" stroke="#b8ad8e" stroke-width="2">
+        <rect x="180" y="420" width="150" height="55" rx="4" transform="rotate(-4 255 447)"/>
+        <rect x="200" y="405" width="150" height="55" rx="4" transform="rotate(3 275 432)"/>
+        <rect x="185" y="388" width="150" height="55" rx="4" transform="rotate(-2 260 415)"/>
+      </g>
+      <!-- Laptop -->
+      <g transform="translate(760,398)" fill="none" stroke="#7a8a72" stroke-width="5"><rect x="0" y="0" width="150" height="95" rx="6" fill="#eef3ea"/><path d="M-14 95 H164 l-12 22 H-2 Z" fill="#d5ddcb"/></g>
+      <!-- Kaffeetassen -->
+      <g stroke="#a58f6a" stroke-width="4" fill="#efe7d4"><circle cx="1000" cy="450" r="22"/><circle cx="1050" cy="470" r="18"/></g>
+      <!-- Uhr -->
+      <g transform="translate(560,150)" stroke="#8a9682" stroke-width="5" fill="#f4f7ef"><circle cx="0" cy="0" r="46"/><path d="M0 0 V-28 M0 0 L20 12" stroke-linecap="round"/></g>
+    </svg>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(58,60,42,.66) 0%,rgba(58,60,42,.3) 60%,rgba(58,60,42,.08) 100%)"></div>
+  </div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Kapitel 3 · Wenn Dauerlast auslaugt</div>
+    <h2 class="title reveal">Burnout</h2>
+    <p class="subtitle reveal">Ausgebrannt ist niemand, der zu wenig leistet – sondern jemand, der zu lange zu viel gegeben hat.</p>
+  </div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Vorurteil entkräften:</b> Burnout trifft oft die Engagiertesten, nicht die „Faulen". Wer brennt, hat vorher gebrannt – für die Arbeit, die Familie, die Sache.</li>
+      <li>Kurzdefinition: chronische Erschöpfung durch Dauerstress ohne ausreichende Erholung. Häufig mit depressiven Symptomen verbunden.</li>
+      <li>Frage: „Wie merken Sie selbst, dass Ihr Akku leer wird?" Kurz sammeln – schafft persönlichen Bezug.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 16 · BURNOUT · BELASTUNGSSKALA & WARNZEICHEN ============================================================ -->
+<section class="slide bg-cloud" data-title="Burnout · Skala">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Burnout · Belastungsskala</div>
+    <h2 class="title reveal" style="margin-bottom:20px">Vom Engagement zur Erschöpfung</h2>
+    <div class="card reveal" style="margin-bottom:22px">
+      <svg viewBox="0 0 900 130" style="width:100%;height:auto" role="img" aria-label="Belastungsskala von Engagement bis Erschöpfung">
+        <defs><linearGradient id="scaleG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7cc496"/><stop offset="0.5" stop-color="#f4c95d"/><stop offset="1" stop-color="#e59a86"/></linearGradient></defs>
+        <rect x="20" y="50" width="860" height="22" rx="11" fill="url(#scaleG)"/>
+        <g font-family="Segoe UI,sans-serif" text-anchor="middle">
+          <text x="120" y="100" font-size="17" font-weight="700" fill="#3f8f60">Engagement</text>
+          <text x="330" y="100" font-size="17" font-weight="700" fill="#b98a1f">Mehr Einsatz</text>
+          <text x="560" y="100" font-size="17" font-weight="700" fill="#c99a2e">Rückzug &amp; Zynismus</text>
+          <text x="790" y="100" font-size="17" font-weight="700" fill="#cf7e69">Erschöpfung</text>
+          <text x="120" y="35" font-size="13" fill="#63756a">„Ich liebe meine Arbeit"</text>
+          <text x="560" y="35" font-size="13" fill="#63756a">„Es ist mir egal"</text>
+          <text x="790" y="35" font-size="13" fill="#63756a">„Ich kann nicht mehr"</text>
+        </g>
+      </svg>
+    </div>
+    <div class="grid g4">
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M12 3v6M12 3a5 5 0 015 5c0 3-5 9-5 9s-5-6-5-9a5 5 0 015-5z"/></svg>Ständige Müdigkeit</div>
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M4 6h16M4 12h10M4 18h6"/></svg>Konzentration lässt nach</div>
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M8 15c2-2 6-2 8 0M9 9h.01M15 9h.01"/><circle class="st" cx="12" cy="12" r="9"/></svg>Gereiztheit, Zynismus</div>
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg>Rückzug von Menschen</div>
+    </div>
+    <p class="reveal" style="margin-top:18px;color:var(--muted);font-size:15px">➜ Machen Sie den Selbstcheck auf <b>Arbeitsblatt 4</b>.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>Skala nutzen, um Frühwarnung zu betonen: „Links kann man mit kleinen Änderungen viel bewegen. Rechts braucht es fast immer professionelle Hilfe."</li>
+      <li>Zynismus als typisches, oft übersehenes Zeichen erklären: Wenn Menschen, die früher gebrannt haben, plötzlich alles egal ist.</li>
+      <li>Arbeitgeber-Bezug (falls Betrieb): frühzeitige Entlastung ist günstiger und menschlicher als ein langer Ausfall.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 17 · KAPITEL PTBS (Deckblatt) ============================================================ -->
+<section class="slide chapter" data-title="Kapitel PTBS">
+  <div class="scrim">
+    <!-- Licht und Dunkelheit / Schatten, Symbolik -->
+    <svg viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%">
+      <defs><linearGradient id="ptbsG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3f4a45"/><stop offset="0.55" stop-color="#88a595"/><stop offset="1" stop-color="#f3e6c8"/></linearGradient></defs>
+      <rect width="1200" height="675" fill="url(#ptbsG)"/>
+      <!-- Lichtstrahlen von rechts -->
+      <g fill="#fbf1d4" opacity=".22"><path d="M1200 0 L560 675 L780 675 L1200 120Z"/><path d="M1200 200 L720 675 L900 675 L1200 340Z"/><path d="M1200 -50 L400 675 L520 675 L1200 40Z"/></g>
+      <!-- Fenster mit Licht -->
+      <g transform="translate(820,220)" fill="none" stroke="#fbf1d4" stroke-width="4" opacity=".8"><rect x="0" y="0" width="150" height="210" rx="6" fill="#fbf1d4" fill-opacity=".18"/><line x1="75" y1="0" x2="75" y2="210"/><line x1="0" y1="105" x2="150" y2="105"/></g>
+      <!-- Person Richtung Licht -->
+      <g transform="translate(470,410)" fill="#2b332f" opacity=".85"><circle cx="24" cy="18" r="17"/><path d="M4 34 Q24 28 44 34 L50 118 Q24 126 -2 118 Z"/></g>
+    </svg>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(30,38,34,.72) 0%,rgba(30,38,34,.4) 55%,rgba(30,38,34,.12) 100%)"></div>
+  </div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Kapitel 4 · Wenn das Erlebte bleibt</div>
+    <h2 class="title reveal">Posttraumatische<br>Belastungsstörung</h2>
+    <p class="subtitle reveal">Zwischen Schatten und Licht – ein Weg zurück ins Leben ist möglich.</p>
+  </div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Behutsam beginnen.</b> Für manche im Raum kann dieses Thema sehr nah sein. Erinnern: „Rausgehen ist jederzeit okay."</li>
+      <li>Definition einfach: Nach einem überwältigenden Ereignis (Unfall, Gewalt, Verlust) findet die Seele nicht in den Alltag zurück – das Erlebte drängt sich immer wieder auf.</li>
+      <li class="anim"><span class="anim">Hinweis</span> Die persönliche Geschichte des Referenten (Verkehrsunfall) hat hier ihren stärksten, aber am sorgsamsten dosierten Platz – siehe nächste Cue-Folie.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 18 · PTBS SYMPTOME + PERSÖNLICHE GESCHICHTE ============================================================ -->
+<section class="slide bg-paper" data-title="PTBS · Anzeichen">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>PTBS · Woran man sie erkennt</div>
+    <h2 class="title reveal" style="margin-bottom:22px">Vier typische Spuren eines Traumas</h2>
+    <div class="grid g4" style="margin-bottom:24px">
+      <div class="card reveal"><div style="font-size:30px;margin-bottom:8px">🔁</div><h3 style="font-size:18px;margin-bottom:6px">Wiedererleben</h3><p style="color:var(--muted);font-size:15px;margin:0">Flashbacks, Albträume, aufdrängende Bilder</p></div>
+      <div class="card reveal"><div style="font-size:30px;margin-bottom:8px">🚪</div><h3 style="font-size:18px;margin-bottom:6px">Vermeidung</h3><p style="color:var(--muted);font-size:15px;margin:0">Orte, Gespräche, Erinnerungen werden gemieden</p></div>
+      <div class="card reveal"><div style="font-size:30px;margin-bottom:8px">⚡</div><h3 style="font-size:18px;margin-bottom:6px">Übererregung</h3><p style="color:var(--muted);font-size:15px;margin:0">Schreckhaftigkeit, Schlafprobleme, Anspannung</p></div>
+      <div class="card reveal"><div style="font-size:30px;margin-bottom:8px">🌫️</div><h3 style="font-size:18px;margin-bottom:6px">Taubheit</h3><p style="color:var(--muted);font-size:15px;margin:0">Gefühllosigkeit, Entfremdung, Schuldgefühle</p></div>
+    </div>
+    <div class="cue reveal">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M5 10l7-7 7 7"/></svg></div>
+      <div><div class="l">Nur für Referent:in – persönliche Geschichte</div><div class="t">Jetzt eigenes Erlebnis schildern: der Verkehrsunfall, was danach kam (PTBS, Depression) – und wie der Weg heraus begann. Ehrlich, ruhig, <b>ohne Details, die niemand hören muss</b>. Fokus: „Ich habe überlebt – und ich habe mir Hilfe geholt."</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen · persönliche Geschichte (Leitplanken)</div>
+    <ul>
+      <li><b>Zweck der Geschichte:</b> Nähe und Glaubwürdigkeit, nicht Betroffenheit erzeugen. Sie sind das lebende Beispiel dafür, dass Genesung möglich ist.</li>
+      <li><b>Struktur in drei Sätzen:</b> 1) Was geschah (knapp: schwerer Verkehrsunfall, Menschen kamen ums Leben, Schwerverletzte, eigene schwere Verletzungen). 2) Was folgte (Depression, PTBS – wie es sich anfühlte). 3) Was half (Behandlung, Therapie, Zeit, Menschen).</li>
+      <li><b>Nicht dramatisieren, nicht instrumentalisieren.</b> Keine grafischen Details. Wenn Emotionen kommen: kurz innehalten ist erlaubt und menschlich.</li>
+      <li><b>Landepunkt:</b> „Ich stehe heute hier. Das ist der Beweis: Aus dem dunkelsten Tunnel führt ein Weg." Direkt überleiten zur Hilfe-Botschaft.</li>
+      <li>Selbstschutz: Nur so viel teilen, wie Ihnen heute guttut. Sie dürfen Grenzen setzen.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 19 · HILFE-BOTSCHAFT (roter Faden – PTBS) ============================================================ -->
+<section class="slide bg-hero" data-title="Hilfe · PTBS">
+  <div class="orb" style="width:260px;height:260px;background:var(--leaf);bottom:-80px;right:-50px;opacity:.4"></div>
+  <div class="slide-inner" style="max-width:960px">
+    <div class="eyebrow reveal"><span class="dot"></span>Roter Faden</div>
+    <div class="split">
+      <div>
+        <h2 class="title reveal" style="margin-bottom:18px">Ein Trauma heilt selten von allein.</h2>
+        <p class="lead reveal" style="color:var(--muted)">Aber es gibt heute sehr wirksame Behandlungen. Menschen kehren nach einer PTBS in ein erfülltes Leben zurück – Millionen haben es getan.</p>
+      </div>
+      <div class="reveal">
+        <div class="thread">
+          <div class="l"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z" fill="#fff"/></svg> Botschaft</div>
+          <div class="t">Sich Hilfe zu holen ist der mutigste Schritt – nicht der schwächste.</div>
+          <div class="s">Wer nach einem Trauma zur Therapie geht, ist nicht „kaputt". Er sorgt für sich, wie man einen gebrochenen Knochen versorgt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>Hoffnung konkret machen: Traumatherapie (z. B. EMDR, Traumafokussierte Verfahren) ist gut erforscht und wirksam. Namen nur nennen, nicht erklären – kein Fachvortrag.</li>
+      <li>Wieder an eigene Geschichte anknüpfen: „Ohne diesen Schritt würde ich heute nicht vor Ihnen stehen."</li>
+      <li>Übergang: „Aber wie erkennen wir überhaupt, dass jemand Hilfe braucht – bei uns oder bei anderen?"</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 20 · WARNZEICHEN ============================================================ -->
+<section class="slide bg-cloud" data-title="Warnzeichen">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Erkennen · Infografik</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Warnzeichen – bei sich und bei anderen</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Nicht ein einzelnes Zeichen zählt, sondern die <b>Veränderung</b>: Jemand ist plötzlich anders als sonst.</p>
+    <div class="grid g3">
+      <div class="card reveal"><div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Verhalten</div><ul class="clean" style="gap:10px"><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M4 5h16v11H8l-4 4z"/></svg></span>Rückzug, Absagen</li><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M6 12l4 4 8-8"/></svg></span>Aufgaben bleiben liegen</li></ul></div>
+      <div class="card reveal"><div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Stimmung</div><ul class="clean" style="gap:10px"><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><circle class="st" cx="12" cy="12" r="9"/><path class="st" d="M8 15c2-2 6-2 8 0"/></svg></span>Reizbar oder freudlos</li><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M4 12h4l2-5 4 10 2-5h4"/></svg></span>Stark schwankend</li></ul></div>
+      <div class="card reveal"><div class="mk-l" style="color:var(--green-d);margin-bottom:12px">Körper &amp; Sprache</div><ul class="clean" style="gap:10px"><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M12 3a9 9 0 100 18 9 9 0 000-18z"/><path class="st" d="M12 7v5"/></svg></span>Erschöpft, schlaflos</li><li style="font-size:17px"><span class="b"><svg viewBox="0 0 24 24"><path class="st" d="M8 10h8M8 14h5"/><path class="st" d="M4 5h16v11H8l-4 4z"/></svg></span>„Es hat alles keinen Sinn"</li></ul></div>
+    </div>
+    <div class="merk reveal" style="margin-top:22px">
+      <div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div><div class="mk-l">Faustregel</div><div class="mk-t">Wenn Veränderungen länger als zwei Wochen anhalten oder den Alltag deutlich einschränken: ansprechen und Hilfe anbieten.</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>Betonen: Wir stellen keine Diagnosen. Wir sind <b>aufmerksame Mitmenschen</b>, keine Fachleute – und das reicht, um den ersten Schritt zu ermöglichen.</li>
+      <li>„Veränderung" ist das Schlüsselwort. Der lebhafte Kollege wird still, die pünktliche Kollegin kommt zu spät – das sind Signale.</li>
+      <li>Überleitung: „Angenommen, wir bemerken so etwas – wie sprechen wir es an, ohne zu verletzen?"</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 21 · AMPELÜBUNG / GESPRÄCH ============================================================ -->
+<section class="slide bg-paper" data-title="Ampel · Gespräch">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Übung · Ampel</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Das unterstützende Gespräch</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Man muss nichts „lösen". Zuhören ist die stärkste Hilfe. Die Ampel gibt Orientierung.</p>
+    <div class="ampel">
+      <div class="amp g reveal"><div class="h"><span class="light"></span>Grün · Tun</div><p>„Mir ist aufgefallen … Wie geht es dir wirklich?" Zuhören. Ernst nehmen. Da sein. Zu Hilfe ermutigen.</p></div>
+      <div class="amp y reveal"><div class="h"><span class="light"></span>Gelb · Vorsicht</div><p>Nicht bagatellisieren („Kopf hoch!"), keine Ratschläge aufdrängen, nicht drängen. Geduld statt Druck.</p></div>
+      <div class="amp r reveal"><div class="h"><span class="light"></span>Rot · Grenzen</div><p>Bei Hinweisen auf Suizid, Gewalt oder akuter Not: nicht allein tragen. Professionelle Hilfe einschalten – <b>144 / 142</b>.</p></div>
+    </div>
+    <div class="pull reveal" style="margin-top:24px">
+      <div class="q">„Du musst das nicht allein schaffen. Ich bin da – und ich helfe dir, Unterstützung zu finden."</div>
+      <div class="by">Ein Satz, der Türen öffnet</div>
+    </div>
+    <p class="reveal" style="margin-top:14px;color:var(--muted);font-size:15px">➜ Rollenspiel mit Rollenkarten: <b>Arbeitsblatt 5</b>.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Rollenspiel anleiten:</b> Paare bilden, Rollenkarten (Arbeitsblatt 5) austeilen. Eine Person spricht an, eine ist betroffen. Danach Rollen tauschen. 5 Minuten je Runde.</li>
+      <li>Häufigste Sorge im Raum: „Was, wenn ich etwas Falsches sage?" Entlasten: „Aufrichtiges Interesse macht fast nie etwas kaputt. Wegschauen schon."</li>
+      <li>Ampel-Rot ernst, aber ruhig behandeln: Direkt und offen nach Suizidgedanken fragen ist erlaubt und hilfreich (siehe Mythos-Folie).</li>
+      <li>Auswertung: „Wie hat es sich angefühlt – als betroffene und als zuhörende Person?"</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 22 · WEGE ZUR HILFE ============================================================ -->
+<section class="slide bg-hero" data-title="Wege zur Hilfe">
+  <div class="orb" style="width:260px;height:260px;background:var(--sun);top:-70px;right:-50px;opacity:.28"></div>
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Wege zur Hilfe · Infografik</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Es gibt viele Türen – man muss nur eine öffnen</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Der erste Schritt ist der schwerste und der wichtigste. Danach wird der Weg leichter.</p>
+    <div class="flow reveal" style="margin-bottom:22px">
+      <div class="step"><div class="t">1 · Vertrauen</div><div class="d">Mit einem Menschen sprechen, dem man vertraut</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">2 · Hausarzt</div><div class="d">Erste Anlaufstelle, ordnet ein, überweist weiter</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">3 · Beratung</div><div class="d">Psychosoziale Beratungsstellen, oft kostenlos</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">4 · Therapie</div><div class="d">Psychotherapie, klinische Psychologie</div></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="t">5 · Facharzt</div><div class="d">Psychiatrie – wenn Medikamente sinnvoll sind</div></div>
+    </div>
+    <div class="grid g3">
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M12 8v8M8 12h8"/><circle class="st" cx="12" cy="12" r="9"/></svg>Hausärztin / Hausarzt</div>
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M4 6h16M4 12h16M4 18h10"/></svg>Psychotherapie</div>
+      <div class="chip reveal"><svg viewBox="0 0 24 24"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg>Selbsthilfegruppen</div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>Hürden benennen und entkräften: Wartezeiten, Kosten, Scham. Hinweise geben: Kassenplätze, kostenlose Erstgespräche, telefonische Krisendienste – niemand muss zahlen können, um Hilfe zu bekommen.</li>
+      <li><b>Wichtig:</b> Man muss den Weg nicht kennen, nur beginnen. Der Hausarzt kennt die nächsten Schritte.</li>
+      <li>Konkreten Mini-Auftrag geben: „Speichern Sie heute noch eine dieser Nummern in Ihr Handy – für sich oder für jemanden, den Sie mögen."</li>
+      <li>Genaue Anlaufstellen &amp; Nummern folgen auf der Notfall-Folie.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 23 · SCHUTZFAKTOREN ============================================================ -->
+<section class="slide bg-cloud" data-title="Schutzfaktoren">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Vorbeugen · Schutzfaktoren</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Was die Seele stark macht</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Seelische Gesundheit kann man pflegen – wie einen Garten. Kein Faktor allein schützt, aber zusammen tragen sie.</p>
+    <div class="grid g4">
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🤝</div><h3 style="font-size:18px;margin:10px 0 4px">Verbindung</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Menschen, die tragen</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">😴</div><h3 style="font-size:18px;margin:10px 0 4px">Erholung</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Schlaf &amp; echte Pausen</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🌳</div><h3 style="font-size:18px;margin:10px 0 4px">Bewegung</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Körper in Schwung</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🎯</div><h3 style="font-size:18px;margin:10px 0 4px">Sinn</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Etwas, das trägt</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🗣️</div><h3 style="font-size:18px;margin:10px 0 4px">Reden dürfen</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Gefühle zulassen</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🧭</div><h3 style="font-size:18px;margin:10px 0 4px">Grenzen</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Nein sagen können</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">🌦️</div><h3 style="font-size:18px;margin:10px 0 4px">Akzeptanz</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Nicht alles muss glatt sein</p></div>
+      <div class="card reveal" style="text-align:center"><div style="font-size:34px">💚</div><h3 style="font-size:18px;margin:10px 0 4px">Hilfe holen</h3><p style="color:var(--muted);font-size:14.5px;margin:0">Früh, ohne Scham</p></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>Kein Perfektionismus! Es geht nicht darum, alle acht Punkte zu „erfüllen". Ein oder zwei bewusst zu stärken, verändert schon viel.</li>
+      <li>Interaktion: „Welcher dieser Faktoren kommt bei Ihnen gerade zu kurz? Und welcher kleine Schritt wäre diese Woche möglich?" → überleitet zum Reflexionsbogen.</li>
+      <li>„Hilfe holen" bewusst als Schutzfaktor einordnen – nicht als Notnagel. So bleibt der rote Faden präsent.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 24 · HOFFNUNG / GENESUNG ============================================================ -->
+<section class="slide bg-hero" data-title="Hoffnung">
+  <div class="orb" style="width:340px;height:340px;background:var(--sun);top:-100px;left:50%;transform:translateX(-50%);opacity:.25"></div>
+  <div class="slide-inner" style="text-align:center;max-width:960px">
+    <div class="eyebrow reveal" style="margin:0 auto 22px"><span class="dot"></span>Hoffnung</div>
+    <div class="hero-art reveal" style="max-width:560px;margin:0 auto 26px">
+      <!-- Hände die eine Pflanze halten / Sonnenaufgang -->
+      <svg viewBox="0 0 520 260" role="img" aria-label="Hände halten einen jungen Trieb im Morgenlicht">
+        <defs><radialGradient id="hopeG" cx="50%" cy="30%" r="70%"><stop offset="0" stop-color="#fdf3d6"/><stop offset="1" stop-color="#eaf6ee"/></radialGradient></defs>
+        <rect width="520" height="260" fill="url(#hopeG)"/>
+        <circle cx="260" cy="70" r="42" fill="#f4c95d" opacity=".9"/>
+        <!-- Hände -->
+        <path d="M150 230 q40 -60 110 -60 q70 0 110 60 q-60 -20 -110 -20 q-50 0 -110 20z" fill="#cbe6d5"/>
+        <path d="M170 232 q30 -46 90 -46 q60 0 90 46" fill="none" stroke="#8bc5a2" stroke-width="4"/>
+        <!-- Trieb -->
+        <path d="M260 200 V150" stroke="#3f8f60" stroke-width="6" stroke-linecap="round"/>
+        <path d="M260 168 q-26 -6 -34 -30 q26 2 34 22z" fill="#7cc496"/>
+        <path d="M260 158 q26 -6 34 -30 q-26 2 -34 22z" fill="#57a773"/>
+      </svg>
+    </div>
+    <h2 class="title reveal" style="margin-bottom:16px">Genesung ist möglich.</h2>
+    <p class="lead reveal" style="color:var(--green-d);font-weight:700;margin:0 auto">Aus fast jeder seelischen Krise führt ein Weg zurück ins Leben. Oft nicht allein – aber immer gemeinsam machbar.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Emotionaler Höhepunkt.</b> Ruhig, warm. Hier darf Stille wirken.</li>
+      <li>Wenn passend, letzte Verbindung zur eigenen Geschichte: „Ich bin der Beweis." – schlicht, ohne Pathos.</li>
+      <li>Botschaft festigen: Genesung heißt nicht immer „wie vorher", sondern ein gutes, tragfähiges Leben – manchmal ein reiferes.</li>
+      <li><span class="anim">Animation</span> Illustration sanft <b>einblenden</b>, Titel danach. Kein schneller Effekt.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 25 · REFLEXION ============================================================ -->
+<section class="slide bg-paper" data-title="Reflexion">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Abschluss · Reflexion</div>
+    <h2 class="title reveal" style="margin-bottom:10px">Was nehme ich mit?</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:24px">Nehmen Sie sich einen stillen Moment. Der Reflexionsbogen (<b>Arbeitsblatt 7</b>) hilft dabei.</p>
+    <div class="grid g3">
+      <div class="card reveal"><div style="font-size:26px;margin-bottom:8px">💡</div><h3 style="font-size:19px;margin-bottom:6px">Eine Erkenntnis</h3><p style="color:var(--muted);font-size:16px;margin:0">Was hat mein Bild von psychischer Gesundheit heute verändert?</p></div>
+      <div class="card reveal"><div style="font-size:26px;margin-bottom:8px">👣</div><h3 style="font-size:19px;margin-bottom:6px">Ein Schritt</h3><p style="color:var(--muted);font-size:16px;margin:0">Was tue ich diese Woche konkret – für mich oder für andere?</p></div>
+      <div class="card reveal"><div style="font-size:26px;margin-bottom:8px">💬</div><h3 style="font-size:19px;margin-bottom:6px">Ein Satz</h3><p style="color:var(--muted);font-size:16px;margin:0">Wie spreche ich künftig über die Seele – bei mir und bei anderen?</p></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li>3 Minuten stilles Ausfüllen, dann freiwilliges Teilen im Plenum oder in Kleingruppen.</li>
+      <li>An die eingangs gesammelten Erwartungen (Flipchart) zurückkoppeln: „Haben wir das erreicht, was Sie mitnehmen wollten?"</li>
+      <li>Nicht mit Betroffenheit enden – mit Handlung. Der „eine Schritt" ist entscheidend.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 26 · NOTFALL & ANLAUFSTELLEN ============================================================ -->
+<section class="slide bg-cloud" data-title="Anlaufstellen">
+  <div class="slide-inner">
+    <div class="eyebrow reveal"><span class="dot"></span>Hilfe im Ernstfall · Österreich</div>
+    <h2 class="title reveal" style="margin-bottom:8px">Wichtige Nummern – rund um die Uhr</h2>
+    <p class="lead reveal" style="color:var(--muted);margin-bottom:22px">Kostenlos und anonym. In einer akuten Krise gilt: <b>lieber einmal zu viel anrufen als einmal zu wenig.</b></p>
+    <div class="emerg">
+      <div class="e reveal"><div class="num">144</div><div class="d"><div class="t">Rettung</div><div class="s">Bei akuter Lebensgefahr, medizinischer Notfall</div></div></div>
+      <div class="e reveal"><div class="num">142</div><div class="d"><div class="t">Telefonseelsorge</div><div class="s">24 h, kostenlos, anonym – für jede seelische Not</div></div></div>
+      <div class="e reveal"><div class="num">147</div><div class="d"><div class="t">Rat auf Draht</div><div class="s">Für Kinder &amp; Jugendliche, 24 h</div></div></div>
+      <div class="e reveal"><div class="num">141</div><div class="d"><div class="t">Ärztefunkdienst</div><div class="s">Ärztlicher Bereitschaftsdienst, wenn Ordinationen zu haben</div></div></div>
+    </div>
+    <div class="merk reveal" style="margin-top:20px">
+      <div class="ic"><svg viewBox="0 0 24 24"><path class="st" d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg></div>
+      <div><div class="mk-l">Auch das ist Hilfe</div><div class="mk-t">Hausärzt:in · psychosoziale Dienste (pro mente, Caritas) · Kriseninterventionszentren · Selbsthilfegruppen. Fragen Sie danach – man wird Ihnen weiterhelfen.</div></div>
+    </div>
+  </div>
+  <div class="foot">Über die Seele sprechen</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Diese Folie stehen lassen</b>, solange geblättert wird. Teilnehmende fotografieren lassen – oder Arbeitsblatt 6 (Notfallplan) ausfüllen.</li>
+      <li>Betonen: Die Telefonseelsorge (142) ist für <i>jede</i> seelische Not da – man muss nicht „am Ende" sein, um anzurufen.</li>
+      <li>Regionale Angebote ergänzen: örtliches Kriseninterventionszentrum, Betriebsärzt:in / EAP, wenn im Unternehmen vorhanden.</li>
+      <li>Nummern vorab prüfen und ggf. an die Region/Institution anpassen.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ 27 · ABSCHLUSS ============================================================ -->
+<section class="slide bg-hero" data-title="Danke">
+  <div class="orb" style="width:300px;height:300px;background:var(--leaf);bottom:-90px;right:-60px;opacity:.4"></div>
+  <div class="orb" style="width:220px;height:220px;background:var(--sun);top:-60px;left:-40px;opacity:.28"></div>
+  <div class="slide-inner" style="text-align:center;max-width:900px">
+    <div class="eyebrow reveal" style="margin:0 auto 24px"><span class="dot"></span>Danke</div>
+    <h2 class="title reveal" style="font-size:clamp(30px,5.4vw,58px);margin-bottom:22px">Reden wir über die Seele –<br>so, wie wir über den Körper reden.</h2>
+    <p class="reveal" style="font-size:clamp(20px,2.6vw,30px);font-weight:800;color:var(--green-d);margin-bottom:8px">Hilfe anzunehmen ist Stärke.</p>
+    <p class="reveal" style="font-size:clamp(16px,2vw,22px);color:var(--muted);margin:0">Danke, dass Sie heute hingeschaut und mitgeredet haben.</p>
+  </div>
+  <div class="foot">Über die Seele sprechen · Fortbildung psychische Gesundheit</div>
+  <div class="notes">
+    <div class="nh">◆ Sprechernotizen</div>
+    <ul>
+      <li><b>Warm verabschieden.</b> Danke für Offenheit und Vertrauen aussprechen.</li>
+      <li>Letzter Impuls: „Wenn Sie heute nur einen Satz mitnehmen, dann diesen: Hilfe anzunehmen ist Stärke."</li>
+      <li>Auf Anlaufstellen und Arbeitsblätter zum Mitnehmen hinweisen. Für Gespräche in der Pause / danach zur Verfügung stehen.</li>
+      <li>Feedbackbogen austeilen (optional). An eigene Geschichte erinnern: „Ich stehe hier, weil ich mir helfen ließ."</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<!-- Steuerung -->
+<div class="toolbar">
+  <button class="toolbtn" id="notesBtn" title="Sprechernotizen ein/aus (Taste N)">
+    <svg viewBox="0 0 24 24"><path class="st" d="M4 5h16v14H8l-4 3z"/><path class="st" d="M8 10h8M8 14h5"/></svg><span>Notizen</span>
+  </button>
+  <button class="toolbtn" id="printBtn" title="Als PDF drucken (Taste P)">
+    <svg viewBox="0 0 24 24"><path class="st" d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg><span>Drucken</span>
+  </button>
+</div>
+<div class="nav">
+  <div class="counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">27</span></div>
+  <button id="prev" title="Zurück (←)">‹</button>
+  <button id="next" title="Weiter (→)">›</button>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  document.getElementById('tot').textContent = slides.length;
+  var curEl = document.getElementById('cur');
+  var fill = document.getElementById('progFill');
+  var idx = 0;
+
+  function goto(i){
+    idx = Math.max(0, Math.min(slides.length-1, i));
+    slides[idx].scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  // aktuelle Folie anhand Scrollposition ermitteln
+  function updateCurrent(){
+    var mid = window.scrollY + window.innerHeight/2;
+    for(var i=0;i<slides.length;i++){
+      var top = slides[i].offsetTop, bot = top + slides[i].offsetHeight;
+      if(mid>=top && mid<bot){ idx=i; break; }
+    }
+    curEl.textContent = idx+1;
+    fill.style.width = ((idx+1)/slides.length*100)+'%';
+  }
+  window.addEventListener('scroll', updateCurrent, {passive:true});
+  window.addEventListener('resize', updateCurrent);
+
+  document.getElementById('next').onclick = function(){ goto(idx+1); };
+  document.getElementById('prev').onclick = function(){ goto(idx-1); };
+
+  var notesBtn = document.getElementById('notesBtn');
+  notesBtn.onclick = function(){
+    document.body.classList.toggle('show-notes');
+    notesBtn.classList.toggle('on');
+  };
+  document.getElementById('printBtn').onclick = function(){ window.print(); };
+
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight' || e.key==='PageDown' || e.key===' '){ e.preventDefault(); goto(idx+1); }
+    else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); goto(idx-1); }
+    else if(e.key==='Home'){ e.preventDefault(); goto(0); }
+    else if(e.key==='End'){ e.preventDefault(); goto(slides.length-1); }
+    else if(e.key==='n' || e.key==='N'){ notesBtn.click(); }
+    else if(e.key==='p' || e.key==='P'){ e.preventDefault(); window.print(); }
+  });
+
+  // Reveal-Animationen (Einblenden / Verblassen)
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); } });
+    }, {threshold:0.12});
+    document.querySelectorAll('.reveal').forEach(function(el,i){
+      el.style.transitionDelay = (Math.min(i,4)*0.06)+'s';
+      io.observe(el);
+    });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
+  }
+
+  // Bedienhinweis nach kurzer Zeit ausblenden
+  setTimeout(function(){ var h=document.getElementById('helpBar'); if(h) h.classList.add('gone'); }, 5200);
+
+  updateCurrent();
+})();
+</script>
+</body>
+</html>
