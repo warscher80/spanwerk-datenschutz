@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#57a773">
-<title>Über die Seele sprechen – Seminar zu psychischer Gesundheit</title>
+<title>Man sieht es mir nicht an – Seminar zu psychischer Gesundheit</title>
 <style>
 :root{
   --leaf:#7cc496;--green:#57a773;--green-d:#3f8f60;--sage:#9cbfa8;
@@ -56,6 +56,21 @@ h1{font-size:clamp(38px,7vw,72px);font-weight:800;letter-spacing:-.02em;margin:2
 .card .go{margin-top:auto;display:inline-flex;align-items:center;gap:8px;font-weight:800;color:var(--green-d)}
 .card .go svg{width:18px;height:18px;stroke:var(--green-d)}
 
+/* Trainerhandbuch-Band */
+.trainer{display:flex;align-items:center;gap:clamp(20px,4vw,40px);background:linear-gradient(135deg,#f0f9f3,#e2f1e8);
+  border:1px solid var(--line);border-radius:var(--radius);padding:clamp(22px,3.5vw,38px);box-shadow:var(--shadow-s);
+  transition:transform .15s,box-shadow .15s}
+.trainer:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.trainer .ic{flex:0 0 auto;width:clamp(70px,11vw,96px);height:clamp(70px,11vw,96px);border-radius:22px;
+  background:linear-gradient(135deg,var(--green),var(--leaf));display:grid;place-items:center;box-shadow:var(--shadow-s)}
+.trainer .ic svg{width:clamp(34px,5vw,46px);height:clamp(34px,5vw,46px)}
+.trainer .ttx h3{font-size:clamp(22px,3vw,30px);margin:6px 0 8px}
+.trainer .ttx p{color:var(--muted);font-size:16px;margin:0 0 14px;max-width:62ch}
+.trainer .kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sage)}
+.trainer .go{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:var(--green-d)}
+.trainer .go svg{width:18px;height:18px;stroke:var(--green-d)}
+@media(max-width:620px){.trainer{flex-direction:column;text-align:center}}
+
 /* Merkmale */
 .feat{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
 @media(max-width:880px){.feat{grid-template-columns:1fr 1fr}}
@@ -69,7 +84,8 @@ h1{font-size:clamp(38px,7vw,72px);font-weight:800;letter-spacing:-.02em;margin:2
   border-radius:var(--radius);padding:clamp(20px,3vw,34px);box-shadow:var(--shadow-s);margin-bottom:22px}
 .referent .portrait{width:clamp(96px,16vw,140px);height:clamp(96px,16vw,140px);border-radius:50%;object-fit:cover;
   flex:0 0 auto;box-shadow:0 6px 18px rgba(63,143,96,.22);border:4px solid var(--mint-2)}
-.referent .rtx h3{font-size:clamp(22px,3vw,30px);margin:6px 0 8px}
+.referent .rtx h3{font-size:clamp(22px,3vw,30px);margin:6px 0 6px}
+.referent .rtx .roles{color:var(--green-d);font-weight:700;font-size:14.5px;margin-bottom:10px}
 .referent .rtx p{color:var(--muted);font-size:16.5px;margin:0;max-width:56ch}
 @media(max-width:620px){.referent{flex-direction:column;text-align:center}.referent .rtx p{margin:0 auto}}
 .quote{background:var(--paper);border:1px solid var(--line);border-left:6px solid var(--leaf);
@@ -90,7 +106,7 @@ footer .em b{color:var(--green-d)}
   <div class="orb" style="width:240px;height:240px;background:var(--sun);opacity:.3;bottom:-80px;left:-60px"></div>
   <div class="wrap inner">
     <span class="badge"><span class="dot"></span>Fortbildung · Psychische Gesundheit</span>
-    <h1>Über die Seele sprechen.</h1>
+    <h1>Man sieht es mir nicht an.</h1>
     <p class="tag">Ein Seminar, das psychische Erkrankungen verständlich macht, Vorurteile abbaut – und Mut macht, Hilfe anzunehmen.</p>
     <div class="pills">
       <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#3f8f60" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-4.4-9.3-8.4C1 9.5 2.5 6 6 6c2 0 3.2 1.2 4 2.3C10.8 7.2 12 6 14 6c3.5 0 5 3.5 3.3 6.6C19 16.6 12 21 12 21z"/></svg>Empathisch &amp; modern</span>
@@ -109,7 +125,7 @@ footer .em b{color:var(--green-d)}
       <a class="card" href="praesentation.html">
         <div class="top c1"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
         <div class="bd">
-          <span class="kicker">Präsentation · 27 Folien</span>
+          <span class="kicker">Präsentation · 28 Folien</span>
           <h3>Die Seminar&shy;präsentation</h3>
           <p>Moderne, helle Folien mit Bildern, Infografiken, Merksätzen und Zitaten. Inklusive umfangreicher Sprechernotizen und Animationsempfehlungen.</p>
           <span class="go">Präsentation öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
@@ -137,7 +153,23 @@ footer .em b{color:var(--green-d)}
   </div>
 </section>
 
-<section class="section">
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <a class="trainer" href="trainerhandbuch.html">
+      <div class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg>
+      </div>
+      <div class="ttx">
+        <span class="kicker">Für die Durchführung · Referent:innen</span>
+        <h3>Das Trainerhandbuch</h3>
+        <p>Die ausführliche Anleitung zum Workshop: Haltung, Ablaufplan mit Zeiten, Modul-für-Modul-Leitfaden mit Moderationsskript, alle Übungen im Detail, ein Krisenprotokoll und Checklisten.</p>
+        <span class="go">Handbuch öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
   <div class="wrap">
     <h2 class="h2">Worauf dieses Seminar Wert legt</h2>
     <p class="sub">Emotional erreichen. Verständlich bleiben. Professionell wirken.</p>
@@ -157,6 +189,7 @@ footer .em b{color:var(--green-d)}
       <div class="rtx">
         <span class="kicker" style="color:var(--sage)">Ihr Referent</span>
         <h3>Markus Warscher</h3>
+        <div class="roles">Musiker · Trauervertrauensperson (ÖBB Produktion) · Gleichstellungsbeauftragter in Ausbildung (ÖBB Konzern)</div>
         <p>Markus spricht nicht nur <em>über</em> psychische Gesundheit – er hat sie selbst durchlebt. Aus dieser Erfahrung ist dieses Seminar entstanden: ehrlich, warm und mit der Botschaft, dass aus jeder Krise ein Weg herausführt.</p>
       </div>
     </div>
@@ -175,7 +208,7 @@ footer .em b{color:var(--green-d)}
     <span class="em"><b>142</b> Telefonseelsorge</span>
     <span class="em"><b>147</b> Rat auf Draht</span>
     <span class="em"><b>141</b> Ärztefunkdienst</span>
-    <p style="margin-top:20px">Seminar „Über die Seele sprechen" · Fortbildung zu psychischer Gesundheit.<br>Bildungsunterlage – ersetzt keine ärztliche oder psychotherapeutische Beratung.</p>
+    <p style="margin-top:20px">Seminar „Man sieht es mir nicht an" · Fortbildung zu psychischer Gesundheit.<br>Bildungsunterlage – ersetzt keine ärztliche oder psychotherapeutische Beratung.</p>
   </div>
 </footer>
 
