@@ -275,9 +275,23 @@ body.show-notes .notes{display:block}
 
 /* Print-Hinweis auf Bildschirm ausblenden */
 @media print{
-  .nav,.toolbar,.topbar{display:none!important}
-  .slide{min-height:auto;page-break-after:always;border:none}
-  body.show-notes .notes{display:block}
+  .nav,.toolbar,.topbar,.help{display:none!important}
+  /* Reveal-Elemente im Druck IMMER sichtbar (sonst fehlen Inhalte beim Speichern) */
+  .reveal{opacity:1!important;transform:none!important;transition:none!important}
+  html,body{background:#fff}
+  /* Jede Folie = eine Querformat-Seite, natürliche Höhe (kein Beschneiden) */
+  .slide{min-height:0;height:192mm;overflow:hidden;border:none;
+    justify-content:center;padding:9mm 14mm;
+    page-break-after:always;break-after:page;page-break-inside:avoid;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* Inhalt herunterskalieren, damit jede Folie sicher auf eine Seite passt */
+  .slide-inner{zoom:.66}
+  .split{grid-template-columns:1.05fr .95fr!important}
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .slide *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .foot{position:static;margin-top:16px}
+  body:not(.show-notes) .notes{display:none!important}
+  @page{size:297mm 210mm;margin:0}
 }
 /* Hinweisbanner Bedienung */
 .help{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:60;background:var(--ink);color:#fff;
@@ -1239,9 +1253,9 @@ body.show-notes .notes{display:block}
   <button class="toolbtn" id="notesBtn" title="Sprechernotizen ein/aus (Taste N)">
     <svg viewBox="0 0 24 24"><path class="st" d="M4 5h16v14H8l-4 3z"/><path class="st" d="M8 10h8M8 14h5"/></svg><span>Notizen</span>
   </button>
-  <button class="toolbtn" id="printBtn" title="Als PDF drucken (Taste P)">
-    <svg viewBox="0 0 24 24"><path class="st" d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg><span>Drucken</span>
-  </button>
+  <a class="toolbtn" href="pdf/folien-praesentation.pdf" download title="Alle 28 Folien als PDF laden" style="text-decoration:none">
+    <svg viewBox="0 0 24 24"><path class="st" d="M12 3v12M7 12l5 5 5-5M5 21h14"/></svg><span>PDF (alle Folien)</span>
+  </a>
 </div>
 <div class="nav">
   <div class="counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">28</span></div>
@@ -1282,7 +1296,7 @@ body.show-notes .notes{display:block}
     document.body.classList.toggle('show-notes');
     notesBtn.classList.toggle('on');
   };
-  document.getElementById('printBtn').onclick = function(){ window.print(); };
+  var pb=document.getElementById('printBtn'); if(pb){ pb.onclick=function(){ window.print(); }; }
 
   document.addEventListener('keydown', function(e){
     if(e.key==='ArrowRight' || e.key==='PageDown' || e.key===' '){ e.preventDefault(); goto(idx+1); }

@@ -93,6 +93,16 @@ h1{font-size:clamp(38px,7vw,72px);font-weight:800;letter-spacing:-.02em;margin:2
 .quote .q{font-family:Georgia,serif;font-style:italic;font-size:clamp(21px,3vw,30px);color:var(--green-d)}
 .quote .by{color:var(--muted);font-weight:600;margin-top:12px}
 
+.dls{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(max-width:720px){.dls{grid-template-columns:1fr}}
+.dl{display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);
+  border-radius:16px;padding:16px 20px;box-shadow:var(--shadow-s);transition:transform .15s,box-shadow .15s}
+.dl:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.dl .di{font-size:26px;flex:0 0 auto}
+.dl .dt{font-weight:800;font-size:16.5px}
+.dl .dm{margin-left:auto;color:var(--green-d);font-weight:700;font-size:13px;background:var(--mint-2);
+  padding:5px 12px;border-radius:100px;white-space:nowrap}
+@media(max-width:420px){.dl .dm{display:none}}
 footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center}
 footer .em{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--line);
   border-radius:100px;padding:8px 16px;margin:0 6px 8px;font-weight:700;box-shadow:var(--shadow-s)}
@@ -166,6 +176,17 @@ footer .em b{color:var(--green-d)}
         <span class="go">Handbuch öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       </div>
     </a>
+    <a class="trainer" href="impulsvortrag.html" style="margin-top:22px;background:linear-gradient(135deg,#f3eefc,#eef6f0)">
+      <div class="ic" style="background:linear-gradient(135deg,#8a6bd1,#7cc496)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>
+      </div>
+      <div class="ttx">
+        <span class="kicker">Bühnenformat · mit Musik</span>
+        <h3>Impulsvortrag-Skript</h3>
+        <p>Ein rund 90-minütiger Impulsvortrag mit Platz für 6 Lieder – humorvoll und ehrlich über den Alltag mit PTBS und Panikattacken. Fertiges Redeskript zum Anpassen, inklusive Ablauf und Lied-Platzhaltern.</p>
+        <span class="go">Skript öffnen <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </div>
+    </a>
   </div>
 </section>
 
@@ -196,6 +217,20 @@ footer .em b{color:var(--green-d)}
     <div class="quote">
       <div class="q">„Reden wir über die Seele – so selbstverständlich, wie wir über den Körper reden."</div>
       <div class="by">Leitgedanke des Seminars</div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="h2">Zum Herunterladen (PDF)</h2>
+    <p class="sub">Alle Materialien als fertige PDF – vollständig, druckfertig und zum Weitergeben. Je nach Thema getrennt.</p>
+    <div class="dls">
+      <a class="dl" href="pdf/folien-praesentation.pdf" download><span class="di">📊</span><span class="dt">Präsentation – alle 28 Folien</span><span class="dm">PDF · 28 Seiten</span></a>
+      <a class="dl" href="pdf/arbeitsblaetter.pdf" download><span class="di">📄</span><span class="dt">Arbeitsblätter</span><span class="dm">PDF · 8 Seiten (A4)</span></a>
+      <a class="dl" href="pdf/seminarunterlage.pdf" download><span class="di">📘</span><span class="dt">Seminarunterlage</span><span class="dm">PDF · 6 Seiten (A4)</span></a>
+      <a class="dl" href="pdf/trainerhandbuch.pdf" download><span class="di">📗</span><span class="dt">Trainerhandbuch</span><span class="dm">PDF · 19 Seiten (A4)</span></a>
+      <a class="dl" href="pdf/impulsvortrag.pdf" download><span class="di">🎤</span><span class="dt">Impulsvortrag-Skript</span><span class="dm">PDF · 12 Seiten (A4)</span></a>
     </div>
   </div>
 </section>
