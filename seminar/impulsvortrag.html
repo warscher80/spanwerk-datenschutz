@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#57a773">
+<title>Impulsvortrag-Skript – Man sieht es mir nicht an</title>
+<style>
+:root{
+  --leaf:#7cc496;--green:#57a773;--green-d:#3f8f60;--sage:#9cbfa8;
+  --mint:#eaf6ee;--mint-2:#dcefe3;--cloud:#f5f8f6;--paper:#fff;
+  --ink:#2c3b32;--muted:#63756a;--line:#cdddd3;--line-2:#b7ccc0;
+  --sun:#f4c95d;--sun-d:#e0ab34;--coral:#e59a86;--coral-d:#cf7e69;
+  --note:#8a6bd1;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);
+  background:var(--mint);line-height:1.62;font-size:15px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;line-height:1.18}
+
+.bar{position:sticky;top:0;z-index:20;background:var(--green-d);color:#fff;padding:12px 20px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.bar .t{font-weight:800;font-size:16px}.bar .s{opacity:.9;font-size:13.5px}
+.bar button{margin-left:auto;background:#fff;color:var(--green-d);border:none;font-weight:800;
+  padding:10px 18px;border-radius:100px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;gap:8px}
+.bar button svg{width:18px;height:18px}
+
+.doc{max-width:820px;margin:22px auto;background:var(--paper);box-shadow:0 8px 30px rgba(63,143,96,.16);
+  padding:48px 56px 64px}
+@media(max-width:640px){.doc{padding:26px 20px 40px;margin:10px}}
+
+.cover{border-bottom:3px solid var(--leaf);padding-bottom:24px;margin-bottom:26px}
+.cover .kick{font-size:12.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--green-d)}
+.cover h1{font-size:clamp(30px,5.4vw,46px);margin:12px 0 8px;letter-spacing:-.01em}
+.cover .sub{color:var(--muted);font-size:18px}
+.cover .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.cover .badges span{background:var(--mint-2);color:var(--green-d);border-radius:100px;padding:6px 14px;font-size:12.5px;font-weight:700}
+
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+@media(max-width:540px){.facts{grid-template-columns:1fr}}
+.fact{background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:14px}
+.fact .n{font-size:22px;font-weight:800;color:var(--green-d);line-height:1}
+.fact .l{font-size:12.5px;color:var(--muted);margin-top:4px;font-weight:600}
+
+.lead{color:var(--muted);margin:0 0 16px}
+p{margin:0 0 12px}
+
+/* Callouts */
+.call{display:flex;gap:12px;border-radius:0 12px 12px 0;padding:14px 18px;margin:14px 0;font-size:14px}
+.call .ic{flex:0 0 auto;font-size:20px;line-height:1.3}
+.call.tip{background:var(--mint);border-left:5px solid var(--leaf)}.call.tip b{color:var(--green-d)}
+.call.warn{background:#fdf3e3;border-left:5px solid var(--sun-d)}.call.warn b{color:var(--sun-d)}
+.call.crisis{background:#fbeee9;border-left:5px solid var(--coral-d)}.call.crisis b{color:var(--coral-d)}
+
+/* Ablauf */
+.run{width:100%;border-collapse:collapse;margin:8px 0}
+.run th,.run td{border:1.5px solid var(--line-2);padding:8px 11px;text-align:left;font-size:13.5px;vertical-align:top}
+.run th{background:var(--mint-2);color:var(--green-d);font-size:12px;font-weight:800}
+.run td b{color:var(--green-d)}
+.run tr.song td{background:#f3eefc}
+
+/* Block */
+.block{margin:30px 0 8px;padding-top:8px;border-top:2px dashed var(--line)}
+.block .bh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.block .bl{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sage)}
+.block h2{font-size:23px;color:var(--ink)}
+.block .time{margin-left:auto;background:var(--mint-2);color:var(--green-d);border-radius:100px;padding:4px 12px;font-size:12.5px;font-weight:800}
+.goal{font-size:13.5px;color:var(--muted);font-style:italic;margin:2px 0 12px}
+
+/* Sprechtext (Teleprompter) */
+.say{font-size:16.5px;line-height:1.75;margin:0 0 14px}
+.say em{color:var(--green-d);font-style:italic}
+.cue{display:block;color:var(--note);font-size:13.5px;font-weight:700;margin:10px 0 4px}
+.cue::before{content:"▸ ";}
+.beat{color:var(--coral-d);font-weight:700;font-style:normal}
+
+/* Liedkarte / Platzhalter */
+.song{background:linear-gradient(135deg,#f3eefc,#eef6f0);border:1.5px solid #ddd0f0;border-radius:16px;
+  padding:18px 20px;margin:18px 0}
+.song .sh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.song .note-ic{width:38px;height:38px;border-radius:11px;background:#fff;display:grid;place-items:center;box-shadow:0 3px 10px rgba(120,90,200,.18)}
+.song .note-ic svg{width:22px;height:22px;stroke:var(--note);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.song .st{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--note)}
+.song .sn{font-size:19px;font-weight:800;color:var(--ink)}
+.song .fields{display:grid;gap:10px}
+.song .fld{display:flex;align-items:flex-end;gap:8px}
+.song .fld label{font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;padding-bottom:3px;min-width:96px}
+.song .fld .ln{flex:1;border-bottom:1.5px solid #c9bce6;height:22px}
+.song .dur{font-size:12.5px;color:var(--muted);font-weight:600}
+
+.thread{background:linear-gradient(135deg,var(--green),var(--leaf));color:#fff;border-radius:14px;padding:18px 22px;margin:16px 0}
+.thread .l{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.thread .t{font-size:18px;font-weight:800;margin-top:4px}
+
+.foot{margin-top:40px;border-top:1.5px solid var(--line);padding-top:16px;color:var(--muted);font-size:12.5px;text-align:center}
+
+@media print{
+  body{background:#fff}.bar{display:none!important}
+  .doc{box-shadow:none;margin:0;max-width:none;padding:12mm 15mm}
+  .block,.song,.call{page-break-inside:avoid}
+  @page{size:A4;margin:14mm}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="t">Impulsvortrag-Skript · „Man sieht es mir nicht an"</span>
+  <span class="s">mit Musik &amp; Humor · ca. 90 Minuten</span>
+  <a href="pdf/impulsvortrag.pdf" download style="margin-left:auto;background:#fff;color:var(--green-d);font-weight:800;padding:10px 18px;border-radius:100px;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 12l5 5 5-5M5 21h14"/></svg>PDF laden</a>
+  <button onclick="window.print()" style="margin-left:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg>Drucken</button>
+</div>
+
+<article class="doc">
+  <div class="cover">
+    <div class="kick">Impulsvortrag mit Musik · Referent: Markus Warscher</div>
+    <h1>Man sieht es mir nicht an</h1>
+    <p class="sub">Vom ganz normalen Wahnsinn, mit PTBS und Panikattacken durch den Alltag zu gehen – ehrlich, hoffnungsvoll und zum Lachen.</p>
+    <div class="badges"><span>ca. 90 Minuten</span><span>6 Lieder</span><span>Humorvoll &amp; respektvoll</span></div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="n">~90&nbsp;min</div><div class="l">Gesamtdauer inkl. Musik</div></div>
+    <div class="fact"><div class="n">6</div><div class="l">Lieder (frei wählbar)</div></div>
+    <div class="fact"><div class="n">5</div><div class="l">Erzählblöcke</div></div>
+  </div>
+
+  <p class="lead">Dies ist ein <b>Redeskript zum Anpassen</b>, kein Vorlesetext. Nimm die Passagen, die zu dir passen, formuliere sie in deinen Worten und lass die Geschichten atmen. Die <b>Lieder sind Platzhalter</b> – trage deine eigenen Titel ein. Die Zeitangaben sind Richtwerte.</p>
+
+  <div class="call tip"><div class="ic">😊</div><div><b>Der Ton:</b> Wir lachen <i>mit</i> – nie <i>über</i>. Der Humor entsteht daraus, wie absurd der Alltag mit einer Angsterkrankung manchmal ist, erzählt von jemandem, der ihn kennt. Jede Pointe landet in Würde und Hoffnung. Genau das macht das Thema besprechbar.</div></div>
+
+  <h2 style="font-size:22px;color:var(--ink);margin:26px 0 8px;padding-left:12px;border-left:5px solid var(--leaf)">Ablauf auf einen Blick</h2>
+  <table class="run">
+    <tr><th style="width:14%">Zeit</th><th>Programmpunkt</th><th style="width:16%">Dauer</th></tr>
+    <tr class="song"><td>00:00</td><td>♪ <b>Lied 1</b> – Opener, Ankommen</td><td>~5 min</td></tr>
+    <tr><td>00:05</td><td>Block A · „Man sieht es mir nicht an" – Begrüßung &amp; wer ich bin</td><td>~10 min</td></tr>
+    <tr class="song"><td>00:15</td><td>♪ <b>Lied 2</b></td><td>~4 min</td></tr>
+    <tr><td>00:19</td><td>Block B · Die Panikattacke im Alltag</td><td>~13 min</td></tr>
+    <tr class="song"><td>00:32</td><td>♪ <b>Lied 3</b></td><td>~4 min</td></tr>
+    <tr><td>00:36</td><td>Block C · PTBS im Alltag – mein Kopf, der Bodyguard</td><td>~13 min</td></tr>
+    <tr class="song"><td>00:49</td><td>♪ <b>Lied 4</b></td><td>~4 min</td></tr>
+    <tr><td>00:53</td><td>Block D · Die Wende – Hilfe annehmen</td><td>~11 min</td></tr>
+    <tr class="song"><td>01:04</td><td>♪ <b>Lied 5</b></td><td>~4 min</td></tr>
+    <tr><td>01:08</td><td>Block E · Leben mit – Humor als Kraft &amp; ein Wort an die Angehörigen</td><td>~11 min</td></tr>
+    <tr class="song"><td>01:19</td><td>♪ <b>Lied 6</b> – Abschluss &amp; Hoffnung</td><td>~4 min</td></tr>
+    <tr><td>01:23</td><td>Schlussworte &amp; Dank</td><td>~5 min</td></tr>
+    <tr><td>01:28</td><td>Ende</td><td></td></tr>
+  </table>
+
+  <!-- LIED 1 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 1 · Opener</div><div class="sn">Ankommen &amp; Einstimmen</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Empfehlung: ein warmes, einladendes Lied, das sofort Nähe schafft. ~5 min inkl. Ankommen.</div>
+  </div>
+
+  <!-- BLOCK A -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Block A</div><h2>„Man sieht es mir nicht an"</h2></div><span class="time">~10 min</span></div>
+    <div class="goal">Ziel: Ankommen, Vertrauen, den Titel erklären – und gleich klarmachen, dass wir heute auch lachen dürfen.</div>
+    <p class="say">Schön, dass Sie da sind. Bevor ich anfange, eine Warnung: Es wird heute um schwere Dinge gehen – Panik, Angst, eine Zeit, in der bei mir nicht mehr viel funktioniert hat. Und trotzdem werden wir zwischendurch lachen. Weil beides zusammengehört. <em>Wer lacht, gibt nicht auf.</em></p>
+    <p class="say">Mein Name ist Markus. Wenn Sie mich auf der Straße treffen, denken Sie vermutlich: netter Kerl, wirkt ganz stabil. Und genau das ist der Titel von heute: <em>Man sieht es mir nicht an.</em> Man sieht den Menschen die Panikattacke nicht an. Man sieht ihnen die schlaflosen Nächte nicht an. Deshalb reden wir so selten darüber – und deshalb rede ich heute.</p>
+    <span class="cue">Kurz &amp; ruhig: der Ausgangspunkt (dosiert, keine Details).</span>
+    <p class="say">Vor einigen Jahren hatte ich einen schweren Verkehrsunfall. Menschen sind dabei gestorben, andere schwer verletzt worden, ich selbst auch. Ich habe überlebt – aber ein Teil von mir ist an diesem Tag zunächst nicht mehr aufgestanden. Was danach kam, hatte einen Namen, den ich damals nicht hören wollte: Depression. Und Posttraumatische Belastungsstörung. Kurz: PTBS.</p>
+    <p class="say">Heute erzähle ich Ihnen nicht, wie schlimm das war. Das können Sie sich denken. Ich erzähle Ihnen, wie <em>verrückt komisch</em> es manchmal ist, mit so einem Kopf durch einen ganz normalen Dienstag zu kommen. Und wie ich gelernt habe, dass es einen Weg zurück gibt.</p>
+    <span class="cue">Publikum abholen (Handzeichen).</span>
+    <p class="say">Kurze Frage in die Runde: Wer von Ihnen war schon einmal so richtig aufgeregt – Herzklopfen, feuchte Hände, Blackout? <span class="beat">(Hände abwarten.)</span> Sehen Sie – dann kennen Sie ein kleines Stück von dem, worüber wir reden. Nur dass mein Körper diesen Alarm manchmal auslöst, wenn überhaupt keine Gefahr da ist. Zum Beispiel an der Supermarktkasse. Aber dazu gleich mehr.</p>
+  </div>
+
+  <!-- LIED 2 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 2</div><div class="sn">nach Block A</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Vorschlag: ein Lied, das zum Ernst des Einstiegs passt – bevor es humorvoll wird. ~4 min.</div>
+  </div>
+
+  <!-- BLOCK B -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Block B</div><h2>Die Panikattacke im Alltag</h2></div><span class="time">~13 min</span></div>
+    <div class="goal">Ziel: Panik von innen zeigen – über alltägliche, komische Szenen, die trotzdem ernst genommen werden.</div>
+    <p class="say">Also, die Supermarktkasse. Für die meisten Menschen: ein neutraler Ort. Für meinen Körper zeitweise: <em>der Endgegner.</em></p>
+    <p class="say">Stellen Sie sich vor: Ich stehe in der Schlange, drei Leute vor mir. Und plötzlich beschließt mein Herz, dass jetzt der perfekte Moment für ein Kardio-Training ist. Es rast. Meine Hände werden feucht. Und mein Kopf – mein Kopf ist überzeugt: <em>Alle sehen das. Alle wissen es. Gleich passiert etwas Schreckliches.</em></p>
+    <p class="say">Dann bin ich dran, das Kartenlesegerät sagt „Bitte warten" – und ich denke: <span class="beat">(leicht panisch)</span> „Nein, bitte <em>nicht</em> warten, bitte einfach nur diesen einen Moment überstehen!" Und während in meinem Inneren die Feuerwehr ausrückt, fragt die Kassiererin völlig entspannt: „Mögen S’ an Kassabon?"</p>
+    <span class="cue">Pointe halten, dann die Wahrheit dahinter.</span>
+    <p class="say">Und das ist das Absurde an einer Panikattacke: Innen tobt die Apokalypse – und außen sieht man einen Mann, der etwas zu lange über einen Kassabon nachdenkt. <em>Man sieht es mir nicht an.</em></p>
+    <p class="say">Mein Körper macht dabei nichts Falsches, müssen Sie wissen. Er macht das, wofür er gebaut ist: Alarm. Nur ist der Alarm für einen Säbelzahntiger gedacht – und nicht für einen Montag im Supermarkt zwischen Wursttheke und Sonderangeboten.</p>
+    <span class="cue">Zweite Szene: Stau / enger Raum.</span>
+    <p class="say">Oder der Stau. Ich stehe auf der Autobahn, es geht nichts weiter, und mein Nervensystem ruft den Ausnahmezustand aus – obwohl ich objektiv nur zwischen einem Wohnmobil und einem LKW voller Klopapier stehe. Die größte reale Gefahr ist, dass mir langweilig wird. Sagt mein Verstand. Mein Körper sieht das anders.</p>
+    <p class="say">Was in so einem Moment hilft – und das dürfen Sie gleich mit mir ausprobieren – ist ganz unspektakulär: Atmen. Aber richtig. <em>Vier</em> Sekunden ein <span class="beat">(vormachen)</span>, <em>sechs</em> halten, <em>acht</em> langsam aus. Der Körper kann nämlich nicht gleichzeitig Panik haben und langsam ausatmen. Das ist wie Blinken und Hupen gleichzeitig – technisch schwierig.</p>
+    <span class="cue">Optional: eine Runde 4-6-8 gemeinsam atmen.</span>
+    <p class="say">Und die vielleicht wichtigste Nachricht über die Panikattacke: Sie ist nicht gefährlich, und sie hört <em>immer</em> wieder auf. Noch jede Attacke in meinem Leben hatte eines gemeinsam – sie war irgendwann vorbei. Hundert Prozent Erfolgsquote beim Aufhören. Das muss man erst mal schaffen.</p>
+  </div>
+
+  <!-- LIED 3 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 3</div><div class="sn">nach Block B</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Vorschlag: etwas Beschwingtes, das die Erleichterung nach der Pointe trägt. ~4 min.</div>
+  </div>
+
+  <!-- BLOCK C -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Block C</div><h2>PTBS im Alltag – mein Kopf, der Bodyguard</h2></div><span class="time">~13 min</span></div>
+    <div class="goal">Ziel: PTBS-Symptome (Übererregung, Vermeidung, Schreckreflex, Schlaf) alltagsnah und mit Humor erklären.</div>
+    <p class="say">Nach einem Trauma stellt das Gehirn einen Bodyguard ein. Gut gemeint. Das Problem: Mein Bodyguard hat nie Feierabend, und er ist maßlos übermotiviert.</p>
+    <span class="cue">Szene: Restaurant / Hypervigilanz.</span>
+    <p class="say">Gehen Sie mal mit mir essen. Ich brauche den Platz mit dem Rücken zur Wand und Blick zur Tür. Immer. Während normale Gäste die Speisekarte studieren, habe ich längst alle Notausgänge lokalisiert. Ich bin vermutlich der einzige Gast, der ein Lokal nicht nach dem Schnitzel bewertet, sondern nach den Fluchtwegen. <span class="beat">(trocken)</span> Fünf Sterne für die Notbeleuchtung.</p>
+    <span class="cue">Szene: Schreckreflex.</span>
+    <p class="say">Dann der Schreckreflex. Irgendwo fällt ein Tablett zu Boden – so ein richtig schönes Scheppern. Der ganze Raum zuckt kurz und ärgert sich über die kaputten Gläser. Ich dagegen bin gedanklich schon unter dem Tisch und plane die Evakuierung des Gebäudes. Vollständig. Mit Sammelplatz.</p>
+    <span class="cue">Szene: Vermeidung / Navi.</span>
+    <p class="say">Oder das Autofahren. Es gibt eine bestimmte Strecke, die ich lange gemieden habe – die Unfallstelle. Mein Navigationsgerät hält mich deshalb für hochgradig orientierungslos, weil ich beharrlich Umwege fahre. Dabei bin ich nicht orientierungslos. Ich habe nur eine sehr, sehr genaue Verbotszone. Das Navi sagt „Bitte wenden". Ich sage: „Nein."</p>
+    <span class="cue">Szene: Schlaf / Gedankenkarussell.</span>
+    <p class="say">Und die Nächte. Tagsüber funktioniere ich. Aber um drei Uhr früh beruft mein Gehirn zuverlässig eine <em>Krisensitzung</em> ein. Tagesordnungspunkt eins: ein unglücklicher Satz, den ich 2019 gesagt habe. Punkt zwei: alles, was in den nächsten dreißig Jahren schiefgehen könnte. Anwesend: ich. Abwesend: jede Lösung. Die Sitzung dauert bis fünf. Beschlüsse werden keine gefasst.</p>
+    <span class="cue">Vom Lachen zur Wahrheit.</span>
+    <p class="say">Ich erzähle das mit einem Augenzwinkern. Aber Sie verstehen: Das ist anstrengend. Dieser Bodyguard kostet Kraft, jeden Tag. Und das Schlimmste war lange, dass ich dachte, ich sei der Einzige. Dass mit mir etwas grundsätzlich nicht stimmt. Dabei ist das ein <em>Symptom</em> – kein Charakterfehler. Und Symptome kann man behandeln.</p>
+  </div>
+
+  <!-- LIED 4 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 4</div><div class="sn">nach Block C</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Vorschlag: ein nachdenklicheres Lied als Brücke zur Wende. ~4 min.</div>
+  </div>
+
+  <!-- BLOCK D -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Block D</div><h2>Die Wende – Hilfe annehmen</h2></div><span class="time">~11 min</span></div>
+    <div class="goal">Ziel: der Kern der Botschaft – Hilfe annehmen ist Stärke. Mit Humor über den inneren Widerstand.</div>
+    <p class="say">Jetzt kommt der Teil, an dem ich am längsten gescheitert bin: Hilfe holen. Ich bin ein Mann. Wir fragen nicht mal nach dem Weg, wenn wir uns verfahren haben – wir „erkunden die Gegend". Und bei der Seele? Erst recht nicht. „Das schaff ich allein."</p>
+    <p class="say">Wissen Sie, was „das schaff ich allein" bei mir war? Wie einen Schrank ohne Anleitung aufzubauen. Geht schon irgendwie. Aber am Ende bleiben drei Schrauben übrig, eine Tür geht nicht zu, und das ganze Ding wackelt bei jedem Windstoß. Irgendwann habe ich verstanden: Es gibt eine Anleitung. Und Leute, die sich damit auskennen.</p>
+    <span class="cue">Erwartung vs. Realität – Therapie.</span>
+    <p class="say">Meine Vorstellung von Therapie war übrigens komplett aus dem Fernsehen: eine Ledercouch, ein Mann mit Bart sagt „und wie fühlen Sie sich dabei?", und ich müsste über meine Kindheit reden. Die Realität war viel unspektakulärer – und viel hilfreicher. Kein Bart. Keine Deutung meiner Träume. Sondern konkrete Werkzeuge für meinen überdrehten Bodyguard.</p>
+    <p class="say">Und ich sage Ihnen ganz offen: Therapeutinnen, Psychologen, Psychiaterinnen – das sind nicht die Gegner. Das sind die Leute, die die Anleitung haben. Sie wollen helfen. Und ich stehe heute nur deshalb hier, halbwegs sortiert und mit Humor, weil ich irgendwann diesen einen Satz über die Lippen gebracht habe: „Ich komme allein nicht weiter."</p>
+    <div class="thread">
+      <div class="l">Die Botschaft</div>
+      <div class="t">Hilfe anzunehmen ist keine Schwäche. Es ist der mutigste, klügste Schritt, den ich gegangen bin.</div>
+    </div>
+    <p class="say">Beim gebrochenen Bein gehen wir zum Arzt, ohne uns zu schämen. Bei der Seele darf das genauso normal sein. <em>Man sieht es mir nicht an</em> – aber ich habe mir helfen lassen. Und das war die beste Entscheidung.</p>
+  </div>
+
+  <!-- LIED 5 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 5</div><div class="sn">nach Block D</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Vorschlag: ein hoffnungsvolles, aufrichtendes Lied. ~4 min.</div>
+  </div>
+
+  <!-- BLOCK E -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Block E</div><h2>Leben mit – Humor als Kraft &amp; ein Wort an die Angehörigen</h2></div><span class="time">~11 min</span></div>
+    <div class="goal">Ziel: Humor als Bewältigung würdigen, Angehörige einbeziehen, Zuversicht stiften.</div>
+    <p class="say">Manche fragen: Darf man über so etwas überhaupt lachen? Ich finde: Man muss sogar. Mein Humor ist kein Wegschauen. Er ist mein Trotzdem. Wenn ich über meinen übermotivierten Bodyguard lachen kann, dann hat er ein bisschen weniger Macht über mich. Lachen ist die Art, wie ich der Angst sage: <em>Du bestimmst nicht alles.</em></p>
+    <p class="say">Heute ist übrigens nicht alles weg. Silvester ist für mich immer noch eher eine Übung als ein Fest – während alle „Ohhh" und „Ahhh" rufen, zähle ich innerlich die Raketen und freue mich auf den 2. Jänner. Aber: Ich habe Werkzeuge. Ich habe Menschen. Und ich habe die Musik. Es geht nicht darum, dass alles wieder wird wie vorher. Es geht darum, ein gutes Leben zu führen – manchmal ein reiferes als vorher.</p>
+    <span class="cue">An die Angehörigen im Publikum.</span>
+    <p class="say">Ein Wort an alle, die jemanden begleiten: Sie müssen nichts reparieren. Sie müssen keine klugen Ratschläge haben. Der wirksamste Satz der Welt ist erstaunlich einfach: <em>„Ich bin da. Und du musst das nicht allein schaffen."</em> Mehr braucht es oft nicht, um eine Tür zu öffnen.</p>
+    <p class="say">Und wenn Sie selbst gerade merken, dass Ihr eigener Bodyguard Überstunden macht: Das ist kein Weltuntergang und kein Grund zur Scham. Das ist ein Signal. Reden Sie mit jemandem. Mit einem Menschen, dem Sie vertrauen, mit der Hausärztin, mit einer der Nummern, die ich Ihnen mitgebe. Der erste Schritt ist der schwerste – und der wichtigste.</p>
+  </div>
+
+  <!-- LIED 6 -->
+  <div class="song">
+    <div class="sh"><div class="note-ic"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></div>
+      <div><div class="st">Lied 6 · Finale</div><div class="sn">Abschluss &amp; Hoffnung</div></div></div>
+    <div class="fields">
+      <div class="fld"><label>Liedtitel</label><div class="ln"></div></div>
+      <div class="fld"><label>Stimmung</label><div class="ln"></div></div>
+      <div class="fld"><label>Überleitung</label><div class="ln"></div></div>
+    </div>
+    <div class="dur" style="margin-top:8px">Vorschlag: dein stärkstes, hoffnungsvollstes Lied als Schlusspunkt. ~4 min.</div>
+  </div>
+
+  <!-- SCHLUSS -->
+  <div class="block">
+    <div class="bh"><div><div class="bl">Schluss</div><h2>Schlussworte &amp; Dank</h2></div><span class="time">~5 min</span></div>
+    <p class="say">Wenn Sie heute einen einzigen Satz mitnehmen, dann diesen: <em>Man sieht es einem Menschen nicht an.</em> Nicht die Panik, nicht die schweren Nächte, nicht die Kämpfe. Deshalb: Seien Sie freundlich – zu anderen und zu sich selbst. Und wenn es einmal zu viel wird, holen Sie sich Hilfe. Das ist keine Schwäche. Das ist Stärke.</p>
+    <p class="say">Danke, dass Sie mir zugehört haben – beim Lachen und beim Ernst. Passen Sie auf sich auf.</p>
+    <span class="cue">Optional: Anlaufstellen-Folie / Handzettel zeigen und stehen lassen.</span>
+  </div>
+
+  <div class="call crisis"><div class="ic">🆘</div><div><b>Zum Mitgeben – Hilfe im Ernstfall (Österreich):</b> Rettung <b>144</b> · Telefonseelsorge <b>142</b> (24 h, kostenlos, anonym) · Rat auf Draht <b>147</b> (für Kinder &amp; Jugendliche) · Ärztefunkdienst <b>141</b>. Regionale Stellen vorab ergänzen.</div></div>
+
+  <div class="call warn"><div class="ic">🎤</div><div><b>Hinweis zur Selbstfürsorge des Referenten:</b> Dieser Vortrag berührt eigene Themen. Erzähle nur, was dir an diesem Abend guttut, setze Grenzen und plane danach bewusst etwas Erholsames ein.</div></div>
+
+  <div class="foot">
+    Impulsvortrag „Man sieht es mir nicht an" · Skript zum Anpassen · Referent: Markus Warscher<br>
+    Bildungs- und Bühnenformat – ersetzt keine ärztliche oder psychotherapeutische Beratung.
+  </div>
+</article>
+
+</body>
+</html>
