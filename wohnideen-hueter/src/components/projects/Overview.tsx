@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import type { Project } from "@/lib/site";
@@ -23,7 +24,7 @@ function OverviewTile({
         className="group relative flex h-full min-h-[15rem] flex-col justify-end overflow-hidden rounded-panel bg-ink shadow-soft"
       >
         <Image
-          src={`/images/proj-${p.slug}.jpg`}
+          src={asset(`/images/proj-${p.slug}.jpg`)}
           alt={`${p.title}`}
           fill
           sizes={featured ? "(max-width:1024px) 100vw, 66vw" : "(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"}

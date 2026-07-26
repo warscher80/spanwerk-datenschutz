@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { asset } from "@/lib/asset";
 import Image from "next/image";
 import { people, site } from "@/lib/site";
 import { pageMeta } from "@/lib/seo";
@@ -113,7 +114,7 @@ export default function UeberUnsPage() {
                 <div className="text-center">
                   <div className="relative mx-auto mb-4 aspect-square overflow-hidden rounded-panel bg-taupe shadow-soft">
                     <Image
-                      src={`/images/${m.img}.jpg`}
+                      src={asset(`/images/${m.img}.jpg`)}
                       alt={`Porträt ${m.name}`}
                       fill
                       sizes="(max-width:640px) 100vw, 22rem"
@@ -144,7 +145,7 @@ export default function UeberUnsPage() {
             <Reveal>
               <div className="relative aspect-[5/4] overflow-hidden rounded-panel shadow-soft">
                 <Image
-                  src="/images/service-1.jpg"
+                  src={asset("/images/service-1.jpg")}
                   alt="Schauraum von Wohnideen Hueter in Irschen"
                   fill
                   sizes="(max-width:1024px) 100vw, 50vw"

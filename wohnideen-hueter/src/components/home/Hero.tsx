@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { Reveal } from "@/components/Reveal";
@@ -73,7 +74,7 @@ export function BrandHero() {
             <figure className="relative">
               <div className="relative aspect-[3/4] overflow-hidden">
                 <Image
-                  src="/images/hero-home.jpg"
+                  src={asset("/images/hero-home.jpg")}
                   alt="Individuell geplanter Wohnraum von Wohnideen Hueter"
                   fill
                   priority

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Eyebrow } from "./SectionHeader";
@@ -20,7 +21,7 @@ export function PageHero({ image, alt, eyebrow, title, lead, crumb }: PageHeroPr
     <section className="relative flex min-h-[clamp(340px,46vh,520px)] items-end overflow-hidden pt-[68px] text-white">
       <div className="absolute inset-0 -z-10">
         <Image
-          src={image}
+          src={asset(image)}
           alt={alt}
           fill
           priority

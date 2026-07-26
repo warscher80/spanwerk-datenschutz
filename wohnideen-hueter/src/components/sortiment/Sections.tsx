@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
@@ -42,7 +43,7 @@ export function SortimentIntro({
           <Reveal className={cn("order-1", reverse && "lg:order-2")}>
             <div className={cn("relative overflow-hidden rounded-panel shadow-soft", aspect)}>
               <Image
-                src={image}
+                src={asset(image)}
                 alt={imageAlt}
                 fill
                 sizes="(max-width:1024px) 100vw, 50vw"
@@ -186,7 +187,7 @@ export function MoodBand({
   return (
     <section className="relative flex min-h-[clamp(320px,42vw,520px)] items-center overflow-hidden text-white">
       <div className="absolute inset-0 -z-10">
-        <Image src={image} alt={imageAlt} fill sizes="100vw" className="object-cover" />
+        <Image src={asset(image)} alt={imageAlt} fill sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-black/45" />
       </div>
       <Container>
@@ -222,7 +223,7 @@ export function ProjectHighlight({
               className="group relative block aspect-[3/2] overflow-hidden rounded-panel bg-ink shadow-soft"
             >
               <Image
-                src={`/images/proj-${p.slug}.jpg`}
+                src={asset(`/images/proj-${p.slug}.jpg`)}
                 alt={`${p.title}`}
                 fill
                 sizes="(max-width:1024px) 100vw, 60vw"

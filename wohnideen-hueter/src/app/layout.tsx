@@ -3,6 +3,7 @@ import "./globals.css";
 import { display, sans, mono } from "@/lib/fonts";
 import { SITE_URL, localBusinessJsonLd } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { asset } from "@/lib/asset";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileCta } from "@/components/MobileCta";
@@ -19,8 +20,8 @@ export const metadata: Metadata = {
   applicationName: site.name,
   authors: [{ name: site.legalName }],
   icons: {
-    icon: [{ url: "/images/favicon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/images/favicon.svg" }],
+    icon: [{ url: asset("/images/favicon.svg"), type: "image/svg+xml" }],
+    apple: [{ url: asset("/images/favicon.svg") }],
   },
   robots: { index: true, follow: true },
 };

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
@@ -23,7 +24,7 @@ export function ProjectCard({
       >
         <div className="relative aspect-[3/2] overflow-hidden bg-taupe">
           <Image
-            src={`/images/proj-${project.slug}.jpg`}
+            src={asset(`/images/proj-${project.slug}.jpg`)}
             alt={project.title}
             fill
             sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
@@ -73,7 +74,7 @@ export function FeatureSplit({
       <Reveal className={cn("order-1", reverse && "lg:order-2")}>
         <div className="relative aspect-[5/4] overflow-hidden rounded-panel shadow-soft">
           <Image
-            src={image}
+            src={asset(image)}
             alt={alt}
             fill
             sizes="(max-width:1024px) 100vw, 50vw"

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectImage } from "@/lib/site";
 import { Icon } from "@/components/Icon";
@@ -83,7 +84,7 @@ export function ProjectGallery({ images }: { images: ProjectImage[] }) {
               className="group relative block aspect-[3/2] w-full overflow-hidden rounded-panel bg-taupe shadow-soft"
             >
               <Image
-                src={img.src}
+                src={asset(img.src)}
                 alt={img.alt}
                 fill
                 sizes="(max-width:640px) 100vw, 33vw"
@@ -133,7 +134,7 @@ export function ProjectGallery({ images }: { images: ProjectImage[] }) {
             <figure className="mx-14 flex max-h-[80vh] flex-col items-center">
               <div className="relative h-[70vh] w-full max-w-[60rem]">
                 <Image
-                  src={images[open].src}
+                  src={asset(images[open].src)}
                   alt={images[open].alt}
                   fill
                   sizes="90vw"

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 import Link from "next/link";
 import { useState } from "react";
 import { categories } from "@/lib/site";
@@ -46,7 +47,7 @@ export function RoomIndex() {
             >
               <div className="relative aspect-[16/10] overflow-hidden bg-taupe">
                 <Image
-                  src={`/images/cat-${c.slug}.jpg`}
+                  src={asset(`/images/cat-${c.slug}.jpg`)}
                   alt=""
                   fill
                   sizes="100vw"
@@ -64,7 +65,7 @@ export function RoomIndex() {
           <div className="relative aspect-[4/5] overflow-hidden bg-taupe">
             <Image
               key={active}
-              src={`/images/cat-${categories[active].slug}.jpg`}
+              src={asset(`/images/cat-${categories[active].slug}.jpg`)}
               alt={`${categories[active].title} bei Wohnideen Hueter`}
               fill
               sizes="40vw"
