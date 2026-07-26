@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" role="img" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="gwarm16001000living" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#c9a888"/>
-      <stop offset="0.55" stop-color="#9c6b4e"/>
-      <stop offset="1" stop-color="#6f4a34"/>
+      <stop offset="0" stop-color="#454340"/>
+      <stop offset="0.55" stop-color="#2a2927"/>
+      <stop offset="1" stop-color="#181716"/>
     </linearGradient>
     <radialGradient id="gwarm16001000livingv" cx="0.5" cy="0.3" r="0.9">
       <stop offset="0" stop-color="#fff" stop-opacity="0.14"/>
@@ -12,10 +12,10 @@
   </defs>
   <rect width="1600" height="1000" fill="url(#gwarm16001000living)"/>
   <g transform="scale(1.4035087719298245) translate(0,0)">
-      <rect x="120" y="120" width="230" height="150" rx="10" fill="#c9a888" opacity=".5"/>
+      <rect x="120" y="120" width="230" height="150" rx="10" fill="#454340" opacity=".5"/>
       <line x1="120" y1="120" x2="120" y2="270" stroke="#fff" stroke-opacity=".25" stroke-width="2"/>
-      <path d="M700 300 h300 v150 q0 20 -20 20 h-260 q-20 0 -20 -20 z" fill="#6f4a34" opacity=".55"/>
-      <rect x="690" y="270" width="330" height="60" rx="18" fill="#6f4a34" opacity=".7"/>
+      <path d="M700 300 h300 v150 q0 20 -20 20 h-260 q-20 0 -20 -20 z" fill="#181716" opacity=".55"/>
+      <rect x="690" y="270" width="330" height="60" rx="18" fill="#181716" opacity=".7"/>
       <line x1="850" y1="60" x2="850" y2="150" stroke="#fff" stroke-opacity=".3" stroke-width="2"/>
       <circle cx="850" cy="168" r="26" fill="#fff" fill-opacity=".18"/></g>
   <rect width="1600" height="1000" fill="url(#gwarm16001000livingv)"/>

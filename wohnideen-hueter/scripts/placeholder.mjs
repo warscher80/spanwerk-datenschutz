@@ -9,15 +9,17 @@
  *    Endung anpassen. Seitenverhältnisse siehe unten.
  * ------------------------------------------------------------------------- */
 
+// Neutrale, architektonische Töne (desaturiert, dunkel) – passen zur
+// Graphit/Editorial-Bildwelt; echte Fotos ersetzen sie 1:1.
 const HUES = {
-  clay:  ['#c08a68', '#8a5a40', '#6f4632'],
-  sage:  ['#969c7d', '#6a7052', '#535840'],
-  dusk:  ['#948aa0', '#63596f', '#4d4557'],
-  wood:  ['#c0966a', '#8a6440', '#6d4d32'],
-  stone: ['#ada69e', '#7d766e', '#635d56'],
-  water: ['#87a2ac', '#566f78', '#455a62'],
-  night: ['#5b5040', '#3a3227', '#2a2420'],
-  warm:  ['#c9a888', '#9c6b4e', '#6f4a34'],
+  clay:  ['#4b4744', '#2e2b29', '#1b1a19'],
+  sage:  ['#484b47', '#2c2f2c', '#1a1c1a'],
+  dusk:  ['#46454c', '#2b2a30', '#19181d'],
+  wood:  ['#4c4740', '#2f2b25', '#1c1a16'],
+  stone: ['#4a4a4a', '#2d2d2d', '#1a1a1a'],
+  water: ['#43494c', '#292e30', '#171b1c'],
+  night: ['#33322f', '#1f1e1c', '#131211'],
+  warm:  ['#454340', '#2a2927', '#181716'],
 };
 
 // Verschiedene abstrakte „Interieur"-Kompositionen (deterministisch pro Variante)
@@ -124,26 +126,23 @@ export function placeholder(o) {
 </svg>`;
 }
 
-// Favicon (Monogramm WH)
+// Favicon (Monogramm WH) – Graphit mit Akzentbalken
 export function favicon() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#9c6b4e"/>
-  <text x="32" y="43" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="34" font-weight="600" fill="#fff" letter-spacing="0.5">WH</text>
+  <rect width="64" height="64" fill="#0e0f11"/>
+  <rect x="0" y="0" width="64" height="5" fill="#e8431f"/>
+  <text x="32" y="44" text-anchor="middle" font-family="'Space Grotesk','Arial Narrow',sans-serif" font-size="30" font-weight="700" fill="#fff" letter-spacing="-1">WH</text>
 </svg>`;
 }
 
-// Open-Graph-Standardbild (1200×630)
+// Open-Graph-Standardbild (1200×630) – Graphit, Grotesk, Akzent
 export function ogImage() {
-  const c = HUES.warm;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
-  <defs><linearGradient id="og" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="${c[0]}"/><stop offset="0.6" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/>
-  </linearGradient></defs>
-  <rect width="1200" height="630" fill="url(#og)"/>
-  <rect width="1200" height="630" fill="#000" opacity="0.12"/>
-  <text x="600" y="255" text-anchor="middle" font-family="Inter, sans-serif" font-size="22" letter-spacing="6" fill="#fff" fill-opacity=".85">WOHNIDEEN HUETER · IRSCHEN</text>
-  <text x="600" y="345" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="66" font-weight="600" fill="#fff">Räume, die sich nach</text>
-  <text x="600" y="415" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="66" font-weight="600" fill="#fff">Zuhause anfühlen.</text>
-  <text x="600" y="500" text-anchor="middle" font-family="Inter, sans-serif" font-size="24" fill="#fff" fill-opacity=".82">Persönlich geplant · Hochwertig eingerichtet</text>
+  <rect width="1200" height="630" fill="#0e0f11"/>
+  <rect x="0" y="0" width="1200" height="8" fill="#e8431f"/>
+  <text x="80" y="150" font-family="'Space Mono',monospace" font-size="22" letter-spacing="6" fill="#fff" fill-opacity=".55">WOHNIDEEN HUETER — IRSCHEN, KÄRNTEN</text>
+  <text x="76" y="330" font-family="'Space Grotesk',Arial,sans-serif" font-size="104" font-weight="700" letter-spacing="-4" fill="#fff">RÄUME SIND MEHR</text>
+  <text x="76" y="440" font-family="'Space Grotesk',Arial,sans-serif" font-size="104" font-weight="700" letter-spacing="-4" fill="#fff">ALS EINRICHTUNG<tspan fill="#e8431f">.</tspan></text>
+  <text x="80" y="540" font-family="'Space Mono',monospace" font-size="24" fill="#fff" fill-opacity=".6">Individuelle Küchen &amp; Wohnräume — persönlich geplant</text>
 </svg>`;
 }

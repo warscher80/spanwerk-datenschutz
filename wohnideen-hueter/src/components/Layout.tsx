@@ -31,7 +31,7 @@ const toneClass: Record<Tone, string> = {
   cream: "bg-cream text-ink",
   sand: "bg-sand text-ink",
   paper: "bg-paper text-ink",
-  ink: "bg-ink text-[#f3ece1]",
+  ink: "bg-ink text-[#e7e7e4]",
 };
 
 /** Abschnitt mit konsistentem vertikalem Rhythmus. */

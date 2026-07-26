@@ -17,7 +17,7 @@ interface PageHeroProps {
 /** Sekundär-Hero für Unterseiten. */
 export function PageHero({ image, alt, eyebrow, title, lead, crumb }: PageHeroProps) {
   return (
-    <section className="relative flex min-h-[clamp(340px,46vh,520px)] items-end overflow-hidden pt-[78px] text-white">
+    <section className="relative flex min-h-[clamp(340px,46vh,520px)] items-end overflow-hidden pt-[68px] text-white">
       <div className="absolute inset-0 -z-10">
         <Image
           src={image}
@@ -31,7 +31,7 @@ export function PageHero({ image, alt, eyebrow, title, lead, crumb }: PageHeroPr
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg,rgba(30,22,16,.45),rgba(30,22,16,.72))",
+              "linear-gradient(180deg,rgba(14,15,17,.45),rgba(14,15,17,.72))",
           }}
         />
       </div>

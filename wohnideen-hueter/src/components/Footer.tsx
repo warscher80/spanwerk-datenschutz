@@ -13,7 +13,7 @@ const companyNav = [
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-ink text-[#d9cebd]">
+    <footer className="bg-ink text-[#b8b9bc]">
       <div className="mx-auto grid w-full max-w-[75rem] gap-10 px-5 pt-[clamp(3rem,6vw,5rem)] pb-10 sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1.3fr]">
         {/* Marke */}
         <div>
@@ -26,7 +26,7 @@ export function Footer() {
           <p className="font-display text-[1.5rem] leading-tight text-white">
             {site.claim}
           </p>
-          <p className="mt-2 max-w-[34ch] text-sm text-[#a99e8d]">
+          <p className="mt-2 max-w-[34ch] text-sm text-[#8a8c90]">
             Persönliche Einrichtungsplanung im oberen Drautal – von der ersten
             Idee bis zur fertigen Montage.
           </p>
@@ -34,7 +34,7 @@ export function Footer() {
             href={site.social.facebook}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-block border-b border-[#4a4238] pb-0.5 font-semibold text-white hover:border-gold"
+            className="mt-4 inline-block border-b border-[#33353a] pb-0.5 font-semibold text-white hover:border-gold"
           >
             Facebook
           </a>
@@ -42,7 +42,7 @@ export function Footer() {
 
         {/* Sortiment */}
         <nav aria-label="Sortiment">
-          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#8f8474]">
+          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#7e8085]">
             Sortiment
           </h2>
           <ul className="grid gap-2.5">
@@ -50,7 +50,7 @@ export function Footer() {
               <li key={c.slug}>
                 <Link
                   href={`/${c.slug}`}
-                  className="text-[0.95rem] text-[#d9cebd] hover:text-white"
+                  className="text-[0.95rem] text-[#b8b9bc] hover:text-white"
                 >
                   {c.nav}
                 </Link>
@@ -61,7 +61,7 @@ export function Footer() {
 
         {/* Unternehmen */}
         <nav aria-label="Unternehmen">
-          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#8f8474]">
+          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#7e8085]">
             Unternehmen
           </h2>
           <ul className="grid gap-2.5">
@@ -69,7 +69,7 @@ export function Footer() {
               <li key={c.href}>
                 <Link
                   href={c.href}
-                  className="text-[0.95rem] text-[#d9cebd] hover:text-white"
+                  className="text-[0.95rem] text-[#b8b9bc] hover:text-white"
                 >
                   {c.label}
                 </Link>
@@ -80,7 +80,7 @@ export function Footer() {
 
         {/* Kontakt */}
         <div>
-          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#8f8474]">
+          <h2 className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.15em] text-[#7e8085]">
             Kontakt
           </h2>
           <address className="grid gap-3 text-[0.93rem] not-italic leading-relaxed">
@@ -94,20 +94,20 @@ export function Footer() {
             <p className="grid gap-1.5">
               <a
                 href={site.phoneHref}
-                className="inline-flex items-center gap-2 text-[#d9cebd] hover:text-white"
+                className="inline-flex items-center gap-2 text-[#b8b9bc] hover:text-white"
               >
                 <Icon name="phone" size={1} className="text-gold" />
                 {site.phoneDisplay}
               </a>
               <a
                 href={site.emailHref}
-                className="inline-flex items-center gap-2 break-all text-[#d9cebd] hover:text-white"
+                className="inline-flex items-center gap-2 break-all text-[#b8b9bc] hover:text-white"
               >
                 <Icon name="mail" size={1} className="text-gold" />
                 {site.email}
               </a>
             </p>
-            <p className="flex items-center gap-2 text-[0.88rem] text-[#a99e8d]">
+            <p className="flex items-center gap-2 text-[0.88rem] text-[#8a8c90]">
               <Icon name="clock" size={1} className="text-gold" />
               {site.hours.note}
             </p>
@@ -115,7 +115,7 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[75rem] flex-wrap items-center justify-between gap-4 border-t border-[#3a342c] px-5 py-6 text-[0.85rem] text-[#8f8474] sm:px-8">
+      <div className="mx-auto flex w-full max-w-[75rem] flex-wrap items-center justify-between gap-4 border-t border-[#2a2c30] px-5 py-6 text-[0.85rem] text-[#7e8085] sm:px-8">
         <p>
           © {year} {site.legalName} · {site.legal.activity}
         </p>

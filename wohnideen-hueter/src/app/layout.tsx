@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { cormorant, inter } from "@/lib/fonts";
+import { display, sans, mono } from "@/lib/fonts";
 import { SITE_URL, localBusinessJsonLd } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { Header } from "@/components/Header";
@@ -26,14 +26,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#faf6f0",
+  themeColor: "#0e0f11",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="de" className={`no-js ${cormorant.variable} ${inter.variable}`}>
+    <html
+      lang="de"
+      className={`no-js ${display.variable} ${sans.variable} ${mono.variable}`}
+    >
       <head>
         {/* Ohne JS bleibt Inhalt sichtbar; mit JS übernehmen die Reveal-Animationen. */}
         <script

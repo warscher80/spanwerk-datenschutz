@@ -20,8 +20,8 @@ function Row({
     <div className="flex items-start gap-3.5 py-4">
       <Icon name={icon} size={1.35} className="mt-0.5 text-gold" />
       <div>
-        <p className="text-[0.72rem] uppercase tracking-[0.15em] text-[#a99e8d]">{label}</p>
-        <div className="mt-0.5 text-[0.98rem] text-[#f3ece1]">{children}</div>
+        <p className="text-[0.72rem] uppercase tracking-[0.15em] text-[#8a8c90]">{label}</p>
+        <div className="mt-0.5 text-[0.98rem] text-[#e7e7e4]">{children}</div>
       </div>
     </div>
   );
@@ -48,7 +48,7 @@ export function ContactCta({
             <div>
               <Eyebrow light>{eyebrow}</Eyebrow>
               <h2 className="text-h2 mt-4 text-white">{title}</h2>
-              <p className="mt-5 max-w-[34rem] text-lead text-[#f3ece1]/80">{lead}</p>
+              <p className="mt-5 max-w-[34rem] text-lead text-[#e7e7e4]/80">{lead}</p>
               <div className="mt-8 flex flex-col gap-3.5 sm:flex-row sm:flex-wrap">
                 <Button href="/kontakt" variant="primary" icon="chat">
                   Beratungstermin anfragen

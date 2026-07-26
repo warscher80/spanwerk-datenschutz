@@ -69,7 +69,7 @@ export function SectionHeader({
         <p
           className={cn(
             "text-lead",
-            light ? "text-[#f3ece1]/80" : "text-ink-soft",
+            light ? "text-[#e7e7e4]/80" : "text-ink-soft",
           )}
         >
           {lead}

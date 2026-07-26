@@ -1,100 +1,93 @@
 import Image from "next/image";
+import Link from "next/link";
 import { site } from "@/lib/site";
-import { Button } from "@/components/Button";
-import { Eyebrow } from "@/components/SectionHeader";
 import { Reveal } from "@/components/Reveal";
 import { Icon } from "@/components/Icon";
 
 /**
- * Editorialer Startseiten-Hero.
- * Asymmetrisch: Textblock links, großzügige Bildfläche rechts. Statt einer
- * flächigen dunklen Überlagerung nur ein diagonaler Verlauf, der die Schrift
- * links trägt und das Bild rechts frei atmen lässt.
+ * Brand-Hero: großflächige Grotesk-Typografie auf Graphit, ein angeschnittenes
+ * Interior-Bild, technische Mono-Metadaten, ein einziger starker CTA.
  *
- * TODO (Bild): hero-home.svg durch echtes, hochauflösendes Küchen-/Wohnraum-
- * foto ersetzen (mind. 2000×1250 px, Querformat, ruhiger rechter Bildbereich
- * für die Textfreiheit).
+ * TODO (Bild): hero-home.svg durch echtes, hochauflösendes Interior-Foto
+ * ersetzen (Hochformat 3:4, mind. 1400×1866 px).
  */
-export function EditorialHero() {
+export function BrandHero() {
   return (
-    <section className="relative isolate flex min-h-[clamp(600px,90svh,900px)] items-end overflow-hidden pt-[78px] text-white">
-      <div className="absolute inset-0 -z-10">
-        <Image
-          src="/images/hero-home.svg"
-          alt="Hell und warm eingerichtete Wohnküche in Naturtönen"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-[70%_center]"
-        />
-        {/* Diagonaler Verlauf für Lesbarkeit links, Bild bleibt rechts sichtbar */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(100deg, rgba(24,17,11,.86) 0%, rgba(24,17,11,.62) 34%, rgba(24,17,11,.2) 62%, rgba(24,17,11,.05) 100%)",
-          }}
-        />
-        {/* Feiner oberer Scrim für den transparenten Header */}
-        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/35 to-transparent" />
-      </div>
+    <section className="relative flex min-h-svh flex-col bg-ink pt-[68px] text-white">
+      <div className="mx-auto flex w-full max-w-[100rem] flex-1 flex-col justify-between gap-10 px-5 py-8 sm:px-8">
+        {/* Technische Meta-Zeile */}
+        <Reveal>
+          <div className="flex items-center justify-between border-b border-line-dark pb-4 font-mono text-[0.7rem] uppercase tracking-[0.16em] text-white/45">
+            <span>Küchen &amp; Wohnräume</span>
+            <span className="hidden sm:inline">Irschen · Kärnten</span>
+            <span>N 46.73 / E 13.15</span>
+          </div>
+        </Reveal>
 
-      <div className="mx-auto w-full max-w-[75rem] px-5 pb-[clamp(2.5rem,6vw,4.5rem)] pt-24 sm:px-8 lg:px-10">
-        <div className="max-w-[38rem] lg:max-w-[44rem]">
-          <Reveal>
-            <Eyebrow light>Einrichtungshaus · Irschen im Drautal</Eyebrow>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <h1 className="text-display mt-5 text-balance text-white [text-shadow:0_2px_40px_rgba(0,0,0,.3)]">
-              Räume, die sich nach{" "}
-              <span className="italic text-[#f0dcc9]">Zuhause</span> anfühlen.
-            </h1>
-          </Reveal>
-          <Reveal delay={0.16}>
-            <p className="mt-6 max-w-[34rem] text-[1.12rem] leading-relaxed text-white/90 sm:text-[1.2rem]">
-              Individuelle Küchen und Wohnräume – persönlich beraten, sorgfältig
-              geplant und zuverlässig umgesetzt. Von der Familie Hueter, Ihrem
-              regionalen Einrichtungspartner.
-            </p>
-          </Reveal>
-          <Reveal delay={0.24}>
-            <div className="mt-8 flex flex-col gap-3.5 sm:flex-row sm:flex-wrap">
-              <Button href="/kontakt" variant="primary" icon="chat">
-                Beratungstermin vereinbaren
-              </Button>
-              <Button href="/projekte" variant="light" iconRight="arrow">
-                Wohnideen entdecken
-              </Button>
-            </div>
-          </Reveal>
+        <div className="grid items-end gap-10 lg:grid-cols-12">
+          {/* Headline-Block */}
+          <div className="lg:col-span-7 xl:col-span-8">
+            <Reveal>
+              <p className="mb-6 flex items-center gap-2.5 font-mono text-[0.72rem] uppercase tracking-[0.18em] text-white/50">
+                <span className="size-1.5 bg-clay" aria-hidden />
+                Familie Hueter · Einrichtungshaus
+              </p>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <h1 className="font-display text-[clamp(2.9rem,10.5vw,8.5rem)] font-bold uppercase leading-[0.9] tracking-[-0.035em] text-white">
+                Räume sind
+                <br />
+                mehr als
+                <br />
+                Einrichtung<span className="text-clay">.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={0.14}>
+              <p className="mt-8 max-w-[38rem] text-[1.1rem] leading-relaxed text-white/75 sm:text-[1.25rem]">
+                Individuelle Küchen und Wohnräume – persönlich geplant und präzise
+                umgesetzt. Wir denken Räume ganzheitlich, beginnend bei den
+                Menschen, die darin leben.
+              </p>
+            </Reveal>
+            <Reveal delay={0.22}>
+              <div className="mt-9 flex flex-wrap items-center gap-6">
+                <Link
+                  href="/kontakt"
+                  className="group inline-flex items-center gap-3 bg-clay px-8 py-4 font-semibold text-white transition-colors hover:bg-clay-dark"
+                >
+                  Projekt starten
+                  <Icon name="arrow" size={1.05} className="transition-transform group-hover:translate-x-1" />
+                </Link>
+                <Link
+                  href="/projekte"
+                  className="font-mono text-[0.75rem] uppercase tracking-[0.16em] text-white/70 underline-offset-4 hover:text-white hover:underline"
+                >
+                  Projekte ansehen
+                </Link>
+              </div>
+            </Reveal>
+          </div>
 
-          {/* Dezente Vertrauens-/Kontaktinformation als feiner Strip */}
-          <Reveal delay={0.32}>
-            <dl className="mt-10 flex flex-col gap-4 border-t border-white/20 pt-6 text-[0.92rem] text-white/90 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-7 sm:gap-y-3">
-              <div className="flex items-center gap-2.5">
-                <Icon name="pin" className="text-white/70" />
-                <dt className="sr-only">Standort</dt>
-                <dd>
-                  {site.address.zip} {site.address.city}, {site.address.region}
-                </dd>
+          {/* Angeschnittenes Bild */}
+          <Reveal delay={0.18} className="lg:col-span-5 xl:col-span-4">
+            <figure className="relative">
+              <div className="relative aspect-[3/4] overflow-hidden">
+                <Image
+                  src="/images/hero-home.svg"
+                  alt="Individuell geplanter Wohnraum von Wohnideen Hueter"
+                  fill
+                  priority
+                  sizes="(max-width:1024px) 100vw, 40vw"
+                  className="object-cover"
+                />
               </div>
-              <span aria-hidden className="hidden h-4 w-px bg-white/25 sm:block" />
-              <div className="flex items-center gap-2.5">
-                <Icon name="clock" className="text-white/70" />
-                <dt className="sr-only">Öffnungszeiten</dt>
-                <dd>{site.hours.note}</dd>
-              </div>
-              <span aria-hidden className="hidden h-4 w-px bg-white/25 sm:block" />
-              <div className="flex items-center gap-2.5">
-                <Icon name="phone" className="text-white/70" />
-                <dt className="sr-only">Telefon</dt>
-                <dd>
-                  <a href={site.phoneHref} className="hover:text-white">
-                    {site.phoneDisplay}
-                  </a>
-                </dd>
-              </div>
-            </dl>
+              <figcaption className="mt-3 flex items-center justify-between font-mono text-[0.68rem] uppercase tracking-[0.14em] text-white/45">
+                <span>Fig. 01 — Wohnraum</span>
+                <a href={site.phoneHref} className="hover:text-clay">
+                  {site.phoneDisplay}
+                </a>
+              </figcaption>
+            </figure>
           </Reveal>
         </div>
       </div>

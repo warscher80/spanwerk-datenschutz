@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#9c6b4e"/>
-  <text x="32" y="43" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="34" font-weight="600" fill="#fff" letter-spacing="0.5">WH</text>
+  <rect width="64" height="64" fill="#0e0f11"/>
+  <rect x="0" y="0" width="64" height="5" fill="#e8431f"/>
+  <text x="32" y="44" text-anchor="middle" font-family="'Space Grotesk','Arial Narrow',sans-serif" font-size="30" font-weight="700" fill="#fff" letter-spacing="-1">WH</text>
 </svg>

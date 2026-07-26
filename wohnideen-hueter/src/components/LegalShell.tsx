@@ -17,7 +17,7 @@ export function LegalShell({
   children: ReactNode;
 }) {
   return (
-    <section className="bg-cream pb-[clamp(3.5rem,8vw,7rem)] pt-[calc(78px+clamp(2.5rem,6vw,4.5rem))]">
+    <section className="bg-cream pb-[clamp(3.5rem,8vw,7rem)] pt-[calc(68px+clamp(2.5rem,6vw,4.5rem))]">
       <Container>
         <Reveal className="prose-legal">
           <Eyebrow>Rechtliches</Eyebrow>

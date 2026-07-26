@@ -6,17 +6,14 @@ import { Icon, type IconName } from "./Icon";
 type Variant = "primary" | "dark" | "ghost" | "light";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-btn font-semibold text-[0.98rem] leading-none px-6 py-[0.95rem] " +
-  "transition-[transform,background-color,color,box-shadow,border-color] duration-200 ease-[cubic-bezier(.22,.61,.36,1)] " +
-  "hover:-translate-y-0.5 focus-visible:outline-2";
+  "group/btn inline-flex items-center justify-center gap-2.5 rounded-btn font-semibold text-[0.95rem] leading-none tracking-[0.01em] px-7 py-[1.05rem] " +
+  "transition-[background-color,color,border-color] duration-200 ease-[cubic-bezier(.22,.61,.36,1)] focus-visible:outline-2";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "bg-clay text-white shadow-[0_10px_24px_-12px_rgba(124,74,48,.8)] hover:bg-clay-dark",
-  dark: "bg-ink text-white hover:bg-black",
-  ghost: "border-[1.5px] border-line text-ink hover:border-clay hover:text-clay",
-  light:
-    "border-[1.5px] border-white/50 bg-white/15 text-white backdrop-blur-sm hover:bg-white/25",
+  primary: "bg-clay text-white hover:bg-clay-dark",
+  dark: "bg-ink text-white hover:bg-clay",
+  ghost: "border border-ink text-ink hover:bg-ink hover:text-white",
+  light: "border border-white/40 text-white hover:bg-white hover:text-ink",
 };
 
 interface ButtonProps {

@@ -1,65 +1,65 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   WOHNIDEEN HUETER — DESIGNSYSTEM (zentral)
-   Tailwind v4: Alle Tokens leben hier im @theme-Block und werden dadurch zu
-   Utilities (bg-cream, text-ink, font-display, rounded-panel, shadow-lift …).
+   WOHNIDEEN HUETER — DESIGNSYSTEM 2.0  „Architektur trifft Editorial“
+   Graphit / Weiß / Grau + ein Akzent (Vermilion). Grotesk-Display, Mono-Labels,
+   scharfe Kanten, Linien statt Schatten. Token-Namen bleiben stabil, damit alle
+   Komponenten die neue Palette automatisch übernehmen.
    ======================================================================== */
 @theme {
-  /* ---- Farbwelt (warm, natürlich, hochwertig) ---------------------------- */
-  --color-cream: #faf6f0; /* Haupthintergrund, warmes Off-White */
-  --color-sand: #f3ece1; /* ruhige Sektionen */
-  --color-taupe: #ece2d3; /* Flächen / Bildplatzhalter */
-  --color-paper: #fffdfa; /* Karten */
-  --color-ink: #2a2622; /* Text, warmes Anthrazit */
-  --color-ink-soft: #5a5248; /* Fließtext gedämpft */
-  --color-ink-mute: #6b6152; /* Hinweise, Labels – auf AA-Kontrast abgestimmt */
-  --color-line: #e3d8c7; /* Linien / Rahmen */
-  --color-clay: #9c6b4e; /* Akzent: gedämpftes Terrakotta/Holz */
-  --color-clay-dark: #7f5540; /* Akzent Hover */
-  --color-clay-tint: #f0e2d6; /* Akzent-Fläche zart */
-  --color-sage: #7c8168; /* zweiter, sehr dezenter Akzent */
-  --color-gold: #b08a53; /* Messing-Akzent (sparsam) */
+  /* ---- Farbwelt --------------------------------------------------------- */
+  --color-cream: #f4f4f1;   /* Haupt-Hintergrund (hell, neutral) */
+  --color-sand: #e9e9e5;    /* ruhige Sektion (Grau) */
+  --color-taupe: #d8d8d3;   /* Bild-/Flächen-Platzhalter */
+  --color-paper: #ffffff;   /* Karten / helle Flächen */
+  --color-ink: #0e0f11;     /* Text & dunkle Flächen (Graphit) */
+  --color-ink-soft: #3a3c42;/* Fließtext */
+  --color-ink-mute: #6a6c72;/* Sekundär / Labels (AA-tauglich) */
+  --color-line: #dcdcd6;    /* Linien / Rahmen (hell) */
+  --color-line-dark: #2a2c30;/* Linien auf Dunkel */
 
-  /* ---- Typografie -------------------------------------------------------- */
-  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto,
-    Arial, sans-serif;
-  --font-display: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --color-clay: #e8431f;    /* AKZENT (Vermilion) – sparsam & gezielt */
+  --color-clay-dark: #c4351a;/* Akzent Hover */
+  --color-clay-tint: #f7ded6;/* Akzent-Fläche zart */
+  --color-sage: #6a6c72;    /* neutrales Grau (Zweitton) */
+  --color-gold: #ff6a4d;    /* Akzent, hell – für dunkle Flächen */
 
-  /* Responsive Typo-Skala (font-size + zugehörige line-height/spacing) */
-  --text-display: clamp(2.6rem, 1.6rem + 4.4vw, 5rem);
-  --text-display--line-height: 1.03;
-  --text-display--letter-spacing: -0.015em;
-  --text-h1: clamp(2.3rem, 1.5rem + 3.4vw, 3.9rem);
-  --text-h1--line-height: 1.07;
-  --text-h1--letter-spacing: -0.014em;
-  --text-h2: clamp(1.9rem, 1.35rem + 2.4vw, 3.1rem);
-  --text-h2--line-height: 1.1;
-  --text-h2--letter-spacing: -0.012em;
+  /* ---- Typografie ------------------------------------------------------- */
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-spacemono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Übergroße, selbstbewusste Skala */
+  --text-display: clamp(2.9rem, 1.2rem + 7.6vw, 7rem);
+  --text-display--line-height: 0.94;
+  --text-display--letter-spacing: -0.03em;
+  --text-h1: clamp(2.3rem, 1.2rem + 4.6vw, 4.6rem);
+  --text-h1--line-height: 0.98;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h2: clamp(1.9rem, 1.2rem + 2.9vw, 3.4rem);
+  --text-h2--line-height: 1.02;
+  --text-h2--letter-spacing: -0.02em;
   --text-h3: clamp(1.35rem, 1.1rem + 1vw, 1.9rem);
-  --text-h3--line-height: 1.18;
-  --text-h4: clamp(1.15rem, 1rem + 0.5vw, 1.35rem);
-  --text-h4--line-height: 1.25;
-  --text-lead: clamp(1.1rem, 1rem + 0.5vw, 1.32rem);
-  --text-lead--line-height: 1.6;
-  --text-eyebrow: 0.78rem;
+  --text-h3--line-height: 1.1;
+  --text-h3--letter-spacing: -0.01em;
+  --text-h4: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+  --text-h4--line-height: 1.2;
+  --text-lead: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+  --text-lead--line-height: 1.55;
+  --text-eyebrow: 0.72rem;
   --text-eyebrow--line-height: 1.2;
-  --text-eyebrow--letter-spacing: 0.18em;
+  --text-eyebrow--letter-spacing: 0.14em;
 
-  /* ---- Radien ------------------------------------------------------------ */
-  --radius-btn: 999px;
-  --radius-card: 14px;
-  --radius-panel: 22px;
+  /* ---- Radien (scharf, architektonisch) --------------------------------- */
+  --radius-btn: 0px;
+  --radius-card: 0px;
+  --radius-panel: 0px;
 
-  /* ---- Schatten ---------------------------------------------------------- */
-  --shadow-soft: 0 2px 8px rgba(60, 44, 28, 0.05),
-    0 14px 40px -18px rgba(60, 44, 28, 0.22);
-  --shadow-lift: 0 30px 70px -30px rgba(60, 44, 28, 0.4);
+  /* ---- Schatten (minimal – Linien statt Schatten) ----------------------- */
+  --shadow-soft: 0 1px 0 rgba(14, 15, 17, 0.04);
+  --shadow-lift: 0 30px 60px -40px rgba(14, 15, 17, 0.55);
 
-  /* ---- Layout ------------------------------------------------------------ */
-  --breakpoint-nav: 80rem; /* 1280px: ab hier volle Desktop-Navigation */
-
-  /* Animations-Easing */
+  --breakpoint-nav: 64rem; /* 1024px: ab hier Desktop-Navigation */
   --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -67,66 +67,37 @@
    BASIS
    ======================================================================== */
 @layer base {
-  * {
-    min-width: 0;
-  }
-  html {
-    scroll-behavior: smooth;
-    -webkit-text-size-adjust: 100%;
-  }
+  * { min-width: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   body {
     background: var(--color-cream);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: clamp(1rem, 0.95rem + 0.15vw, 1.075rem);
-    line-height: 1.7;
+    font-size: clamp(1rem, 0.95rem + 0.15vw, 1.06rem);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
   }
-  h1,
-  h2,
-  h3,
-  h4 {
+  h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-ink);
     text-wrap: balance;
+    letter-spacing: -0.02em;
   }
-  p {
-    text-wrap: pretty;
-  }
-  p,
-  li,
-  a,
-  h1,
-  h2,
-  h3,
-  h4,
-  blockquote,
-  address,
-  figcaption {
-    overflow-wrap: break-word;
-  }
-  a {
-    color: inherit;
-  }
-  ::selection {
-    background: var(--color-clay);
-    color: #fff;
-  }
+  p { text-wrap: pretty; }
+  p, li, a, h1, h2, h3, h4, blockquote, address, figcaption { overflow-wrap: break-word; }
+  a { color: inherit; }
+  ::selection { background: var(--color-clay); color: #fff; }
   :focus-visible {
     outline: 2.5px solid var(--color-clay);
     outline-offset: 3px;
-    border-radius: 4px;
+    border-radius: 0;
   }
   @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
-    *,
-    *::before,
-    *::after {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
       animation-duration: 0.001ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
@@ -138,72 +109,40 @@
    KOMPONENTEN-HILFSKLASSEN
    ======================================================================== */
 @layer components {
+  /* Mono-Label (Eyebrow) – technisch, editorial */
   .eyebrow {
-    font-family: var(--font-sans);
-    font-weight: 600;
+    font-family: var(--font-mono);
+    font-weight: 400;
     font-size: var(--text-eyebrow);
     letter-spacing: var(--text-eyebrow--letter-spacing);
     text-transform: uppercase;
-    color: var(--color-clay);
+    color: var(--color-ink);
     display: inline-flex;
     align-items: center;
     gap: 0.6em;
   }
   .eyebrow::before {
     content: "";
-    width: 26px;
-    height: 1px;
-    background: currentColor;
+    width: 1.4em;
+    height: 2px;
+    background: var(--color-clay);
     display: inline-block;
     flex: none;
   }
-  .eyebrow--center {
-    justify-content: center;
-  }
-  .eyebrow--light {
-    color: #fff;
-  }
+  .eyebrow--center { justify-content: center; }
+  .eyebrow--light { color: #fff; }
 
   /* Lesetext-Layout für Rechtstexte */
-  .prose-legal {
-    max-width: 50rem;
-  }
-  .prose-legal h2 {
-    font-size: var(--text-h3);
-    margin: 2.2rem 0 0.7rem;
-  }
-  .prose-legal h3 {
-    font-size: var(--text-h4);
-    margin: 1.6rem 0 0.5rem;
-  }
-  .prose-legal p,
-  .prose-legal li {
-    color: var(--color-ink-soft);
-  }
-  .prose-legal p {
-    margin-bottom: 0.9rem;
-  }
-  .prose-legal ul {
-    list-style: disc;
-    padding-left: 1.3rem;
-    margin-bottom: 1rem;
-    display: grid;
-    gap: 0.35rem;
-  }
-  .prose-legal a {
-    color: var(--color-clay);
-    border-bottom: 1px solid var(--color-line);
-  }
-  .prose-legal a:hover {
-    border-color: var(--color-clay);
-  }
-  .prose-legal strong {
-    color: var(--color-ink);
-  }
+  .prose-legal { max-width: 50rem; }
+  .prose-legal h2 { font-size: var(--text-h3); margin: 2.2rem 0 0.7rem; }
+  .prose-legal h3 { font-size: var(--text-h4); margin: 1.6rem 0 0.5rem; }
+  .prose-legal p, .prose-legal li { color: var(--color-ink-soft); }
+  .prose-legal p { margin-bottom: 0.9rem; }
+  .prose-legal ul { list-style: disc; padding-left: 1.3rem; margin-bottom: 1rem; display: grid; gap: 0.35rem; }
+  .prose-legal a { color: var(--color-clay); border-bottom: 1px solid var(--color-line); }
+  .prose-legal a:hover { border-color: var(--color-clay); }
+  .prose-legal strong { color: var(--color-ink); }
 }
 
 /* Reveal-Fallback: ohne JS bleibt Inhalt sichtbar */
-.no-js [data-reveal] {
-  opacity: 1 !important;
-  transform: none !important;
-}
+.no-js [data-reveal] { opacity: 1 !important; transform: none !important; }
