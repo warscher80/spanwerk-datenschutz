@@ -52,11 +52,14 @@ P("about-home", { w: 1000, h: 800, hue: "clay", variant: "living" });
 P("about-story", { w: 1000, h: 800, hue: "stone", variant: "living" });
 P("service-1", { w: 1000, h: 800, hue: "sage", variant: "kitchen" });
 
-// Kategorien: Karte (4:5), Hero (breit), Feature (5:4)
+// Kategorien: Karte (4:5), Hero (breit), Feature (5:4),
+// Detail (quadratisch) und Mood-Band (breit, für vollflächige Bildbänder)
 for (const c of categories) {
   P(`cat-${c.slug}`, { w: 900, h: 1125, hue: c.hue, variant: c.scene });
   P(`hero-${c.slug}`, { w: 1600, h: 760, hue: c.hue, variant: c.scene, badge: false });
   P(`feature-${c.slug}`, { w: 1000, h: 800, hue: c.hue, variant: c.scene });
+  P(`detail-${c.slug}`, { w: 1000, h: 1000, hue: c.hue, variant: c.scene });
+  P(`mood-${c.slug}`, { w: 1600, h: 900, hue: c.hue, variant: c.scene, badge: false });
 }
 
 // Sekundär-Heroes der Unterseiten

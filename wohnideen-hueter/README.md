@@ -86,6 +86,11 @@ wohnideen-hueter/
 - **Kontaktdaten, Öffnungszeiten, Adresse, Marken, Sortiment, Projekte, FAQ:**
   zentral in `src/lib/site.ts` – nirgends mehrfach hart kodiert. Die Struktur ist
   so gewählt, dass später leicht ein CMS angeschlossen werden kann.
+- **Texte der Sortimentsseiten** (Küchen, Wohnen, Essen, Schlafen, Vorzimmer,
+  Bad): zentral in `src/lib/sortiment.ts`. Die Seiten selbst
+  (`src/app/<bereich>/page.tsx`) setzen die Abschnitte je Bereich in
+  unterschiedlicher Reihenfolge zusammen; die wiederverwendbaren Sektionen
+  liegen in `src/components/sortiment/`.
 - **Navigation:** ebenfalls in `src/lib/site.ts` (`mainNav`, `legalNav`).
 - **Seitentexte:** in der jeweiligen `src/app/.../page.tsx`.
 - **Design (Farben, Typografie, Radien, Schatten, Abstände):** zentral in
