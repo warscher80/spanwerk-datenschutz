@@ -68,18 +68,14 @@ export const site = {
   },
 } as const;
 
-export const people: Record<"rudi" | "andrea", Person> = {
+// Inhaber laut Firmenbuch (FN 350099 b) – verifizierte Angabe. Telefon = reale
+// Betriebsnummer. Weitere Personen erst nach Bestätigung durch den Betrieb ergänzen.
+export const people: Record<"rudi", Person> = {
   rudi: {
-    name: "Rudi Hueter",
+    name: "Rudolf Hueter",
     role: "Inhaber · Planung & Beratung",
     phone: "+43 676 75 32 300",
     phoneHref: "tel:+436767532300",
-  },
-  andrea: {
-    name: "Andrea Hueter",
-    role: "Beratung & Organisation",
-    phone: "+43 676 75 32 301",
-    phoneHref: "tel:+436767532301",
   },
 };
 

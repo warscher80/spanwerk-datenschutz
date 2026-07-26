@@ -68,10 +68,6 @@ export function ContactCta({
                   <a href={people.rudi.phoneHref} className="hover:text-white">
                     {people.rudi.name}: {people.rudi.phone}
                   </a>
-                  <br />
-                  <a href={people.andrea.phoneHref} className="hover:text-white">
-                    {people.andrea.name}: {people.andrea.phone}
-                  </a>
                 </Row>
                 <Row icon="mail" label="E-Mail">
                   <a href={site.emailHref} className="break-all hover:text-white">

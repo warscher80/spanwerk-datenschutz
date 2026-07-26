@@ -31,10 +31,12 @@ Vorzimmer (mit Einschränkung, s. u.), Planung & Service, Projekte, Marken, Übe
   (bestehende Website führt: Kochen, Wohnen, Schlafen, Essen, Küchengeräte/Zubehör).
 - **Vorzimmer**: nur sehr wenig passendes Material — aktuell mit einem Entrée-/Sideboard-Motiv
   gefüllt. Bei Bedarf durch echte Vorzimmer-Aufnahmen ersetzen.
-- **Einzel-Porträts Team** (`team-rudi`, `team-andrea`): **bewusst nicht** aus dem Gruppenfoto
-  „zusammengeschnitten". Namen/Rollen einzelner Personen sind nicht verifiziert — es wurde
-  **nichts erfunden**. Bitte echte Einzelfotos **mit korrekten Namen/Funktionen** liefern
-  (oder den Team-Abschnitt auf das echte Gruppenfoto umstellen).
+- **Team**: erledigt / bereinigt. Der Team-Abschnitt nutzt jetzt das **echte Gruppenfoto**
+  (Hero „Über uns"). Die zuvor **erfundene** Person „Andrea Hueter" samt erfundener
+  Telefonnummer (`…301`) wurde **entfernt**. Verbleibt nur die **verifizierte** Angabe
+  laut Firmenbuch: Inhaber **Rudolf Hueter**, reale Betriebsnummer `…300`. Einzel-Porträts
+  weiterer Mitarbeitender **erst nach Bestätigung** von Namen/Funktion ergänzen — es wurde
+  **nichts (mehr) erfunden**.
 - **Projekt-Slugs/Titel** (`kueche-drautal`, `wohnraum`, …) sind weiterhin **generisch/Platzhalter**.
   Die eingesetzten Bilder zeigen reale Einrichtungen, die Projekt-*Daten* (Ort, Umfang, Jahr,
   Kundenstimme) müssen aber durch **echte Referenzen** ersetzt werden.
@@ -65,12 +67,15 @@ Vorzimmer (mit Einschränkung, s. u.), Planung & Service, Projekte, Marken, Übe
 `hero-planung`, `hero-projekte`, `hero-marken`, `hero-ueberuns`, `hero-kontakt`
 — je Querformat 21:10, mind. 2000×950, passend zum Seitenthema.
 
-### Team-Porträts
+### Team-Porträts (optional – aktuell Gruppenfoto in Verwendung)
+Der Team-Abschnitt nutzt derzeit das echte **Gruppenfoto**. Einzel-Porträts sind
+optional und **nur mit bestätigten Namen/Funktionen** einzupflegen:
+
 | Datei | Motiv | Ausrichtung | Seitenverhältnis | Mindestauflösung |
 |---|---|---|---|---|
-| `team-rudi` | Porträt Rudi Hueter | Quadrat | 1:1 | 800×800 |
-| `team-andrea` | Porträt Andrea Hueter | Quadrat | 1:1 | 800×800 |
-| ggf. weitere | weitere Mitarbeitende (falls vorhanden) | Quadrat | 1:1 | 800×800 |
+| `team-<vorname>` | Porträt (nur bei bestätigtem Namen) | Quadrat | 1:1 | 800×800 |
+
+**Verifiziert:** Inhaber **Rudolf Hueter** (Firmenbuch FN 350099 b). Weitere Namen bitte bestätigen.
 
 ### Projektbilder
 Pro Projekt ein Hauptbild `proj-<slug>` (Querformat 3:2, mind. 1500×1000) sowie

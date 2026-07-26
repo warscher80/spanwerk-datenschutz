@@ -15,15 +15,9 @@ import { Button, TextLink } from "@/components/Button";
 export const metadata: Metadata = pageMeta({
   title: "Über uns – das Einrichtungshaus der Familie Hueter",
   description:
-    "Wohnideen Hueter ist ein familiengeführtes Einrichtungshaus in Irschen im oberen Drautal. Lernen Sie Rudi und Andrea Hueter, unsere Arbeitsweise und unseren Schauraum kennen.",
+    "Wohnideen Hueter ist ein familiengeführtes Einrichtungshaus in Irschen im oberen Drautal. Lernen Sie die Familie Hueter, unsere Arbeitsweise und unseren Schauraum kennen.",
   path: "/ueber-uns",
 });
-
-// Bestätigte Ansprechpartner (Namen/Funktionen). Fotos sind Platzhalter (TODO).
-const team = [
-  { ...people.rudi, img: "team-rudi", focus: "Küchen- & Wohnraumplanung, Aufmaß, Montage" },
-  { ...people.andrea, img: "team-andrea", focus: "Beratung, Organisation und Betreuung" },
-];
 
 const values = [
   { title: "Persönlich", text: "Sie haben feste Ansprechpartner, die Ihr Projekt vom ersten Gespräch an kennen – kein wechselndes Verkaufspersonal." },
@@ -61,7 +55,7 @@ export default function UeberUnsPage() {
             <p className="text-lead text-ink-soft">
               Wohnideen Hueter ist ein familiengeführtes Einrichtungshaus in
               Irschen. Bei uns sprechen Sie mit den Menschen, die Ihr Projekt auch
-              umsetzen – Rudi und Andrea Hueter.
+              umsetzen – Inhaber Rudolf Hueter und sein eingespieltes Team.
             </p>
             <p className="mt-4 text-ink-soft">
               Wir sind bewusst kein anonymes Möbelhaus. Statt Ware von der Stange
@@ -108,33 +102,24 @@ export default function UeberUnsPage() {
             lead="Bei Wohnideen Hueter haben Sie feste Ansprechpartner – vom ersten Gespräch bis nach der Montage."
             className="mb-12"
           />
-          <div className="mx-auto grid max-w-[46rem] gap-[clamp(1.2rem,2.5vw,2rem)] sm:grid-cols-2">
-            {team.map((m, i) => (
-              <Reveal key={m.name} delay={i * 0.08}>
-                <div className="text-center">
-                  <div className="relative mx-auto mb-4 aspect-square overflow-hidden rounded-panel bg-taupe shadow-soft">
-                    <Image
-                      src={asset(`/images/${m.img}.jpg`)}
-                      alt={`Porträt ${m.name}`}
-                      fill
-                      sizes="(max-width:640px) 100vw, 22rem"
-                      className="object-cover"
-                    />
-                  </div>
-                  <h3 className="text-h4">{m.name}</h3>
-                  <p className="font-semibold text-clay">{m.role}</p>
-                  <p className="mt-1 text-[0.9rem] text-ink-soft">{m.focus}</p>
-                  <a
-                    href={m.phoneHref}
-                    className="mt-2 inline-flex items-center gap-2 text-[0.92rem] text-ink-soft hover:text-clay"
-                  >
-                    <Icon name="phone" size={1} className="text-clay" /> {m.phone}
-                  </a>
-                </div>
-              </Reveal>
-            ))}
+          <div className="mx-auto max-w-[46rem] text-center">
+            <Reveal>
+              <p className="text-lead text-ink-soft">
+                Wir sind ein eingespieltes Familienteam – Sie sehen es oben vor
+                unserem Haus. Von der ersten Beratung über die Planung bis zu Aufmaß
+                und Montage begleiten Sie dieselben Menschen: Inhaber {people.rudi.name}{" "}
+                und das Team von Wohnideen Hueter.
+              </p>
+              <a
+                href={people.rudi.phoneHref}
+                className="mt-6 inline-flex items-center gap-2 text-lead font-semibold text-ink hover:text-clay"
+              >
+                <Icon name="phone" size={1.2} className="text-clay" /> {people.rudi.name}
+                : {people.rudi.phone}
+              </a>
+            </Reveal>
           </div>
-          {/* Hinweis-Doku: echte Team-Fotos siehe CONTENT-NEEDED.md */}
+          {/* Namen/Funktionen einzelner Mitarbeitender erst nach Bestätigung ergänzen. */}
         </Container>
       </Section>
 

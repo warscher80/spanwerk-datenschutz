@@ -103,10 +103,6 @@ export default function KontaktPage() {
                   <a href={people.rudi.phoneHref} className="hover:text-clay">
                     {people.rudi.name}: {people.rudi.phone}
                   </a>
-                  <br />
-                  <a href={people.andrea.phoneHref} className="hover:text-clay">
-                    {people.andrea.name}: {people.andrea.phone}
-                  </a>
                 </InfoCard>
                 <InfoCard icon="mail" title="E-Mail">
                   <a
