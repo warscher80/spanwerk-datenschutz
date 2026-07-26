@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="gdusk10001000bedroom" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#948aa0"/>
-      <stop offset="0.55" stop-color="#63596f"/>
-      <stop offset="1" stop-color="#4d4557"/>
+      <stop offset="0" stop-color="#46454c"/>
+      <stop offset="0.55" stop-color="#2b2a30"/>
+      <stop offset="1" stop-color="#19181d"/>
     </linearGradient>
     <radialGradient id="gdusk10001000bedroomv" cx="0.5" cy="0.3" r="0.9">
       <stop offset="0" stop-color="#fff" stop-opacity="0.14"/>
@@ -12,9 +12,9 @@
   </defs>
   <rect width="1000" height="1000" fill="url(#gdusk10001000bedroom)"/>
   <g transform="scale(0.8771929824561403) translate(0,0)">
-      <rect x="140" y="250" width="620" height="170" rx="12" fill="#4d4557" opacity=".55"/>
-      <rect x="140" y="150" width="620" height="110" rx="14" fill="#948aa0" opacity=".45"/>
-      <rect x="800" y="300" width="120" height="120" rx="10" fill="#4d4557" opacity=".6"/>
+      <rect x="140" y="250" width="620" height="170" rx="12" fill="#19181d" opacity=".55"/>
+      <rect x="140" y="150" width="620" height="110" rx="14" fill="#46454c" opacity=".45"/>
+      <rect x="800" y="300" width="120" height="120" rx="10" fill="#19181d" opacity=".6"/>
       <circle cx="860" cy="230" r="20" fill="#fff" fill-opacity=".16"/>
       <line x1="860" y1="60" x2="860" y2="210" stroke="#fff" stroke-opacity=".25" stroke-width="2"/></g>
   <rect width="1000" height="1000" fill="url(#gdusk10001000bedroomv)"/>
