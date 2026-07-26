@@ -34,7 +34,7 @@ export default function SchlafenPage() {
   return (
     <>
       <PageHero
-        image={`/images/hero-${SLUG}.svg`}
+        image={`/images/hero-${SLUG}.jpg`}
         alt="Ruhiges Schlafzimmer in gedämpften Naturtönen"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
@@ -42,7 +42,7 @@ export default function SchlafenPage() {
         lead={c.lead}
       />
       <SortimentIntro
-        image={`/images/feature-${SLUG}.svg`}
+        image={`/images/feature-${SLUG}.jpg`}
         imageAlt="Bett mit Nachtkästchen und weichem Licht"
         eyebrow="Zur Ruhe kommen"
         title={s.introTitle}

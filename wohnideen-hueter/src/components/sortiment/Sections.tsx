@@ -222,7 +222,7 @@ export function ProjectHighlight({
               className="group relative block aspect-[3/2] overflow-hidden rounded-panel bg-ink shadow-soft"
             >
               <Image
-                src={`/images/proj-${p.slug}.svg`}
+                src={`/images/proj-${p.slug}.jpg`}
                 alt={`${p.title}`}
                 fill
                 sizes="(max-width:1024px) 100vw, 60vw"

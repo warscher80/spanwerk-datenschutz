@@ -103,7 +103,7 @@ export function HomeProjects() {
                 </div>
                 <div className="relative aspect-[4/5] overflow-hidden bg-[#1a1b1d]">
                   <Image
-                    src={`/images/proj-${p.slug}.svg`}
+                    src={`/images/proj-${p.slug}.jpg`}
                     alt={p.title}
                     fill
                     sizes="(max-width:1024px) 100vw, 33vw"
@@ -181,7 +181,7 @@ export function TrustBlock() {
           <Reveal>
             <div className="relative aspect-[4/3] overflow-hidden bg-taupe">
               <Image
-                src="/images/about-story.svg"
+                src="/images/about-story.jpg"
                 alt="Familie Hueter in ihrem Studio in Irschen"
                 fill
                 sizes="(max-width:1024px) 100vw, 50vw"

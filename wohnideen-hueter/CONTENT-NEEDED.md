@@ -6,9 +6,38 @@ Namen, Orte, Bewertungen, Jahreszahlen und Partnerschaften bleiben leer, bis sie
 bestätigt sind.
 
 Bilder bitte als **JPG oder WebP** liefern und unter `public/images/` mit dem
-angegebenen Dateinamen ablegen (ersetzen die gleichnamige `.svg`-Datei; danach im
-jeweiligen `<Image src>` die Endung anpassen). Richtwert Qualität: scharf, gut
-belichtet, natürliche Farben, nicht verzerrt.
+angegebenen Dateinamen ablegen (ersetzen die gleichnamige `.jpg`-Datei). Richtwert
+Qualität: scharf, gut belichtet, natürliche Farben, nicht verzerrt.
+
+---
+
+## Stand der Bilder (Original­fotos eingepflegt)
+
+Es wurden **echte Original­fotos von Wohnideen Hueter** (Quelle: bestehende Website
+`wohnideen-hueter.at`, Nutzung durch den Inhaber ausdrücklich freigegeben) eingebunden.
+Die Fotos wurden **ausschließlich skaliert und komprimiert** – Möbel, Räume, Farben und
+Personen sind **unverändert** (keine KI-Bearbeitung, kein Freistellen, keine Farbänderung).
+Der Bildausschnitt in den Kacheln entsteht rein per CSS (`object-cover`), das Foto selbst
+bleibt originalgetreu.
+
+**Eingesetzt (echt):** Startseite (Hero, Beratung, Material-Detail), alle vier
+Kern-Wohnwelten **Küchen, Wohnen, Essen, Schlafen** (je Hero/Feature/Kachel/Mood/Detail),
+Vorzimmer (mit Einschränkung, s. u.), Planung & Service, Projekte, Marken, Über uns
+(echtes Teamfoto vor dem Haus), Kontakt, Open-Graph-Vorschau.
+
+**Noch offen / bewusst NICHT gefüllt (kein passendes Originalfoto vorhanden — Platzhalter bleibt):**
+- **Bad** (`hero/cat/feature/detail/mood-bad`): kein echtes Badezimmerfoto vorhanden.
+  Zusätzlich ist zu klären, ob „Bad" überhaupt zum realen Sortiment gehört
+  (bestehende Website führt: Kochen, Wohnen, Schlafen, Essen, Küchengeräte/Zubehör).
+- **Vorzimmer**: nur sehr wenig passendes Material — aktuell mit einem Entrée-/Sideboard-Motiv
+  gefüllt. Bei Bedarf durch echte Vorzimmer-Aufnahmen ersetzen.
+- **Einzel-Porträts Team** (`team-rudi`, `team-andrea`): **bewusst nicht** aus dem Gruppenfoto
+  „zusammengeschnitten". Namen/Rollen einzelner Personen sind nicht verifiziert — es wurde
+  **nichts erfunden**. Bitte echte Einzelfotos **mit korrekten Namen/Funktionen** liefern
+  (oder den Team-Abschnitt auf das echte Gruppenfoto umstellen).
+- **Projekt-Slugs/Titel** (`kueche-drautal`, `wohnraum`, …) sind weiterhin **generisch/Platzhalter**.
+  Die eingesetzten Bilder zeigen reale Einrichtungen, die Projekt-*Daten* (Ort, Umfang, Jahr,
+  Kundenstimme) müssen aber durch **echte Referenzen** ersetzt werden.
 
 ---
 

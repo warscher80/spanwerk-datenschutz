@@ -33,7 +33,7 @@ export default function EssenPage() {
   return (
     <>
       <PageHero
-        image={`/images/hero-${SLUG}.svg`}
+        image={`/images/hero-${SLUG}.jpg`}
         alt="Gedeckter Esstisch mit Stühlen und Hängeleuchte"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
@@ -41,7 +41,7 @@ export default function EssenPage() {
         lead={c.lead}
       />
       <SortimentIntro
-        image={`/images/feature-${SLUG}.svg`}
+        image={`/images/feature-${SLUG}.jpg`}
         imageAlt="Massivholztisch mit Bank im Essbereich"
         eyebrow="Der Treffpunkt im Haus"
         title={s.introTitle}
@@ -54,7 +54,7 @@ export default function EssenPage() {
         tone="sand"
       />
       <MoodBand
-        image={`/images/mood-${SLUG}.svg`}
+        image={`/images/mood-${SLUG}.jpg`}
         imageAlt="Langer Esstisch mit vielen Sitzplätzen"
         statement={s.moodStatement!}
       />

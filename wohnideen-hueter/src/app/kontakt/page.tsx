@@ -66,7 +66,7 @@ export default function KontaktPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(contactPageJsonLd) }}
       />
       <PageHero
-        image="/images/hero-kontakt.svg"
+        image="/images/hero-kontakt.jpg"
         alt="Kontakt zu Wohnideen Hueter"
         crumb="Kontakt"
         eyebrow="Kontakt & Beratungstermin"

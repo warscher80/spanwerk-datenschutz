@@ -34,7 +34,7 @@ export default function UeberUnsPage() {
   return (
     <>
       <PageHero
-        image="/images/hero-ueberuns.svg"
+        image="/images/hero-ueberuns.jpg"
         alt="Familie Hueter in ihrem Einrichtungshaus in Irschen"
         crumb="Über uns"
         eyebrow="Über Wohnideen Hueter"
@@ -52,7 +52,7 @@ export default function UeberUnsPage() {
       <Section>
         <Container>
           <FeatureSplit
-            image="/images/about-story.svg"
+            image="/images/about-story.jpg"
             alt="Schauraum von Wohnideen Hueter"
             eyebrow="Wer wir sind"
             title="Ein Familienbetrieb aus dem Drautal"
@@ -76,7 +76,7 @@ export default function UeberUnsPage() {
         <Container>
           <FeatureSplit
             reverse
-            image="/images/about-home.svg"
+            image="/images/about-home.jpg"
             alt="Persönliches Beratungsgespräch"
             eyebrow="Unsere Arbeitsweise"
             title="Zuerst zuhören, dann planen"
@@ -113,7 +113,7 @@ export default function UeberUnsPage() {
                 <div className="text-center">
                   <div className="relative mx-auto mb-4 aspect-square overflow-hidden rounded-panel bg-taupe shadow-soft">
                     <Image
-                      src={`/images/${m.img}.svg`}
+                      src={`/images/${m.img}.jpg`}
                       alt={`Porträt ${m.name}`}
                       fill
                       sizes="(max-width:640px) 100vw, 22rem"
@@ -144,7 +144,7 @@ export default function UeberUnsPage() {
             <Reveal>
               <div className="relative aspect-[5/4] overflow-hidden rounded-panel shadow-soft">
                 <Image
-                  src="/images/service-1.svg"
+                  src="/images/service-1.jpg"
                   alt="Schauraum von Wohnideen Hueter in Irschen"
                   fill
                   sizes="(max-width:1024px) 100vw, 50vw"

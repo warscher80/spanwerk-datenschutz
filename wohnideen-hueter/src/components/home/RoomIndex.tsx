@@ -46,7 +46,7 @@ export function RoomIndex() {
             >
               <div className="relative aspect-[16/10] overflow-hidden bg-taupe">
                 <Image
-                  src={`/images/cat-${c.slug}.svg`}
+                  src={`/images/cat-${c.slug}.jpg`}
                   alt=""
                   fill
                   sizes="100vw"
@@ -64,7 +64,7 @@ export function RoomIndex() {
           <div className="relative aspect-[4/5] overflow-hidden bg-taupe">
             <Image
               key={active}
-              src={`/images/cat-${categories[active].slug}.svg`}
+              src={`/images/cat-${categories[active].slug}.jpg`}
               alt={`${categories[active].title} bei Wohnideen Hueter`}
               fill
               sizes="40vw"

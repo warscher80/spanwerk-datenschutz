@@ -34,7 +34,7 @@ export default function PlanungServicePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
       <PageHero
-        image="/images/hero-planung.svg"
+        image="/images/hero-planung.jpg"
         alt="Persönliche Einrichtungsplanung mit Aufmaß und Entwurf"
         crumb="Planung & Service"
         eyebrow="Planung & Service"

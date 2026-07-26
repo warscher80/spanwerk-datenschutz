@@ -23,7 +23,7 @@ export function ProjectCard({
       >
         <div className="relative aspect-[3/2] overflow-hidden bg-taupe">
           <Image
-            src={`/images/proj-${project.slug}.svg`}
+            src={`/images/proj-${project.slug}.jpg`}
             alt={project.title}
             fill
             sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"

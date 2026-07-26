@@ -33,7 +33,7 @@ export default function VorzimmerPage() {
   return (
     <>
       <PageHero
-        image={`/images/hero-${SLUG}.svg`}
+        image={`/images/hero-${SLUG}.jpg`}
         alt="Garderobe nach Maß in einem schmalen Vorzimmer"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
@@ -41,7 +41,7 @@ export default function VorzimmerPage() {
         lead={c.lead}
       />
       <SortimentIntro
-        image={`/images/feature-${SLUG}.svg`}
+        image={`/images/feature-${SLUG}.jpg`}
         imageAlt="Eingangsbereich mit Garderobe, Bank und Spiegel"
         eyebrow="Der erste Raum"
         title={s.introTitle}

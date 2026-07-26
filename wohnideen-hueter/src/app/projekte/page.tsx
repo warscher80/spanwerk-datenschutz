@@ -19,7 +19,7 @@ export default function ProjektePage() {
   return (
     <>
       <PageHero
-        image="/images/hero-projekte.svg"
+        image="/images/hero-projekte.jpg"
         alt="Individuell eingerichtete Räume"
         crumb="Projekte"
         eyebrow="Projekte & Referenzen"

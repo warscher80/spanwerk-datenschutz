@@ -29,13 +29,13 @@ export function pageMeta({
       type: "website",
       siteName: site.name,
       locale: "de_AT",
-      images: [{ url: "/images/og-default.svg", width: 1200, height: 630 }],
+      images: [{ url: "/images/og-default.jpg", width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: ["/images/og-default.svg"],
+      images: ["/images/og-default.jpg"],
     },
   };
 }
@@ -52,7 +52,7 @@ export const localBusinessJsonLd = {
   url: `${SITE_URL}/`,
   telephone: site.phone,
   email: site.email,
-  image: `${SITE_URL}/images/og-default.svg`,
+  image: `${SITE_URL}/images/og-default.jpg`,
   priceRange: "€€–€€€",
   address: {
     "@type": "PostalAddress",

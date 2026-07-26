@@ -35,7 +35,7 @@ export default function BadPage() {
   return (
     <>
       <PageHero
-        image={`/images/hero-${SLUG}.svg`}
+        image={`/images/hero-${SLUG}.jpg`}
         alt="Wohnliches Badezimmer mit Badmöbeln und warmem Licht"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
@@ -43,7 +43,7 @@ export default function BadPage() {
         lead={c.lead}
       />
       <SortimentIntro
-        image={`/images/feature-${SLUG}.svg`}
+        image={`/images/feature-${SLUG}.jpg`}
         imageAlt="Waschtisch mit Unterschrank und Spiegel"
         eyebrow="Mehr als eine Nasszelle"
         title={s.introTitle}

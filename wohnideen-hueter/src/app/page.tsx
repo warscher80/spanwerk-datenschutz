@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Wohnideen Hueter",
     locale: "de_AT",
-    images: [{ url: "/images/og-default.svg", width: 1200, height: 630 }],
+    images: [{ url: "/images/og-default.jpg", width: 1200, height: 630 }],
   },
 };
 

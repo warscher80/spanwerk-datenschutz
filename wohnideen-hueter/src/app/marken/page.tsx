@@ -68,7 +68,7 @@ export default function MarkenPage() {
   return (
     <>
       <PageHero
-        image="/images/hero-marken.svg"
+        image="/images/hero-marken.jpg"
         alt="Hochwertige Materialien und Oberflächen"
         crumb="Marken"
         eyebrow="Marken & Hersteller"

@@ -43,10 +43,10 @@ export async function generateMetadata({
 function placeholderGallery(p: Project): ProjectImage[] {
   const cat = p.category ?? "wohnen";
   const base: ProjectImage[] = [
-    { src: `/images/proj-${p.slug}.svg`, alt: `${p.title} – Gesamtansicht` },
-    { src: `/images/feature-${cat}.svg`, alt: `${p.title} – Detail` },
-    { src: `/images/detail-${cat}.svg`, alt: `${p.title} – Ausschnitt` },
-    { src: `/images/mood-${cat}.svg`, alt: `${p.title} – Raumstimmung` },
+    { src: `/images/proj-${p.slug}.jpg`, alt: `${p.title} – Gesamtansicht` },
+    { src: `/images/feature-${cat}.jpg`, alt: `${p.title} – Detail` },
+    { src: `/images/detail-${cat}.jpg`, alt: `${p.title} – Ausschnitt` },
+    { src: `/images/mood-${cat}.jpg`, alt: `${p.title} – Raumstimmung` },
   ];
   return base;
 }
@@ -83,7 +83,7 @@ export default async function ProjectDetailPage({
   return (
     <>
       <PageHero
-        image={`/images/proj-${p.slug}.svg`}
+        image={`/images/proj-${p.slug}.jpg`}
         alt={`${p.title}`}
         crumb={
           <>

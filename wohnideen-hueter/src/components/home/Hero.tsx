@@ -73,7 +73,7 @@ export function BrandHero() {
             <figure className="relative">
               <div className="relative aspect-[3/4] overflow-hidden">
                 <Image
-                  src="/images/hero-home.svg"
+                  src="/images/hero-home.jpg"
                   alt="Individuell geplanter Wohnraum von Wohnideen Hueter"
                   fill
                   priority
