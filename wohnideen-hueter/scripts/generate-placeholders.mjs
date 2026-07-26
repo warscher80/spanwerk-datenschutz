@@ -49,7 +49,7 @@ n += 2;
 // Startseite
 P("hero-home", { w: 1600, h: 1000, hue: "warm", variant: "living", badge: false });
 P("about-home", { w: 1000, h: 800, hue: "clay", variant: "living" });
-P("about-story", { w: 1000, h: 800, hue: "warm", variant: "room" });
+P("about-story", { w: 1000, h: 800, hue: "stone", variant: "living" });
 P("service-1", { w: 1000, h: 800, hue: "sage", variant: "kitchen" });
 
 // Kategorien: Karte (4:5), Hero (breit), Feature (5:4)

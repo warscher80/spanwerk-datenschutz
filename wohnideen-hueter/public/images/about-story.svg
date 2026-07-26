@@ -1,23 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="1000" height="800" role="img" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <linearGradient id="gwarm1000800room" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#c9a888"/>
-      <stop offset="0.55" stop-color="#9c6b4e"/>
-      <stop offset="1" stop-color="#6f4a34"/>
+    <linearGradient id="gstone1000800living" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ada69e"/>
+      <stop offset="0.55" stop-color="#7d766e"/>
+      <stop offset="1" stop-color="#635d56"/>
     </linearGradient>
-    <radialGradient id="gwarm1000800roomv" cx="0.5" cy="0.3" r="0.9">
+    <radialGradient id="gstone1000800livingv" cx="0.5" cy="0.3" r="0.9">
       <stop offset="0" stop-color="#fff" stop-opacity="0.14"/>
       <stop offset="1" stop-color="#000" stop-opacity="0.25"/>
     </radialGradient>
   </defs>
-  <rect width="1000" height="800" fill="url(#gwarm1000800room)"/>
+  <rect width="1000" height="800" fill="url(#gstone1000800living)"/>
   <g transform="scale(0.8771929824561403) translate(0,0)">
-      <rect x="120" y="110" width="300" height="230" rx="8" fill="#fff" fill-opacity=".12"/>
-      <line x1="270" y1="110" x2="270" y2="340" stroke="#fff" stroke-opacity=".2" stroke-width="2"/>
-      <line x1="120" y1="225" x2="420" y2="225" stroke="#fff" stroke-opacity=".2" stroke-width="2"/>
-      <path d="M820 430 q-40 -140 0 -200 q40 60 0 200 z" fill="#c9a888" opacity=".55"/>
-      <rect x="795" y="425" width="50" height="40" rx="6" fill="#6f4a34" opacity=".6"/></g>
-  <rect width="1000" height="800" fill="url(#gwarm1000800roomv)"/>
+      <rect x="120" y="120" width="230" height="150" rx="10" fill="#ada69e" opacity=".5"/>
+      <line x1="120" y1="120" x2="120" y2="270" stroke="#fff" stroke-opacity=".25" stroke-width="2"/>
+      <path d="M700 300 h300 v150 q0 20 -20 20 h-260 q-20 0 -20 -20 z" fill="#635d56" opacity=".55"/>
+      <rect x="690" y="270" width="330" height="60" rx="18" fill="#635d56" opacity=".7"/>
+      <line x1="850" y1="60" x2="850" y2="150" stroke="#fff" stroke-opacity=".3" stroke-width="2"/>
+      <circle cx="850" cy="168" r="26" fill="#fff" fill-opacity=".18"/></g>
+  <rect width="1000" height="800" fill="url(#gstone1000800livingv)"/>
   
     <g font-family="Inter, system-ui, sans-serif" opacity=".9">
       <rect x="350" y="730" width="300" height="34" rx="17" fill="#000" fill-opacity=".28"/>
