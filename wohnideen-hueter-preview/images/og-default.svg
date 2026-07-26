@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs><linearGradient id="og" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#c9a888"/><stop offset="0.6" stop-color="#9c6b4e"/><stop offset="1" stop-color="#6f4a34"/>
+  </linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#og)"/>
+  <rect width="1200" height="630" fill="#000" opacity="0.12"/>
+  <text x="600" y="255" text-anchor="middle" font-family="Inter, sans-serif" font-size="22" letter-spacing="6" fill="#fff" fill-opacity=".85">WOHNIDEEN HUETER · IRSCHEN</text>
+  <text x="600" y="345" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="66" font-weight="600" fill="#fff">Räume, die sich nach</text>
+  <text x="600" y="415" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="66" font-weight="600" fill="#fff">Zuhause anfühlen.</text>
+  <text x="600" y="500" text-anchor="middle" font-family="Inter, sans-serif" font-size="24" fill="#fff" fill-opacity=".82">Persönlich geplant · Hochwertig eingerichtet</text>
+</svg>
