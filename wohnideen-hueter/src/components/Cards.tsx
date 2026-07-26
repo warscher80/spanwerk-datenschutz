@@ -134,14 +134,17 @@ export function ProjectCard({
 }) {
   return (
     <Reveal delay={delay} className="h-full">
-      <article className="flex h-full flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-soft">
+      <Link
+        href={`/projekte/${project.slug}`}
+        className="group flex h-full flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-soft transition-colors hover:border-clay/40"
+      >
         <div className="relative aspect-[3/2] overflow-hidden bg-taupe">
           <Image
             src={`/images/proj-${project.slug}.svg`}
             alt={`${project.title} – beispielhafte Darstellung (Platzhalter)`}
             fill
             sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
-            className="object-cover"
+            className="object-cover transition-transform duration-700 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
           />
           <span className="absolute left-3.5 top-3.5 rounded-full bg-white/90 px-2.5 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] text-ink">
             {project.tag}
@@ -166,7 +169,7 @@ export function ProjectCard({
             </p>
           )}
         </div>
-      </article>
+      </Link>
     </Reveal>
   );
 }

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { categories } from "@/lib/site";
+import { categories, publishedProjects } from "@/lib/site";
 import { SITE_URL } from "@/lib/seo";
 
 export const dynamic = "force-static";
@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...categories.map((c) => ({ path: `/${c.slug}`, priority: 0.8 })),
     { path: "/planung-service", priority: 0.8 },
     { path: "/projekte", priority: 0.8 },
+    ...publishedProjects().map((p) => ({ path: `/projekte/${p.slug}`, priority: 0.6 })),
     { path: "/marken", priority: 0.7 },
     { path: "/ueber-uns", priority: 0.7 },
     { path: "/kontakt", priority: 0.9 },

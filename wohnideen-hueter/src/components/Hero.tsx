@@ -86,7 +86,8 @@ interface PageHeroProps {
   eyebrow?: ReactNode;
   title: ReactNode;
   lead?: ReactNode;
-  crumb?: string;
+  /** Breadcrumb-Zusatz nach „Startseite ·“ (Text oder verschachtelte Links) */
+  crumb?: ReactNode;
 }
 
 /** Sekundär-Hero für Unterseiten. */

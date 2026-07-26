@@ -107,6 +107,30 @@ im jeweiligen `<Image src>` die Endung anpassen. Empfohlene Seitenverhältnisse:
 Hero 16:9–8:5 · Kategorie-Karten 4:5 · Feature/Split 5:4 · Projekte 3:2 ·
 Porträts 1:1.
 
+## Kontaktformular / E-Mail-Versand
+
+Standard (statisches Hosting): Das Formular öffnet als ehrlicher Rückfall das
+E-Mail-Programm mit vorbereiteter Nachricht – **ohne** falsche „gesendet"-Meldung.
+
+Für echten Serverversand:
+
+1. `NEXT_PUBLIC_CONTACT_ENDPOINT` auf die Endpoint-URL setzen (nur die URL, kein
+   Secret) – dann postet das Formular per `fetch` und zeigt Erfolg **nur** bei
+   HTTP 200.
+2. Serverseitigen Handler aus `docs/contact-endpoint.example.ts` aktivieren
+   (nach `src/app/api/kontakt/route.ts`, Node-Host statt reinem Static-Export)
+   und SMTP-/Mailservice-Zugang per Umgebungsvariablen bereitstellen
+   (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `CONTACT_TO`,
+   `CONTACT_FROM`). **Niemals Secrets im Frontend.**
+
+Ein Honeypot-Feld dient als einfacher Spam-Schutz.
+
+## Fehlende echte Inhalte
+
+Alle noch benötigten echten Texte und Bilder (inkl. Motiv, Format,
+Mindestauflösung, Einsatzort und Dateiname) sind in **`CONTENT-NEEDED.md`**
+strukturiert aufgelistet.
+
 ## Datenschutz & Barrierefreiheit
 
 - Kein Tracking, keine Cookies, keine externen Schriften.

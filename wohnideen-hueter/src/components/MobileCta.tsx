@@ -1,15 +1,27 @@
 import Link from "next/link";
+import { site } from "@/lib/site";
 import { Icon } from "./Icon";
 
-/** Schwebender Kontakt-Button auf kleinen Screens (immer erreichbar). */
+/**
+ * Dezente mobile Kontaktleiste mit genau zwei Aktionen: Anrufen & Termin
+ * anfragen. Nur auf kleinen Screens sichtbar (Desktop nutzt Header-CTA).
+ */
 export function MobileCta() {
   return (
-    <Link
-      href="/kontakt"
-      aria-label="Beratungstermin vereinbaren"
-      className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-btn bg-clay px-5 py-3.5 font-semibold text-white shadow-[0_14px_30px_-10px_rgba(124,74,48,.7)] transition-colors hover:bg-clay-dark nav:hidden"
-    >
-      <Icon name="chat" /> <span>Beratungstermin</span>
-    </Link>
+    <div className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-line bg-cream/95 px-3 py-2.5 backdrop-blur-md nav:hidden">
+      <a
+        href={site.phoneHref}
+        className="flex flex-1 items-center justify-center gap-2 rounded-btn border-[1.5px] border-line bg-paper px-4 py-3 text-[0.95rem] font-semibold text-ink"
+        aria-label={`Anrufen: ${site.phoneDisplay}`}
+      >
+        <Icon name="phone" /> Anrufen
+      </a>
+      <Link
+        href="/kontakt"
+        className="flex flex-[1.3] items-center justify-center gap-2 rounded-btn bg-clay px-4 py-3 text-[0.95rem] font-semibold text-white"
+      >
+        <Icon name="chat" /> Termin anfragen
+      </Link>
+    </div>
   );
 }

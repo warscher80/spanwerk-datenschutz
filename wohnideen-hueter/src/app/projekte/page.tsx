@@ -1,81 +1,87 @@
 import type { Metadata } from "next";
-import { projects } from "@/lib/site";
+import { publishedProjects } from "@/lib/site";
 import { pageMeta } from "@/lib/seo";
 import { Container, Section } from "@/components/Layout";
 import { PageHero } from "@/components/Hero";
-import { SectionHeader } from "@/components/SectionHeader";
-import { ProjectCard } from "@/components/Cards";
+import { SectionHeader, Eyebrow } from "@/components/SectionHeader";
 import { CtaBand } from "@/components/CtaBand";
-import { Eyebrow } from "@/components/SectionHeader";
 import { Reveal } from "@/components/Reveal";
+import { Icon } from "@/components/Icon";
+import { ProjectOverview } from "@/components/projects/Overview";
 
 export const metadata: Metadata = pageMeta({
-  title: "Projekte & Referenzen",
+  title: "Projekte & Referenzen – Einrichtung aus dem Drautal",
   description:
-    "Einblicke in unsere Einrichtungsprojekte aus dem oberen Drautal. Echte Projektfotos folgen – gerne zeigen wir Ihnen Referenzen im persönlichen Gespräch.",
+    "Einblicke in individuell geplante Küchen und Wohnräume von Wohnideen Hueter. Von der ersten Idee bis zur fertigen Montage – umgesetzt im oberen Drautal.",
   path: "/projekte",
 });
 
 export default function ProjektePage() {
+  const items = publishedProjects();
   return (
     <>
       <PageHero
         image="/images/hero-projekte.svg"
-        alt="Einrichtungsprojekte – beispielhafte Darstellung"
+        alt="Individuell eingerichtete Räume – beispielhafte Darstellung"
         crumb="Projekte"
         eyebrow="Projekte & Referenzen"
         title={
           <>
-            Einrichtung, die
+            Nicht nur Möbel.
             <br />
-            im Alltag ankommt.
+            Ganze Räume.
           </>
         }
-        lead="Ein Einblick in unsere Arbeit. Sobald die Fotos unserer aktuellen Projekte vorliegen, zeigen wir sie hier in voller Größe – ehrlich, ohne Schönfärberei."
+        lead="Ein Einblick, wie aus Wünschen, Räumen und Alltag eine fertige Einrichtung wird – geplant, geliefert und fachgerecht montiert."
       />
 
       <Section>
         <Container>
-          {/* TODO: Echte Projektfotos & -daten einsetzen (Raumart · Aufgabe ·
-              Materialien · besondere Lösung). KEINE erfundenen Referenzen. */}
+          {/* Ehrlicher Platzhalter-Hinweis, solange keine echten Projektfotos vorliegen. */}
+          <Reveal>
+            <div className="mb-10 flex items-start gap-4 rounded-panel border border-line bg-clay-tint/50 p-6">
+              <Icon name="pin" size={1.5} className="mt-0.5 flex-none text-clay" />
+              <p className="text-[0.95rem] leading-relaxed text-ink-soft">
+                Die folgenden Projekte sind aktuell{" "}
+                <strong className="text-ink">Platzhalter</strong> und zeigen die
+                geplante Darstellung. Sobald Fotos und Details echter Projekte
+                vorliegen, treten sie an ihre Stelle – ohne erfundene Namen, Orte
+                oder Angaben. {/* TODO: echte Projektdaten einpflegen (siehe CONTENT-NEEDED.md) */}
+              </p>
+            </div>
+          </Reveal>
+
           <SectionHeader
             eyebrow="Auswahl"
-            title="Aktuelle Projekte"
-            lead="Die folgenden Beispiele sind Platzhalter und zeigen die geplante Darstellung. Echte Projekte folgen."
-            className="mb-12"
+            title="Einrichtung, die im Alltag ankommt"
+            lead="Jedes Projekt entsteht individuell. Wählen Sie einen Bereich, um mehr zu sehen."
+            className="mb-10"
           />
-          <div className="grid gap-[clamp(1.1rem,2vw,1.6rem)] sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p, i) => (
-              <ProjectCard key={p.slug} project={p} delay={(i % 3) * 0.08} />
-            ))}
-          </div>
+          <ProjectOverview items={items} />
         </Container>
       </Section>
 
-      {/* Kundenstimmen – nur echte Inhalte */}
+      {/* Kundenstimmen – nur echte Inhalte, sonst ehrlicher Platzhalter */}
       <Section tone="sand">
         <Container narrow>
           <Reveal className="text-center">
             <Eyebrow center>Kundenstimmen</Eyebrow>
-            <p className="text-lead mt-4 mb-4 text-ink-soft">
-              Wir zeigen hier nur echte Rückmeldungen unserer Kundinnen und
-              Kunden.
+            <p className="text-lead mx-auto mt-4 max-w-[40rem] text-ink-soft">
+              Wir zeigen hier ausschließlich echte, freigegebene Rückmeldungen
+              unserer Kundinnen und Kunden.
             </p>
             {/* TODO: Echte, freigegebene Kundenstimme(n) einsetzen. Keine erfundenen Bewertungen. */}
-            <blockquote className="font-display text-[clamp(1.5rem,3vw,2.3rem)] leading-tight text-ink">
-              „Persönliche Beratung, individuelle Planung und eine Montage, auf
-              die man sich verlassen kann.“
-            </blockquote>
-            <cite className="mt-5 block text-[0.95rem] font-semibold not-italic text-ink-soft">
-              Platzhalter – echte Kundenstimme mit Einverständnis folgt
-            </cite>
+            <p className="mx-auto mt-6 max-w-[30rem] rounded-panel border border-dashed border-line bg-paper px-6 py-8 text-[0.9rem] text-ink-mute">
+              Platzhalter – hier erscheinen echte Kundenstimmen, sobald sie mit
+              Einverständnis vorliegen.
+            </p>
           </Reveal>
         </Container>
       </Section>
 
       <CtaBand
         title="Ihr Projekt könnte das nächste sein."
-        lead="Erzählen Sie uns von Ihren Räumen und Ihren Ideen – wir hören zu."
+        lead="Erzählen Sie uns von Ihren Räumen und Ihren Ideen – wir hören zu und planen mit Ihnen gemeinsam."
       />
     </>
   );

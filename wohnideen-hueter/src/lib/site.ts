@@ -343,37 +343,77 @@ export const legalNav: NavItem[] = [
 export const contactAreas = [
   "Küche",
   "Wohnen",
-  "Schlafen",
   "Essen",
+  "Schlafen",
   "Vorzimmer",
   "Bad",
   "Mehrere Räume",
-  "Noch offen",
+  "Allgemeine Beratung",
 ] as const;
+
+/** Terminanfrage: bevorzugter Tag / Zeitfenster (keine Echtzeitbuchung). */
+export const preferredDays = ["Werktags (Mo–Fr)", "Wochenende", "Flexibel"] as const;
+export const preferredTimes = ["Vormittag", "Nachmittag", "Abend", "Flexibel"] as const;
 
 /* ---------------------------------------------------------------------------
  *  PROJEKTE / REFERENZEN
  *  TODO: Durch echte Projekte ersetzen. KEINE erfundenen Kunden/Details.
  *  `placeholder: true` kennzeichnet Beispiel-Einträge eindeutig.
  * ------------------------------------------------------------------------- */
+export interface ProjectImage {
+  src: string;
+  alt: string;
+  caption?: string;
+}
 export interface Project {
   slug: string;
   title: string;
+  /** Raumkategorie (Anzeige) */
   tag: string;
+  /** zugehörige Wohnwelt (interne Verlinkung & Bildquelle) */
+  category?: string;
   summary: string;
   hue: Hue;
   scene: Scene;
   chips: string[];
+  /** true = Beispiel-Eintrag ohne echte Projektdaten */
   placeholder: boolean;
+  /** in Ausgabe/Übersicht anzeigen */
+  published: boolean;
+  /** Sortierreihenfolge (kleiner = weiter vorne) */
+  order: number;
+  /** nur wenn öffentlich & bestätigt */
+  location?: string;
+  services?: string[];
+  materials?: string[];
+  highlights?: string[];
+  /* Erzählabschnitte – wenn leer, blendet die Detailseite sie aus */
+  situation?: string;
+  wishes?: string;
+  planningIdea?: string;
+  result?: string;
+  /** Galerie; wenn leer, baut die Detailseite Platzhalter aus der Wohnwelt */
+  gallery?: ProjectImage[];
+  /** verwandte Projekte (Slugs) */
+  related?: string[];
 }
+
+/**
+ * TODO: Durch echte Projekte ersetzen. KEINE erfundenen Kunden/Orte/Details.
+ * Alle Einträge sind mit `placeholder: true` klar als Beispiele gekennzeichnet;
+ * Erzählabschnitte (situation/wishes/…) sind bewusst leer und werden auf der
+ * Detailseite automatisch ausgeblendet.
+ */
 export const projects: Project[] = [
-  { slug: "kueche-drautal", title: "Küche im Drautal", tag: "Küche", summary: "Individuell geplante Küche mit fachgerechter Montage.", hue: "clay", scene: "kitchen", chips: ["Aufmaß vor Ort", "Individuelle Planung", "Montage"], placeholder: true },
-  { slug: "wohnraum", title: "Wohnraum neu gedacht", tag: "Wohnen", summary: "Wohnliche Gestaltung aus einer Hand.", hue: "sage", scene: "living", chips: ["Polstermöbel", "Beleuchtung", "Textilien"], placeholder: true },
-  { slug: "schlafzimmer", title: "Ruhiges Schlafzimmer", tag: "Schlafen", summary: "Aufeinander abgestimmte Schlafzimmereinrichtung.", hue: "dusk", scene: "bedroom", chips: ["Schlafsystem", "Schrank nach Maß"], placeholder: true },
-  { slug: "essbereich", title: "Essbereich aus Massivholz", tag: "Essen", summary: "Tisch und Stühle für viele gemeinsame Stunden.", hue: "wood", scene: "dining", chips: ["Massivholz", "Sitzgruppe"], placeholder: true },
-  { slug: "garderobe", title: "Garderobe nach Maß", tag: "Vorzimmer", summary: "Stauraumlösung für einen verwinkelten Grundriss.", hue: "stone", scene: "hall", chips: ["Maßanfertigung", "Stauraum"], placeholder: true },
-  { slug: "gesamtprojekt", title: "Einrichtung aus einer Hand", tag: "Gesamtprojekt", summary: "Mehrere Räume aufeinander abgestimmt geplant.", hue: "warm", scene: "room", chips: ["Mehrere Räume", "Gesamtkonzept"], placeholder: true },
+  { slug: "kueche-drautal", title: "Küche im Drautal", tag: "Küche", category: "kuechen", summary: "Individuell geplante Küche mit fachgerechter Montage.", hue: "clay", scene: "kitchen", chips: ["Aufmaß vor Ort", "Individuelle Planung", "Montage"], placeholder: true, published: true, order: 1, related: ["essbereich", "wohnraum"] },
+  { slug: "wohnraum", title: "Wohnraum neu gedacht", tag: "Wohnen", category: "wohnen", summary: "Wohnliche Gestaltung aus einer Hand.", hue: "sage", scene: "living", chips: ["Polstermöbel", "Beleuchtung", "Textilien"], placeholder: true, published: true, order: 2, related: ["essbereich", "schlafzimmer"] },
+  { slug: "schlafzimmer", title: "Ruhiges Schlafzimmer", tag: "Schlafen", category: "schlafen", summary: "Aufeinander abgestimmte Schlafzimmereinrichtung.", hue: "dusk", scene: "bedroom", chips: ["Schlafsystem", "Schrank nach Maß"], placeholder: true, published: true, order: 3, related: ["garderobe", "wohnraum"] },
+  { slug: "essbereich", title: "Essbereich aus Massivholz", tag: "Essen", category: "essen", summary: "Tisch und Stühle für viele gemeinsame Stunden.", hue: "wood", scene: "dining", chips: ["Massivholz", "Sitzgruppe"], placeholder: true, published: true, order: 4, related: ["kueche-drautal", "wohnraum"] },
+  { slug: "garderobe", title: "Garderobe nach Maß", tag: "Vorzimmer", category: "vorzimmer", summary: "Stauraumlösung für einen verwinkelten Grundriss.", hue: "stone", scene: "hall", chips: ["Maßanfertigung", "Stauraum"], placeholder: true, published: true, order: 5, related: ["wohnraum", "schlafzimmer"] },
+  { slug: "gesamtprojekt", title: "Einrichtung aus einer Hand", tag: "Gesamtkonzept", category: "wohnen", summary: "Mehrere Räume aufeinander abgestimmt geplant.", hue: "warm", scene: "room", chips: ["Mehrere Räume", "Gesamtkonzept"], placeholder: true, published: true, order: 6, related: ["kueche-drautal", "schlafzimmer"] },
 ];
+export const publishedProjects = () =>
+  projects.filter((p) => p.published).sort((a, b) => a.order - b.order);
 export const getProject = (slug: string) => projects.find((p) => p.slug === slug);
 
 /* ---------------------------------------------------------------------------
@@ -387,10 +427,47 @@ export const services: { title: string; text: string }[] = [
   { title: "Urlaubs-Aufbauservice", text: "Auf Wunsch richten wir ein, während Sie unterwegs sind." },
 ];
 
-/** Häufige Fragen (aus Positionierung abgeleitet, keine erfundenen Fakten). */
+/**
+ * Detaillierter Planungsablauf (Planung & Service).
+ * `expect` = was Kundinnen und Kunden im Schritt erwartet.
+ * `prep`   = optionaler, hilfreicher Vorbereitungshinweis (keine Voraussetzung).
+ */
+export interface FlowStep {
+  n: string;
+  title: string;
+  text: string;
+  expect: string;
+  prep?: string;
+}
+export const planningFlow: FlowStep[] = [
+  { n: "01", title: "Erstgespräch", text: "Wir lernen uns kennen und sprechen über Ihr Vorhaben – unverbindlich und in Ruhe.", expect: "Ein offenes Gespräch ohne Verkaufsdruck.", prep: "Erste Ideen oder Inspirationsbilder, falls vorhanden." },
+  { n: "02", title: "Wünsche & Raumsituation erfassen", text: "Wie leben Sie, was soll der Raum können, was stört heute? Das halten wir gemeinsam fest.", expect: "Wir hören zu und stellen die richtigen Fragen.", prep: "Fotos des Raums helfen beim Einstieg." },
+  { n: "03", title: "Aufmaß & Grundlagen", text: "Wir messen vor Ort präzise auf und prüfen die baulichen Gegebenheiten und Anschlüsse.", expect: "Einen Termin bei Ihnen zu Hause.", prep: "Zugang zum Raum und Infos zu vorhandenen Anschlüssen." },
+  { n: "04", title: "Planung & Entwurf", text: "Aus allen Informationen entwickeln wir eine maßgeschneiderte Planung mit Visualisierung.", expect: "Einen konkreten Entwurf zum Ansehen und Besprechen." },
+  { n: "05", title: "Materialien & Ausstattung", text: "Gemeinsam wählen wir Oberflächen, Farben, Fronten und Geräte aus – zum Angreifen und Vergleichen.", expect: "Zeit, in Ruhe zu vergleichen und zu entscheiden." },
+  { n: "06", title: "Angebot & Abstimmung", text: "Sie erhalten ein nachvollziehbares Angebot. Änderungswünsche arbeiten wir ein, bis alles passt.", expect: "Klarheit über Umfang und Ablauf." },
+  { n: "07", title: "Lieferung & Montage", text: "Wir liefern termingerecht und montieren sauber und fachgerecht – bis alles an seinem Platz ist.", expect: "Eine zuverlässige, ordentliche Umsetzung." },
+  { n: "08", title: "Übergabe & Betreuung", text: "Zum Abschluss übergeben wir Ihre fertige Einrichtung. Auch danach bleiben wir Ihr Ansprechpartner.", expect: "Eine saubere Übergabe – und jemanden, der erreichbar bleibt." },
+];
+
+/** „Gut vorbereitet zum Beratungsgespräch“ – Unterstützung, keine Voraussetzung. */
+export const preparation: { title: string; text: string }[] = [
+  { title: "Raummaße oder Grundriss", text: "Wenn vorhanden – wir messen später ohnehin genau auf." },
+  { title: "Fotos des Raums", text: "Ein paar Handyfotos genügen, um sich ein Bild zu machen." },
+  { title: "Wünsche & Inspiration", text: "Bilder, Ausschnitte oder Notizen zu dem, was Ihnen gefällt." },
+  { title: "Budgetvorstellung", text: "Ein grober Rahmen hilft, passende Lösungen vorzuschlagen." },
+  { title: "Vorhandene Anschlüsse", text: "Infos zu Strom, Wasser oder Geräten, die bleiben sollen." },
+  { title: "Zeitrahmen", text: "Wann die Einrichtung fertig sein soll – falls es einen Anlass gibt." },
+];
+
+/** Häufige Fragen (allgemein & ehrlich beantwortbar, keine erfundenen Fakten). */
 export const faqs: { q: string; a: string }[] = [
-  { q: "Kommen Sie für das Aufmaß auch zu mir nach Hause?", a: "Ja. Für eine passgenaue Planung messen wir gerne direkt bei Ihnen vor Ort auf und sehen uns die räumlichen Gegebenheiten an." },
-  { q: "Übernehmen Sie auch die Montage?", a: "Ja. Lieferung und fachgerechte Montage gehören für uns dazu – Sie haben einen Ansprechpartner für das ganze Projekt." },
-  { q: "Kann ich mehrere Räume gemeinsam planen lassen?", a: "Sehr gerne. Viele Kundinnen und Kunden richten mehrere Räume aufeinander abgestimmt ein – so entsteht ein stimmiges Gesamtbild." },
+  { q: "Wie läuft ein erstes Beratungsgespräch ab?", a: "Wir hören zunächst zu: Wie Sie leben, was Sie sich wünschen und was der Raum können soll. Daraus entsteht Schritt für Schritt eine Planung. Das Erstgespräch ist unverbindlich." },
+  { q: "Muss ich schon genaue Vorstellungen haben?", a: "Nein. Viele kommen mit einer groben Idee – manchmal auch nur mit einem Problem, das gelöst werden soll. Wir entwickeln die Details gemeinsam mit Ihnen." },
+  { q: "Welche Unterlagen soll ich mitbringen?", a: "Hilfreich sind Fotos des Raums, grobe Maße oder ein Grundriss und Inspirationsbilder. Nötig ist das aber nicht – wir messen später ohnehin präzise vor Ort auf." },
+  { q: "Werden auch einzelne Räume geplant?", a: "Ja. Ob eine einzelne Küche oder mehrere Räume aus einer Hand – beides ist möglich. Sie entscheiden, wie viel wir gemeinsam gestalten." },
+  { q: "Kommen Sie für das Aufmaß zu mir nach Hause?", a: "Ja. Für eine passgenaue Planung messen wir gerne direkt bei Ihnen vor Ort auf und sehen uns die räumlichen Gegebenheiten an." },
+  { q: "Sind Lieferung und Montage möglich?", a: "Ja. Lieferung und fachgerechte Montage gehören für uns dazu – Sie haben einen Ansprechpartner für das ganze Projekt." },
+  { q: "Wie lange dauert eine Planung?", a: "Das hängt vom Umfang und von der Materialverfügbarkeit ab und lässt sich pauschal nicht sagen. Wir besprechen einen realistischen Zeitrahmen im persönlichen Gespräch." },
   { q: "Wie vereinbare ich einen Beratungstermin?", a: "Am einfachsten telefonisch oder über das Kontaktformular. Wir melden uns persönlich und finden gemeinsam einen passenden Termin – gerne auch außerhalb üblicher Geschäftszeiten." },
 ];

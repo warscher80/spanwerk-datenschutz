@@ -47,7 +47,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
         />
       </head>
-      <body className="antialiased">
+      <body className="antialiased pb-[60px] nav:pb-0">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:left-0 focus:top-0 focus:z-[100] focus:rounded-br-lg focus:bg-ink focus:px-4 focus:py-3 focus:text-white"
