@@ -17,6 +17,7 @@ export function ProjectGallery({ images }: { images: ProjectImage[] }) {
   const [open, setOpen] = useState<number | null>(null);
   const triggerRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     const i = open;
@@ -42,6 +43,20 @@ export function ProjectGallery({ images }: { images: ProjectImage[] }) {
       if (e.key === "Escape") close();
       else if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
+      else if (e.key === "Tab") {
+        // Fokus im Dialog halten (einfache Fokusfalle)
+        const f = dialogRef.current?.querySelectorAll<HTMLElement>("button");
+        if (!f || f.length === 0) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
@@ -84,6 +99,7 @@ export function ProjectGallery({ images }: { images: ProjectImage[] }) {
 
       {open != null && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label={`Bildergalerie, Bild ${open + 1} von ${images.length}`}

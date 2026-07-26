@@ -35,7 +35,7 @@ export default function UeberUnsPage() {
     <>
       <PageHero
         image="/images/hero-ueberuns.svg"
-        alt="Familie Hueter in ihrem Einrichtungshaus in Irschen – beispielhafte Darstellung"
+        alt="Familie Hueter in ihrem Einrichtungshaus in Irschen"
         crumb="Über uns"
         eyebrow="Über Wohnideen Hueter"
         title={
@@ -53,7 +53,7 @@ export default function UeberUnsPage() {
         <Container>
           <FeatureSplit
             image="/images/about-story.svg"
-            alt="Schauraum von Wohnideen Hueter – beispielhafte Darstellung"
+            alt="Schauraum von Wohnideen Hueter"
             eyebrow="Wer wir sind"
             title="Ein Familienbetrieb aus dem Drautal"
           >
@@ -77,7 +77,7 @@ export default function UeberUnsPage() {
           <FeatureSplit
             reverse
             image="/images/about-home.svg"
-            alt="Persönliches Beratungsgespräch – beispielhafte Darstellung"
+            alt="Persönliches Beratungsgespräch"
             eyebrow="Unsere Arbeitsweise"
             title="Zuerst zuhören, dann planen"
           >
@@ -114,14 +114,11 @@ export default function UeberUnsPage() {
                   <div className="relative mx-auto mb-4 aspect-square overflow-hidden rounded-panel bg-taupe shadow-soft">
                     <Image
                       src={`/images/${m.img}.svg`}
-                      alt={`Porträt ${m.name} – Platzhalter, echtes Foto folgt`}
+                      alt={`Porträt ${m.name}`}
                       fill
                       sizes="(max-width:640px) 100vw, 22rem"
                       className="object-cover"
                     />
-                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-paper/90 px-3 py-1 text-[0.7rem] font-medium text-ink-mute">
-                      Foto folgt
-                    </span>
                   </div>
                   <h3 className="text-h4">{m.name}</h3>
                   <p className="font-semibold text-clay">{m.role}</p>
@@ -136,12 +133,7 @@ export default function UeberUnsPage() {
               </Reveal>
             ))}
           </div>
-          {/* TODO: Echte Team-Fotos einsetzen. Weitere Mitarbeitende ergänzen, falls vorhanden. */}
-          <Reveal>
-            <p className="mx-auto mt-8 max-w-[42rem] text-center text-[0.85rem] text-ink-mute">
-              Die Porträts sind derzeit Platzhalter – die echten Fotos folgen.
-            </p>
-          </Reveal>
+          {/* Hinweis-Doku: echte Team-Fotos siehe CONTENT-NEEDED.md */}
         </Container>
       </Section>
 
@@ -153,7 +145,7 @@ export default function UeberUnsPage() {
               <div className="relative aspect-[5/4] overflow-hidden rounded-panel shadow-soft">
                 <Image
                   src="/images/service-1.svg"
-                  alt="Schauraum von Wohnideen Hueter in Irschen – beispielhafte Darstellung"
+                  alt="Schauraum von Wohnideen Hueter in Irschen"
                   fill
                   sizes="(max-width:1024px) 100vw, 50vw"
                   className="object-cover"

@@ -20,8 +20,4 @@
       <circle cx="850" cy="168" r="26" fill="#fff" fill-opacity=".18"/></g>
   <rect width="1000" height="1000" fill="url(#gsage10001000livingv)"/>
   
-    <g font-family="Inter, system-ui, sans-serif" opacity=".9">
-      <rect x="350" y="930" width="300" height="34" rx="17" fill="#000" fill-opacity=".28"/>
-      <text x="500" y="952" text-anchor="middle" fill="#fff" fill-opacity=".92" font-size="15" font-weight="500" letter-spacing="1">Platzhalter · echtes Foto folgt</text>
-    </g>
 </svg>

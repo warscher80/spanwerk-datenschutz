@@ -43,10 +43,10 @@ export async function generateMetadata({
 function placeholderGallery(p: Project): ProjectImage[] {
   const cat = p.category ?? "wohnen";
   const base: ProjectImage[] = [
-    { src: `/images/proj-${p.slug}.svg`, alt: `${p.title} – Gesamtansicht (Platzhalter)`, caption: "Platzhalter · echtes Foto folgt" },
-    { src: `/images/feature-${cat}.svg`, alt: `${p.title} – Detail (Platzhalter)`, caption: "Platzhalter · echtes Foto folgt" },
-    { src: `/images/detail-${cat}.svg`, alt: `${p.title} – Ausschnitt (Platzhalter)`, caption: "Platzhalter · echtes Foto folgt" },
-    { src: `/images/mood-${cat}.svg`, alt: `${p.title} – Raumstimmung (Platzhalter)`, caption: "Platzhalter · echtes Foto folgt" },
+    { src: `/images/proj-${p.slug}.svg`, alt: `${p.title} – Gesamtansicht` },
+    { src: `/images/feature-${cat}.svg`, alt: `${p.title} – Detail` },
+    { src: `/images/detail-${cat}.svg`, alt: `${p.title} – Ausschnitt` },
+    { src: `/images/mood-${cat}.svg`, alt: `${p.title} – Raumstimmung` },
   ];
   return base;
 }
@@ -84,7 +84,7 @@ export default async function ProjectDetailPage({
     <>
       <PageHero
         image={`/images/proj-${p.slug}.svg`}
-        alt={`${p.title} – beispielhafte Darstellung (Platzhalter)`}
+        alt={`${p.title}`}
         crumb={
           <>
             <Link href="/projekte" className="hover:text-white hover:underline">
@@ -106,11 +106,6 @@ export default async function ProjectDetailPage({
               <div>
                 <Eyebrow>Über dieses Projekt</Eyebrow>
                 <p className="text-lead mt-4 text-ink-soft">{p.summary}</p>
-                {p.placeholder && (
-                  <p className="mt-5 inline-flex items-center gap-2 rounded-full bg-clay-tint px-3.5 py-1.5 text-[0.8rem] font-semibold text-clay">
-                    <Icon name="pin" size={0.95} /> Platzhalter · echtes Projekt folgt
-                  </p>
-                )}
               </div>
             </Reveal>
             <Reveal delay={0.1}>

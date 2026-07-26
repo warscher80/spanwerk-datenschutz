@@ -34,7 +34,7 @@ export default function KuechenPage() {
     <>
       <PageHero
         image={`/images/hero-${SLUG}.svg`}
-        alt="Individuell geplante Wohnküche in warmen Tönen – beispielhafte Darstellung"
+        alt="Individuell geplante Wohnküche in warmen Tönen"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
         title={c.title}
@@ -42,7 +42,7 @@ export default function KuechenPage() {
       />
       <SortimentIntro
         image={`/images/feature-${SLUG}.svg`}
-        imageAlt="Küchenzeile mit durchdachtem Stauraum – beispielhafte Darstellung"
+        imageAlt="Küchenzeile mit durchdachtem Stauraum"
         eyebrow="Küchen mit Charakter"
         title={s.introTitle}
         paras={s.introParas}

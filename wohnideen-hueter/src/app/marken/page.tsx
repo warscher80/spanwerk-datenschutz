@@ -3,7 +3,6 @@ import { brands } from "@/lib/site";
 import { pageMeta } from "@/lib/seo";
 import { Container, Section } from "@/components/Layout";
 import { PageHero } from "@/components/Hero";
-import { SectionHeader } from "@/components/SectionHeader";
 import { ContactCta } from "@/components/ContactCta";
 import { Reveal } from "@/components/Reveal";
 import { TextLink } from "@/components/Button";
@@ -70,7 +69,7 @@ export default function MarkenPage() {
     <>
       <PageHero
         image="/images/hero-marken.svg"
-        alt="Hochwertige Materialien und Oberflächen – beispielhafte Darstellung"
+        alt="Hochwertige Materialien und Oberflächen"
         crumb="Marken"
         eyebrow="Marken & Hersteller"
         title="Qualität, die man täglich spürt."

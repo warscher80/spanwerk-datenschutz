@@ -39,9 +39,9 @@ export default function BarrierefreiheitPage() {
 
       <h2>Bekannte Einschränkungen</h2>
       <p>
-        Einzelne Bilder sind derzeit klar gekennzeichnete Platzhalter und werden
-        durch echtes Bildmaterial ersetzt. Sollten Ihnen weitere Barrieren
-        auffallen, freuen wir uns über Ihren Hinweis.
+        Ein Teil des Bildmaterials wird laufend durch eigene Aufnahmen ergänzt.
+        Sollten Ihnen Barrieren auffallen, freuen wir uns über Ihren Hinweis –
+        wir bessern gerne nach.
       </p>
 
       <h2>Feedback &amp; Kontakt</h2>

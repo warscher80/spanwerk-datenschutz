@@ -35,7 +35,7 @@ export default function PlanungServicePage() {
       />
       <PageHero
         image="/images/hero-planung.svg"
-        alt="Persönliche Einrichtungsplanung mit Aufmaß und Entwurf – beispielhafte Darstellung"
+        alt="Persönliche Einrichtungsplanung mit Aufmaß und Entwurf"
         crumb="Planung & Service"
         eyebrow="Planung & Service"
         title={

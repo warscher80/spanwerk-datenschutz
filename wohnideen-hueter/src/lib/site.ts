@@ -405,7 +405,7 @@ export interface Project {
  * Detailseite automatisch ausgeblendet.
  */
 export const projects: Project[] = [
-  { slug: "kueche-drautal", title: "Küche im Drautal", tag: "Küche", category: "kuechen", summary: "Individuell geplante Küche mit fachgerechter Montage.", hue: "clay", scene: "kitchen", chips: ["Aufmaß vor Ort", "Individuelle Planung", "Montage"], placeholder: true, published: true, order: 1, related: ["essbereich", "wohnraum"] },
+  { slug: "kueche-drautal", title: "Wohnküche, individuell geplant", tag: "Küche", category: "kuechen", summary: "Individuell geplante Küche mit fachgerechter Montage.", hue: "clay", scene: "kitchen", chips: ["Aufmaß vor Ort", "Individuelle Planung", "Montage"], placeholder: true, published: true, order: 1, related: ["essbereich", "wohnraum"] },
   { slug: "wohnraum", title: "Wohnraum neu gedacht", tag: "Wohnen", category: "wohnen", summary: "Wohnliche Gestaltung aus einer Hand.", hue: "sage", scene: "living", chips: ["Polstermöbel", "Beleuchtung", "Textilien"], placeholder: true, published: true, order: 2, related: ["essbereich", "schlafzimmer"] },
   { slug: "schlafzimmer", title: "Ruhiges Schlafzimmer", tag: "Schlafen", category: "schlafen", summary: "Aufeinander abgestimmte Schlafzimmereinrichtung.", hue: "dusk", scene: "bedroom", chips: ["Schlafsystem", "Schrank nach Maß"], placeholder: true, published: true, order: 3, related: ["garderobe", "wohnraum"] },
   { slug: "essbereich", title: "Essbereich aus Massivholz", tag: "Essen", category: "essen", summary: "Tisch und Stühle für viele gemeinsame Stunden.", hue: "wood", scene: "dining", chips: ["Massivholz", "Sitzgruppe"], placeholder: true, published: true, order: 4, related: ["kueche-drautal", "wohnraum"] },

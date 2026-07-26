@@ -36,7 +36,7 @@ export default function BadPage() {
     <>
       <PageHero
         image={`/images/hero-${SLUG}.svg`}
-        alt="Wohnliches Badezimmer mit Badmöbeln und warmem Licht – beispielhafte Darstellung"
+        alt="Wohnliches Badezimmer mit Badmöbeln und warmem Licht"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
         title={c.title}
@@ -44,7 +44,7 @@ export default function BadPage() {
       />
       <SortimentIntro
         image={`/images/feature-${SLUG}.svg`}
-        imageAlt="Waschtisch mit Unterschrank und Spiegel – beispielhafte Darstellung"
+        imageAlt="Waschtisch mit Unterschrank und Spiegel"
         eyebrow="Mehr als eine Nasszelle"
         title={s.introTitle}
         paras={s.introParas}

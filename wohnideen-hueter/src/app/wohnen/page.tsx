@@ -34,7 +34,7 @@ export default function WohnenPage() {
     <>
       <PageHero
         image={`/images/hero-${SLUG}.svg`}
-        alt="Warmer, wohnlicher Wohnraum mit Sofa und Wohnwand – beispielhafte Darstellung"
+        alt="Warmer, wohnlicher Wohnraum mit Sofa und Wohnwand"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
         title={c.title}
@@ -42,14 +42,14 @@ export default function WohnenPage() {
       />
       <SortimentIntro
         image={`/images/feature-${SLUG}.svg`}
-        imageAlt="Gemütliche Sitzecke mit warmer Beleuchtung – beispielhafte Darstellung"
+        imageAlt="Gemütliche Sitzecke mit warmer Beleuchtung"
         eyebrow="Zuhause ankommen"
         title={s.introTitle}
         paras={s.introParas}
       />
       <MoodBand
         image={`/images/mood-${SLUG}.svg`}
-        imageAlt="Großzügiger Wohnraum in warmen Naturtönen – beispielhafte Darstellung"
+        imageAlt="Großzügiger Wohnraum in warmen Naturtönen"
         statement={s.moodStatement!}
       />
       <PlanningList

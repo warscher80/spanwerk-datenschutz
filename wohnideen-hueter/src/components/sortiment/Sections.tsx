@@ -223,7 +223,7 @@ export function ProjectHighlight({
             >
               <Image
                 src={`/images/proj-${p.slug}.svg`}
-                alt={`${p.title} – beispielhafte Darstellung (Platzhalter)`}
+                alt={`${p.title}`}
                 fill
                 sizes="(max-width:1024px) 100vw, 60vw"
                 className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -248,11 +248,6 @@ export function ProjectHighlight({
                   </span>
                 ))}
               </div>
-              {p.placeholder && (
-                <p className="mt-4 inline-flex items-center gap-1.5 text-[0.8rem] font-medium text-ink-mute">
-                  <Icon name="pin" size={0.9} className="text-clay" /> Beispiel · echtes Projekt folgt
-                </p>
-              )}
               <div className="mt-6">
                 <TextLink href="/projekte">Alle Projekte entdecken</TextLink>
               </div>

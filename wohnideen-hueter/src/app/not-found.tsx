@@ -26,8 +26,11 @@ export default function NotFound() {
           <Button href="/" icon="arrow">
             Zur Startseite
           </Button>
+          <Button href="/kuechen" variant="ghost" iconRight="arrow">
+            Wohnwelten entdecken
+          </Button>
           <Button href="/kontakt" variant="ghost" icon="chat">
-            Kontakt
+            Kontakt aufnehmen
           </Button>
         </div>
       </Container>

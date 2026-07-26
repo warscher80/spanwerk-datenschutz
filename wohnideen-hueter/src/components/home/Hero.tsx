@@ -21,7 +21,7 @@ export function EditorialHero() {
       <div className="absolute inset-0 -z-10">
         <Image
           src="/images/hero-home.svg"
-          alt="Hell und warm eingerichtete Wohnküche in Naturtönen – beispielhafte Darstellung"
+          alt="Hell und warm eingerichtete Wohnküche in Naturtönen"
           fill
           priority
           sizes="100vw"

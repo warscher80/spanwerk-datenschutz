@@ -82,10 +82,9 @@ export default function ImpressumPage() {
       <p>
         Inhalte und Werke auf dieser Website unterliegen dem österreichischen
         Urheberrecht. Marken- und Herstellernamen sind Eigentum der jeweiligen
-        Rechteinhaber und dienen der sachlichen Information. Aktuell zeigt diese
-        Website teilweise klar gekennzeichnete Platzhalter-Grafiken („Platzhalter
-        · echtes Foto folgt“), die durch echtes Bildmaterial von Wohnideen Hueter
-        ersetzt werden.
+        Rechteinhaber und dienen der sachlichen Information. Ein Teil des
+        Bildmaterials wird laufend durch eigene Aufnahmen von Wohnideen Hueter
+        ergänzt und ersetzt.
       </p>
 
       <p className="mt-8">

@@ -403,7 +403,7 @@ export const sortiment: Record<string, SortimentContent> = {
       "Wir planen Badmöbel und Ausstattung passend zu Ihren vorhandenen Sanitärobjekten und montieren fachgerecht.",
     // Ehrlicher Hinweis: Umfang offen, keine Sanitär-/Installateurleistung behauptet.
     scopeNote:
-      "Wir konzentrieren uns auf Badmöbel und Ausstattung. Die sanitäre Installation ist nicht Teil unseres Angebots – hier arbeiten wir mit Ihrem Installateur zusammen. Der Umfang des Bad-Sortiments wird laufend erweitert. TODO: genauen Leistungs- und Sortimentsumfang mit Familie Hueter bestätigen.",
+      "Wir konzentrieren uns auf Badmöbel und Ausstattung. Die sanitäre Installation ist nicht Teil unseres Angebots – hier arbeiten wir mit Ihrem Installateur zusammen. Der Umfang unseres Bad-Sortiments wird laufend erweitert – sprechen Sie uns gerne auf Ihr Vorhaben an.",
     crossTitle: "Passt dazu",
     crossLinks: [
       { href: "/schlafen", label: "Schlafbereich abstimmen", text: "Ruhige Materialien verbinden Bad und Schlafzimmer zu einem stimmigen Rückzugsbereich." },

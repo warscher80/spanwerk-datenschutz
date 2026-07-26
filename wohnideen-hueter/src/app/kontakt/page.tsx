@@ -67,7 +67,7 @@ export default function KontaktPage() {
       />
       <PageHero
         image="/images/hero-kontakt.svg"
-        alt="Kontakt zu Wohnideen Hueter – beispielhafte Darstellung"
+        alt="Kontakt zu Wohnideen Hueter"
         crumb="Kontakt"
         eyebrow="Kontakt & Beratungstermin"
         title={

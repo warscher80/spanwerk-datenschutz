@@ -22,7 +22,7 @@ const HUES = {
 
 // Verschiedene abstrakte „Interieur"-Kompositionen (deterministisch pro Variante)
 function scene(variant, c) {
-  const [a, b, d] = c;
+  const [a, , d] = c;
   const scenes = {
     // Sofa + Fenster + Lampe
     living: `
@@ -97,11 +97,12 @@ export function placeholder(o) {
   const w = o.w || 1200, h = o.h || 800;
   const c = HUES[o.hue] || HUES.warm;
   const gid = 'g' + o.hue + w + h + (o.variant || '');
-  const badge = o.badge === false ? '' : `
+  // Badge nur zeigen, wenn ausdrücklich gewünscht (Produktion: keine Beschriftung).
+  const badge = o.badge === true ? `
     <g font-family="Inter, system-ui, sans-serif" opacity=".9">
       <rect x="${w/2 - 150}" y="${h - 70}" width="300" height="34" rx="17" fill="#000" fill-opacity=".28"/>
       <text x="${w/2}" y="${h - 48}" text-anchor="middle" fill="#fff" fill-opacity=".92" font-size="15" font-weight="500" letter-spacing="1">Platzhalter · echtes Foto folgt</text>
-    </g>`;
+    </g>` : '';
   const label = o.label ? `<text x="60" y="${h - 54}" font-family="'Cormorant Garamond', Georgia, serif" fill="#fff" fill-opacity=".9" font-size="46" font-weight="600">${o.label}</text>` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" preserveAspectRatio="xMidYMid slice">

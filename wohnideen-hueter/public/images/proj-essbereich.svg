@@ -21,8 +21,4 @@
       <line x1="550" y1="60" x2="550" y2="150" stroke="#fff" stroke-opacity=".28" stroke-width="2"/></g>
   <rect width="1200" height="800" fill="url(#gwood1200800diningv)"/>
   
-    <g font-family="Inter, system-ui, sans-serif" opacity=".9">
-      <rect x="450" y="730" width="300" height="34" rx="17" fill="#000" fill-opacity=".28"/>
-      <text x="600" y="752" text-anchor="middle" fill="#fff" fill-opacity=".92" font-size="15" font-weight="500" letter-spacing="1">Platzhalter · echtes Foto folgt</text>
-    </g>
 </svg>

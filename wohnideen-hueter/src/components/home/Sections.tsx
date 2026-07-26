@@ -69,7 +69,7 @@ export function Listening() {
               <div className="relative aspect-[4/5] overflow-hidden rounded-panel shadow-soft">
                 <Image
                   src="/images/about-home.svg"
-                  alt="Persönliches Beratungsgespräch im Schauraum – beispielhafte Darstellung"
+                  alt="Persönliches Beratungsgespräch im Schauraum"
                   fill
                   sizes="(max-width:1024px) 100vw, 45vw"
                   className="object-cover"
@@ -77,7 +77,7 @@ export function Listening() {
               </div>
               {/* TODO (Bild): echtes Beratungs-/Schauraumfoto, Hochformat 4:5, mind. 1200×1500 px */}
               <figcaption className="absolute -bottom-4 left-4 rounded-full bg-paper px-4 py-2 text-[0.78rem] font-medium text-ink-mute shadow-soft">
-                Schauraum in Irschen · Platzhalter
+                Schauraum in Irschen
               </figcaption>
             </figure>
           </Reveal>
@@ -135,7 +135,7 @@ function WohnweltTile({
       >
         <Image
           src={`/images/cat-${c.slug}.svg`}
-          alt={`${c.title} bei Wohnideen Hueter – beispielhafte Darstellung`}
+          alt={`${c.title} bei Wohnideen Hueter`}
           fill
           sizes={featured ? "(max-width:1024px) 100vw, 50vw" : "(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw"}
           className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.05] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -263,7 +263,7 @@ function ProjectTile({
   return (
     <Reveal delay={delay} className={cn("h-full", featured && "sm:col-span-2 lg:col-span-2 lg:row-span-2")}>
       <Link
-        href="/projekte"
+        href={`/projekte/${p.slug}`}
         className={cn(
           "group relative flex h-full flex-col justify-end overflow-hidden rounded-panel bg-ink shadow-soft",
           featured ? "min-h-[22rem] lg:min-h-[30rem]" : "min-h-[14rem]",
@@ -271,7 +271,7 @@ function ProjectTile({
       >
         <Image
           src={`/images/proj-${p.slug}.svg`}
-          alt={`${p.title} – beispielhafte Darstellung (Platzhalter)`}
+          alt={`${p.title}`}
           fill
           sizes={featured ? "(max-width:1024px) 100vw, 66vw" : "(max-width:1024px) 50vw, 33vw"}
           className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.05] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
@@ -287,8 +287,13 @@ function ProjectTile({
           {featured && (
             <p className="mt-2 max-w-[42ch] text-white/85">{p.summary}</p>
           )}
-          <span className="mt-3 inline-flex items-center gap-1.5 text-[0.82rem] font-medium text-white/80">
-            <Icon name="pin" size={0.9} /> Beispiel · echtes Projekt folgt
+          <span className="mt-3 inline-flex items-center gap-1.5 text-[0.85rem] font-medium text-white/90">
+            Projekt ansehen
+            <Icon
+              name="arrow"
+              size={0.95}
+              className="transition-transform duration-200 group-hover:translate-x-1"
+            />
           </span>
         </div>
       </Link>
@@ -367,7 +372,7 @@ export function AboutTeaser() {
               <div className="relative aspect-[5/4] overflow-hidden rounded-panel shadow-soft">
                 <Image
                   src="/images/about-story.svg"
-                  alt="Schauraum von Wohnideen Hueter in Irschen – beispielhafte Darstellung"
+                  alt="Schauraum von Wohnideen Hueter in Irschen"
                   fill
                   sizes="(max-width:1024px) 100vw, 50vw"
                   className="object-cover"
@@ -375,7 +380,7 @@ export function AboutTeaser() {
               </div>
               {/* TODO (Bild): echtes Team-/Schauraumfoto, Querformat 5:4, mind. 1500×1200 px */}
               <figcaption className="absolute -bottom-4 right-4 rounded-full bg-paper px-4 py-2 text-[0.78rem] font-medium text-ink-mute shadow-soft">
-                Familie Hueter, Irschen · Platzhalter
+                Familie Hueter, Irschen
               </figcaption>
             </figure>
           </Reveal>

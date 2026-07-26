@@ -18,8 +18,4 @@
       <line x1="800" y1="120" x2="800" y2="196" stroke="#fff" stroke-opacity=".25" stroke-width="2"/></g>
   <rect width="900" height="1125" fill="url(#gwater9001125bathv)"/>
   
-    <g font-family="Inter, system-ui, sans-serif" opacity=".9">
-      <rect x="300" y="1055" width="300" height="34" rx="17" fill="#000" fill-opacity=".28"/>
-      <text x="450" y="1077" text-anchor="middle" fill="#fff" fill-opacity=".92" font-size="15" font-weight="500" letter-spacing="1">Platzhalter · echtes Foto folgt</text>
-    </g>
 </svg>

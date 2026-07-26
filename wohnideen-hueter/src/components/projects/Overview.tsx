@@ -24,7 +24,7 @@ function OverviewTile({
       >
         <Image
           src={`/images/proj-${p.slug}.svg`}
-          alt={`${p.title} – beispielhafte Darstellung (Platzhalter)`}
+          alt={`${p.title}`}
           fill
           sizes={featured ? "(max-width:1024px) 100vw, 66vw" : "(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"}
           className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.05] motion-reduce:transition-none motion-reduce:group-hover:scale-100"

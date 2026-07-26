@@ -34,7 +34,7 @@ export default function EssenPage() {
     <>
       <PageHero
         image={`/images/hero-${SLUG}.svg`}
-        alt="Gedeckter Esstisch mit Stühlen und Hängeleuchte – beispielhafte Darstellung"
+        alt="Gedeckter Esstisch mit Stühlen und Hängeleuchte"
         crumb={c.title}
         eyebrow={s.heroEyebrow}
         title={c.title}
@@ -42,7 +42,7 @@ export default function EssenPage() {
       />
       <SortimentIntro
         image={`/images/feature-${SLUG}.svg`}
-        imageAlt="Massivholztisch mit Bank im Essbereich – beispielhafte Darstellung"
+        imageAlt="Massivholztisch mit Bank im Essbereich"
         eyebrow="Der Treffpunkt im Haus"
         title={s.introTitle}
         paras={s.introParas}
@@ -55,7 +55,7 @@ export default function EssenPage() {
       />
       <MoodBand
         image={`/images/mood-${SLUG}.svg`}
-        imageAlt="Langer Esstisch mit vielen Sitzplätzen – beispielhafte Darstellung"
+        imageAlt="Langer Esstisch mit vielen Sitzplätzen"
         statement={s.moodStatement!}
       />
       <PlanningList
