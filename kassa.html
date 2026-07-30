@@ -484,7 +484,7 @@ function renderReportCanvas(p){
   row('Umsatz Ware', ck(p.w), y); y += RH;
   row('Pfand erhalten', ck(p.po), y); y += RH;
   row('Pfand zurück', ck(p.pb), y); y += RH;
-  row('Becher noch draußen', Math.round((p.po-p.pb)/PFAND_C)+' Becher', y); y += RH;
+  row('Becher noch draußen', Math.max(0,Math.round((p.po-p.pb)/PFAND_C))+' Becher', y); y += RH;
   row('Verkäufe gesamt', String(p.c||0), y); y += RH + 22;
   head('Verkaufte Artikel', y); y += 26;
   items.forEach(it=>{ row(String(it.n||''), (+it.q||0)+'×', y); y += RH; });
@@ -595,7 +595,18 @@ function centsFromInput(s){                             // "12,50" / "12.5" -> 1
   return Math.round(f*100);
 }
 const byId = id => MENU.find(m=>m.id===id);
-function store(key, val){ try{ localStorage.setItem(key+'_'+CLUB, JSON.stringify(val)); }catch(e){} }
+let storageWarned = false;
+function storageFail(){                                 // Speichern fehlgeschlagen -> einmalig klar warnen
+  if(storageWarned) return; storageWarned = true;
+  try{ alert('⚠️ ACHTUNG: Zahlen konnten NICHT gespeichert werden!\n\n'
+    + 'Möglicher Grund: Speicher voll oder Privat-/Inkognito-Modus.\n'
+    + 'Bitte NICHT im Privat-Modus kassieren und Speicher freigeben.\n'
+    + 'Notiere die aktuellen Summen sicherheitshalber von Hand.'); }catch(e){}
+}
+function store(key, val){
+  try{ localStorage.setItem(key+'_'+CLUB, JSON.stringify(val)); }
+  catch(e){ storageFail(); }
+}
 function load(key, def){ try{ const r=localStorage.getItem(key+'_'+CLUB); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
 
 // ---- Zustand (laufende Bestellung) ----------------------------------------
@@ -915,7 +926,7 @@ function showDay(){
   document.getElementById('dWare').textContent      = eur(g.ware);
   document.getElementById('dPfandOut').textContent  = eur(g.pfandOut);
   document.getElementById('dPfandBack').textContent = eur(g.pfandBack);
-  document.getElementById('dCups').textContent      = Math.round((g.pfandOut-g.pfandBack)/PFAND_C)+' Becher';
+  document.getElementById('dCups').textContent      = Math.max(0, Math.round((g.pfandOut-g.pfandBack)/PFAND_C))+' Becher';
   document.getElementById('dCount').textContent     = g.count;
 
   // Tage-Liste: jeder abgeschlossene Tag + heute + Gesamt
@@ -1013,6 +1024,13 @@ document.getElementById('btnCntReset').onclick = ()=>{
 };
 // Komplettes Fest (alle Tage) auf 0 setzen
 document.getElementById('btnReset').onclick = ()=>{
+  const g = gesamt();
+  // Vor dem endgültigen Löschen eine Sicherung anbieten
+  if(g.count>0 && confirm('Vor dem Löschen die aktuelle Statistik als Bild sichern?\n\n'
+      + 'OK = zuerst sichern (danach nochmal auf „Zurücksetzen“ tippen)\n'
+      + 'Abbrechen = direkt weiter zum Zurücksetzen')){
+    showReport(statsPayload()); return;                  // erst sichern – es wird noch NICHTS gelöscht
+  }
   if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
     archive=[]; day=leer(); counter={}; imported={devices:{}};
     saveFest(); saveDay(); saveCounter(); saveImp(); updateCounter(); showDay();
@@ -1026,29 +1044,40 @@ document.getElementById('btnClub').onclick = ()=>{
   }
 };
 
-// ---- QR: gemeinsame Anzeige ----------------------------------------------
+// ---- QR: gemeinsame Anzeige (false = konnte nicht erstellt werden) ---------
 function showQr(url, title, sub, info){
-  if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return false; }
+  if(typeof qrcode==='undefined') return false;          // Bibliothek fehlt (offline erster Start)
   try{
     const qr = qrcode(0,'L'); qr.addData(url); qr.make();
     document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
-  }catch(e){ alert('QR konnte nicht erstellt werden (evtl. zu viele Daten).'); return false; }
+  }catch(e){ return false; }                             // zu viele Daten
   document.getElementById('qrTitle').textContent = title;
   document.getElementById('qrSub').textContent   = sub;
   document.getElementById('qrinfo').textContent  = info;
   document.getElementById('qrmodal').classList.add('open');
   return true;
 }
-
-// ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
-function makeTransfer(){
+// gemeinsame Statistik-Daten (für QR und für das lokale Bild)
+function statsPayload(){
   const g = gesamt();
   const it = MENU.filter(m=>g.items[m.id]>0).map(m=>({ n:m.name, q:g.items[m.id] }));
   const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
-  const payload = { v:2, club:CLUBCFG.name, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
+  return { v:2, club:CLUBCFG.name, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
+}
+
+// ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
+function makeTransfer(){
+  const payload = statsPayload();
   const url = location.href.split('#')[0] + '#r=' + b64urlEncode(JSON.stringify(payload));
-  showQr(url, '📤 Statistik senden', 'Mit dem Handy scannen → Statistik öffnet sich zum Speichern',
-    g.count+' Verkäufe · '+eur(cashOf(g))+' Einnahmen');
+  const ok = showQr(url, '📤 Statistik senden', 'Mit dem Handy scannen → Statistik öffnet sich zum Speichern',
+    payload.c+' Verkäufe · '+eur(payload.w+payload.po-payload.pb)+' Einnahmen');
+  if(!ok){
+    // Zuverlässige Alternative: Statistik direkt auf DIESEM Gerät als Bild (kein Datenverlust)
+    if(confirm('QR gerade nicht möglich (zu viele Daten oder Internet fehlt).\n\n'
+      + 'Stattdessen die Statistik hier direkt als Bild anzeigen (zum Speichern)?')){
+      showReport(payload);
+    }
+  }
 }
 document.getElementById('btnSend').onclick = makeTransfer;
 
@@ -1058,9 +1087,10 @@ function makeMerge(){
   const payload = { v:3, club:CLUBCFG.name, dev:DEVID, t:heute(),
     w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count };
   const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
-  showQr(url, '📲 An Haupt-Tablet senden',
+  const ok = showQr(url, '📲 An Haupt-Tablet senden',
     'Das Haupt-Tablet scannt diesen Code → die Zahlen werden dort zur Gesamtsumme addiert.',
     g.count+' Verkäufe · '+eur(cashOf(g))+' auf diesem Tablet');
+  if(!ok) alert('QR-Funktion nicht verfügbar.\nBitte die App einmal mit Internet öffnen, damit der QR-Code geladen wird.');
 }
 document.getElementById('btnMerge').onclick = makeMerge;
 document.getElementById('qrClose').onclick = ()=>document.getElementById('qrmodal').classList.remove('open');
@@ -1072,9 +1102,27 @@ document.getElementById('qrmodal').addEventListener('click', e=>{
 
 // ---- Aktionen -------------------------------------------------------------
 document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
+let saleBusy = false;                                    // Schutz gegen doppeltes Antippen
 document.getElementById('btnNew').onclick = ()=>{
-  recordSale();
-  cart={}; pfandBack=0; document.getElementById('given').value=''; render();
+  if(saleBusy) return;                                   // zweiter (Doppel-)Tap wird ignoriert
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0) return;            // leere Bestellung: nichts buchen (leise)
+  const t = totals();
+  const givenRaw = document.getElementById('given').value;
+  const g = centsFromInput(givenRaw);
+  // Betrag eingetragen, aber zu wenig -> warnen und NICHT buchen
+  if(String(givenRaw).trim()!=='' && !isNaN(g) && t.totalC>0 && g < t.totalC){
+    alert('Zu wenig gegeben.\nGegeben: '+eur(g)+'\nZu kassieren: '+eur(t.totalC)+'\nEs fehlen noch '+eur(t.totalC-g)+'.');
+    return;                                              // Buchung verhindert
+  }
+  saleBusy = true;
+  try{
+    recordSale();                                        // genau einmal buchen
+    cart={}; pfandBack=0; document.getElementById('given').value=''; render();
+    // Warenkorb ist jetzt leer -> ein sofort folgender Doppel-Tap bucht nichts mehr
+  } finally {
+    saleBusy = false;                                    // Re-Entry-Schutz sofort freigeben
+  }
 };
 
 // ---- Abend-Modus (dunkel) --------------------------------------------------
@@ -1166,7 +1214,7 @@ handleMergeUrl();
 // interner Zugriff (nur für Tests/Diagnose – enthält keine Geheimnisse)
 try{ window.KASSA = { CLUB, CLUBCFG, MENU, MENU_IDS, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
   totals, recordSale, render, gesamt, cashOf, leer, saveDay, saveFest, saveCounter, updateCounter,
-  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay,
+  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay, statsPayload, totalsPayloadTest:totals,
   get cart(){return cart}, set cart(v){cart=v},
   get pfandBack(){return pfandBack}, set pfandBack(v){pfandBack=v},
   get day(){return day}, set day(v){day=v},
