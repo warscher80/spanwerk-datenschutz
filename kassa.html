@@ -257,7 +257,12 @@
   #qrbox{display:flex; justify-content:center; margin:12px 0}
   #qrbox svg{width:min(300px,78vw); height:auto; background:#fff; padding:8px; border-radius:10px}
   .btn-send{background:#2d6cdf; color:#fff}
+  .btn-merge{background:#6a3fb0; color:#fff}
   .btn-cntreset{background:#5b6573; color:#fff}
+  #bothBox{margin-top:14px; border-top:2px solid var(--line); padding-top:10px}
+  #bothBox h3{font-size:13px; margin:0 0 6px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px}
+  #bothBox .kv span:last-child{color:var(--green-d)}
 
   /* Statistik-Bericht (empfangen, zum Speichern) */
   .report{position:fixed; inset:0; z-index:30; background:#2a2f36; display:none;
@@ -373,12 +378,21 @@
       <h3>Verkaufte Artikel (gesamt)</h3>
       <div id="dItems"></div>
     </div>
+    <div id="bothBox" style="display:none">
+      <h3 id="bothTitle">🔗 Gesamt (Haupt + weitere Tablets)</h3>
+      <div class="kv"><span>Dieses Tablet</span><span id="bMain">0,00 €</span></div>
+      <div class="kv"><span>Weitere Tablets (<span id="bDevs">0</span>)</span><span id="bOther">0,00 €</span></div>
+      <div class="kv"><span><b id="bTot">Gesamt (beide)</b></span><span id="bCash"><b>0,00 €</b></span></div>
+    </div>
     <div class="mbtns">
       <button class="btn-close" id="btnClose">Schließen</button>
       <button class="btn-day" id="btnCloseDay">✔ Tag abschließen</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-send" id="btnSend">📤 Statistik als QR (aufs Handy)</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-merge" id="btnMerge">📲 An Haupt-Tablet senden (QR)</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
       <button class="btn-cntreset" id="btnCntReset">🔄 Getränke-/Speisezähler auf 0</button>
@@ -396,8 +410,8 @@
 
 <div class="modal" id="qrmodal">
   <div class="sheet" style="text-align:center">
-    <h2>📤 Statistik senden</h2>
-    <div class="sub">Mit dem Handy scannen → Statistik öffnet sich zum Speichern</div>
+    <h2 id="qrTitle">📤 Statistik senden</h2>
+    <div class="sub" id="qrSub">Mit dem Handy scannen → Statistik öffnet sich zum Speichern</div>
     <div id="qrbox"></div>
     <div class="c3" id="qrinfo" style="margin-top:8px"></div>
     <div class="mbtns"><button class="btn-close" id="qrClose">Schließen</button></div>
@@ -828,6 +842,33 @@ let counter = (function(){ const d=load('kassa_cnt',{}), o={};
   return o; })();
 function saveCounter(){ store('kassa_cnt', counter); }
 
+// ---- Geräte-ID (für 2-Tablet-Zusammenführung) -----------------------------
+let DEVID = (function(){ try{
+  let d = localStorage.getItem('kassa_devid');
+  if(!d){ d = 't' + Date.now().toString(36) + Math.floor(Math.random()*1e8).toString(36);
+    localStorage.setItem('kassa_devid', d); }
+  return d;
+}catch(e){ return 't0'; } })();
+
+// empfangene Zahlen anderer Tablets (nur Summe – Kassen bleiben getrennt)
+let imported = (function(){ const d=load('kassa_imp',{devices:{}}), o={devices:{}};
+  if(d && typeof d==='object' && d.devices && typeof d.devices==='object'){
+    for(const id in d.devices){ const x=d.devices[id];
+      if(x && typeof x==='object'){
+        o.devices[id] = { w:Math.round(+x.w||0), po:Math.round(+x.po||0),
+          pb:Math.round(+x.pb||0), c:Math.max(0,Math.round(+x.c||0)),
+          t:(typeof x.t==='string'?x.t:'') };
+      } }
+  }
+  return o; })();
+function saveImp(){ store('kassa_imp', imported); }
+const impCount = () => Object.keys(imported.devices).length;
+function impSum(){ let w=0,po=0,pb=0,c=0;
+  for(const id in imported.devices){ const x=imported.devices[id];
+    w+=x.w; po+=x.po; pb+=x.pb; c+=x.c; }
+  return { ware:w, pfandOut:po, pfandBack:pb, count:c };
+}
+
 // aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
 const MILESTONE = 100;                                 // Feier alle 100 Getränke
 function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=counter[m.id]||0; } return n; }
@@ -891,6 +932,21 @@ function showDay(){
   document.getElementById('dItems').innerHTML = entries.length
     ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${g.items[m.id]}×</span></div>`).join('')
     : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
+
+  // Gesamt über mehrere Tablets (nur wenn welche empfangen wurden)
+  const box = document.getElementById('bothBox');
+  if(impCount() > 0){
+    const mine  = cashOf(g);
+    const other = cashOf(impSum());
+    document.getElementById('bothTitle').textContent = CLUBCFG.name + ' gesamt (Haupt + weitere Tablets)';
+    document.getElementById('bMain').textContent  = eur(mine);
+    document.getElementById('bDevs').textContent  = impCount();
+    document.getElementById('bOther').textContent = eur(other);
+    document.getElementById('bCash').innerHTML    = '<b>'+eur(mine+other)+'</b>';
+    box.style.display = '';
+  } else {
+    box.style.display = 'none';
+  }
 
   document.getElementById('modal').classList.add('open');
 }
@@ -958,8 +1014,8 @@ document.getElementById('btnCntReset').onclick = ()=>{
 // Komplettes Fest (alle Tage) auf 0 setzen
 document.getElementById('btnReset').onclick = ()=>{
   if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
-    archive=[]; day=leer(); counter={};
-    saveFest(); saveDay(); saveCounter(); updateCounter(); showDay();
+    archive=[]; day=leer(); counter={}; imported={devices:{}};
+    saveFest(); saveDay(); saveCounter(); saveImp(); updateCounter(); showDay();
   }
 };
 // Verein wechseln (Code des anderen Vereins nötig)
@@ -970,22 +1026,43 @@ document.getElementById('btnClub').onclick = ()=>{
   }
 };
 
+// ---- QR: gemeinsame Anzeige ----------------------------------------------
+function showQr(url, title, sub, info){
+  if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return false; }
+  try{
+    const qr = qrcode(0,'L'); qr.addData(url); qr.make();
+    document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
+  }catch(e){ alert('QR konnte nicht erstellt werden (evtl. zu viele Daten).'); return false; }
+  document.getElementById('qrTitle').textContent = title;
+  document.getElementById('qrSub').textContent   = sub;
+  document.getElementById('qrinfo').textContent  = info;
+  document.getElementById('qrmodal').classList.add('open');
+  return true;
+}
+
 // ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
 function makeTransfer(){
-  if(typeof qrcode==='undefined'){ alert('QR-Funktion nicht geladen.\nBitte die App einmal mit Internet öffnen.'); return; }
   const g = gesamt();
   const it = MENU.filter(m=>g.items[m.id]>0).map(m=>({ n:m.name, q:g.items[m.id] }));
   const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
   const payload = { v:2, club:CLUBCFG.name, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
   const url = location.href.split('#')[0] + '#r=' + b64urlEncode(JSON.stringify(payload));
-  try{
-    const qr = qrcode(0,'L'); qr.addData(url); qr.make();
-    document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
-  }catch(e){ alert('QR konnte nicht erstellt werden (Statistik evtl. zu groß).'); return; }
-  document.getElementById('qrinfo').textContent = g.count+' Verkäufe · '+eur(cashOf(g))+' Einnahmen';
-  document.getElementById('qrmodal').classList.add('open');
+  showQr(url, '📤 Statistik senden', 'Mit dem Handy scannen → Statistik öffnet sich zum Speichern',
+    g.count+' Verkäufe · '+eur(cashOf(g))+' Einnahmen');
 }
 document.getElementById('btnSend').onclick = makeTransfer;
+
+// ---- QR: dieses Tablet an das Haupt-Tablet senden (nur Summe) -------------
+function makeMerge(){
+  const g = gesamt();
+  const payload = { v:3, club:CLUBCFG.name, dev:DEVID, t:heute(),
+    w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count };
+  const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
+  showQr(url, '📲 An Haupt-Tablet senden',
+    'Das Haupt-Tablet scannt diesen Code → die Zahlen werden dort zur Gesamtsumme addiert.',
+    g.count+' Verkäufe · '+eur(cashOf(g))+' auf diesem Tablet');
+}
+document.getElementById('btnMerge').onclick = makeMerge;
 document.getElementById('qrClose').onclick = ()=>document.getElementById('qrmodal').classList.remove('open');
 document.getElementById('qrmodal').addEventListener('click', e=>{
   if(e.target.id==='qrmodal') document.getElementById('qrmodal').classList.remove('open');
@@ -1062,14 +1139,40 @@ document.addEventListener('visibilitychange', ()=>{       // beim Zurückkehren 
 window.addEventListener('pointerdown', ensureWake);       // spätestens bei erster Berührung aktivieren
 ensureWake();
 
+// ---- Haupt-Tablet: QR eines anderen Tablets einlesen (nur Summe) ----------
+function handleMergeUrl(){
+  const m = (location.hash||'').match(/^#m=(.+)$/);
+  if(!m) return;
+  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
+  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}
+  if(!p || p.v!==3 || !p.dev){ alert('QR nicht lesbar.'); return; }
+  if(p.club && p.club!==CLUBCFG.name){
+    alert('Dieser QR gehört zu „'+p.club+'".\nDieses Tablet ist auf „'+CLUBCFG.name+'" eingestellt.'); return; }
+  if(p.dev===DEVID){ alert('Das ist der QR dieses Tablets selbst.'); return; }
+  const pin = prompt('PIN für Übernahme:');
+  if(pin===null) return;
+  if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
+  const neu = !imported.devices[p.dev];
+  imported.devices[p.dev] = { w:Math.round(+p.w||0), po:Math.round(+p.po||0),
+    pb:Math.round(+p.pb||0), c:Math.max(0,Math.round(+p.c||0)),
+    t:(typeof p.t==='string'?p.t:'') };
+  saveImp();
+  alert((neu?'Tablet übernommen ✓':'Tablet aktualisiert ✓')+'\n'+CLUBCFG.name+
+    ' zeigt jetzt die Gesamtsumme aller Tablets.');
+  showDay();
+}
+handleMergeUrl();
+
 // interner Zugriff (nur für Tests/Diagnose – enthält keine Geheimnisse)
-try{ window.KASSA = { CLUB, MENU, MENU_IDS, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
+try{ window.KASSA = { CLUB, CLUBCFG, MENU, MENU_IDS, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
   totals, recordSale, render, gesamt, cashOf, leer, saveDay, saveFest, saveCounter, updateCounter,
+  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay,
   get cart(){return cart}, set cart(v){cart=v},
   get pfandBack(){return pfandBack}, set pfandBack(v){pfandBack=v},
   get day(){return day}, set day(v){day=v},
   get archive(){return archive}, set archive(v){archive=v},
-  get counter(){return counter}, set counter(v){counter=v} }; }catch(e){}
+  get counter(){return counter}, set counter(v){counter=v},
+  get imported(){return imported}, set imported(v){imported=v} }; }catch(e){}
 
 render();
 
