@@ -48,6 +48,12 @@
       wartungsmodus: !!b.wartungsmodus,
       speicher: speicherStatus(db),
       letztesBackup: (b.backupMeta && b.backupMeta.letztes) || null,
+      letztesBackupFehlgeschlagen: (b.backupMeta && b.backupMeta.status === "fehlgeschlagen") ? (b.backupMeta.letztes || true) : null,
+      letzteMigration: b.letzteMigration || null,
+      // Offline-App: keine Server-Hintergrundaufgaben, keine Live-Materialpreissync
+      hintergrundaufgaben: "keine (Offline-App)",
+      materialpreisSync: "nicht konfiguriert",
+      fehlgeschlageneAufgaben: (db.fehlerlog || []).filter(function (f) { return f.modul === "backup" || f.modul === "import" || f.modul === "pdf"; }).length,
       zaehler: {
         kunden: (db.kunden || []).length, material: (db.material || []).length,
         kalkulationen: (db.kalkulationen || []).length, angebote: (db.angebote || []).length,

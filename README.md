@@ -46,4 +46,39 @@ Technisch: Die statische Web-App im Projekt-Root wird mit
 - **Automatische Zeit- & Preiskalkulation** inkl. Maschinenkosten
 - **Angebotsgenerator** mit druckbarem PDF-Angebot
 - **Nachkalkulation** mit Soll-/Ist-Vergleich
-- **Selbstlernende KI** – segmentiert nach Produkt × Werkstoff × Größe
+- **Fertigungsplanung** (Kapazität, Konflikte, Gantt/Kanban, Montage)
+- **Dokumente/Zeichnungen/Stücklisten** (Upload, Analyse, kontrollierte Übernahme)
+- **Management-Dashboard** mit rollenbasierten Auswertungen
+- **System-/Betriebsseite** (Healthchecks, Backup-Überwachung, Feedback,
+  Fehlerprotokoll, Freigabestufen) – nur für Administration
+- **Selbstlernende Statistik** – segmentiert nach Produkt × Werkstoff × Größe
+
+## Für den Pilotbetrieb & Betrieb
+
+Diese App ist für einen kontrollierten Pilotbetrieb vorbereitet. Wichtige
+Dokumente:
+
+| Thema | Datei |
+|---|---|
+| Projektstand & Reifegrad | `PROJECT_STATUS.md` |
+| Prüf-/Abschlussbericht + Pilotentscheidung | `AUDIT_REPORT.md` |
+| Kalkulationsformeln | `CALCULATION_RULES.md` |
+| Architektur | `ARCHITECTURE.md` |
+| Sicherheit | `SECURITY.md` |
+| Backup & Wiederherstellung | `BACKUP_RESTORE.md` |
+| Deployment & Freigabestufen | `DEPLOYMENT.md` |
+| Bekannte Einschränkungen | `KNOWN_LIMITATIONS.md` |
+| Kurzanleitung | `USER_GUIDE.md` |
+| Pilotplan / Checklisten | `PILOT_PLAN.md`, `PILOT_CHECKLIST.md` |
+| Betrieb / Störungen / Release / Support | `OPERATIONS_GUIDE.md`, `INCIDENT_RESPONSE.md`, `RELEASE_PROCESS.md`, `SUPPORT_GUIDE.md` |
+| Pilot-Ergebnisse (Vorlage) | `PILOT_RESULTS_TEMPLATE.md` |
+| Änderungshistorie | `CHANGELOG.md` |
+
+**Tests:** `node tests/referenz.test.js` (Referenzkalkulation, Snapshot-
+Invarianten, Migrationen, Betriebs-/Sicherheitschecks). Syntaxprüfung:
+`node --check assets/js/*.js`.
+
+**Reifegrad:** bereit für internen Test-/**Pilotbetrieb** (mit den in
+`KNOWN_LIMITATIONS.md` genannten Auflagen); voller Produktivbetrieb
+(Mehrbenutzer/Server/ERP-Live) noch nicht. Kein öffentliches Deployment und
+keine Übernahme echter Firmendaten ohne ausdrückliche Freigabe.

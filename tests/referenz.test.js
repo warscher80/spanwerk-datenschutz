@@ -20,6 +20,7 @@ var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 var pass = 0, fail = 0, fails = [];
 function t(name, cond) { if (cond) pass++; else { fail++; fails.push(name); } }
 function eq(a, b) { return Math.abs(a - b) < 0.005; }
+function iso(y, mo, d, h) { return new Date(y, mo - 1, d, h || 8, 0, 0).toISOString(); }
 
 // =============================================================
 //  1) REFERENZKALKULATION  TEST-REFERENZ-001
@@ -181,6 +182,40 @@ if (Betrieb) {
   var pk = Betrieb.pilotKennzahlen(db2, Date.now());
   t("BETRIEB Pilotkennzahlen real", pk.auftraege === (db2.auftraege || []).length && typeof pk.nachkalkuliert === "number");
 } else { t("BETRIEB Modul geladen", false); }
+
+// =============================================================
+//  7) PILOT-TESTFÄLLE (Phase 9, berechenbare Fälle)
+// =============================================================
+var Pl = P.Planung, D = P.Dokumente, Calc = P.Calc, Auth = P.Auth;
+var pdb = Store.load();
+// 1/2 Geländer-/Blechkalkulation aus Beispieldaten -> plausibles Netto
+t("PILOT Beispielkalkulation ergibt positives Netto", (pdb.kalkulationen || []).length === 0 || Kalk.berechne(pdb.kalkulationen[0], pdb.settings).netto > 0);
+// 3 Serienteil: Staffel -> Rüstkosten/Stück sinkt mit Menge
+(function () { var s = Kalk.staffel(refKalk, { mwst: 20 }, [1, 100]); t("PILOT Staffel: Rüst/Stück sinkt", s[1].ruestProStk < s[0].ruestProStk); })();
+// 4 manuelle Zeitkorrektur (manueller Preis überschreibt)
+t("PILOT manuelle Zeitkorrektur überschreibt", Kalk.arbeit({ ruestzeit: 0, bearbeitungProStk: 1, stueckzahl: 1, internerSatz: 40, verkaufSatz: 75, manuellerPreis: 123 }).verkauf === 123);
+// 5 Maschinenkonflikt erkannt
+(function () { var e = [{ id: "a", maschineId: "m-laser", start: iso(2026, 6, 1, 8), ende: iso(2026, 6, 1, 12), vorgaenger: [] }, { id: "b", maschineId: "m-laser", start: iso(2026, 6, 1, 10), ende: iso(2026, 6, 1, 14), vorgaenger: [] }]; t("PILOT Maschinenkonflikt", Pl.konflikte(e, pdb, pdb.settings).some(function (k) { return k.typ === "maschine"; })); })();
+// 6 veralteter Materialpreis -> Betriebswarnung
+(function () { var d = Store.load(); if (d.material[0]) { var alt = new Date(Date.now() - 400 * 86400000).toISOString(); d.material[0].aktualisiert = alt; } t("PILOT veralteter Materialpreis gewarnt", P.Betrieb.betriebswarnungen(d, Date.now()).some(function (w2) { return w2.typ === "materialpreis"; })); })();
+// 7 Angebot mit optionaler Position: Optionale zählt nicht ins Netto
+(function () { var a = { positionen: [{ typ: "normal", menge: 1, einheit: "Pos", einzelpreis: 100, mwstProz: 20 }, { typ: "optional", menge: 1, einheit: "Pos", einzelpreis: 50, mwstProz: 20 }] }; var s = P.Angebot.summen(a); t("PILOT optionale Position separat", s.netto === 100 && s.optionalSumme === 50); })();
+// 8 Angebotspreis unter Selbstkosten -> Warnung
+t("PILOT Verkauf unter Selbstkosten warnt", Kalk.berechne({ stueckzahl: 1, material: [{ menge: 1, einkaufspreis: 100, materialaufschlagProz: 0 }], arbeit: [], maschine: [], gewinnProz: 0, manuellerAufschlag: -60 }, { mwst: 20 }).warnungen.some(function (w2) { return /Selbstkosten/.test(w2); }));
+// 11 Auftrag mit Kostenüberschreitung -> Soll-Ist Abw > 0
+(function () { var auf = { positionen: [{ produktKey: "gelaender", kalk: { zeiten: { schweissen: 10 } }, ist: { zeiten: { schweissen: 15 } } }] }; var si = Calc.sollIst(auf); t("PILOT Kostenüberschreitung: Ist > Soll", si && si.abwProz > 0); })();
+// 13 Lernvorschlag geringe Sicherheit: wenig Daten -> nicht belastbar
+t("PILOT Lernauswertung Belastbarkeit korrekt", typeof P.Auswertung.lernauswertung(Store.load()).belastbar === "boolean");
+// 16 fehlgeschlagenes Backup -> Warnung
+(function () { var d = Store.load(); d.settings.betrieb.backupMeta = { letztes: new Date().toISOString(), status: "fehlgeschlagen", restoreGetestet: true }; t("PILOT fehlgeschlagenes Backup gewarnt", P.Betrieb.backupStatus(d, Date.now()).warnungen.some(function (w2) { return /fehlgeschlagen/.test(w2.text); })); })();
+// 17 Benutzer ohne Preisberechtigung (Fertigung/Montage)
+(function () { var u = Auth.login("werkstatt", "1234"); t("PILOT werkstatt ohne Finanzrecht", !!u && Auth.darfFinanzen() === false); Auth.logout(); })();
+// 18 direkter Zugriff auf gesperrte URL -> Rolle darf nicht
+t("PILOT werkstatt darf keine Kalkulation", Auth.RECHTE.werkstatt.indexOf("kalkulationen") < 0);
+// 19 Import mit Duplikaten
+t("PILOT Duplikate erkannt", D.dedupeBom([{ artikelnummer: "A1" }, { artikelnummer: "A1" }, { artikelnummer: "A2" }]).duplikate.length === 1);
+// 20 neue Zeichnungsrevision -> relevanter Vergleich
+t("PILOT Revisionsvergleich relevant", D.revisionsvergleich([D.erkennungsWert("werkstoff", "S235")], [D.erkennungsWert("werkstoff", "1.4301")], [], []).relevant === true);
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

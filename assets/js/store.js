@@ -471,6 +471,9 @@
     if (!Array.isArray(obj.feedback)) obj.feedback = [];
     if (!Array.isArray(obj.fehlerlog)) obj.fehlerlog = [];
     (obj.users || []).forEach(function (u) { if (u && typeof u.pinGeaendert !== "boolean") u.pinGeaendert = false; });
+    // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
+    if (obj.version !== 9) { st.betrieb.letzteMigration = nowISO(); obj.version = 9; }
+    else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();
     return obj;
   }
 

@@ -4,6 +4,21 @@ Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
 ## Phase 9 – Pilotbetrieb & Betriebsüberwachung  (Schema v9)
+### Nachtrag (Restlücken geschlossen)
+- **Pilotfunktions-Kennzeichnung** im Menü (ab Freigabestufe Pilot; Lernen,
+  Planung, Dokumente als „Pilot" markiert).
+- **In-App-Versions-/Änderungsansicht** (Neu / behobene Fehler / bekannte
+  Einschränkungen) auf der System-Seite.
+- **Fehlgeschlagene Anmeldungen** und **Berechtigungsverstöße** werden ohne
+  PIN/Secrets protokolliert (mit Fehler-ID).
+- Systemstatus erweitert: letzte Migration, Hintergrundaufgaben,
+  Materialpreis-Sync, letztes fehlgeschlagenes Backup.
+- README.md um Doku-Index + Pilot-Hinweis ergänzt.
+- `tests/referenz.test.js` auf **57/57** erweitert (Pilot-Testfälle:
+  Staffel-Rüst/Stück, Maschinenkonflikt, veralteter Preis, optionale Position,
+  Verkauf unter Selbstkosten, Kostenüberschreitung, fehlgeschlagenes Backup,
+  Preisberechtigung, gesperrte URL, Duplikate, Revisionsvergleich).
+
 ### Hinzugefügt
 - Betriebs-/Monitoring-Engine `betrieb.js`: Release-Stufen, Systemstatus,
   Healthchecks (nicht-konfigurierte Adapter = kein Systemfehler),

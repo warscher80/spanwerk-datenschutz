@@ -73,7 +73,10 @@
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
-    if (Auth && Auth.istAngemeldet() && !Auth.darf(page)) page = ersteErlaubteSeite();
+    if (Auth && Auth.istAngemeldet() && !Auth.darf(page)) {
+      try { if (typeof protokolliereFehler === "function") protokolliereFehler({ message: "Zugriff auf gesperrten Bereich „" + page + "\" umgeleitet" }, "berechtigung"); } catch (e) {}
+      page = ersteErlaubteSeite();
+    }
     $all(".nav li").forEach(function (li) { li.classList.toggle("active", li.dataset.page === page); });
     $all(".page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + page); });
     try {
@@ -1128,6 +1131,13 @@
   //  BETRIEB / SYSTEM / FEEDBACK / FEHLERLOG (Phase 9)
   // ============================================================
   function buildInfo() { return (w.PS_BUILD || { version: (db.settings.appVersion || "Web-Vorschau"), build: "—" }); }
+  // In-App-Versions-/Änderungsübersicht (Änderungs-/Versionsverwaltung)
+  var VERSION_INFO = {
+    version: "9 (Pilot)", datum: "Phase 9",
+    neu: ["System-/Betriebsseite mit Healthchecks & Backup-Überwachung", "Feedback-Funktion & Fehlerprotokoll mit Fehler-ID", "Freigabestufen + First-Login-PIN-Pflicht ab Pilot"],
+    behoben: ["Angebots-Snapshot friert Firma/Kunde jetzt als Kopie ein (kein nachträgliches Ändern alter Angebote)", "Responsive-Überlauf auf Tablet/kleinen Handys behoben"],
+    grenzen: ["Offline-/Einzelplatzbetrieb, Datenabgleich per Backup/WLAN", "Fremdsysteme (Frankstahl/KingBill/OCR) nicht angebunden", "Details siehe KNOWN_LIMITATIONS.md"]
+  };
 
   // Technisches Fehlerprotokoll (Ringpuffer, KEINE Secrets/Personendaten)
   function protokolliereFehler(err, modul) {
@@ -1204,6 +1214,10 @@
       dokZeile("Datenschema", "v" + status.schemaVersion) +
       dokZeile("Speicher", status.speicher.genutztKB + " / " + status.speicher.limitKB + " kB (" + status.speicher.prozent + " %) " + healthBadge(status.speicher.status)) +
       dokZeile("Letztes Backup", bk.letztes ? (fmtDateTime(bk.letztes) + " · " + (bk.alterTage != null ? bk.alterTage + " T alt" : "")) : '<span style="color:#e06666">keins</span>') +
+      dokZeile("Letztes fehlgeschl. Backup", status.letztesBackupFehlgeschlagen ? fmtDateTime(status.letztesBackupFehlgeschlagen) : "—") +
+      dokZeile("Letzte Migration", status.letzteMigration ? fmtDateTime(status.letzteMigration) : "—") +
+      dokZeile("Hintergrundaufgaben", esc(status.hintergrundaufgaben) + " · fehlgeschlagen: " + status.fehlgeschlageneAufgaben) +
+      dokZeile("Materialpreis-Sync", esc(status.materialpreisSync)) +
       dokZeile("Datensätze", status.zaehler.kunden + " Kunden · " + status.zaehler.kalkulationen + " Kalk. · " + status.zaehler.angebote + " Angebote · " + status.zaehler.auftraege + " Aufträge") +
       "</tbody></table></div></div>";
     html += '<div class="card"><h3>❤️ Healthchecks <span class="sub">' + healthBadge(hc.gesamt) + "</span></h3>" +
@@ -1212,6 +1226,12 @@
       hc.adapter.map(function (a) { return '<div class="zeile"><span>' + esc(a.name) + '</span><strong><span class="tag">' + esc(a.status) + "</span></strong></div>"; }).join("") +
       "</div>";
     html += "</div>";
+
+    // Version & Änderungen (Änderungs-/Versionsverwaltung)
+    function liste(arr) { return "<ul style=\"margin:4px 0 0 18px;padding:0\">" + arr.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>"; }
+    html += '<div class="card" style="margin-top:12px"><h3>🆕 Version & Änderungen</h3>' +
+      '<div class="muted" style="font-size:12px">Aktuelle Version: <strong>' + esc(VERSION_INFO.version) + "</strong> · " + esc(VERSION_INFO.datum) + " · Datenschema v" + status.schemaVersion + "</div>" +
+      '<div class="grid cols-3" style="margin-top:8px"><div><strong>Neu</strong>' + liste(VERSION_INFO.neu) + "</div><div><strong>Behobene Fehler</strong>" + liste(VERSION_INFO.behoben) + "</div><div><strong>Bekannte Einschränkungen</strong>" + liste(VERSION_INFO.grenzen) + "</div></div></div>";
 
     // Backup-Überwachung
     html += '<div class="card" style="margin-top:12px"><h3>💾 Backup-Überwachung</h3>' +
@@ -1255,7 +1275,7 @@
 
     root.innerHTML = html;
     // Verdrahtung
-    $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); renderSystem(); toast("Freigabestufe gesetzt."); };
+    $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); markierePilotFunktionen(); renderSystem(); toast("Freigabestufe gesetzt."); };
     $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
     $("#sys-backup-jetzt").onclick = function () { systemBackup(); };
     $("#sys-restore-getestet").onclick = function () { db.settings.betrieb.backupMeta.restoreGetestet = true; db.settings.betrieb.backupMeta.letzterRestoreTest = Store.nowISO(); Store.save(); renderSystem(); toast("Restore-Test vermerkt."); };
@@ -4658,6 +4678,20 @@
       li.hidden = !erlaubt;
       li.style.display = erlaubt ? "" : "none";
     });
+    markierePilotFunktionen();
+  }
+  // Kennzeichnet Funktionen mit Pilotstatus (ab Freigabestufe Pilot) im Menü.
+  var PILOT_NAV_SEITEN = { lernen: 1, planung: 1, dokumente: 1 };
+  function markierePilotFunktionen() {
+    var stufe = (db.settings.betrieb && db.settings.betrieb.releaseStufe) || "test";
+    var aktiv = ["pilot", "eingeschraenkt"].indexOf(stufe) >= 0;
+    $all(".nav li").forEach(function (li) {
+      var alt = li.querySelector(".pilot-mark"); if (alt) alt.parentNode.removeChild(alt);
+      if (aktiv && PILOT_NAV_SEITEN[li.dataset.page]) {
+        var b = el("span", { title: "Pilotfunktion – im Pilot optional" }, "Pilot");
+        b.className = "pilot-mark"; li.appendChild(b);
+      }
+    });
   }
   function aktualisiereUserBox() {
     var u = Auth && Auth.current();
@@ -4718,9 +4752,14 @@
   function initLogin() {
     var btn = $("#login-btn"); if (!btn) return;
     function versuch() {
-      var ok = Auth.login($("#login-user").value, $("#login-pin").value);
+      var benutzer = $("#login-user").value;
+      var ok = Auth.login(benutzer, $("#login-pin").value);
       if (ok) { starteNachLogin(); }
-      else { $("#login-fehler").hidden = false; $("#login-pin").value = ""; try { $("#login-pin").focus(); } catch (e) {} }
+      else {
+        $("#login-fehler").hidden = false; $("#login-pin").value = ""; try { $("#login-pin").focus(); } catch (e) {}
+        // Fehlgeschlagene Anmeldung protokollieren (ohne PIN)
+        try { protokolliereFehler({ message: "Fehlgeschlagene Anmeldung für Benutzer „" + String(benutzer) + "\"" }, "anmeldung"); } catch (e) {}
+      }
     }
     btn.onclick = versuch;
     $("#login-pin").addEventListener("keydown", function (e) { if (e.key === "Enter") versuch(); });

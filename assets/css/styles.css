@@ -86,6 +86,11 @@ a { color: var(--accent-2); }
   box-shadow: var(--shadow);
 }
 .fab-feedback:hover { filter: brightness(1.08); }
+.pilot-mark {
+  margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .3px;
+  background: #e0a000; color: #10141b; padding: 1px 5px; border-radius: 6px;
+}
+@media (max-width: 900px) { .pilot-mark { position: absolute; top: 2px; right: 6px; margin: 0; } .nav li { position: relative; } }
 .release-banner {
   position: fixed; top: 0; right: 0; z-index: 95;
   padding: 3px 12px; font-size: 11px; font-weight: 700; color: #10141b;
