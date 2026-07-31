@@ -51,7 +51,9 @@
     // Fertigungsplanung (Phase 7C): Schicht-/Arbeitszeitmodell + Feiertage
     planung: { schichtStunden: 8, schichtStart: 7, arbeitstage: [1, 2, 3, 4, 5], feiertageAktiv: true, feiertage: [], pufferStd: 0 },
     // Qualifikationen (Phase 7C), vom Admin verwaltbar
-    qualifikationen: ["MAG-Schweißen", "WIG-Schweißen", "Edelstahlschweißen", "Laserschneiden", "Abkantpresse", "Stapler", "Kran", "Montage", "Projektleitung", "Qualitätsprüfung"]
+    qualifikationen: ["MAG-Schweißen", "WIG-Schweißen", "Edelstahlschweißen", "Laserschneiden", "Abkantpresse", "Stapler", "Kran", "Montage", "Projektleitung", "Qualitätsprüfung"],
+    // Dokumentenverwaltung (Phase 7D)
+    dokumentZaehler: 1
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -199,6 +201,34 @@
     } catch (e) { return basis; }
   }
 
+  // Beispiel-Dokumente (künstliche Testdaten, klar gekennzeichnet).
+  // Kleine Textinhalte (CSV/PDF-Text) – keine großen Binärdateien im
+  // lokalen Speicher.
+  function beispielDokumente(kunden, auftraege) {
+    var D = w.Preisschmiede && w.Preisschmiede.Dokumente;
+    if (!D) return [];
+    var k0 = kunden[0] ? kunden[0].id : null;
+    var csv = "Pos;Bezeichnung;Werkstoff;Länge;Breite;Stärke;Menge;Einheit\n" +
+      "1;Handlaufhalter;S235JR;120;40;6;8;Stk\n2;Pfosten 40x40;S235JR;1000;40;3;6;Stk\n3;Füllstab;Edelstahl 1.4301;900;12;;24;Stk";
+    var pdfA = "%PDF-1.4\n/Type /Page\nBT (Zeichnung Nr: 1045) Tj ET BT (Revision: A) Tj ET BT (Werkstoff: S235JR) Tj ET BT (Stück: 8) Tj ET BT (Maßstab: 1:10) Tj ET";
+    var pdfB = pdfA.replace("Revision: A", "Revision: B").replace("Werkstoff: S235JR", "Werkstoff: 1.4301").replace("Stück: 8", "Stück: 10");
+    function doc(o) {
+      return Object.assign({
+        id: uid(), _beispiel: true, nummer: o.nummer, typ: o.typ, dateiname: o.dateiname,
+        format: D.formatInfo(o.dateiname), groesse: (o.inhalt || "").length, pruefsumme: D.pruefsumme(o.inhalt || o.nummer),
+        zeichnungsnummer: o.zeichnungsnummer || "", revision: o.revision || "", beschreibung: o.beschreibung || "",
+        ersteller: "Beispiel", hochgeladen: nowISO(), status: "hochgeladen", analysezustand: "nicht analysiert",
+        kundeId: o.kundeId || null, auftragId: o.auftragId || null, kommission: o.kommission || "",
+        version: o.version || 1, vorgaengerId: o.vorgaengerId || null, aktuell: o.aktuell !== false,
+        inhalt: o.inhalt || "", analysen: []
+      });
+    }
+    var a = doc({ nummer: "ZNG-1045-A", typ: "technische Zeichnung", dateiname: "1045_Gelaenderpfosten.pdf", zeichnungsnummer: "1045", revision: "A", beschreibung: "Geländerpfosten (Beispiel)", kundeId: k0, kommission: "BV Musterstraße", inhalt: pdfA, aktuell: false });
+    var b = doc({ nummer: "ZNG-1045-B", typ: "technische Zeichnung", dateiname: "1045_Gelaenderpfosten_RevB.pdf", zeichnungsnummer: "1045", revision: "B", beschreibung: "Geländerpfosten – Revision B (Werkstoffwechsel)", kundeId: k0, kommission: "BV Musterstraße", inhalt: pdfB, version: 2, vorgaengerId: a.id });
+    var s = doc({ nummer: "STL-2026-001", typ: "Stückliste", dateiname: "Stueckliste_Gelaender.csv", beschreibung: "Stückliste Geländer (Beispiel)", kundeId: k0, kommission: "BV Musterstraße", inhalt: csv });
+    return [a, b, s];
+  }
+
   function fresh() {
     var mats = SEED_MATERIAL.map(function (m) {
       return {
@@ -258,7 +288,7 @@
       } catch (e) { angebote = []; }
     }
     return {
-      version: 7,
+      version: 8,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -277,6 +307,8 @@
       auftraege: auftraegeSeed,
       // Fertigungsplanung (Phase 7C)
       planung: beispielPlanung(auftraegeSeed, settings, mitarbeiter),
+      // Dokumente/Zeichnungen/Stücklisten (Phase 7D)
+      dokumente: beispielDokumente(kunden, auftraegeSeed),
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -417,6 +449,9 @@
     if (!Array.isArray(obj.planung.versionen)) obj.planung.versionen = [];
     if (!Array.isArray(obj.planung.benachrichtigungen)) obj.planung.benachrichtigungen = [];
     if (!Array.isArray(obj.planung.montage)) obj.planung.montage = [];
+    // Dokumente (Phase 7D)
+    if (!Array.isArray(obj.dokumente)) obj.dokumente = [];
+    if (st.dokumentZaehler == null) st.dokumentZaehler = (obj.dokumente.length || 0) + 1;
     return obj;
   }
 

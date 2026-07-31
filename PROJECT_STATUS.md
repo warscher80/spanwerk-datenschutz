@@ -4,7 +4,7 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: Umsetzung **Phase 7C (Fertigungsplanung)** abgeschlossen.
+Letzte Aktualisierung: Umsetzung **Phase 7D (Zeichnungen & Stücklisten)** abgeschlossen.
 
 ---
 
@@ -420,6 +420,83 @@ gespeicherten Daten berechnet – keine fest verdrahteten oder zufälligen Werte
   eigene Verwaltungs-UI dafür folgt. Benachrichtigungen sind intern gespeichert
   (kein Push/SMS/E-Mail – bewusst als spätere Erweiterung vorbereitet).
 
+## Phase 7D – Zeichnungen, Stücklisten & Maßübernahme – ERLEDIGT ✅
+
+**Ehrlichkeitsgrundsatz:** Automatisch erkannte Werte sind IMMER „ungeprüft"
+und müssen bestätigt werden; sie fließen **nie** automatisch in eine
+freigegebene Kalkulation. Keine Maßschätzung aus Pixeln, keine externen
+OCR-/KI-Dienste, keine vorgetäuschte CAD-Erkennung.
+
+**Neue Datei**
+- `assets/js/dokumente.js` – reine, testbare Analyse-Engine: Prüfsumme
+  (FNV-1a), Upload-Validierung (Endung/Größe/ausführbare Dateien/Dublette),
+  **CSV-Stücklistenparser** (Trennzeichen-/Dezimalerkennung, Auto-Spaltenzuordnung,
+  Validierung, Einheitenumrechnung, Duplikaterkennung), **Materialabgleich**
+  gegen die Materialdatenbank (eindeutig/mehrere/kein Treffer, abweichende
+  Einheit, veralteter Preis), **Erkennungswert-Modell** (Status ungeprüft/
+  bestätigt/korrigiert/abgelehnt) mit **Verwechslungswarnungen** (0/O, 1/I,
+  5/S, 6/8, Komma/Punkt, mm/cm, ⌀, °), **konservative PDF-Textextraktion**
+  (nur unkomprimierte Streams; komprimiert/gescannt → ehrlicher Hinweis,
+  keine Erfindung), Passwort-/Verschlüsselungserkennung, **ASCII-DXF-Parser**
+  (Entities/Einheiten/Begrenzung, ohne Material-/Stärkeannahme),
+  Zeichnungskopf-Heuristik (niedrige Konfidenz), **kontrollierte Übernahme**
+  (freigegebene Kalkulation gesperrt, Snapshot unverändert),
+  **Revisionsvergleich** (hinzugefügt/entfernt/geändert/unverändert) und
+  **Analyseprotokoll** (reproduzierbar, mit Parserversion).
+
+**Tatsächlich unterstützte Formate (ehrlich gekennzeichnet)**
+- **Real verarbeitet:** PDF (eingebetteter Text, konservativ), CSV-Stücklisten,
+  Bilder (Vorschau), ASCII-DXF (Entities/Einheiten).
+- **Nur Ablage / vorbereitet:** XLSX/XLS (bitte als CSV exportieren – kein
+  Formelimport), DWG/STEP/IFC (**nicht konfiguriert**, keine lizenzierte
+  Konvertierung), OCR (nicht konfiguriert). Diese werden in der UI klar als
+  „nur Ablage" bzw. „nicht konfiguriert" markiert und nicht vorgetäuscht.
+
+**Datenmodell** (`store.js`, `version: 8`)
+- `db.dokumente[]` (Nummer, Typ, Format, Prüfsumme, Zeichnungsnummer/Revision,
+  Version/Vorgänger/aktuell, Kommission, Inhalt/dataUrl, Analysen[]),
+  `settings.dokumentZaehler`. Beispieldokumente (Zeichnung 1045 Rev A/B,
+  CSV-Stückliste) klar als Beispiel gekennzeichnet.
+
+**Umgesetzt (UI)**
+- Seite **Dokumente**: Liste mit Suche/Typfilter, **Upload-Assistent**
+  (FileReader, Format-/Größenprüfung, Dubletten-Warnung, Zeichnungsnummer/
+  Revision-Vorschlag aus PDF-Text), Detailansicht mit Metadaten +
+  **Versionshistorie**, **Vorschau** (PDF-Text, CSV-Tabelle, Bild, DXF-Kennzahlen).
+- **Analyseansicht**: erkannte Kopf-/Maßwerte als Tabelle mit
+  **Bestätigen/Korrigieren/Ablehnen** und deutlichem „ungeprüft"-Hinweis;
+  **CSV-Stücklistenimport** mit editierbarer Spaltenzuordnung, Validierung
+  und Materialabgleich (mehrdeutige Treffer werden nicht automatisch
+  zusammengeführt).
+- **Kontrollierte Übernahme**: bestätigte Werte bzw. Stücklistenpositionen in
+  eine **neue Produktkonfiguration (Entwurf)**; jede Übernahme wird
+  protokolliert. **Revisionsvergleich** zwischen Vorgänger und aktueller
+  Revision mit Hinweis auf möglicherweise veraltete Kalkulationen (keine
+  automatische Neuberechnung).
+- Rollen: Administrator/Büro; Werkstatt hat keinen Dokumentenzugriff.
+  Responsive.
+
+**Erfolgreiche Tests**
+- Engine (`scratchpad/p7d.js`): **43/43** – sicherer PDF-/Excel-Upload,
+  unzulässiger Typ, Größenlimit, Dublette, PDF-Textextraktion,
+  Kopferkennung, Verwechslungswarnungen, bestätigen/korrigieren/ablehnen,
+  keine Pixelmaße, CSV-Import (Semikolon/Komma), Auto-Mapping, Materialabgleich
+  (eindeutig/mehrdeutig/kein), Einheitenumrechnung, Übernahme in Konfiguration,
+  bestehender Wert bleibt, freigegebene Kalkulation gesperrt/Snapshot
+  unverändert, Revisionsvergleich, relevante Änderung markiert, Rollenrecht,
+  Analyseprotokoll, beschädigte/verschlüsselte Datei, DXF-Einheitenkonflikt.
+- UI/E2E (`scratchpad/p7d-e2e.js`): Beispieldokumente, Ehrlichkeits-Hinweis,
+  CSV-BOM-Analyse + Materialabgleich + Übernahme in Konfiguration,
+  PDF-Kopferkennung + Bestätigung, Revisionsvergleich, echter Datei-Upload,
+  Werkstatt ohne Zugriff, mobil ohne Überlauf. Keine JS-Fehler.
+
+**Bekannte Grenzen**
+- PDF-Textextraktion nur für **unkomprimierte** Textstreams; gescannte/
+  komprimierte PDFs liefern keinen Text (ehrlicher Hinweis, kein OCR).
+  DWG/STEP/IFC/XLSX-Parsing und echte OCR erfordern Bibliotheken/Serverdienste
+  und sind bewusst nicht als funktionsfähig ausgegeben. Dateien liegen lokal
+  (Größenlimit) – produktiv gehört dies serverseitig.
+
 ## Nächster Schritt
 
 **Phase 7B – Materialpreisimporte, Lieferantenschnittstellen & ERP-
@@ -427,8 +504,9 @@ Vorbereitung:** CSV-/XLSX-Importzentrale mit Spaltenzuordnung, Validierung,
 Preisversionierung/-freigabe und Importprofilen; modulare SupplierAdapter
 (Frankstahl u. a.) und KingBill-Dateiexport – nicht konfigurierte Live-APIs
 werden eindeutig als „Dateiimport/-export" gekennzeichnet, keine
-vorgetäuschte Live-Schnittstelle, kein Web-Scraping. Danach: Zeichnungs-/
-Stücklistenimport und abschließender Gesamtcheck.
+vorgetäuschte Live-Schnittstelle, kein Web-Scraping. Danach: vollständiger
+End-to-End-Gesamtcheck, Sicherheitsprüfung und Vorbereitung für den
+Produktivbetrieb (Zeichnungs-/Stücklistenimport aus Phase 7D ist erledigt).
 
 **Weiterhin offen (formal):** Phase 5 (dedizierte mobile Zeiterfassung &
 Nachkalkulations-Tabellen) und Phase 6 (statistische Lernfunktion, regel-

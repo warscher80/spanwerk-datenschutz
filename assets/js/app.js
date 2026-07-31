@@ -14,6 +14,7 @@
   var Datanorm = w.Preisschmiede.Datanorm;
   var Ausw = w.Preisschmiede.Auswertung;
   var Plan = w.Preisschmiede.Planung;
+  var Dok = w.Preisschmiede.Dokumente;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -62,6 +63,7 @@
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
     planung: function () { renderPlanung(); },
+    dokumente: function () { renderDokumente(); },
     kundenprojekte: function () { renderKundenProjekte(); },
     konfigurator: function () { renderKonfigurator(); },
     kalkulationen: function () { renderKalkulationen(); },
@@ -822,6 +824,302 @@
       return [e.kommission, planAuftragName(e.auftragId), e.arbeitsgang, maschineNameP(e.maschineId), maNamen(e.mitarbeiterIds), e.start || "", e.ende || "", e.planWert || e.dauerStd, e.status, (e.material && e.material.status) || ""];
     }));
     csvDownload("Fertigungsplan.csv", "Fertigungsplan;Erstellt: " + fmtDateTime(new Date().toISOString()) + ";Filter Kommission: " + (planState.filter.kommission || "alle"), zeilen);
+  }
+
+  // ============================================================
+  //  DOKUMENTE / ZEICHNUNGEN / STÜCKLISTEN (Phase 7D)
+  // ============================================================
+  var dokState = { selId: null, filter: { suche: "", typ: "" }, analyse: null };
+  function dokListe() { return db.dokumente || (db.dokumente = []); }
+  function dokById(id) { return dokListe().filter(function (x) { return x.id === id; })[0] || null; }
+
+  function renderDokumente() {
+    var root = $("#page-dokumente .content");
+    if (dokState.selId && dokById(dokState.selId)) renderDokDetail(root, dokById(dokState.selId));
+    else renderDokListe(root);
+  }
+
+  function renderDokListe(root) {
+    var f = dokState.filter;
+    var typOpt = '<option value="">Alle Typen</option>' + Dok.DOKUMENTTYPEN.map(function (t) { return '<option value="' + t + '"' + (f.typ === t ? " selected" : "") + ">" + t + "</option>"; }).join("");
+    var liste = dokListe().filter(function (d) {
+      if (f.typ && d.typ !== f.typ) return false;
+      if (f.suche) { var hay = [d.nummer, d.dateiname, d.zeichnungsnummer, d.beschreibung, d.kommission].filter(Boolean).join(" ").toLowerCase(); if (hay.indexOf(f.suche.toLowerCase()) < 0) return false; }
+      return true;
+    });
+    var rows = liste.length ? liste.slice().reverse().map(function (d) {
+      var real = d.format && d.format.real;
+      return "<tr><td><strong>" + esc(d.nummer) + "</strong>" + (d._beispiel ? ' <span class="tag">Beispiel</span>' : "") + "</td>" +
+        "<td>" + esc(d.typ) + "</td>" +
+        "<td>" + esc(d.dateiname) + (real ? "" : ' <span class="tag" style="background:#e0a000;color:#fff" title="' + esc(d.format ? d.format.label : "") + '">nur Ablage</span>') + "</td>" +
+        "<td>" + (d.zeichnungsnummer ? esc(d.zeichnungsnummer) + (d.revision ? " · Rev " + esc(d.revision) : "") : "—") + "</td>" +
+        "<td>" + (d.kommission ? '<span class="tag">' + esc(d.kommission) + "</span>" : "—") + "</td>" +
+        '<td class="num">v' + (d.version || 1) + "</td>" +
+        '<td class="num"><button class="btn sm" data-dokopen="' + d.id + '" type="button">Öffnen</button></td></tr>';
+    }).join("") : '<tr><td colspan="7" class="muted" style="text-align:center;padding:16px">Keine Dokumente.</td></tr>';
+    root.innerHTML = '<div class="card"><div class="btn-row" style="margin-bottom:10px"><button class="btn primary sm" id="dok-upload" type="button">⬆️ Dokument hochladen</button></div>' +
+      '<div class="inline" style="margin-bottom:10px"><input id="dok-suche" placeholder="🔍 Nummer, Zeichnung, Kommission, Dateiname" value="' + esc(f.suche) + '" style="flex:2"><select id="dok-typ" style="flex:1;min-width:150px">' + typOpt + "</select></div>" +
+      '<div class="table-wrap"><table><thead><tr><th>Nummer</th><th>Typ</th><th>Datei</th><th>Zeichnung</th><th>Kommission</th><th class="num">Ver.</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<p class="hint">Unterstützt: PDF (eingebetteter Text), CSV-Stücklisten, Bilder, ASCII-DXF. XLSX bitte als CSV exportieren. DWG/STEP/OCR sind nicht konfiguriert und werden nicht vorgetäuscht.</p></div>';
+    $("#dok-upload").onclick = function () { dokUploadDialog(); };
+    $("#dok-suche").addEventListener("input", function () { dokState.filter.suche = this.value; renderDokumente(); });
+    $("#dok-typ").onchange = function () { dokState.filter.typ = this.value; renderDokumente(); };
+    $all("[data-dokopen]", root).forEach(function (b) { b.onclick = function () { dokState.selId = b.dataset.dokopen; dokState.analyse = null; renderDokumente(); }; });
+  }
+
+  var dokUploadStaging = null;
+  function dokUploadDialog(revisionVon) {
+    var typOpt = Dok.DOKUMENTTYPEN.map(function (t) { return "<option>" + t + "</option>"; }).join("");
+    var kundenOpt = '<option value="">— Kunde —</option>' + (db.kunden || []).map(function (k) { return '<option value="' + k.id + '">' + esc(k.name) + "</option>"; }).join("");
+    var vorgaenger = revisionVon ? dokById(revisionVon) : null;
+    var body = '<input type="file" id="dok-file" accept=".pdf,.csv,.png,.jpg,.jpeg,.dxf,.xlsx" style="margin-bottom:8px">' +
+      '<div id="dok-pruef" class="muted" style="font-size:12px;margin-bottom:8px"></div>' +
+      '<label class="fld"><span class="lbl">Dokumenttyp</span><select id="dok-d-typ">' + typOpt + "</select></label>" +
+      '<div class="inline">' + fld2("Zeichnungsnummer", "dok-znr", vorgaenger ? vorgaenger.zeichnungsnummer : "", "text") + fld2("Revision", "dok-rev", "", "text") + "</div>" +
+      '<div class="inline"><label class="fld"><span class="lbl">Kunde</span><select id="dok-kunde">' + kundenOpt + "</select></label>" + fld2("Kommission", "dok-komm", vorgaenger ? vorgaenger.kommission : "", "text") + "</div>" +
+      fld2("Beschreibung", "dok-besch", "", "text") +
+      (vorgaenger ? '<p class="hint">Neue Revision zu ' + esc(vorgaenger.nummer) + " (" + esc(vorgaenger.zeichnungsnummer) + ").</p>" : "");
+    dokUploadStaging = null;
+    openModal(vorgaenger ? "Neue Revision hochladen" : "Dokument hochladen", body, function () {
+      if (!dokUploadStaging) { toast("Bitte zuerst eine Datei wählen.", "err"); return false; }
+      if (!dokUploadStaging.pruefung.ok) { toast("Datei nicht zulässig: " + dokUploadStaging.pruefung.fehler.join(" "), "err"); return false; }
+      var znr = $("#dok-znr").value.trim();
+      var nummer = "DOK-" + new Date().getFullYear() + "-" + ("000" + (db.settings.dokumentZaehler || 1)).slice(-3);
+      var dok = {
+        id: Store.uid(), nummer: nummer, typ: $("#dok-d-typ").value, dateiname: dokUploadStaging.name,
+        format: dokUploadStaging.format, groesse: dokUploadStaging.groesse, pruefsumme: dokUploadStaging.pruefsumme,
+        zeichnungsnummer: znr, revision: $("#dok-rev").value.trim(), beschreibung: $("#dok-besch").value.trim(),
+        ersteller: (Auth.current() || {}).benutzername || "", hochgeladen: Store.nowISO(), status: "hochgeladen", analysezustand: "nicht analysiert",
+        kundeId: $("#dok-kunde").value || null, auftragId: null, kommission: $("#dok-komm").value.trim(),
+        version: vorgaenger ? (vorgaenger.version || 1) + 1 : 1, vorgaengerId: vorgaenger ? vorgaenger.id : null, aktuell: true,
+        inhalt: dokUploadStaging.inhalt || "", dataUrl: dokUploadStaging.dataUrl || null, analysen: []
+      };
+      if (vorgaenger) { vorgaenger.aktuell = false; }
+      db.settings.dokumentZaehler = (db.settings.dokumentZaehler || 1) + 1;
+      dokListe().push(dok); Store.save();
+      toast("Dokument gespeichert."); dokState.selId = dok.id; dokState.analyse = null; renderDokumente();
+      return true;
+    });
+    // Datei lesen (asynchron) und validieren
+    var fileInput = $("#dok-file");
+    if (fileInput) fileInput.onchange = function () {
+      var file = this.files && this.files[0]; if (!file) return;
+      var fmt = Dok.formatInfo(file.name);
+      var reader = new FileReader();
+      reader.onload = function () {
+        var inhalt = "", dataUrl = null;
+        if (fmt.art === "bild") dataUrl = reader.result;
+        else inhalt = reader.result;
+        var pruefsumme = Dok.pruefsumme(typeof inhalt === "string" && inhalt ? inhalt : file.name + ":" + file.size);
+        var pruefung = Dok.pruefeDatei({ name: file.name, groesse: file.size, pruefsumme: pruefsumme }, dokListe());
+        dokUploadStaging = { name: file.name, groesse: file.size, inhalt: inhalt, dataUrl: dataUrl, pruefsumme: pruefsumme, format: fmt, pruefung: pruefung };
+        var box = $("#dok-pruef"); if (box) {
+          box.innerHTML = (pruefung.ok ? "✅ " : "⚠️ ") + esc(fmt.label) + " · " + (file.size / 1024).toFixed(1) + " kB" +
+            (pruefung.fehler.length ? '<div style="color:#c00">' + pruefung.fehler.map(esc).join("<br>") + "</div>" : "") +
+            (pruefung.warnungen.length ? '<div style="color:#c80">' + pruefung.warnungen.map(esc).join("<br>") + "</div>" : "");
+        }
+        // Zeichnungsnummer/Revision aus Text vorschlagen (nur Vorschlag)
+        if (fmt.art === "pdf" && typeof inhalt === "string") {
+          var kopf = Dok.kopfErkennung(Dok.pdfText(inhalt).text);
+          var znrV = kopf.filter(function (x) { return x.feld === "zeichnungsnummer"; })[0];
+          var revV = kopf.filter(function (x) { return x.feld === "revision"; })[0];
+          if (znrV && $("#dok-znr") && !$("#dok-znr").value) $("#dok-znr").value = znrV.wert;
+          if (revV && $("#dok-rev") && !$("#dok-rev").value) $("#dok-rev").value = revV.wert;
+        }
+      };
+      if (fmt.art === "bild") reader.readAsDataURL(file); else reader.readAsText(file);
+    };
+  }
+
+  function renderDokDetail(root, d) {
+    var real = d.format && d.format.real;
+    var versionen = dokListe().filter(function (x) { return d.zeichnungsnummer && x.zeichnungsnummer === d.zeichnungsnummer; }).sort(function (a, b) { return (a.version || 1) - (b.version || 1); });
+    var vorgaenger = d.vorgaengerId ? dokById(d.vorgaengerId) : null;
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:8px;flex-wrap:wrap">' +
+      '<button class="btn sm ghost" id="dok-zurueck" type="button">← Liste</button>' +
+      (real ? '<button class="btn sm primary" id="dok-analyse" type="button">🔎 Analysieren</button>' : "") +
+      (d.zeichnungsnummer ? '<button class="btn sm" id="dok-neurev" type="button">＋ Neue Revision</button>' : "") +
+      (vorgaenger ? '<button class="btn sm" id="dok-revcmp" type="button">🔀 Revisionsvergleich</button>' : "") +
+      '<button class="btn sm danger" id="dok-del" type="button">🗑️</button></div>';
+    html += "<h3>" + esc(d.nummer) + ' <span class="sub">' + esc(d.typ) + "</span></h3>";
+    html += '<div class="table-wrap"><table><tbody>' +
+      dokZeile("Datei", esc(d.dateiname) + " · " + (d.groesse ? (d.groesse / 1024).toFixed(1) + " kB" : "—")) +
+      dokZeile("Format", esc(d.format ? d.format.label : "—") + (real ? "" : ' <span class="tag" style="background:#e0a000;color:#fff">nur Ablage</span>')) +
+      dokZeile("Zeichnungsnummer", esc(d.zeichnungsnummer || "—") + (d.revision ? " · Revision " + esc(d.revision) : "")) +
+      dokZeile("Kommission", esc(d.kommission || "—")) +
+      dokZeile("Prüfsumme", esc(d.pruefsumme)) +
+      dokZeile("Version", "v" + (d.version || 1) + (vorgaenger ? " (Vorgänger: " + esc(vorgaenger.nummer) + ")" : "")) +
+      dokZeile("Hochgeladen", fmtDate(d.hochgeladen) + " · " + esc(d.ersteller || "")) +
+      "</tbody></table></div>";
+    // Versionshistorie
+    if (versionen.length > 1) {
+      html += '<div style="margin-top:10px"><strong>Versionshistorie</strong>' + versionen.map(function (v) {
+        return '<div class="zeile"><span>' + esc(v.nummer) + " · Rev " + esc(v.revision || "—") + "</span><strong>" + (v.aktuell ? "aktuell" : "früher") + "</strong></div>";
+      }).join("") + "</div>";
+    }
+    html += "</div>";
+    // Vorschau
+    html += '<div class="card" style="margin-top:12px"><h3>Vorschau</h3>' + dokVorschauHTML(d) + "</div>";
+    // Analyse-Bereich
+    if (dokState.analyse && dokState.analyse.dokId === d.id) html += dokAnalyseHTML(d);
+    root.innerHTML = html;
+    $("#dok-zurueck").onclick = function () { dokState.selId = null; dokState.analyse = null; renderDokumente(); };
+    if ($("#dok-analyse")) $("#dok-analyse").onclick = function () { dokAnalyseStart(d); };
+    if ($("#dok-neurev")) $("#dok-neurev").onclick = function () { dokUploadDialog(d.id); };
+    if ($("#dok-revcmp")) $("#dok-revcmp").onclick = function () { dokRevisionsvergleich(d); };
+    $("#dok-del").onclick = function () { if (confirm("Dokument löschen?")) { db.dokumente = dokListe().filter(function (x) { return x.id !== d.id; }); Store.save(); dokState.selId = null; renderDokumente(); } };
+    dokAnalyseVerdrahten(d);
+  }
+  function dokZeile(l, v) { return "<tr><td class=\"muted\" style=\"width:160px\">" + esc(l) + "</td><td>" + v + "</td></tr>"; }
+
+  function dokVorschauHTML(d) {
+    var art = d.format ? d.format.art : "";
+    if (art === "bild" && d.dataUrl) return '<img src="' + d.dataUrl + '" alt="' + esc(d.dateiname) + '" style="max-width:100%;border-radius:6px">';
+    if (art === "pdf") {
+      var r = Dok.pdfText(d.inhalt || "");
+      if (r.verschluesselt) return '<div class="fehler-box">🔒 ' + esc(r.hinweis) + "</div>";
+      if (!r.text) return '<div class="muted">' + esc(r.hinweis) + "</div>";
+      return '<div class="muted" style="font-size:12px;margin-bottom:4px">Eingebetteter Text (' + r.seiten + " Seite(n), Sicherheit niedrig):</div><pre style=\"white-space:pre-wrap;font-size:12px;background:var(--panel-2);padding:8px;border-radius:6px;overflow-x:auto\">" + esc(r.text) + "</pre>";
+    }
+    if (art === "bom") {
+      var rows = Dok.parseCSV(d.inhalt || "");
+      return '<div class="table-wrap"><table>' + rows.slice(0, 12).map(function (r, i) { return "<tr>" + r.map(function (c) { return (i === 0 ? "<th>" : "<td>") + esc(c) + (i === 0 ? "</th>" : "</td>"); }).join("") + "</tr>"; }).join("") + "</table></div>";
+    }
+    if (art === "dxf") {
+      var dx = Dok.dxfParse(d.inhalt || "");
+      if (!dx.ok) return '<div class="fehler-box">' + esc(dx.grund) + "</div>";
+      return '<div class="muted" style="font-size:12px">Einheit: ' + esc(dx.units) + " · Entities: " + dx.anzahlEntities + " · Bohrungen (Kreise): " + dx.bohrungen + (dx.bbox ? " · Begrenzung: " + dx.bbox.breite + " × " + dx.bbox.hoehe : "") + "</div>" +
+        (dx.warnungen.length ? '<div class="fehler-box" style="margin-top:6px">' + dx.warnungen.map(esc).join("<br>") + "</div>" : "") +
+        '<div class="hint">' + esc(dx.hinweis) + "</div>";
+    }
+    return '<div class="muted">Keine Vorschau für dieses Format. ' + esc(d.format ? d.format.label : "") + "</div>";
+  }
+
+  // ---- Analyse (PDF-Kopf / CSV-Stückliste) --------------------------
+  function dokAnalyseStart(d) {
+    var art = d.format ? d.format.art : "";
+    if (art === "pdf") {
+      var r = Dok.pdfText(d.inhalt || "");
+      if (!r.text) { toast(r.hinweis, "err"); return; }
+      dokState.analyse = { dokId: d.id, art: "pdf", werte: Dok.kopfErkennung(r.text), text: r.text };
+    } else if (art === "bom") {
+      var rows = Dok.parseCSV(d.inhalt || "");
+      var mapping = Dok.autoMapping(rows[0] || []);
+      var bom = Dok.validiereBom(Dok.bomAusTabelle(rows, mapping, 0));
+      dokState.analyse = { dokId: d.id, art: "bom", rows: rows, mapping: mapping, bom: bom, header: 0 };
+    } else if (art === "dxf") {
+      var dx = Dok.dxfParse(d.inhalt || "");
+      var werte = [];
+      if (dx.bbox) { werte.push(Dok.erkennungsWert("breite", dx.bbox.breite, dx.units, "dxf", 0.7)); werte.push(Dok.erkennungsWert("laenge", dx.bbox.hoehe, dx.units, "dxf", 0.7)); }
+      werte.push(Dok.erkennungsWert("bohrungen", dx.bohrungen, "Stk", "dxf", 0.8));
+      dokState.analyse = { dokId: d.id, art: "dxf", werte: werte, dxf: dx };
+    } else { toast("Für dieses Format ist keine Analyse verfügbar.", "err"); return; }
+    d.analysezustand = "analysiert"; Store.save();
+    renderDokumente();
+  }
+  function dokAnalyseHTML(d) {
+    var a = dokState.analyse;
+    if (a.art === "bom") return dokBomHTML(d, a);
+    // Werte-Tabelle (pdf/dxf)
+    var rows = a.werte.map(function (v, i) {
+      var st = v.status === "bestätigt" ? '<span class="tag" style="background:#2fbf71;color:#fff">bestätigt</span>' : v.status === "korrigiert" ? '<span class="tag" style="background:#39c;color:#fff">korrigiert</span>' : v.status === "abgelehnt" ? '<span class="tag" style="background:#e06666;color:#fff">abgelehnt</span>' : '<span class="tag">ungeprüft</span>';
+      var warn = v.warnungen && v.warnungen.length ? ' <span title="' + esc(v.warnungen.join(", ")) + '" style="color:#e0a000">⚠</span>' : "";
+      return "<tr><td>" + esc(v.feld) + "</td><td><strong>" + esc(String(v.wert)) + "</strong> " + esc(v.einheit || "") + warn + '<br><span class="muted" style="font-size:10px">' + esc(v.methode) + " · Konfidenz " + Math.round(v.konfidenz * 100) + "%</span></td><td>" + st + "</td>" +
+        '<td class="num" style="white-space:nowrap"><button class="btn sm" data-dokbest="' + i + '" type="button">✓</button> <button class="btn sm ghost" data-dokkorr="' + i + '" type="button">✎</button> <button class="btn sm danger" data-dokab="' + i + '" type="button">✕</button></td></tr>';
+    }).join("");
+    return '<div class="card" style="margin-top:12px"><h3>🔎 Erkannte Werte <span class="sub">bitte prüfen</span></h3>' +
+      '<div class="fehler-box" style="margin-bottom:8px">Automatisch erkannte Werte sind ungeprüft. Sie werden erst nach Bestätigung übernommen und niemals automatisch in eine freigegebene Kalkulation geschrieben.</div>' +
+      '<div class="table-wrap"><table><thead><tr><th>Feld</th><th>Erkannt</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<div class="btn-row" style="margin-top:10px"><button class="btn primary sm" id="dok-uebernahme" type="button">→ Bestätigte in Konfiguration übernehmen</button></div></div>';
+  }
+  function dokBomHTML(d, a) {
+    var headOpt = (a.rows[0] || []).map(function (h, i) { return { h: h, i: i }; });
+    function selFor(feld) {
+      return '<select data-dokmap="' + feld + '" style="font-size:11px"><option value="">—</option>' + headOpt.map(function (o) { return '<option value="' + o.i + '"' + (a.mapping[feld] === o.i ? " selected" : "") + ">" + esc(o.h) + "</option>"; }).join("") + "</select>";
+    }
+    var mapRows = ["bezeichnung", "werkstoff", "abmessung", "menge", "einheit", "staerke"].map(function (feld) { return '<div style="display:inline-block;margin:2px 8px 2px 0;font-size:12px">' + feld + ": " + selFor(feld) + "</div>"; }).join("");
+    var bomRows = a.bom.map(function (p, i) {
+      var mm = Dok.materialMatch(p, db.material);
+      var matBadge = mm.status === "eindeutig" ? '<span class="tag" style="background:#2fbf71;color:#fff">' + esc(mm.treffer[0].name) + "</span>" : mm.status === "mehrere" ? '<span class="tag" style="background:#e0a000;color:#fff">' + mm.treffer.length + " mögliche</span>" : '<span class="tag" style="background:#e06666;color:#fff">kein Treffer</span>';
+      var fehler = p._fehler && p._fehler.length ? ' <span title="' + esc(p._fehler.join(", ")) + '" style="color:#e06666">⚠</span>' : "";
+      return "<tr><td>" + esc(p.position || (i + 1)) + "</td><td>" + esc(p.bezeichnung || "—") + fehler + "</td><td>" + esc(p.werkstoff || "—") + "</td><td>" + esc(p.abmessung || (p.laenge || "") ) + '</td><td class="num">' + esc(String(p._menge != null ? p._menge : "")) + " " + esc(p.einheit || "") + "</td><td>" + matBadge + (mm.hinweise.length ? ' <span title="' + esc(mm.hinweise.join(", ")) + '" style="color:#e0a000">ⓘ</span>' : "") + "</td></tr>";
+    }).join("");
+    return '<div class="card" style="margin-top:12px"><h3>📄 Stückliste <span class="sub">' + a.bom.length + " Positionen</span></h3>" +
+      '<div style="margin-bottom:8px">Spaltenzuordnung: ' + mapRows + "</div>" +
+      '<div class="table-wrap"><table><thead><tr><th>Pos</th><th>Bezeichnung</th><th>Werkstoff</th><th>Abmessung</th><th class="num">Menge</th><th>Material-Treffer</th></tr></thead><tbody>' + bomRows + "</tbody></table></div>" +
+      '<p class="hint">Mehrdeutige Treffer werden nicht automatisch zusammengeführt. Neue Materialien können als Vorschlag angelegt werden.</p>' +
+      '<div class="btn-row" style="margin-top:8px"><button class="btn primary sm" id="dok-bom-konfig" type="button">→ Als Produktkonfiguration übernehmen</button></div></div>';
+  }
+  function dokAnalyseVerdrahten(d) {
+    var a = dokState.analyse; if (!a || a.dokId !== d.id) return;
+    $all("[data-dokbest]").forEach(function (b) { b.onclick = function () { Dok.bestaetige(a.werte[+b.dataset.dokbest]); renderDokumente(); }; });
+    $all("[data-dokab]").forEach(function (b) { b.onclick = function () { Dok.lehneAb(a.werte[+b.dataset.dokab]); renderDokumente(); }; });
+    $all("[data-dokkorr]").forEach(function (b) { b.onclick = function () { var v = a.werte[+b.dataset.dokkorr]; var neu = prompt("Wert korrigieren für „" + v.feld + '":', String(v.wert)); if (neu != null) { Dok.korrigiere(v, neu); renderDokumente(); } }; });
+    $all("[data-dokmap]").forEach(function (s) { s.onchange = function () { a.mapping[s.dataset.dokmap] = this.value === "" ? undefined : +this.value; a.bom = Dok.validiereBom(Dok.bomAusTabelle(a.rows, a.mapping, a.header)); renderDokumente(); }; });
+    if ($("#dok-uebernahme")) $("#dok-uebernahme").onclick = function () { dokUebernahmeDialog(d, a); };
+    if ($("#dok-bom-konfig")) $("#dok-bom-konfig").onclick = function () { dokBomUebernahme(d, a); };
+  }
+
+  function dokUebernahmeDialog(d, a) {
+    var bestaetigt = Dok.nurBestaetigte(a.werte);
+    if (!bestaetigt.length) { toast("Bitte zuerst mindestens einen Wert bestätigen.", "err"); return; }
+    var ziele = (db.konfigurationen || []).filter(function (c) { return c.status !== "Archiviert"; });
+    var zielOpt = '<option value="__neu">＋ Neue Produktkonfiguration</option>' + ziele.map(function (c) { return '<option value="' + c.id + '">' + esc((c.nummer || "") + " · " + (c.bezeichnung || "")) + "</option>"; }).join("");
+    var vorschau = bestaetigt.map(function (v) { return "<tr><td>" + esc(v.feld) + '</td><td class="num">' + esc(String(v.wert)) + " " + esc(v.einheit || "") + "</td></tr>"; }).join("");
+    var body = '<label class="fld"><span class="lbl">Ziel</span><select id="dok-ziel">' + zielOpt + "</select></label>" +
+      '<div class="muted" style="font-size:12px;margin:6px 0">Zu übernehmende, bestätigte Werte:</div><div class="table-wrap"><table><tbody>' + vorschau + "</tbody></table></div>" +
+      '<p class="hint">Es werden nur bestätigte/korrigierte Werte übernommen. Freigegebene Kalkulationen bleiben unverändert.</p>';
+    openModal("Werte übernehmen", body, function () {
+      var ziel = $("#dok-ziel").value;
+      var protokoll = Dok.protokoll(d, a.werte, ziel === "__neu" ? "neue Konfiguration" : ziel);
+      protokoll.zeitpunkt = Store.nowISO(); protokoll.benutzer = (Auth.current() || {}).benutzername || "";
+      var felder = {};
+      bestaetigt.forEach(function (v) { felder[v.feld] = v.wert; });
+      // In dieser Version: als Notiz/Vorschlag am Dokument protokolliert (kein
+      // automatischer Schreibzugriff auf freigegebene Objekte).
+      (d.analysen = d.analysen || []).push(protokoll);
+      Store.save();
+      toast("Übernahme protokolliert (" + bestaetigt.length + " Werte).");
+      renderDokumente();
+      return true;
+    }, "Übernehmen");
+  }
+
+  function dokBomUebernahme(d, a) {
+    var gueltig = a.bom.filter(function (p) { return !(p._fehler && p._fehler.length); });
+    if (!gueltig.length) { toast("Keine gültigen Stücklistenpositionen.", "err"); return; }
+    var body = '<p class="muted" style="font-size:12px">' + gueltig.length + " Positionen werden als neue Produktkonfiguration (Entwurf) angelegt. Materialzuordnung bleibt zur Prüfung offen.</p>" +
+      fld2("Bezeichnung der Konfiguration", "dok-cfgname", "Aus Stückliste " + (d.zeichnungsnummer || d.nummer), "text");
+    openModal("Als Produktkonfiguration übernehmen", body, function () {
+      var cfg = {
+        id: Store.uid(), nummer: "KF-" + new Date().getFullYear() + "-" + ("000" + ((db.settings.konfigZaehler || 1))).slice(-3),
+        bezeichnung: $("#dok-cfgname").value.trim(), gruppeKey: "blecharbeiten", status: "Entwurf",
+        antworten: {}, stueckliste: gueltig.map(function (p) { return { bezeichnung: p.bezeichnung, werkstoff: p.werkstoff, abmessung: p.abmessung, menge: p._menge, einheit: p.einheit }; }),
+        quelleDokument: d.id, erstellt: Store.nowISO()
+      };
+      db.settings.konfigZaehler = (db.settings.konfigZaehler || 1) + 1;
+      (db.konfigurationen = db.konfigurationen || []).push(cfg);
+      var protokoll = Dok.protokoll(d, [], "neue Konfiguration " + cfg.nummer); protokoll.zeitpunkt = Store.nowISO(); protokoll.positionen = gueltig.length;
+      (d.analysen = d.analysen || []).push(protokoll);
+      Store.save();
+      toast("Konfiguration " + cfg.nummer + " als Entwurf angelegt.");
+      renderDokumente();
+      return true;
+    }, "Übernehmen");
+  }
+
+  function dokRevisionsvergleich(d) {
+    var vorg = dokById(d.vorgaengerId); if (!vorg) { toast("Kein Vorgänger vorhanden.", "err"); return; }
+    var altKopf = Dok.kopfErkennung(Dok.pdfText(vorg.inhalt || "").text);
+    var neuKopf = Dok.kopfErkennung(Dok.pdfText(d.inhalt || "").text);
+    var rv = Dok.revisionsvergleich(altKopf, neuKopf, [], []);
+    var rows = rv.kopf.map(function (k) {
+      var farbe = k.status === "geändert" ? "#e0a000" : k.status === "hinzugefügt" ? "#2fbf71" : k.status === "entfernt" ? "#e06666" : "#888";
+      return "<tr><td>" + esc(k.feld) + "</td><td>" + esc(String(k.alt == null ? "—" : k.alt)) + "</td><td>" + esc(String(k.neu == null ? "—" : k.neu)) + '</td><td><span class="tag" style="background:' + farbe + ';color:#fff">' + k.status + "</span></td></tr>";
+    }).join("");
+    var body = '<div class="table-wrap"><table><thead><tr><th>Feld</th><th>' + esc(vorg.revision || "alt") + "</th><th>" + esc(d.revision || "neu") + "</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody></table></div>" +
+      (rv.relevant ? '<div class="fehler-box" style="margin-top:8px">Relevante Änderung erkannt. Betroffene Kalkulationen sollten als möglicherweise veraltet geprüft werden – keine automatische Neuberechnung.</div>' : '<div class="muted" style="margin-top:8px">Keine kalkulationsrelevante Änderung erkannt.</div>');
+    openModal("Revisionsvergleich " + esc(vorg.revision || "") + " → " + esc(d.revision || ""), body, null, "Schließen");
   }
 
   function stat(label, value, cls, delta) {
