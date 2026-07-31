@@ -4,7 +4,14 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: Umsetzung **Phase 7D (Zeichnungen & Stücklisten)** abgeschlossen.
+Letzte Aktualisierung: **Phase 8 – Gesamtprüfung & Produktionsvorbereitung**
+durchgeführt. Prüfbericht, Bewertung und Testergebnisse in **`AUDIT_REPORT.md`**;
+Formeln in `CALCULATION_RULES.md`, Sicherheit in `SECURITY.md`, Backup in
+`BACKUP_RESTORE.md`, Grenzen in `KNOWN_LIMITATIONS.md`, Deployment in
+`DEPLOYMENT.md`, Architektur in `ARCHITECTURE.md`. Referenz-/Invarianten-/
+Migrationstests: `tests/referenz.test.js` (35/35).
+**Reifegrad:** bereit für internen Test-/Pilotbetrieb; voller Produktivbetrieb
+(Mehrbenutzer/Server/ERP-Live) noch nicht – siehe Bericht.
 
 ---
 

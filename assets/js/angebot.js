@@ -131,8 +131,11 @@
         seitenumbruch: !!p.seitenumbruch
       };
     });
+    // Firma und Kunde als TIEFE KOPIE einfrieren – spätere Stammdaten-
+    // änderungen dürfen einen freigegebenen Angebots-Snapshot nicht verändern.
+    function kopie(o) { try { return o ? JSON.parse(JSON.stringify(o)) : {}; } catch (e) { return {}; } }
     return {
-      firma: ctx.firma || {}, kunde: ctx.kunde || {}, ansprechpartner: angebot.ansprechpartner || "",
+      firma: kopie(ctx.firma), kunde: kopie(ctx.kunde), ansprechpartner: angebot.ansprechpartner || "",
       lieferadresse: angebot.lieferadresse || "", projekt: werte.projekt, kommission: angebot.kommission || "",
       nummer: angebot.nummer, datum: ctx.datum || "", gueltigBis: ctx.gueltigBis || "",
       betreff: txt(angebot.betreff), einleitung: txt(angebot.einleitung),

@@ -518,6 +518,7 @@
   w.Preisschmiede.Store = {
     load: load, save: save, reset: reset, onSave: onSave,
     exportJSON: exportJSON, importJSON: importJSON,
+    fresh: fresh, migrate: migrate,
     uid: uid, nowISO: nowISO,
     hashPin: hashPin, makeSalt: makeSalt,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS

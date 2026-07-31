@@ -79,7 +79,11 @@ a { color: var(--accent-2); }
 .app-version { font-weight: 700; color: var(--accent); margin-bottom: 8px; font-size: 12px; }
 
 /* ---------- Main ---------- */
-.main { padding: 26px 30px 60px; max-width: 1180px; }
+/* min-width:0 verhindert, dass breite Inhalte (Tabellen/Filterleisten) den
+   1fr-Grid-Track über die Viewport-Breite hinaus aufziehen (Tablet-Überlauf). */
+.main { padding: 26px 30px 60px; max-width: 1180px; min-width: 0; }
+.main .content, .card { min-width: 0; }
+.table-wrap { max-width: 100%; }
 .page { display: none; animation: fade .25s ease; }
 .page.active { display: block; }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -212,7 +216,7 @@ tr:last-child td { border-bottom: none; }
 .topbar-mobile { display: none; }
 
 /* ---------- Handy-Layout ---------- */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .app { display: block; }
 
   .topbar-mobile {
@@ -227,8 +231,13 @@ tr:last-child td { border-bottom: none; }
     display: grid; place-items: center; font-weight: 800; color: #1a1208;
     background: linear-gradient(135deg, var(--accent), #d4820a);
   }
-  .topbar-mobile strong { font-size: 16px; }
-  .topbar-mobile .app-version { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .topbar-mobile { overflow: hidden; }
+  .topbar-mobile strong { font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-mobile .app-version { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+  .topbar-mobile #btn-logout-mobile { flex-shrink: 0; }
+  /* Sicherheitsnetz: breite Tabellen scrollen innerhalb der Karte statt den
+     Seitenrand zu sprengen (falls eine Tabelle kein .table-wrap besitzt). */
+  .main .content .card { overflow-x: auto; }
 
   .sidebar {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto;
@@ -237,13 +246,15 @@ tr:last-child td { border-bottom: none; }
     overflow: visible; z-index: 60;
   }
   .brand, .sidebar-foot { display: none; }
-  .nav { display: flex; margin: 0; }
+  /* 12 Bereiche: bei schmalen Handys auf zwei Reihen umbrechen statt
+     horizontal über den Rand zu laufen. */
+  .nav { display: flex; flex-wrap: wrap; margin: 0; }
   .nav li {
-    flex: 1; min-width: 0; flex-direction: column; gap: 2px; align-items: center;
+    flex: 1 0 16%; min-width: 0; flex-direction: column; gap: 2px; align-items: center;
     padding: 7px 2px; border-radius: 9px; text-align: center;
   }
   .nav li .ico { font-size: 19px; width: auto; }
-  .nav-txt { font-size: 10px; line-height: 1.1; white-space: nowrap; }
+  .nav-txt { font-size: 10px; line-height: 1.1; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
   .main { padding: 16px 14px 84px; max-width: none; }
   .page-head { margin-bottom: 16px; }
