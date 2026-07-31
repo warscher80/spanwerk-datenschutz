@@ -259,3 +259,31 @@ tr:last-child td { border-bottom: none; }
 .section-sep { height:1px; background:var(--border); margin:18px 0; border:none; }
 .right { text-align: right; }
 hr.sep { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* ---- Anmeldung & Benutzer ---- */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(160deg, #0f141b 0%, #1c2530 100%);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.login-overlay[hidden] { display: none; }
+.login-card {
+  width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px;
+}
+.login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.login-brand .logo {
+  width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 22px; color: #1a1206; background: linear-gradient(150deg, var(--accent-2), var(--accent));
+}
+.login-brand h1 { font-size: 19px; margin: 0; }
+.login-brand small { color: var(--muted); }
+.login-card .btn.primary { width: 100%; margin-top: 6px; justify-content: center; }
+.login-fehler { color: var(--red); font-size: 13px; margin: 2px 0 10px; }
+.login-fehler[hidden] { display: none; }
+
+.user-box { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.user-box .user-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.user-box .user-rolle { font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+.user-mobile { font-size: 12px; color: var(--muted); margin-left: 10px; }
+#btn-logout-mobile { margin-left: 8px; }

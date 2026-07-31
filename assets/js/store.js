@@ -12,20 +12,24 @@
     // Firmendaten für den Angebots-Briefkopf
     firma: {
       name: "Preisschmiede", inhaber: "Nico Warscher",
-      strasse: "", plzOrt: "", tel: "", email: "nicowarscher@gmx.at", uid: ""
+      strasse: "", plzOrt: "", tel: "", email: "nicowarscher@gmx.at",
+      web: "", uid: "", iban: "", bic: "", bank: ""
     },
     angebotZaehler: 1, // laufende Angebotsnummer
-    // Stundenverrechnungssätze je Mitarbeitergruppe (€/h)
+    projektZaehler: 1, // laufende Projektnummer
+    // Stundenverrechnungssätze je Mitarbeitergruppe (€/h) – Vorgabewerte,
+    // einzelne Mitarbeiter können abweichende Sätze haben (siehe mitarbeiter).
     rates: { cad: 65, fertigung: 58, montage: 62, projektleitung: 78 },
-    // Maschinen der Firma: je Maschine ein Stundensatz (€/h) und Rüstkosten (€
-    // einmalig pro Auftrag), zugeordnet zu einem Arbeitsschritt (schritt-Key).
+    // Maschinen: Maschinenstundensatz (€/h) + Rüstung. Die Rüstkosten je
+    // Auftrag ergeben sich aus Rüstzeit (h) × Rüstkostensatz (€/h) + fixen
+    // Rüstkosten (€). Zugeordnet zu einem Arbeitsschritt (schritt-Key).
     maschinen: [
-      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestkosten: 5 },
-      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestkosten: 30 },
-      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestkosten: 20 },
-      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestkosten: 3 },
-      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestkosten: 2 },
-      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestkosten: 2 }
+      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestzeitStd: 0.15, ruestkostensatz: 40, fixeRuestkosten: 2 },
+      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestzeitStd: 0.30, ruestkostensatz: 60, fixeRuestkosten: 12 },
+      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestzeitStd: 0.25, ruestkostensatz: 55, fixeRuestkosten: 6 },
+      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestzeitStd: 0.10, ruestkostensatz: 40, fixeRuestkosten: 1 },
+      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1 },
+      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1 }
     ],
     materialAufschlag: 12,  // % auf Materialeinkauf
     gemeinkosten: 14,       // % auf Selbstkosten
@@ -60,9 +64,55 @@
     { name: "Chemiedübel-Set M12", typ: "Befestigung", einheit: "Stk", preis: 2.3, kg: 0.1, lieferant: "MetallProfi" }
   ];
 
+  // ---- Beispieldaten für die Betriebsverwaltung -------------
+  var SEED_LIEFERANTEN = [
+    { name: "Frankstahl", kundennummer: "", ansprechpartner: "", tel: "+43 5 0503 0", email: "thesteel@frankstahl.com", web: "thesteel.com", notiz: "Stahl-Vollsortiment (DATANORM verfügbar)" },
+    { name: "Glas Müller", kundennummer: "", ansprechpartner: "", tel: "", email: "", web: "", notiz: "Glas / VSG" },
+    { name: "MetallProfi", kundennummer: "", ansprechpartner: "", tel: "", email: "", web: "", notiz: "Beschläge & Befestigung" }
+  ];
+  var SEED_MITARBEITER = [
+    { name: "Nico Warscher", gruppe: "projektleitung", stundensatz: 78, aktiv: true },
+    { name: "CAD / Planung", gruppe: "cad", stundensatz: 65, aktiv: true },
+    { name: "Werkstatt 1", gruppe: "fertigung", stundensatz: 58, aktiv: true },
+    { name: "Monteur 1", gruppe: "montage", stundensatz: 62, aktiv: true }
+  ];
+  var SEED_KUNDEN = [
+    { name: "Muster Bau GmbH", ansprechpartner: "Herr Huber", strasse: "Industriestraße 5", plzOrt: "9500 Villach", tel: "04242 12345", email: "office@musterbau.at", notiz: "Gewerbekunde" },
+    { name: "Familie Berger", ansprechpartner: "", strasse: "Seeweg 12", plzOrt: "9220 Velden", tel: "0664 1234567", email: "berger@example.at", notiz: "Privatkunde" }
+  ];
+  // Benutzer mit Rollen; Standard-PIN 1234 (bitte nach dem ersten Login ändern)
+  var SEED_USERS = [
+    { name: "Administrator", benutzername: "admin", rolle: "admin", pin: "1234" },
+    { name: "Büro", benutzername: "buero", rolle: "buero", pin: "1234" },
+    { name: "Werkstatt", benutzername: "werkstatt", rolle: "werkstatt", pin: "1234" }
+  ];
+
   function nowISO() { return new Date().toISOString(); }
   function uid() {
     return "id-" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+  }
+  function makeSalt() { return Math.random().toString(36).slice(2, 12); }
+  // Gehärteter (iterierter) Hash für lokale PINs – speichert nie Klartext.
+  // Kein kryptografischer Ersatz, aber ausreichend zur lokalen Rollentrennung.
+  function hashPin(pin, salt) {
+    var base = String(salt) + "|" + String(pin);
+    var h = 0x811c9dc5 >>> 0;
+    for (var r = 0; r < 3000; r++) {
+      for (var i = 0; i < base.length; i++) {
+        h ^= base.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      h = (h ^ r) >>> 0;
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return ("00000000" + h.toString(16)).slice(-8);
+  }
+  function makeUser(u) {
+    var salt = makeSalt();
+    return {
+      id: uid(), name: u.name, benutzername: u.benutzername, rolle: u.rolle,
+      salt: salt, hash: hashPin(u.pin, salt), aktiv: u.aktiv !== false, erstellt: nowISO()
+    };
   }
 
   function fresh() {
@@ -78,11 +128,24 @@
         historie: [{ datum: nowISO(), preis: m.preis }]
       };
     });
+    var lieferanten = SEED_LIEFERANTEN.map(function (l) { return Object.assign({ id: uid() }, l); });
+    var mitarbeiter = SEED_MITARBEITER.map(function (m) { return Object.assign({ id: uid() }, m); });
+    var kunden = SEED_KUNDEN.map(function (k) { return Object.assign({ id: uid(), erstellt: nowISO() }, k); });
+    var users = SEED_USERS.map(makeUser);
+    // Ein Beispielprojekt für den ersten Kunden
+    var projekte = [{
+      id: uid(), nummer: "P-2026-001", name: "Geländer Terrasse", kundeId: kunden[0].id,
+      kommission: "BV Musterstraße", status: "Aktiv", notiz: "", erstellt: nowISO()
+    }];
     return {
-      version: 1,
+      version: 2,
       settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
       material: mats,
-      kunden: [],
+      kunden: kunden,
+      lieferanten: lieferanten,
+      mitarbeiter: mitarbeiter,
+      projekte: projekte,
+      users: users,
       // benutzerdefinierte Untergruppen je Produkt, z. B. { zaun: ["Doppelstabmattenzaun", ...] }
       untergruppen: {},
       auftraege: [],
@@ -115,6 +178,17 @@
       });
     }
     if (!Array.isArray(st.maschinen)) st.maschinen = JSON.parse(JSON.stringify(ds.maschinen));
+    // Maschinen: altes Feld ruestkosten (pauschal) -> fixeRuestkosten;
+    // Rüstzeit/Rüstkostensatz als neue Felder ergänzen.
+    st.maschinen.forEach(function (m) {
+      if (!m) return;
+      if (m.fixeRuestkosten == null) m.fixeRuestkosten = (typeof m.ruestkosten === "number" ? m.ruestkosten : 0);
+      if (typeof m.ruestzeitStd !== "number") m.ruestzeitStd = 0;
+      if (typeof m.ruestkostensatz !== "number") m.ruestkostensatz = (st.rates && st.rates.fertigung) || 40;
+      if (typeof m.stundensatz !== "number") m.stundensatz = 0;
+      delete m.ruestkosten;
+    });
+    if (st.projektZaehler == null) st.projektZaehler = 1;
     if (!st.firma || typeof st.firma !== "object") st.firma = JSON.parse(JSON.stringify(ds.firma));
     Object.keys(ds.firma).forEach(function (k) { if (st.firma[k] == null) st.firma[k] = ds.firma[k]; });
     // Stundensätze (rates) feldweise auffüllen
@@ -148,6 +222,14 @@
       if (mig) { m.kategorie = mig[0]; m.unterkategorie = mig[1]; }
     });
     if (!Array.isArray(obj.kunden)) obj.kunden = [];
+    // Neue Verwaltungs-Entitäten (Betriebsverwaltung)
+    if (!Array.isArray(obj.lieferanten)) obj.lieferanten = SEED_LIEFERANTEN.map(function (l) { return Object.assign({ id: uid() }, l); });
+    if (!Array.isArray(obj.mitarbeiter)) obj.mitarbeiter = SEED_MITARBEITER.map(function (m) { return Object.assign({ id: uid() }, m); });
+    if (!Array.isArray(obj.projekte)) obj.projekte = [];
+    // Benutzer: es muss immer mindestens ein aktiver Admin existieren (Login)
+    if (!Array.isArray(obj.users) || !obj.users.some(function (u) { return u && u.rolle === "admin" && u.aktiv !== false; })) {
+      obj.users = SEED_USERS.map(makeUser);
+    }
     if (!obj.untergruppen || typeof obj.untergruppen !== "object") obj.untergruppen = {};
     if (!Array.isArray(obj.auftraege)) obj.auftraege = [];
     // Einzelpositions-Aufträge -> positionen-Array (idempotent)
@@ -228,6 +310,7 @@
     load: load, save: save, reset: reset, onSave: onSave,
     exportJSON: exportJSON, importJSON: importJSON,
     uid: uid, nowISO: nowISO,
+    hashPin: hashPin, makeSalt: makeSalt,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS
   };
 })(window);

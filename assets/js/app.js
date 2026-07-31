@@ -5,6 +5,7 @@
   "use strict";
 
   var Store = w.Preisschmiede.Store;
+  var Auth = w.Preisschmiede.Auth;
   var Calc = w.Preisschmiede.Calc;
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
@@ -54,9 +55,12 @@
   var RENDERER = {
     dashboard: function () { renderDashboard(); }, stammdaten: function () { renderStammdaten(); },
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
-    auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); }
+    auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
+    kundenprojekte: function () { renderKundenProjekte(); }
   };
   function navTo(page) {
+    // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
+    if (Auth && Auth.istAngemeldet() && !Auth.darf(page)) page = ersteErlaubteSeite();
     $all(".nav li").forEach(function (li) { li.classList.toggle("active", li.dataset.page === page); });
     $all(".page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + page); });
     try {
@@ -181,7 +185,13 @@
         "</div><div class=\"inline\">" +
           fld2("Telefon", "firma-tel", f.tel, "text") +
           fld2("E-Mail", "firma-email", f.email, "text") +
+        "</div><div class=\"inline\">" +
+          fld2("Web", "firma-web", f.web, "text") +
           fld2("UID-Nr.", "firma-uid", f.uid, "text") +
+        "</div><div class=\"inline\">" +
+          fld2("IBAN", "firma-iban", f.iban, "text") +
+          fld2("BIC", "firma-bic", f.bic, "text") +
+          fld2("Bank", "firma-bank", f.bank, "text") +
         "</div>" +
       "</div>" +
       '<div class="grid cols-2">' +
@@ -199,12 +209,16 @@
           fld("Umsatzsteuer", "set-mwst", s.mwst, "%") +
         "</div>" +
       "</div>" +
-      '<div class="card" style="margin-top:16px"><h3>Maschinen der Firma <span class="sub">Stundensatz (€/h) + Rüstkosten (€ je Auftrag) – werden zusätzlich zum Lohn berechnet</span></h3>' +
+      '<div class="card" style="margin-top:16px"><h3>Mitarbeiter <span class="sub">Stundenverrechnungssätze je Mitarbeiter</span></h3>' +
+        '<div id="mitarbeiter-bereich"></div>' +
+      "</div>" +
+      '<div class="card" style="margin-top:16px"><h3>Maschinen der Firma <span class="sub">Maschinenstundensatz (€/h) + Rüstzeit/-kosten – werden zusätzlich zum Lohn berechnet</span></h3>' +
         '<div id="maschinen-bereich"></div>' +
       "</div>" +
-      '<div class="card" style="margin-top:16px"><h3>Kunden <span class="sub">erscheinen als Empfänger-Anschrift auf dem Angebot</span></h3>' +
-        '<div id="kunden-bereich"></div>' +
+      '<div class="card" style="margin-top:16px"><h3>Lieferanten <span class="sub">Bezugsquellen für Material</span></h3>' +
+        '<div id="lieferanten-bereich"></div>' +
       "</div>" +
+      (Auth && Auth.istAdmin() ? '<div class="card" style="margin-top:16px"><h3>Benutzer &amp; Rollen <span class="sub">Anmeldung &amp; Berechtigungen</span></h3><div id="benutzer-bereich"></div></div>' : "") +
       '<div class="btn-row" style="margin-top:16px">' +
         '<button class="btn primary" id="btn-save-stammdaten">Stammdaten speichern</button>' +
         '<button class="btn ghost" id="btn-reset-stammdaten">Auf Standard zurücksetzen</button>' +
@@ -231,7 +245,9 @@
       s.firma = {
         name: $("#firma-name").value.trim(), inhaber: $("#firma-inhaber").value.trim(),
         strasse: $("#firma-strasse").value.trim(), plzOrt: $("#firma-plzOrt").value.trim(),
-        tel: $("#firma-tel").value.trim(), email: $("#firma-email").value.trim(), uid: $("#firma-uid").value.trim()
+        tel: $("#firma-tel").value.trim(), email: $("#firma-email").value.trim(),
+        web: $("#firma-web").value.trim(), uid: $("#firma-uid").value.trim(),
+        iban: $("#firma-iban").value.trim(), bic: $("#firma-bic").value.trim(), bank: $("#firma-bank").value.trim()
       };
       Store.save();
       toast("Stammdaten gespeichert.");
@@ -261,8 +277,10 @@
         db = Store.reset(); toast("Alle Daten gelöscht."); navTo("dashboard");
       }
     };
+    renderMitarbeiter();
     renderMaschinen();
-    renderKunden();
+    renderLieferanten();
+    if (Auth && Auth.istAdmin()) renderBenutzer();
   }
 
   // ---- Kunden-Verwaltung --------------------------------------
@@ -321,8 +339,73 @@
         tel: $("#k-tel").value.trim(), email: $("#k-email").value.trim()
       };
       if (k) { Object.keys(daten).forEach(function (key) { k[key] = daten[key]; }); }
-      else { daten.id = Store.uid(); liste.push(daten); }
+      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); }
       Store.save(); renderKunden(); toast("Kunde gespeichert.");
+      return true;
+    });
+  }
+
+  // ============================================================
+  //  KUNDEN & PROJEKTE (eigene Seite)
+  // ============================================================
+  function renderKundenProjekte() {
+    var root = $("#page-kundenprojekte .content");
+    root.innerHTML =
+      '<div class="card" style="margin-bottom:16px"><h3>Kunden <span class="sub">Auftraggeber &amp; Empfänger-Anschrift</span></h3><div id="kunden-bereich"></div></div>' +
+      '<div class="card"><h3>Projekte &amp; Kommissionen <span class="sub">Bauvorhaben, einem Kunden zugeordnet</span></h3><div id="projekte-bereich"></div></div>';
+    renderKunden();
+    renderProjekte();
+  }
+
+  function naechsteProjektNr() {
+    var jahr = new Date().getFullYear();
+    var n = (db.settings && db.settings.projektZaehler) || 1;
+    return "P-" + jahr + "-" + ("00" + n).slice(-3);
+  }
+  function kundeName(id) { var k = (db.kunden || []).filter(function (x) { return x.id === id; })[0]; return k ? k.name : "—"; }
+
+  function renderProjekte() {
+    var wrap = $("#projekte-bereich"); if (!wrap) return;
+    var liste = db.projekte || (db.projekte = []);
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-projekt" type="button">+ Projekt anlegen</button></div>';
+    if (!liste.length) { html += '<div class="empty">Noch keine Projekte. Lege ein Projekt / eine Kommission an und ordne ihm Aufträge zu.</div>'; }
+    else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Projekt</th><th>Kunde</th><th>Kommission</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+      liste.forEach(function (p) {
+        html += "<tr><td>" + esc(p.nummer || "—") + "</td><td><strong>" + esc(p.name) + "</strong></td><td>" + esc(kundeName(p.kundeId)) + "</td>" +
+          "<td>" + (p.kommission ? '<span class="tag">' + esc(p.kommission) + "</span>" : "—") + "</td><td>" + esc(p.status || "Aktiv") + "</td>" +
+          '<td class="num"><button class="btn sm ghost" data-pedit="' + p.id + '" type="button">✏️</button> ' +
+            '<button class="btn sm danger" data-pdel="' + p.id + '" type="button">🗑️</button></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+    wrap.innerHTML = html;
+    $("#btn-add-projekt").onclick = function () { projektModal(null); };
+    $all("[data-pedit]", wrap).forEach(function (b) { b.onclick = function () { projektModal(b.dataset.pedit); }; });
+    $all("[data-pdel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Projekt löschen?")) { db.projekte = db.projekte.filter(function (p) { return p.id !== b.dataset.pdel; }); Store.save(); renderProjekte(); }
+      };
+    });
+  }
+  function projektModal(id) {
+    var liste = db.projekte || (db.projekte = []);
+    var p = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
+    var kundeOpt = '<option value="">— kein Kunde —</option>' + (db.kunden || []).map(function (k) { return '<option value="' + k.id + '"' + (p && p.kundeId === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>"; }).join("");
+    var statusOpt = ["Aktiv", "Angebot", "Abgeschlossen", "Storniert"].map(function (s) { return "<option" + (p && p.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+    var body =
+      '<div class="inline">' + fld2("Projektname", "p-name", p ? p.name : "", "text") + fld2("Projekt-Nr.", "p-nummer", p ? p.nummer : naechsteProjektNr(), "text") + "</div>" +
+      '<label class="fld"><span class="lbl">Kunde</span><select id="p-kunde">' + kundeOpt + "</select></label>" +
+      '<div class="inline">' + fld2("Kommission / Baustelle", "p-kommission", p ? p.kommission : "", "text") +
+        '<label class="fld"><span class="lbl">Status</span><select id="p-status">' + statusOpt + "</select></label>" + "</div>" +
+      fld2("Notiz", "p-notiz", p ? p.notiz : "", "text");
+    openModal(p ? "Projekt bearbeiten" : "Projekt anlegen", body, function () {
+      var name = $("#p-name").value.trim();
+      if (!name) { toast("Bitte Projektnamen angeben.", "err"); return false; }
+      var daten = { nummer: $("#p-nummer").value.trim(), name: name, kundeId: $("#p-kunde").value, kommission: $("#p-kommission").value.trim(), status: $("#p-status").value, notiz: $("#p-notiz").value.trim() };
+      if (p) { Object.keys(daten).forEach(function (k) { p[k] = daten[k]; }); }
+      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); db.settings.projektZaehler = (db.settings.projektZaehler || 1) + 1; }
+      Store.save(); renderProjekte(); toast("Projekt gespeichert.");
       return true;
     });
   }
@@ -332,6 +415,11 @@
     var s = SCHRITTE.filter(function (x) { return x.key === key; })[0];
     return s ? s.label : "—";
   }
+  // Rüstkosten je Auftrag = Rüstzeit (h) × Rüstkostensatz (€/h) + fixe Rüstkosten (€)
+  function maschineRuest(m) {
+    return (parseFloat(m.ruestzeitStd) || 0) * (parseFloat(m.ruestkostensatz) || 0) +
+      (parseFloat(m.fixeRuestkosten != null ? m.fixeRuestkosten : m.ruestkosten) || 0);
+  }
   function renderMaschinen() {
     var wrap = $("#maschinen-bereich");
     if (!wrap) return;
@@ -340,12 +428,12 @@
     if (!liste.length) {
       html += '<div class="empty">Noch keine Maschinen. Lege die Maschinen deiner Firma an.</div>';
     } else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Maschine</th><th>Arbeitsschritt</th><th class="num">Stundensatz</th><th class="num">Rüstkosten</th><th class="num">Aktion</th></tr></thead><tbody>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Maschine</th><th>Arbeitsschritt</th><th class="num">Stundensatz</th><th class="num">Rüstkosten/Auftrag</th><th class="num">Aktion</th></tr></thead><tbody>';
       liste.forEach(function (m) {
         html += "<tr><td><strong>" + esc(m.name) + "</strong></td>" +
           "<td>" + esc(schrittLabel(m.schritt)) + "</td>" +
           '<td class="num">' + fmtEUR(m.stundensatz) + "/h</td>" +
-          '<td class="num">' + fmtEUR(m.ruestkosten) + "</td>" +
+          '<td class="num">' + fmtEUR(maschineRuest(m)) + "</td>" +
           '<td class="num"><button class="btn sm ghost" data-medit="' + m.id + '" type="button">✏️</button> ' +
             '<button class="btn sm danger" data-mdel="' + m.id + '" type="button">🗑️</button></td></tr>';
       });
@@ -371,25 +459,184 @@
       SCHRITTE.map(function (s) {
         return '<option value="' + s.key + '"' + (m && m.schritt === s.key ? " selected" : "") + ">" + esc(s.label) + "</option>";
       }).join("");
+    var rz = m && m.ruestzeitStd != null ? m.ruestzeitStd : 0;
+    var rks = m && m.ruestkostensatz != null ? m.ruestkostensatz : ((db.settings.rates && db.settings.rates.fertigung) || 40);
+    var fix = m ? (m.fixeRuestkosten != null ? m.fixeRuestkosten : m.ruestkosten) : 0;
     var body =
       fld2("Maschinenname", "ma-name", m ? m.name : "", "text") +
       '<label class="fld"><span class="lbl">Arbeitsschritt (für automatische Zuordnung)</span><select id="ma-schritt">' + schrittOpt + "</select></label>" +
       '<div class="inline">' +
-        fld2("Stundensatz (€/h)", "ma-satz", m ? m.stundensatz : "", "number") +
-        fld2("Rüstkosten (€ je Auftrag)", "ma-ruest", m ? m.ruestkosten : 0, "number") +
+        fld2("Maschinenstundensatz (€/h)", "ma-satz", m ? m.stundensatz : "", "number") +
+        fld2("Rüstzeit (h je Auftrag)", "ma-rzeit", rz, "number") +
       "</div>" +
-      '<p class="hint">Die Rüstkosten werden je Auftrag einmal berechnet, sobald der zugeordnete Arbeitsschritt anfällt.</p>';
+      '<div class="inline">' +
+        fld2("Rüstkostensatz (€/h)", "ma-rksatz", rks, "number") +
+        fld2("Fixe Rüstkosten (€ je Auftrag)", "ma-rfix", fix, "number") +
+      "</div>" +
+      '<p class="hint">Rüstkosten je Auftrag = Rüstzeit × Rüstkostensatz + fixe Rüstkosten. Werden einmal berechnet, sobald der zugeordnete Arbeitsschritt anfällt.</p>';
     openModal(m ? "Maschine bearbeiten" : "Maschine anlegen", body, function () {
       var name = $("#ma-name").value.trim();
       if (!name) { toast("Bitte Maschinennamen angeben.", "err"); return false; }
       var daten = {
         name: name, schritt: $("#ma-schritt").value,
         stundensatz: leseZahl0($("#ma-satz").value),
-        ruestkosten: leseZahl0($("#ma-ruest").value)
+        ruestzeitStd: leseZahl0($("#ma-rzeit").value),
+        ruestkostensatz: leseZahl0($("#ma-rksatz").value),
+        fixeRuestkosten: leseZahl0($("#ma-rfix").value)
       };
-      if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestkosten = daten.ruestkosten; }
+      if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestzeitStd = daten.ruestzeitStd; m.ruestkostensatz = daten.ruestkostensatz; m.fixeRuestkosten = daten.fixeRuestkosten; delete m.ruestkosten; }
       else { daten.id = Store.uid(); liste.push(daten); }
       Store.save(); renderMaschinen(); toast("Maschine gespeichert.");
+      return true;
+    });
+  }
+
+  // ---- Mitarbeiter-Verwaltung ---------------------------------
+  var GRUPPEN = [["cad", "Planung / CAD"], ["fertigung", "Fertigung"], ["montage", "Montage"], ["projektleitung", "Projektleitung"]];
+  function gruppeLabel(g) { var x = GRUPPEN.filter(function (p) { return p[0] === g; })[0]; return x ? x[1] : (g || "—"); }
+  function renderMitarbeiter() {
+    var wrap = $("#mitarbeiter-bereich"); if (!wrap) return;
+    var liste = db.mitarbeiter || (db.mitarbeiter = []);
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-ma" type="button">+ Mitarbeiter anlegen</button></div>';
+    if (!liste.length) { html += '<div class="empty">Noch keine Mitarbeiter angelegt.</div>'; }
+    else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Gruppe</th><th class="num">Stundensatz</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+      liste.forEach(function (m) {
+        html += "<tr><td><strong>" + esc(m.name) + "</strong></td>" +
+          "<td>" + esc(gruppeLabel(m.gruppe)) + "</td>" +
+          '<td class="num">' + fmtEUR(m.stundensatz) + "/h</td>" +
+          "<td>" + (m.aktiv === false ? '<span class="muted">inaktiv</span>' : "aktiv") + "</td>" +
+          '<td class="num"><button class="btn sm ghost" data-maedit="' + m.id + '" type="button">✏️</button> ' +
+            '<button class="btn sm danger" data-madel="' + m.id + '" type="button">🗑️</button></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+    wrap.innerHTML = html;
+    $("#btn-add-ma").onclick = function () { mitarbeiterModal(null); };
+    $all("[data-maedit]", wrap).forEach(function (b) { b.onclick = function () { mitarbeiterModal(b.dataset.maedit); }; });
+    $all("[data-madel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Mitarbeiter löschen?")) { db.mitarbeiter = db.mitarbeiter.filter(function (m) { return m.id !== b.dataset.madel; }); Store.save(); renderMitarbeiter(); }
+      };
+    });
+  }
+  function mitarbeiterModal(id) {
+    var liste = db.mitarbeiter || (db.mitarbeiter = []);
+    var m = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
+    var grpOpt = GRUPPEN.map(function (g) { return '<option value="' + g[0] + '"' + (m && m.gruppe === g[0] ? " selected" : "") + ">" + esc(g[1]) + "</option>"; }).join("");
+    var body =
+      fld2("Name", "ma-mname", m ? m.name : "", "text") +
+      '<label class="fld"><span class="lbl">Gruppe (bestimmt den Vorgabe-Stundensatz)</span><select id="ma-grp">' + grpOpt + "</select></label>" +
+      '<div class="inline">' +
+        fld2("Stundenverrechnungssatz (€/h)", "ma-msatz", m ? m.stundensatz : "", "number") +
+        '<label class="fld"><span class="lbl">Status</span><select id="ma-aktiv"><option value="1"' + (!m || m.aktiv !== false ? " selected" : "") + ">aktiv</option><option value=\"0\"" + (m && m.aktiv === false ? " selected" : "") + ">inaktiv</option></select></label>" +
+      "</div>";
+    openModal(m ? "Mitarbeiter bearbeiten" : "Mitarbeiter anlegen", body, function () {
+      var name = $("#ma-mname").value.trim();
+      if (!name) { toast("Bitte Namen angeben.", "err"); return false; }
+      var daten = { name: name, gruppe: $("#ma-grp").value, stundensatz: leseZahl0($("#ma-msatz").value), aktiv: $("#ma-aktiv").value === "1" };
+      if (m) { Object.keys(daten).forEach(function (k) { m[k] = daten[k]; }); }
+      else { daten.id = Store.uid(); liste.push(daten); }
+      Store.save(); renderMitarbeiter(); toast("Mitarbeiter gespeichert.");
+      return true;
+    });
+  }
+
+  // ---- Lieferanten-Verwaltung ---------------------------------
+  function renderLieferanten() {
+    var wrap = $("#lieferanten-bereich"); if (!wrap) return;
+    var liste = db.lieferanten || (db.lieferanten = []);
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-lief" type="button">+ Lieferant anlegen</button></div>';
+    if (!liste.length) { html += '<div class="empty">Noch keine Lieferanten angelegt.</div>'; }
+    else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Lieferant</th><th>Ansprechpartner</th><th>Kontakt</th><th class="num">Aktion</th></tr></thead><tbody>';
+      liste.forEach(function (l) {
+        html += "<tr><td><strong>" + esc(l.name) + "</strong>" + (l.kundennummer ? ' <span class="tag muted">Kd. ' + esc(l.kundennummer) + "</span>" : "") +
+          (l.notiz ? '<br><span class="muted" style="font-size:11px">' + esc(l.notiz) + "</span>" : "") + "</td>" +
+          "<td>" + esc(l.ansprechpartner || "—") + "</td>" +
+          "<td>" + [l.tel, l.email].filter(Boolean).map(esc).join("<br>") + (l.tel || l.email ? "" : "—") + "</td>" +
+          '<td class="num"><button class="btn sm ghost" data-ledit="' + l.id + '" type="button">✏️</button> ' +
+            '<button class="btn sm danger" data-ldel="' + l.id + '" type="button">🗑️</button></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+    wrap.innerHTML = html;
+    $("#btn-add-lief").onclick = function () { lieferantModal(null); };
+    $all("[data-ledit]", wrap).forEach(function (b) { b.onclick = function () { lieferantModal(b.dataset.ledit); }; });
+    $all("[data-ldel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Lieferant löschen?")) { db.lieferanten = db.lieferanten.filter(function (l) { return l.id !== b.dataset.ldel; }); Store.save(); renderLieferanten(); }
+      };
+    });
+  }
+  function lieferantModal(id) {
+    var liste = db.lieferanten || (db.lieferanten = []);
+    var l = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
+    var body =
+      '<div class="inline">' + fld2("Name", "l-name", l ? l.name : "", "text") + fld2("Kundennummer (bei uns)", "l-kdnr", l ? l.kundennummer : "", "text") + "</div>" +
+      fld2("Ansprechpartner", "l-ap", l ? l.ansprechpartner : "", "text") +
+      '<div class="inline">' + fld2("Telefon", "l-tel", l ? l.tel : "", "text") + fld2("E-Mail", "l-email", l ? l.email : "", "text") + "</div>" +
+      '<div class="inline">' + fld2("Web", "l-web", l ? l.web : "", "text") + fld2("Notiz", "l-notiz", l ? l.notiz : "", "text") + "</div>";
+    openModal(l ? "Lieferant bearbeiten" : "Lieferant anlegen", body, function () {
+      var name = $("#l-name").value.trim();
+      if (!name) { toast("Bitte Namen angeben.", "err"); return false; }
+      var daten = { name: name, kundennummer: $("#l-kdnr").value.trim(), ansprechpartner: $("#l-ap").value.trim(), tel: $("#l-tel").value.trim(), email: $("#l-email").value.trim(), web: $("#l-web").value.trim(), notiz: $("#l-notiz").value.trim() };
+      if (l) { Object.keys(daten).forEach(function (k) { l[k] = daten[k]; }); }
+      else { daten.id = Store.uid(); liste.push(daten); }
+      Store.save(); renderLieferanten(); toast("Lieferant gespeichert.");
+      return true;
+    });
+  }
+
+  // ---- Benutzer-Verwaltung (nur Admin) ------------------------
+  function renderBenutzer() {
+    var wrap = $("#benutzer-bereich"); if (!wrap) return;
+    var liste = (db.users || []);
+    var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-user" type="button">+ Benutzer anlegen</button></div>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Benutzer</th><th>Rolle</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.forEach(function (u) {
+      var istIch = Auth.current() && u.id === Auth.current().id;
+      html += "<tr><td><strong>" + esc(u.name) + "</strong>" + (istIch ? ' <span class="tag">Sie</span>' : "") + "</td>" +
+        "<td>" + esc(u.benutzername) + "</td>" +
+        "<td>" + esc(Auth.rolleLabel(u.rolle)) + "</td>" +
+        "<td>" + (u.aktiv === false ? '<span class="muted">inaktiv</span>' : "aktiv") + "</td>" +
+        '<td class="num"><button class="btn sm ghost" data-uedit="' + u.id + '" type="button">✏️</button> ' +
+          '<button class="btn sm danger" data-udel="' + u.id + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div><p class=\"hint\">Rollen: Administrator (alles), Büro/Kalkulation (ohne Benutzerverwaltung), Werkstatt/Montage (Dashboard &amp; Aufträge).</p>";
+    wrap.innerHTML = html;
+    $("#btn-add-user").onclick = function () { benutzerModal(null); };
+    $all("[data-uedit]", wrap).forEach(function (b) { b.onclick = function () { benutzerModal(b.dataset.uedit); }; });
+    $all("[data-udel]", wrap).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Benutzer löschen?")) {
+          if (!Auth.loescheUser(b.dataset.udel)) { toast("Der letzte Administrator kann nicht gelöscht werden.", "err"); return; }
+          renderBenutzer();
+        }
+      };
+    });
+  }
+  function benutzerModal(id) {
+    var u = id ? (db.users || []).filter(function (x) { return x.id === id; })[0] : null;
+    var rollen = Object.keys(Auth.ROLLEN);
+    var rolleOpt = rollen.map(function (r) { return '<option value="' + r + '"' + (u && u.rolle === r ? " selected" : (!u && r === "buero" ? " selected" : "")) + ">" + esc(Auth.ROLLEN[r]) + "</option>"; }).join("");
+    var body =
+      '<div class="inline">' + fld2("Name", "u-name", u ? u.name : "", "text") + fld2("Benutzername", "u-benutzer", u ? u.benutzername : "", "text") + "</div>" +
+      '<div class="inline">' +
+        '<label class="fld"><span class="lbl">Rolle</span><select id="u-rolle">' + rolleOpt + "</select></label>" +
+        '<label class="fld"><span class="lbl">Status</span><select id="u-aktiv"><option value="1"' + (!u || u.aktiv !== false ? " selected" : "") + ">aktiv</option><option value=\"0\"" + (u && u.aktiv === false ? " selected" : "") + ">inaktiv</option></select></label>" +
+      "</div>" +
+      fld2(u ? "Neuer PIN (leer = unverändert)" : "PIN (Standard 1234)", "u-pin", "", "text") +
+      '<p class="hint">Der PIN wird gesalzen gehasht gespeichert – niemals im Klartext.</p>';
+    openModal(u ? "Benutzer bearbeiten" : "Benutzer anlegen", body, function () {
+      var name = $("#u-name").value.trim(), benutzer = $("#u-benutzer").value.trim().toLowerCase();
+      if (!name || !benutzer) { toast("Bitte Name und Benutzername angeben.", "err"); return false; }
+      var vorhanden = Auth.findByName(benutzer);
+      if (vorhanden && (!u || vorhanden.id !== u.id)) { toast("Benutzername bereits vergeben.", "err"); return false; }
+      var pin = $("#u-pin").value.trim();
+      if (!u && !pin) pin = "1234";
+      Auth.speichereUser({ id: u ? u.id : null, name: name, benutzername: benutzer, rolle: $("#u-rolle").value, aktiv: $("#u-aktiv").value === "1" }, pin || null);
+      renderBenutzer(); aktualisiereUserBox(); toast("Benutzer gespeichert.");
       return true;
     });
   }
@@ -1849,6 +2096,63 @@
   // ============================================================
   //  INIT
   // ============================================================
+  // ============================================================
+  //  ANMELDUNG & ROLLEN (UI)
+  // ============================================================
+  function ersteErlaubteSeite() {
+    var kandidaten = ["dashboard", "auftraege", "kalkulation", "material", "kundenprojekte", "stammdaten", "lernen"];
+    for (var i = 0; i < kandidaten.length; i++) { if (!Auth || Auth.darf(kandidaten[i])) return kandidaten[i]; }
+    return "dashboard";
+  }
+  function wendeRollenNavAn() {
+    $all(".nav li").forEach(function (li) {
+      var erlaubt = !Auth || Auth.darf(li.dataset.page);
+      li.hidden = !erlaubt;
+      li.style.display = erlaubt ? "" : "none";
+    });
+  }
+  function aktualisiereUserBox() {
+    var u = Auth && Auth.current();
+    var box = $("#user-box");
+    if (box) {
+      box.innerHTML = u ? ('<div class="user-name">👤 ' + esc(u.name) + '</div>' +
+        '<div class="user-rolle">' + esc(Auth.rolleLabel(u.rolle)) + "</div>" +
+        '<button class="btn ghost sm" id="btn-logout" type="button">Abmelden</button>') : "";
+      var lb = $("#btn-logout"); if (lb) lb.onclick = function () { Auth.logout(); zeigeLogin(); };
+    }
+    // Handy: Name in der Topbar + Abmelden-Button (Sidebar-Fuß ist mobil ausgeblendet)
+    var um = $("#user-mobile"); if (um) um.textContent = u ? u.name : "";
+    var lbm = $("#btn-logout-mobile");
+    if (lbm) { lbm.hidden = !u; lbm.onclick = function () { Auth.logout(); zeigeLogin(); }; }
+  }
+  function verbergeLogin() { var o = $("#login-overlay"); if (o) o.hidden = true; }
+  function zeigeLogin() {
+    var o = $("#login-overlay"); if (!o) return;
+    var sel = $("#login-user");
+    var users = (Store.load().users || []).filter(function (x) { return x.aktiv !== false; });
+    sel.innerHTML = users.map(function (x) { return '<option value="' + esc(x.benutzername) + '">' + esc(x.name) + " – " + esc(Auth.rolleLabel(x.rolle)) + "</option>"; }).join("");
+    $("#login-pin").value = "";
+    $("#login-fehler").hidden = true;
+    o.hidden = false;
+    try { $("#login-pin").focus(); } catch (e) {}
+  }
+  function starteNachLogin() {
+    verbergeLogin();
+    aktualisiereUserBox();
+    wendeRollenNavAn();
+    navTo(ersteErlaubteSeite());
+  }
+  function initLogin() {
+    var btn = $("#login-btn"); if (!btn) return;
+    function versuch() {
+      var ok = Auth.login($("#login-user").value, $("#login-pin").value);
+      if (ok) { starteNachLogin(); }
+      else { $("#login-fehler").hidden = false; $("#login-pin").value = ""; try { $("#login-pin").focus(); } catch (e) {} }
+    }
+    btn.onclick = versuch;
+    $("#login-pin").addEventListener("keydown", function (e) { if (e.key === "Enter") versuch(); });
+  }
+
   function init() {
     // Globale Fehlerabfangung: Die App soll nie komplett einfrieren
     w.addEventListener("error", function (ev) { console.error("Fehler abgefangen:", ev.error || ev.message); });
@@ -1871,7 +2175,12 @@
       } catch (e) { console.error(e); }
     }
 
-    navTo("dashboard");
+    // Anmeldung: gemerkte Sitzung wiederherstellen, sonst Login-Overlay zeigen
+    initLogin();
+    var angemeldet = Auth && Auth.restore();
+    if (angemeldet) { starteNachLogin(); }
+    else { wendeRollenNavAn(); zeigeLogin(); }
+
     try { pruefeUpdate(); } catch (e) { console.error(e); }
     setInterval(function () { try { tickTimer(); } catch (e) { /* Timer-Tick darf nie stören */ } }, 1000);
   }

@@ -122,7 +122,14 @@
       var m = maschinen.filter(function (mm) { return mm.schritt === sch.key; })[0];
       var mSatz = m ? (parseFloat(m.stundensatz) || 0) : 0;
       var mSumme = h * mSatz;
-      if (h > 0 && m && !genutzt[m.id]) { genutzt[m.id] = true; ruestKosten += parseFloat(m.ruestkosten) || 0; }
+      // Rüstkosten je Maschine einmalig pro Auftrag:
+      // Rüstzeit (h) × Rüstkostensatz (€/h) + fixe Rüstkosten (€)
+      if (h > 0 && m && !genutzt[m.id]) {
+        genutzt[m.id] = true;
+        var rz = parseFloat(m.ruestzeitStd) || 0, rks = parseFloat(m.ruestkostensatz) || 0;
+        var fix = parseFloat(m.fixeRuestkosten != null ? m.fixeRuestkosten : m.ruestkosten) || 0;
+        ruestKosten += rz * rks + fix;
+      }
       lohn += lohnSumme; maschinenKosten += mSumme; stundenGesamt += h;
       return {
         key: sch.key, label: sch.label, stunden: round2(h),

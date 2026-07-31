@@ -14,7 +14,9 @@
   <div class="topbar-mobile">
     <div class="logo">P</div>
     <strong>Preisschmiede</strong>
+    <span id="user-mobile" class="user-mobile"></span>
     <span class="app-version"></span>
+    <button class="btn ghost sm" id="btn-logout-mobile" type="button" hidden>Abmelden</button>
   </div>
 
   <!-- Sidebar -->
@@ -30,11 +32,13 @@
       <li data-page="dashboard" class="active"><span class="ico">📊</span> <span class="nav-txt">Dashboard</span></li>
       <li data-page="kalkulation"><span class="ico">⚡</span> <span class="nav-txt">Kalkulation</span></li>
       <li data-page="auftraege"><span class="ico">📁</span> <span class="nav-txt">Aufträge</span></li>
+      <li data-page="kundenprojekte"><span class="ico">👥</span> <span class="nav-txt">Kunden & Projekte</span></li>
       <li data-page="material"><span class="ico">🧱</span> <span class="nav-txt">Material</span></li>
       <li data-page="lernen"><span class="ico">🧠</span> <span class="nav-txt">Lernen</span></li>
       <li data-page="stammdaten"><span class="ico">⚙️</span> <span class="nav-txt">Stammdaten</span></li>
     </ul>
     <div class="sidebar-foot">
+      <div id="user-box" class="user-box"></div>
       <div id="app-version" class="app-version"></div>
       Alle Daten bleiben lokal auf diesem Gerät.
       <a href="datenschutz.html">Datenschutzerklärung</a>
@@ -61,6 +65,13 @@
     <section id="page-auftraege" class="page">
       <div class="page-head">
         <div><h2>Aufträge & Nachkalkulation</h2><p>Ist-Zeiten erfassen, Soll/Ist vergleichen – die App lernt daraus.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-kundenprojekte" class="page">
+      <div class="page-head">
+        <div><h2>Kunden &amp; Projekte</h2><p>Kunden, Projekte und Kommissionen verwalten.</p></div>
       </div>
       <div class="content"></div>
     </section>
@@ -92,12 +103,25 @@
 <div id="toast" class="toast"></div>
 <div id="modal-bg" class="modal-bg"></div>
 
+<!-- Anmelde-Overlay (wird von app.js gesteuert) -->
+<div id="login-overlay" class="login-overlay" hidden>
+  <div class="login-card">
+    <div class="login-brand"><div class="logo">P</div><div><h1>Preisschmiede</h1><small>Anmeldung</small></div></div>
+    <label class="fld"><span class="lbl">Benutzer</span><select id="login-user"></select></label>
+    <label class="fld"><span class="lbl">PIN</span><input type="password" id="login-pin" inputmode="numeric" autocomplete="off" placeholder="••••"></label>
+    <div id="login-fehler" class="login-fehler" hidden>Benutzer oder PIN falsch.</div>
+    <button class="btn primary" id="login-btn" type="button">Anmelden</button>
+    <p class="hint">Erst-PIN für alle Benutzer: <strong>1234</strong> – bitte nach dem ersten Login unter Stammdaten → Benutzer ändern.</p>
+  </div>
+</div>
+
 <!-- Versionsinfo (im Build erzeugt; fehlt in der reinen Web-Vorschau) -->
 <script src="assets/build-info.js"></script>
 <!-- QR-Bibliotheken für den Geräte-Sync (offline eingebettet) -->
 <script src="assets/vendor/qrcode.js"></script>
 <script src="assets/vendor/jsQR.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
 <script src="assets/js/products.js"></script>
 <script src="assets/js/calc.js"></script>
 <script src="assets/js/datanorm.js"></script>
