@@ -1128,6 +1128,124 @@
   }
 
   // ============================================================
+  //  ERSTEINRICHTUNGS-ASSISTENT (Phase 9)
+  // ============================================================
+  var setupState = { schritt: 0 };
+  function setupCfg() { return (db.settings.betrieb.setup = db.settings.betrieb.setup || { abgeschlossen: false, uebersprungen: false, schritt: 0 }); }
+  // Wird beim Admin-Login angeboten, solange nicht abgeschlossen/übersprungen
+  // und die Firmendaten unvollständig sind. Jederzeit über System/Stammdaten
+  // erneut startbar.
+  function setupBeiBedarf() {
+    var c = setupCfg();
+    if (!Auth.istAdmin()) return;
+    if (c.abgeschlossen || c.uebersprungen) return;
+    // Nur bei wirklich leerer Installation automatisch anbieten (kein
+    // Firmenname). Beispiel-/Bestandsdaten werden nicht unterbrochen; die
+    // Einrichtung ist dort jederzeit über die System-Seite startbar.
+    if (db.settings.firma && db.settings.firma.name) return;
+    setTimeout(function () { starteSetup(c.schritt || 0); }, 500);
+  }
+  var SETUP_SCHRITTE = [
+    {
+      titel: "Willkommen", render: function () {
+        return '<p>Dieser Assistent richtet die wichtigsten Grunddaten ein. Du kannst ihn jederzeit <strong>überspringen</strong> und später unter <em>System</em> oder <em>Stammdaten</em> fortsetzen.</p>' +
+          '<p class="muted" style="font-size:12px">Schritte: Firma · Kalkulationsbasis · Maschinen · Material &amp; Lieferanten · Benutzer &amp; Freigabestufe · Zusammenfassung.</p>';
+      }, sammle: function () {}
+    },
+    {
+      titel: "Firmendaten", render: function () {
+        var f = db.settings.firma || {};
+        return '<div class="inline">' + fld2("Firmenname", "su-name", f.name || "", "text") + fld2("Inhaber", "su-inhaber", f.inhaber || "", "text") + "</div>" +
+          '<div class="inline">' + fld2("Straße", "su-strasse", f.strasse || "", "text") + fld2("PLZ / Ort", "su-plzort", f.plzOrt || "", "text") + "</div>" +
+          '<div class="inline">' + fld2("UID-Nr.", "su-uid", f.uid || "", "text") + fld2("IBAN", "su-iban", f.iban || "", "text") + "</div>" +
+          '<p class="hint">Firmenname und UID werden für Angebote benötigt.</p>';
+      }, sammle: function () {
+        var f = db.settings.firma = db.settings.firma || {};
+        f.name = $("#su-name").value.trim(); f.inhaber = $("#su-inhaber").value.trim();
+        f.strasse = $("#su-strasse").value.trim(); f.plzOrt = $("#su-plzort").value.trim();
+        f.uid = $("#su-uid").value.trim(); f.iban = $("#su-iban").value.trim();
+      }
+    },
+    {
+      titel: "Kalkulationsbasis", render: function () {
+        var s = db.settings, r = s.rates || {};
+        return '<div class="inline">' + fld2("USt %", "su-mwst", s.mwst, "number") + fld2("Gemeinkosten %", "su-gk", s.gemeinkosten, "number") + fld2("Gewinn %", "su-gewinn", s.gewinn, "number") + "</div>" +
+          '<div class="inline">' + fld2("CAD €/h", "su-cad", r.cad, "number") + fld2("Fertigung €/h", "su-fert", r.fertigung, "number") + "</div>" +
+          '<div class="inline">' + fld2("Montage €/h", "su-mont", r.montage, "number") + fld2("Projektleitung €/h", "su-pl", r.projektleitung, "number") + fld2("Verschnitt %", "su-versch", s.verschnitt, "number") + "</div>";
+      }, sammle: function () {
+        var s = db.settings; s.rates = s.rates || {};
+        s.mwst = leseZahl0($("#su-mwst").value); s.gemeinkosten = leseZahl0($("#su-gk").value); s.gewinn = leseZahl0($("#su-gewinn").value);
+        s.rates.cad = leseZahl0($("#su-cad").value); s.rates.fertigung = leseZahl0($("#su-fert").value);
+        s.rates.montage = leseZahl0($("#su-mont").value); s.rates.projektleitung = leseZahl0($("#su-pl").value);
+        s.verschnitt = leseZahl0($("#su-versch").value);
+      }
+    },
+    {
+      titel: "Maschinen & Rüstkosten", render: function () {
+        var m = (db.settings.maschinen || []);
+        return '<p>Aktuell hinterlegt: <strong>' + m.length + " Maschine(n)</strong>.</p>" +
+          '<p class="muted" style="font-size:12px">Jede Maschine benötigt Maschinenstundensatz und Rüstkosten (Rüstzeit × Rüstkostensatz + fixe Rüstkosten). Die Pflege erfolgt unter Stammdaten → Maschinen.</p>' +
+          '<button class="btn sm" id="su-goto-maschinen" type="button">Zu den Maschinen (Assistent pausieren)</button>';
+      }, sammle: function () {}
+    },
+    {
+      titel: "Material & Lieferanten", render: function () {
+        return '<p>Material: <strong>' + (db.material || []).length + "</strong> · Lieferanten: <strong>" + (db.lieferanten || []).length + "</strong>.</p>" +
+          '<p class="muted" style="font-size:12px">Materialien und Preise unter Material pflegen oder per CSV/DATANORM importieren (immer Backup vor dem Import).</p>' +
+          '<button class="btn sm" id="su-goto-material" type="button">Zum Material (Assistent pausieren)</button>';
+      }, sammle: function () {}
+    },
+    {
+      titel: "Benutzer & Freigabestufe", render: function () {
+        var stufeOpt = Betrieb.RELEASE_STUFEN.map(function (x) { return '<option value="' + x.key + '"' + ((db.settings.betrieb.releaseStufe || "test") === x.key ? " selected" : "") + ">" + esc(x.label) + "</option>"; }).join("");
+        return '<p>Benutzer: <strong>' + (db.users || []).length + "</strong>. Lege für den Pilot eigene Benutzer an (Stammdaten → Benutzer) und vergib eigene PINs – keine Standard-PIN.</p>" +
+          '<label class="fld"><span class="lbl">Freigabestufe</span><select id="su-stufe">' + stufeOpt + "</select></label>" +
+          '<p class="hint">Ab Stufe „Pilot" wird beim ersten Login ein PIN-Wechsel verlangt.</p>' +
+          '<button class="btn sm" id="su-goto-benutzer" type="button">Zu den Benutzern (Assistent pausieren)</button>';
+      }, sammle: function () { if ($("#su-stufe")) { db.settings.betrieb.releaseStufe = $("#su-stufe").value; aktualisiereReleaseBanner(); markierePilotFunktionen(); } }
+    },
+    {
+      titel: "Zusammenfassung", render: function () {
+        var f = db.settings.firma || {};
+        function zeile(ok, t) { return '<div class="zeile"><span>' + esc(t) + "</span><strong>" + (ok ? "✅" : "⚠️") + "</strong></div>"; }
+        return '<p>Prüfe den Einrichtungsstand:</p>' +
+          zeile(!!f.name, "Firmenname") + zeile(!!f.uid, "UID-Nr.") +
+          zeile(db.settings.mwst > 0, "USt gesetzt") + zeile((db.settings.rates || {}).fertigung > 0, "Stundensätze gesetzt") +
+          zeile((db.settings.maschinen || []).length > 0, "Mindestens eine Maschine") + zeile((db.material || []).length > 0, "Material vorhanden") +
+          zeile((db.users || []).length > 0, "Benutzer vorhanden") +
+          '<p class="hint" style="margin-top:8px">Mit „Fertig" wird die Einrichtung als abgeschlossen markiert. Danach jederzeit unter System erneut startbar.</p>';
+      }, sammle: function () {}
+    }
+  ];
+  function starteSetup(ab) {
+    setupState.schritt = Math.max(0, Math.min(SETUP_SCHRITTE.length - 1, ab || 0));
+    zeigeSetupSchritt();
+  }
+  function zeigeSetupSchritt() {
+    var i = setupState.schritt, s = SETUP_SCHRITTE[i], bg = $("#modal-bg");
+    var letzter = i === SETUP_SCHRITTE.length - 1;
+    bg.innerHTML = '<div class="modal"><h3>Ersteinrichtung <span class="sub">Schritt ' + (i + 1) + " / " + SETUP_SCHRITTE.length + " · " + esc(s.titel) + "</span></h3>" +
+      '<div id="su-body">' + s.render() + "</div>" +
+      '<div class="btn-row" style="justify-content:space-between;margin-top:16px">' +
+        '<button class="btn ghost" id="su-spaeter" type="button">Später</button>' +
+        '<span>' + (i > 0 ? '<button class="btn ghost" id="su-zurueck" type="button">Zurück</button> ' : "") +
+        '<button class="btn primary" id="su-weiter" type="button">' + (letzter ? "Fertig" : "Weiter") + "</button></span>" +
+      "</div></div>";
+    bg.classList.add("show");
+    function speichereSchritt() { try { s.sammle(); Store.save(); } catch (e) { protokolliereFehler(e, "setup"); } }
+    $("#su-spaeter").onclick = function () { speichereSchritt(); var c = setupCfg(); c.uebersprungen = true; c.schritt = i; Store.save(); bg.classList.remove("show"); toast("Einrichtung pausiert – später unter System fortsetzbar."); };
+    if ($("#su-zurueck")) $("#su-zurueck").onclick = function () { speichereSchritt(); setupState.schritt = i - 1; zeigeSetupSchritt(); };
+    $("#su-weiter").onclick = function () {
+      speichereSchritt();
+      if (letzter) { var c = setupCfg(); c.abgeschlossen = true; c.uebersprungen = false; c.schritt = i; Store.save(); bg.classList.remove("show"); toast("Ersteinrichtung abgeschlossen. ✅"); if (Auth.darf("system")) renderSystem(); return; }
+      setupState.schritt = i + 1; zeigeSetupSchritt();
+    };
+    // Sprung-Buttons: Assistent pausieren und zur jeweiligen Seite
+    function sprung(id, seite) { var b = $(id); if (b) b.onclick = function () { speichereSchritt(); var c = setupCfg(); c.uebersprungen = true; c.schritt = i; Store.save(); bg.classList.remove("show"); navTo(seite); }; }
+    sprung("#su-goto-maschinen", "stammdaten"); sprung("#su-goto-material", "material"); sprung("#su-goto-benutzer", "stammdaten");
+  }
+
+  // ============================================================
   //  BETRIEB / SYSTEM / FEEDBACK / FEHLERLOG (Phase 9)
   // ============================================================
   function buildInfo() { return (w.PS_BUILD || { version: (db.settings.appVersion || "Web-Vorschau"), build: "—" }); }
@@ -1205,7 +1323,9 @@
     var html = '<div class="card" style="border-left:4px solid ' + st.farbe + '"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
       '<div><strong style="font-size:15px">Freigabestufe: ' + esc(st.label) + "</strong>" + (status.wartungsmodus ? ' <span class="tag" style="background:#e06666;color:#fff">WARTUNGSMODUS</span>' : "") + "</div>" +
       '<div class="inline" style="flex:0"><select id="sys-stufe" style="min-width:200px">' + stufeOpt + '</select><button class="btn sm" id="sys-stufe-set" type="button">Stufe setzen</button>' +
-      '<button class="btn sm ' + (status.wartungsmodus ? "danger" : "ghost") + '" id="sys-wartung" type="button">' + (status.wartungsmodus ? "Wartung beenden" : "Wartungsmodus") + "</button></div></div></div>";
+      '<button class="btn sm ' + (status.wartungsmodus ? "danger" : "ghost") + '" id="sys-wartung" type="button">' + (status.wartungsmodus ? "Wartung beenden" : "Wartungsmodus") + '</button>' +
+      '<button class="btn sm" id="sys-setup" type="button">🧭 Ersteinrichtung</button></div></div>' +
+      '<div class="muted" style="font-size:11px;margin-top:4px">Ersteinrichtung: ' + (db.settings.betrieb.setup && db.settings.betrieb.setup.abgeschlossen ? "abgeschlossen ✅" : (db.settings.betrieb.setup && db.settings.betrieb.setup.uebersprungen ? "pausiert – fortsetzbar" : "offen")) + "</div></div>";
 
     // Systemstatus + Health
     html += '<div class="grid cols-2" style="align-items:start;margin-top:12px">';
@@ -1277,6 +1397,7 @@
     // Verdrahtung
     $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); markierePilotFunktionen(); renderSystem(); toast("Freigabestufe gesetzt."); };
     $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
+    if ($("#sys-setup")) $("#sys-setup").onclick = function () { starteSetup(0); };
     $("#sys-backup-jetzt").onclick = function () { systemBackup(); };
     $("#sys-restore-getestet").onclick = function () { db.settings.betrieb.backupMeta.restoreGetestet = true; db.settings.betrieb.backupMeta.letzterRestoreTest = Store.nowISO(); Store.save(); renderSystem(); toast("Restore-Test vermerkt."); };
     $("#sys-fb-neu").onclick = function () { feedbackModal(""); };
@@ -4726,6 +4847,7 @@
     aktualisiereReleaseBanner();
     navTo(ersteErlaubteSeite());
     ersterLoginPinCheck();
+    setupBeiBedarf();
   }
   // Beim ersten Login mit noch nicht geänderter PIN zum Wechsel auffordern.
   // Erzwungen erst ab Freigabestufe Pilot (in Entwicklung/Test nicht, damit

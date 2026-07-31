@@ -59,7 +59,8 @@
       releaseStufe: "test",           // entwicklung|test|pilot|eingeschraenkt|produktion
       wartungsmodus: false,
       backupMeta: { letztes: null, status: "keins", groesseKB: null, aufbewahrungTage: 30, restoreGetestet: false, letzterRestoreTest: null },
-      feedbackZaehler: 1
+      feedbackZaehler: 1,
+      setup: { abgeschlossen: false, uebersprungen: false, schritt: 0 }
     }
   };
 
@@ -468,6 +469,7 @@
     if (typeof st.betrieb.wartungsmodus !== "boolean") st.betrieb.wartungsmodus = false;
     if (!st.betrieb.backupMeta || typeof st.betrieb.backupMeta !== "object") st.betrieb.backupMeta = JSON.parse(JSON.stringify(ds.betrieb.backupMeta));
     if (st.betrieb.feedbackZaehler == null) st.betrieb.feedbackZaehler = 1;
+    if (!st.betrieb.setup || typeof st.betrieb.setup !== "object") st.betrieb.setup = { abgeschlossen: false, uebersprungen: false, schritt: 0 };
     if (!Array.isArray(obj.feedback)) obj.feedback = [];
     if (!Array.isArray(obj.fehlerlog)) obj.fehlerlog = [];
     (obj.users || []).forEach(function (u) { if (u && typeof u.pinGeaendert !== "boolean") u.pinGeaendert = false; });

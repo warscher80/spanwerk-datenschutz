@@ -5,6 +5,10 @@ Datenschema (`store.js` `version`).
 
 ## Phase 9 – Pilotbetrieb & Betriebsüberwachung  (Schema v9)
 ### Nachtrag (Restlücken geschlossen)
+- **Ersteinrichtungs-Assistent** (geführte Grundeinrichtung: Firma,
+  Kalkulationsbasis, Maschinen, Material, Benutzer/Freigabestufe,
+  Zusammenfassung) – überspringbar/fortsetzbar; Auto-Start nur bei leerer
+  Installation.
 - **Pilotfunktions-Kennzeichnung** im Menü (ab Freigabestufe Pilot; Lernen,
   Planung, Dokumente als „Pilot" markiert).
 - **In-App-Versions-/Änderungsansicht** (Neu / behobene Fehler / bekannte

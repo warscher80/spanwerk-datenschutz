@@ -8,7 +8,8 @@ Letzte Aktualisierung: **Phase 9 – Pilotbetrieb & Betriebsüberwachung**
 umgesetzt. Neue Betriebs-Engine (`betrieb.js`) + Admin-**System-Seite**
 (Status, Healthchecks, Backup-Überwachung, Betriebswarnungen, Pilot-Kennzahlen,
 Feedback, Fehlerprotokoll, Support-Paket, Freigabestufen). First-Login-PIN-
-Pflicht ab Pilotstufe. Datenschema **v9** (`feedback`, `fehlerlog`,
+Pflicht ab Pilotstufe. **Ersteinrichtungs-Assistent** (überspringbar/
+fortsetzbar). Datenschema **v9** (`feedback`, `fehlerlog`,
 `settings.betrieb`).
 Doku: `AUDIT_REPORT.md`, `CALCULATION_RULES.md`, `SECURITY.md`,
 `BACKUP_RESTORE.md`, `KNOWN_LIMITATIONS.md`, `DEPLOYMENT.md`,
