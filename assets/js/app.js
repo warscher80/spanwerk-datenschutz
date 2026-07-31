@@ -8,6 +8,7 @@
   var Auth = w.Preisschmiede.Auth;
   var Calc = w.Preisschmiede.Calc;
   var Konfig = w.Preisschmiede.Konfigurator;
+  var Kalk = w.Preisschmiede.Kalkulation;
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
   var SCHRITTE = Products.SCHRITTE;
@@ -58,7 +59,8 @@
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
     kundenprojekte: function () { renderKundenProjekte(); },
-    konfigurator: function () { renderKonfigurator(); }
+    konfigurator: function () { renderKonfigurator(); },
+    kalkulationen: function () { renderKalkulationen(); }
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
@@ -824,7 +826,8 @@
     var html = '<div class="card"><div class="btn-row" style="margin-bottom:10px">' +
       '<button class="btn sm ghost" id="btn-konfig-zurueck" type="button">← Liste</button>' +
       '<button class="btn sm" id="btn-konfig-edit" type="button">✏️ Bearbeiten</button>' +
-      '<button class="btn sm" id="btn-konfig-dup" type="button">📋 Duplizieren</button></div>';
+      '<button class="btn sm" id="btn-konfig-dup" type="button">📋 Duplizieren</button>' +
+      (Auth.darf("kalkulationen") && cfg.status === "Fertig" ? '<button class="btn primary sm" id="btn-konfig-kalk" type="button">🧮 Kalkulation erstellen</button>' : "") + "</div>";
     html += "<h3>" + esc(cfg.bezeichnung || "(ohne Bezeichnung)") + ' <span class="sub">' + esc(cfg.nummer || "") + " · " + esc(gruppeName(cfg.gruppeKey)) + "</span></h3>";
     html += '<div class="zusammen">' +
       '<div class="zeile"><span>Kunde</span><strong>' + esc(kundeName(cfg.kundeId)) + "</strong></div>" +
@@ -849,7 +852,343 @@
     $("#btn-konfig-zurueck").onclick = function () { renderKonfigListe(); };
     $("#btn-konfig-edit").onclick = function () { konfigBearbeiten(id); };
     $("#btn-konfig-dup").onclick = function () { konfigDuplizieren(id); };
+    var bk = $("#btn-konfig-kalk"); if (bk) bk.onclick = function () { kalkAusKonfig(cfg); };
   }
+
+  // ============================================================
+  //  KALKULATION (Phase 3B)
+  // ============================================================
+  var kalkState = null; // { id }  -> Editor aktiv
+  function naechsteKalkNr() { return "KA-" + new Date().getFullYear() + "-" + ("00" + (db.settings.kalkZaehler || 1)).slice(-3); }
+  function kalkById(id) { return (db.kalkulationen || []).filter(function (k) { return k.id === id; })[0] || null; }
+  function kalkBer(k) { return Kalk.berechne(k, db.settings); }
+
+  function renderKalkulationen() {
+    if (kalkState && kalkById(kalkState.id)) renderKalkEditor();
+    else { kalkState = null; renderKalkListe(); }
+  }
+
+  var kalkFilter = { suche: "", status: "" };
+  function renderKalkListe() {
+    var root = $("#page-kalkulationen .content");
+    var liste = db.kalkulationen || (db.kalkulationen = []);
+    // Kennzahlen
+    var offen = 0, freigegeben = 0;
+    liste.forEach(function (k) { var r = kalkBer(k); if (k.status === "freigegeben") freigegeben += r.netto; else offen += r.netto; });
+    var statusOpt = ["", "Entwurf", "freigegeben", "archiviert"].map(function (s) { return '<option value="' + s + '"' + (kalkFilter.status === s ? " selected" : "") + ">" + (s || "Alle Status") + "</option>"; }).join("");
+    var html = '<div class="grid cols-3" style="margin-bottom:14px">' +
+      stat("Kalkulationen", liste.length, "", "gesamt") +
+      stat("Offen (Entwurf)", fmtEUR(offen), "", "Netto-Summe") +
+      stat("Freigegeben", fmtEUR(freigegeben), "", "Netto-Summe") + "</div>";
+    html += '<div class="card"><div class="btn-row" style="margin-bottom:10px"><button class="btn primary sm" id="btn-kalk-neu" type="button">+ Neue Kalkulation</button></div>' +
+      '<div class="inline" style="margin-bottom:10px">' +
+        '<input id="kalk-suche" placeholder="🔍 Suche: Nr., Bezeichnung, Kunde, Kommission" value="' + esc(kalkFilter.suche) + '" style="flex:2">' +
+        '<select id="kalk-status" style="flex:1;min-width:130px">' + statusOpt + "</select></div>" +
+      '<div id="kalk-liste"></div></div>';
+    root.innerHTML = html;
+    $("#btn-kalk-neu").onclick = function () { kalkNeuDialog(); };
+    $("#kalk-suche").addEventListener("input", function () { kalkFilter.suche = this.value; zeichneKalkListe(); });
+    $("#kalk-status").addEventListener("change", function () { kalkFilter.status = this.value; zeichneKalkListe(); });
+    zeichneKalkListe();
+  }
+  function zeichneKalkListe() {
+    var ziel = $("#kalk-liste"); if (!ziel) return;
+    var suche = (kalkFilter.suche || "").toLowerCase().trim();
+    var liste = (db.kalkulationen || []).filter(function (k) {
+      if (kalkFilter.status && (k.status || "Entwurf") !== kalkFilter.status) return false;
+      if (!suche) return true;
+      return [k.nummer, k.bezeichnung, k.kommission, kundeName(k.kundeId)].filter(Boolean).join(" ").toLowerCase().indexOf(suche) >= 0;
+    });
+    if (!liste.length) { ziel.innerHTML = '<div class="empty">Keine Kalkulationen. Erstelle eine – am besten aus einer fertigen Produktkonfiguration.</div>'; return; }
+    var html = '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Bezeichnung</th><th>Kunde</th><th>Kommission</th><th class="num">Netto</th><th class="num">DB</th><th class="num">Gewinn</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.slice().reverse().forEach(function (k) {
+      var r = kalkBer(k);
+      html += "<tr><td>" + esc(k.nummer) + (k.version > 1 ? " v" + k.version : "") + "</td>" +
+        "<td><strong>" + esc(k.bezeichnung || "—") + "</strong>" + (k.beispiel ? ' <span class="tag">Beispiel</span>' : "") + "</td>" +
+        "<td>" + esc(kundeName(k.kundeId)) + "</td>" +
+        "<td>" + (k.kommission ? '<span class="tag">' + esc(k.kommission) + "</span>" : "—") + "</td>" +
+        '<td class="num">' + fmtEUR(r.netto) + "</td>" +
+        '<td class="num">' + r.dbQuote + "%</td>" +
+        '<td class="num" style="color:' + (r.gewinn < 0 ? "var(--red)" : "var(--green)") + '">' + fmtEUR(r.gewinn) + "</td>" +
+        "<td>" + statusBadgeKalk(k.status) + "</td>" +
+        '<td class="num" style="white-space:nowrap"><button class="btn sm" data-kalkopen="' + k.id + '" type="button">Öffnen</button> ' +
+          '<button class="btn sm ghost" data-kalkdup="' + k.id + '" type="button" title="Duplizieren">📋</button> ' +
+          '<button class="btn sm danger" data-kalkdel="' + k.id + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div>";
+    ziel.innerHTML = html;
+    $all("[data-kalkopen]", ziel).forEach(function (b) { b.onclick = function () { var k = kalkById(b.dataset.kalkopen); if (k && k.status === "freigegeben") kalkDetail(k.id); else { kalkState = { id: b.dataset.kalkopen }; renderKalkEditor(); } }; });
+    $all("[data-kalkdup]", ziel).forEach(function (b) { b.onclick = function () { kalkDuplizieren(b.dataset.kalkdup); }; });
+    $all("[data-kalkdel]", ziel).forEach(function (b) { b.onclick = function () { if (confirm("Kalkulation löschen?")) { db.kalkulationen = db.kalkulationen.filter(function (k) { return k.id !== b.dataset.kalkdel; }); Store.save(); zeichneKalkListe(); } }; });
+  }
+  function statusBadgeKalk(s) { s = s || "Entwurf"; var c = s === "freigegeben" ? "var(--green)" : s === "archiviert" ? "var(--muted)" : "var(--accent)"; return '<span class="tag" style="color:' + c + '">' + esc(s) + "</span>"; }
+
+  function kalkNeuDialog() {
+    var fertige = (db.konfigurationen || []).filter(function (c) { return c.status === "Fertig"; });
+    var opt = '<option value="">— leere Kalkulation —</option>' + fertige.map(function (c) { return '<option value="' + c.id + '">' + esc(c.nummer + " · " + (c.bezeichnung || "")) + "</option>"; }).join("");
+    var body = '<label class="fld"><span class="lbl">Aus Produktkonfiguration übernehmen (optional)</span><select id="kn-konfig">' + opt + "</select></label>" +
+      fld2("Bezeichnung", "kn-bez", "", "text");
+    openModal("Neue Kalkulation", body, function () {
+      var cfgId = $("#kn-konfig").value;
+      var cfg = cfgId ? (db.konfigurationen || []).filter(function (c) { return c.id === cfgId; })[0] : null;
+      var bez = $("#kn-bez").value.trim() || (cfg ? cfg.bezeichnung : "Neue Kalkulation");
+      var basis = cfg ? Kalk.ausKonfiguration(cfg, db) : { material: [], arbeit: [], maschine: [], fremd: [], montage: null, transport: null, risikoProz: 5, gewinnProz: num(db.settings.gewinn) || 18, rabattProz: 0, manuellerAufschlag: 0, mwstProz: num(db.settings.mwst) || 20, fertigungsGK: { typ: "prozent", basis: "direkt", wert: num(db.settings.gemeinkosten) || 14 } };
+      var k = Object.assign({
+        id: Store.uid(), nummer: naechsteKalkNr(), bezeichnung: bez,
+        kundeId: cfg ? cfg.kundeId : "", projektId: cfg ? cfg.projektId : "", kommission: cfg ? cfg.kommission : "",
+        konfigId: cfg ? cfg.id : "", gruppeKey: cfg ? cfg.gruppeKey : "", stueckzahl: cfg && cfg.antworten ? (num(cfg.antworten.stueckzahl) || 1) : 1,
+        version: 1, status: "Entwurf", erstellt: Store.nowISO(), geaendert: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", verlauf: []
+      }, basis);
+      db.kalkulationen.push(k);
+      db.settings.kalkZaehler = (db.settings.kalkZaehler || 1) + 1;
+      Store.save();
+      kalkState = { id: k.id }; renderKalkEditor();
+      return true;
+    }, "Erstellen");
+  }
+  function kalkAusKonfig(cfg) {
+    var basis = Kalk.ausKonfiguration(cfg, db);
+    var k = Object.assign({
+      id: Store.uid(), nummer: naechsteKalkNr(), bezeichnung: cfg.bezeichnung,
+      kundeId: cfg.kundeId, projektId: cfg.projektId, kommission: cfg.kommission,
+      konfigId: cfg.id, gruppeKey: cfg.gruppeKey, stueckzahl: cfg.antworten ? (num(cfg.antworten.stueckzahl) || 1) : 1,
+      version: 1, status: "Entwurf", erstellt: Store.nowISO(), geaendert: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", verlauf: [{ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: "Aus Konfiguration " + cfg.nummer + " erstellt" }]
+    }, basis);
+    db.kalkulationen.push(k);
+    db.settings.kalkZaehler = (db.settings.kalkZaehler || 1) + 1;
+    Store.save();
+    toast("Kalkulation aus Konfiguration erstellt.");
+    kalkState = { id: k.id }; navTo("kalkulationen");
+  }
+  function kalkDuplizieren(id) {
+    var k = kalkById(id); if (!k) return;
+    var kop = JSON.parse(JSON.stringify(k));
+    kop.id = Store.uid(); kop.nummer = naechsteKalkNr(); kop.bezeichnung = (k.bezeichnung || "") + " (Kopie)"; kop.status = "Entwurf"; kop.version = 1; kop.beispiel = false; kop.snapshot = null;
+    kop.erstellt = Store.nowISO(); kop.geaendert = Store.nowISO();
+    kop.verlauf = [{ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: "Aus " + k.nummer + " dupliziert" }];
+    db.kalkulationen.push(kop); db.settings.kalkZaehler = (db.settings.kalkZaehler || 1) + 1; Store.save();
+    toast("Kalkulation dupliziert."); kalkState = { id: kop.id }; renderKalkEditor();
+  }
+
+  function renderKalkEditor() {
+    var k = kalkById(kalkState.id); if (!k) { kalkState = null; renderKalkListe(); return; }
+    var root = $("#page-kalkulationen .content");
+    var r = kalkBer(k);
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:8px">' +
+      '<button class="btn sm ghost" id="btn-kalk-zurueck" type="button">← Liste</button>' +
+      '<button class="btn sm" id="btn-kalk-detail" type="button">📊 Kostenübersicht</button>' +
+      (k.status === "Entwurf" ? '<button class="btn primary sm" id="btn-kalk-freigabe" type="button">✓ Freigeben</button>' : "") + "</div>";
+    html += "<h3>" + esc(k.bezeichnung || "Kalkulation") + ' <span class="sub">' + esc(k.nummer) + " · v" + k.version + " · " + statusBadgeKalk(k.status) + "</span></h3>";
+    html += '<div class="muted" style="font-size:12px;margin-bottom:10px">' + esc(kundeName(k.kundeId)) + (k.kommission ? " · Kommission: " + esc(k.kommission) : "") + "</div>";
+    // Positionsbereiche
+    html += kalkBereich("Material", "material", k, [["Bezeichnung", "bezeichnung"], ["Menge", "menge"], ["EK", "einkaufspreis"]], function (p, e) { return fmtEUR(e.kosten) + " → " + fmtEUR(e.verkauf); });
+    html += kalkBereich("Arbeit", "arbeit", k, [["Tätigkeit", "taetigkeit"], ["Std", null]], function (p, e) { return e.personenstunden + " h · " + fmtEUR(e.kosten) + " → " + fmtEUR(e.verkauf); });
+    html += kalkBereich("Maschine", "maschine", k, [["Vorgang", "vorgang"]], function (p, e) { return "Rüst " + fmtEUR(e.ruestkosten) + " · " + fmtEUR(e.gesamtkosten); });
+    html += kalkBereich("Fremdleistungen", "fremd", k, [["Leistung", "leistung"]], function (p, e) { return fmtEUR(e.kosten) + " → " + fmtEUR(e.verkauf); });
+    // Montage (einzeln)
+    html += '<div class="card" style="background:var(--panel-2);margin-top:10px"><div class="btn-row" style="justify-content:space-between"><strong>Montage & Transport</strong><button class="btn sm ghost" id="btn-kalk-montage" type="button">bearbeiten</button></div>' +
+      '<div class="muted" style="font-size:12px;margin-top:6px">' + (k.montage ? (r.montage.stunden + " h Montage · " + fmtEUR(r.montageKosten)) : "keine Montage") + " · Transport " + fmtEUR(r.transportKosten) + "</div></div>";
+    // Zuschläge (live)
+    html += '<div class="card" style="margin-top:10px"><strong>Zuschläge & Preis</strong><div class="inline" style="margin-top:8px">' +
+      fld2("Gemeinkosten %", "z-gk", (k.fertigungsGK && k.fertigungsGK.wert) || 0, "number") +
+      fld2("Risiko %", "z-risiko", k.risikoProz || 0, "number") +
+      fld2("Gewinn %", "z-gewinn", k.gewinnProz || 0, "number") + "</div><div class=\"inline\">" +
+      fld2("Man. Aufschlag €", "z-aufschlag", k.manuellerAufschlag || 0, "number") +
+      fld2("Rabatt %", "z-rabatt", k.rabattProz || 0, "number") +
+      fld2("USt %", "z-mwst", k.mwstProz != null ? k.mwstProz : num(db.settings.mwst), "number") + "</div></div>";
+    // Live-Zusammenfassung
+    html += '<div id="kalk-summary">' + kalkSummaryHTML(r) + "</div>";
+    html += "</div>";
+    root.innerHTML = html;
+    $("#btn-kalk-zurueck").onclick = function () { kalkState = null; renderKalkListe(); };
+    $("#btn-kalk-detail").onclick = function () { kalkDetail(k.id); };
+    var bf = $("#btn-kalk-freigabe"); if (bf) bf.onclick = function () { kalkFreigeben(k.id); };
+    $("#btn-kalk-montage").onclick = function () { montageModal(k.id); };
+    // Positions-Buttons
+    $all("[data-kalkadd]", root).forEach(function (b) { b.onclick = function () { posModal(k.id, b.dataset.kalkadd, -1); }; });
+    $all("[data-kalkedit]", root).forEach(function (b) { b.onclick = function () { var pr = b.dataset.kalkedit.split(":"); posModal(k.id, pr[0], +pr[1]); }; });
+    $all("[data-kalkdelpos]", root).forEach(function (b) { b.onclick = function () { var pr = b.dataset.kalkdelpos.split(":"); k[pr[0]].splice(+pr[1], 1); Store.save(); renderKalkEditor(); }; });
+    // Zuschläge live
+    [["z-gk", function (v) { k.fertigungsGK = k.fertigungsGK || { typ: "prozent", basis: "direkt" }; k.fertigungsGK.wert = v; }], ["z-risiko", function (v) { k.risikoProz = v; }], ["z-gewinn", function (v) { k.gewinnProz = v; }], ["z-aufschlag", function (v) { k.manuellerAufschlag = v; }], ["z-rabatt", function (v) { k.rabattProz = v; }], ["z-mwst", function (v) { k.mwstProz = v; }]].forEach(function (pair) {
+      var el = $("#" + pair[0]); if (!el) return;
+      el.addEventListener("change", function () { pair[1](leseZahl0(el.value)); k.geaendert = Store.nowISO(); Store.save(); $("#kalk-summary").innerHTML = kalkSummaryHTML(kalkBer(k)); });
+    });
+  }
+  function kalkBereich(titel, feld, k, spalten, wertFn) {
+    var liste = k[feld] || [];
+    var rows = liste.map(function (p, i) {
+      var e = feld === "material" ? Kalk.material(p) : feld === "arbeit" ? Kalk.arbeit(p) : feld === "maschine" ? Kalk.maschine(p) : Kalk.fremd(p);
+      var label = p.bezeichnung || p.taetigkeit || p.vorgang || p.leistung || "Position";
+      return '<tr><td>' + esc(label) + '</td><td class="num">' + esc(wertFn(p, e)) + '</td>' +
+        '<td class="num" style="white-space:nowrap"><button class="btn sm ghost" data-kalkedit="' + feld + ":" + i + '" type="button">✏️</button> <button class="btn sm danger" data-kalkdelpos="' + feld + ":" + i + '" type="button">🗑️</button></td></tr>';
+    }).join("");
+    return '<div class="card" style="background:var(--panel-2);margin-top:10px"><div class="btn-row" style="justify-content:space-between;margin-bottom:6px"><strong>' + esc(titel) + ' <span class="muted" style="font-weight:400">(' + liste.length + ')</span></strong><button class="btn sm" data-kalkadd="' + feld + '" type="button">+ Position</button></div>' +
+      (liste.length ? '<div class="table-wrap"><table><tbody>' + rows + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">keine Positionen</div>') + "</div>";
+  }
+  function kalkSummaryHTML(r) {
+    var warn = r.warnungen.length ? '<div class="fehler-box" style="margin-bottom:10px">⚠️ ' + r.warnungen.map(esc).join("<br>⚠️ ") + "</div>" : "";
+    return warn + '<div class="card" style="margin-top:10px;background:var(--panel-2)"><strong>Kostenstruktur & Preis</strong>' +
+      line("Materialkosten", fmtEUR(r.material.kosten), "sub") +
+      line("Arbeitskosten", fmtEUR(r.arbeit.kosten), "sub") +
+      line("Maschinenkosten (inkl. Rüsten " + fmtEUR(r.ruestKosten) + ")", fmtEUR(r.maschine.kosten), "sub") +
+      line("Fremdleistungen", fmtEUR(r.fremdKosten), "sub") +
+      line("Montage & Transport", fmtEUR(r.montageKosten + r.transportKosten), "sub") +
+      line("= Direkte Kosten", fmtEUR(r.direkt)) +
+      line("+ Gemeinkosten (" + r.fgk.basisName + ")", fmtEUR(r.fgk.betrag), "sub") +
+      line("= Herstell-/Selbstkosten", fmtEUR(r.selbst)) +
+      line("+ Risiko", fmtEUR(r.risiko), "sub") +
+      line("+ Gewinn", fmtEUR(r.gewinnAufschlag), "sub") +
+      (r.rabatt ? line("− Rabatt", "−" + fmtEUR(r.rabatt), "sub") : "") +
+      line("Nettoverkaufspreis", fmtEUR(r.netto)) +
+      line("+ USt " + r.mwstProz + " %", fmtEUR(r.mwst), "sub") +
+      line("Bruttoverkaufspreis", fmtEUR(r.brutto)) +
+      '<hr class="sep">' +
+      line("Deckungsbeitrag (" + r.dbQuote + " %)", fmtEUR(r.deckungsbeitrag), "sub") +
+      '<div class="result-line" style="color:' + (r.gewinn < 0 ? "var(--red)" : "var(--green)") + '"><span>Kalkulierter Gewinn (' + r.gewinnQuote + " %)</span><span class=\"v\">" + fmtEUR(r.gewinn) + "</span></div>" +
+      "</div>";
+  }
+
+  function kalkFreigeben(id) {
+    var k = kalkById(id); if (!k) return;
+    var r = kalkBer(k);
+    var probleme = [];
+    if (!k.material.length && !k.arbeit.length && !k.maschine.length && !k.fremd.length) probleme.push("Keine Positionen vorhanden.");
+    if (r.netto <= 0) probleme.push("Nettoverkaufspreis ist 0.");
+    if (r.warnungen.length) probleme.push("Warnungen: " + r.warnungen.join(" "));
+    var txt = "Kalkulation freigeben?\n\nNach der Freigabe sind Preise und Werte per Snapshot eingefroren. Änderungen erzeugen eine neue Version.";
+    if (probleme.length) txt = "Hinweise:\n- " + probleme.join("\n- ") + "\n\nTrotzdem freigeben?";
+    if (!confirm(txt)) return;
+    k.snapshot = Kalk.snapshot(db.settings);
+    k.ergebnis = { netto: r.netto, brutto: r.brutto, selbst: r.selbst, deckungsbeitrag: r.deckungsbeitrag, gewinn: r.gewinn };
+    k.status = "freigegeben"; k.geaendert = Store.nowISO();
+    (k.verlauf = k.verlauf || []).push({ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: "Freigegeben (v" + k.version + ")" });
+    Store.save(); toast("Kalkulation freigegeben. ✅"); kalkState = null; kalkDetail(id);
+  }
+  function kalkNeueVersion(id) {
+    var k = kalkById(id); if (!k) return;
+    k.status = "Entwurf"; k.version = (k.version || 1) + 1; k.geaendert = Store.nowISO();
+    (k.verlauf = k.verlauf || []).push({ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: "Neue Version " + k.version + " zur Bearbeitung" });
+    Store.save(); kalkState = { id: id }; renderKalkEditor();
+  }
+
+  function kalkDetail(id) {
+    var k = kalkById(id); if (!k) { renderKalkListe(); return; }
+    kalkState = null;
+    var root = $("#page-kalkulationen .content");
+    var r = kalkBer(k);
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:8px">' +
+      '<button class="btn sm ghost" id="btn-kalk-zurueck" type="button">← Liste</button>' +
+      (k.status === "freigegeben" ? '<button class="btn sm" id="btn-kalk-version" type="button">✏️ Neue Version bearbeiten</button>' : '<button class="btn sm" id="btn-kalk-edit" type="button">✏️ Bearbeiten</button>') +
+      '<button class="btn sm ghost" id="btn-kalk-dup2" type="button">📋 Duplizieren</button></div>';
+    html += "<h3>" + esc(k.bezeichnung || "Kalkulation") + ' <span class="sub">' + esc(k.nummer) + " · v" + k.version + " · " + statusBadgeKalk(k.status) + "</span></h3>";
+    html += '<div class="muted" style="font-size:12px;margin-bottom:10px">' + esc(kundeName(k.kundeId)) + (k.kommission ? " · Kommission: " + esc(k.kommission) : "") + (k.snapshot ? " · Preis-Snapshot vom " + fmtDate(k.snapshot.datum) : "") + "</div>";
+    html += kalkSummaryHTML(r);
+    // Staffelpreise bei Serienteilen / Stückzahl > 1
+    if ((k.gruppeKey === "serienteile") || (num(k.stueckzahl) > 1)) {
+      var st = Kalk.staffel(k, db.settings);
+      html += '<div class="card" style="margin-top:10px;background:var(--panel-2)"><strong>Staffelpreise</strong><div class="table-wrap"><table><thead><tr><th class="num">Stück</th><th class="num">Rüst/Stk</th><th class="num">Kosten/Stk</th><th class="num">Preis/Stk</th><th class="num">Gesamt</th></tr></thead><tbody>' +
+        st.map(function (s) { return '<tr><td class="num">' + s.stueckzahl + '</td><td class="num">' + fmtEUR(s.ruestProStk) + '</td><td class="num">' + fmtEUR(s.kostenProStk) + '</td><td class="num"><strong>' + fmtEUR(s.preisProStk) + '</strong></td><td class="num">' + fmtEUR(s.gesamt) + "</td></tr>"; }).join("") + "</tbody></table></div></div>";
+    }
+    if (k.verlauf && k.verlauf.length) html += '<div class="card" style="margin-top:10px;background:var(--panel-2)"><strong>Änderungsverlauf</strong>' + k.verlauf.slice().reverse().map(function (v) { return '<div class="zeile"><span>' + fmtDate(v.datum) + " · " + esc(v.bearbeiter || "") + "</span><strong>" + esc(v.grund || "") + "</strong></div>"; }).join("") + "</div>";
+    html += "</div>";
+    root.innerHTML = html;
+    $("#btn-kalk-zurueck").onclick = function () { renderKalkListe(); };
+    if ($("#btn-kalk-edit")) $("#btn-kalk-edit").onclick = function () { kalkState = { id: id }; renderKalkEditor(); };
+    if ($("#btn-kalk-version")) $("#btn-kalk-version").onclick = function () { kalkNeueVersion(id); };
+    $("#btn-kalk-dup2").onclick = function () { kalkDuplizieren(id); };
+  }
+
+  // Positions-Modals (Material/Arbeit/Maschine/Fremd)
+  function posModal(kalkId, feld, index) {
+    var k = kalkById(kalkId); if (!k) return;
+    var p = index >= 0 ? k[feld][index] : {};
+    var titel = { material: "Materialposition", arbeit: "Arbeitsgang", maschine: "Maschinenarbeitsgang", fremd: "Fremdleistung" }[feld];
+    var body = "";
+    if (feld === "material") {
+      body = fld2("Bezeichnung", "p-bez", p.bezeichnung || "", "text") +
+        '<div class="inline">' + fld2("Werkstoff", "p-werk", p.werkstoff || "Stahl", "text") + fld2("Einheit", "p-einh", p.einheit || "kg", "text") + "</div>" +
+        '<div class="inline">' + fld2("Menge (Grundbedarf)", "p-menge", p.menge != null ? p.menge : "", "number") + fld2("Fixe Zugabe", "p-fix", p.fixeZugabe || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Verschnitt %", "p-versch", p.verschnittProz || 0, "number") + fld2("Ausschuss %", "p-aus", p.ausschussProz || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Verpackungseinheit", "p-ve", p.verpackungseinheit || "", "number") + fld2("Mindestbestellmenge", "p-mbm", p.mindestbestellmenge || "", "number") + "</div>" +
+        '<div class="inline">' + fld2("Einkaufspreis €", "p-ek", p.einkaufspreis != null ? p.einkaufspreis : "", "number") + fld2("Frachtanteil €", "p-fracht", p.frachtanteil || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Materialaufschlag %", "p-auf", p.materialaufschlagProz != null ? p.materialaufschlagProz : (num(db.settings.materialAufschlag) || 12), "number") + fld2("Man. Verkaufspreis € (optional)", "p-man", p.manuellerPreis != null ? p.manuellerPreis : "", "number") + "</div>" +
+        fld2("Begründung der Preisänderung", "p-grund", p.aenderungsgrund || "", "text");
+    } else if (feld === "arbeit") {
+      var grpOpt = GRUPPEN.map(function (g) { return '<option value="' + g[0] + '"' + (p.gruppe === g[0] ? " selected" : "") + ">" + esc(g[1]) + "</option>"; }).join("");
+      body = fld2("Tätigkeit", "p-taet", p.taetigkeit || "", "text") +
+        '<label class="fld"><span class="lbl">Mitarbeitergruppe</span><select id="p-grp">' + grpOpt + "</select></label>" +
+        '<div class="inline">' + fld2("Anzahl Mitarbeiter", "p-anz", p.anzahlMitarbeiter || 1, "number") + fld2("Stückzahl", "p-stk", p.stueckzahl || 1, "number") + "</div>" +
+        '<div class="inline">' + fld2("Rüst-/Vorbereitungszeit h", "p-ruest", p.ruestzeit || 0, "number") + fld2("Bearbeitungszeit/Stück h", "p-bearb", p.bearbeitungProStk || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Zusätzliche Zeit h", "p-zus", p.zusatzzeit || 0, "number") + fld2("", "p-spacer", "", "text") + "</div>" +
+        '<div class="inline">' + fld2("Interner Kostensatz €/h", "p-ik", p.internerSatz != null ? p.internerSatz : "", "number") + fld2("Verkaufsstundensatz €/h", "p-vk", p.verkaufSatz != null ? p.verkaufSatz : "", "number") + "</div>";
+    } else if (feld === "maschine") {
+      var maOpt = '<option value="">— frei —</option>' + (db.settings.maschinen || []).map(function (m) { return '<option value="' + m.id + '"' + (p.maschineId === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("");
+      body = '<label class="fld"><span class="lbl">Maschine</span><select id="p-maid">' + maOpt + "</select></label>" +
+        fld2("Vorgang", "p-vorg", p.vorgang || "", "text") +
+        '<div class="inline">' + fld2("Anzahl Rüstvorgänge", "p-anr", p.anzahlRuest || 0, "number") + fld2("Rüstzeit je Vorgang h", "p-rzv", p.ruestzeitProVorgang || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Rüstkostensatz €/h", "p-rks", p.ruestSatz != null ? p.ruestSatz : "", "number") + fld2("Fixer Rüstpreis € (optional)", "p-rfix", p.ruestFix != null ? p.ruestFix : "", "number") + "</div>" +
+        '<div class="inline">' + fld2("Laufzeit/Stück h", "p-lz", p.laufzeitProStk || 0, "number") + fld2("Stückzahl", "p-mstk", p.stueckzahl || 1, "number") + "</div>" +
+        '<div class="inline">' + fld2("Interner Maschinensatz €/h", "p-mik", p.internerSatz != null ? p.internerSatz : "", "number") + fld2("Verkaufssatz €/h", "p-mvk", p.verkaufSatz != null ? p.verkaufSatz : "", "number") + "</div>" +
+        '<div class="inline">' + fld2("Werkzeugkosten €", "p-wz", p.werkzeugkosten || 0, "number") + fld2("Energiezuschlag €", "p-en", p.energiezuschlag || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Mindestverrechnung €", "p-mv", p.mindestverrechnung || 0, "number") + fld2("Bedienerzeit h (Warnung)", "p-bed", p.bedienerZeit || 0, "number") + "</div>";
+    } else {
+      var liefOpt = '<option value="">— frei —</option>' + (db.lieferanten || []).map(function (l) { return '<option value="' + l.id + '"' + (p.lieferantId === l.id ? " selected" : "") + ">" + esc(l.name) + "</option>"; }).join("");
+      body = fld2("Leistung", "p-leist", p.leistung || "", "text") +
+        '<label class="fld"><span class="lbl">Lieferant</span><select id="p-lief">' + liefOpt + "</select></label>" +
+        fld2("Beschreibung", "p-besch", p.beschreibung || "", "text") +
+        '<div class="inline">' + fld2("Menge", "p-fmenge", p.menge || 1, "number") + fld2("Einheit", "p-feinh", p.einheit || "Pos", "text") + "</div>" +
+        '<div class="inline">' + fld2("Einkaufspreis €", "p-fek", p.einkaufspreis != null ? p.einkaufspreis : "", "number") + fld2("Fracht €", "p-ffracht", p.fracht || 0, "number") + "</div>" +
+        '<div class="inline">' + fld2("Mindermengenzuschlag €", "p-fmm", p.mindermenge || 0, "number") + fld2("Aufschlag %", "p-fauf", p.aufschlagProz != null ? p.aufschlagProz : 15, "number") + "</div>";
+    }
+    openModal((index >= 0 ? titel + " bearbeiten" : titel + " hinzufügen"), body, function () {
+      var neu = index >= 0 ? p : { aktiv: true };
+      if (feld === "material") {
+        neu.bezeichnung = $("#p-bez").value.trim(); neu.werkstoff = $("#p-werk").value.trim(); neu.einheit = $("#p-einh").value.trim();
+        neu.menge = leseZahl0($("#p-menge").value); neu.fixeZugabe = leseZahl0($("#p-fix").value); neu.verschnittProz = leseZahl0($("#p-versch").value); neu.ausschussProz = leseZahl0($("#p-aus").value);
+        var ve = $("#p-ve").value.trim(); neu.verpackungseinheit = ve === "" ? "" : leseZahl0(ve); var mbm = $("#p-mbm").value.trim(); neu.mindestbestellmenge = mbm === "" ? "" : leseZahl0(mbm);
+        neu.einkaufspreis = leseZahl0($("#p-ek").value); neu.frachtanteil = leseZahl0($("#p-fracht").value); neu.materialaufschlagProz = leseZahl0($("#p-auf").value);
+        var man = $("#p-man").value.trim(); neu.manuellerPreis = man === "" ? "" : leseZahl0(man); neu.aenderungsgrund = $("#p-grund").value.trim();
+        if (!neu.preisdatum) neu.preisdatum = Store.nowISO();
+      } else if (feld === "arbeit") {
+        neu.taetigkeit = $("#p-taet").value.trim(); neu.gruppe = $("#p-grp").value; neu.anzahlMitarbeiter = leseZahl0($("#p-anz").value); neu.stueckzahl = leseZahl0($("#p-stk").value);
+        neu.ruestzeit = leseZahl0($("#p-ruest").value); neu.bearbeitungProStk = leseZahl0($("#p-bearb").value); neu.zusatzzeit = leseZahl0($("#p-zus").value);
+        neu.internerSatz = leseZahl0($("#p-ik").value); neu.verkaufSatz = leseZahl0($("#p-vk").value);
+      } else if (feld === "maschine") {
+        neu.maschineId = $("#p-maid").value; var mm = (db.settings.maschinen || []).filter(function (x) { return x.id === neu.maschineId; })[0]; neu.maschineName = mm ? mm.name : (neu.maschineName || "");
+        neu.vorgang = $("#p-vorg").value.trim(); neu.anzahlRuest = leseZahl0($("#p-anr").value); neu.ruestzeitProVorgang = leseZahl0($("#p-rzv").value); neu.ruestSatz = leseZahl0($("#p-rks").value);
+        var rf = $("#p-rfix").value.trim(); neu.ruestFix = rf === "" ? "" : leseZahl0(rf);
+        neu.laufzeitProStk = leseZahl0($("#p-lz").value); neu.stueckzahl = leseZahl0($("#p-mstk").value); neu.internerSatz = leseZahl0($("#p-mik").value); neu.verkaufSatz = leseZahl0($("#p-mvk").value);
+        neu.werkzeugkosten = leseZahl0($("#p-wz").value); neu.energiezuschlag = leseZahl0($("#p-en").value); neu.mindestverrechnung = leseZahl0($("#p-mv").value); neu.bedienerZeit = leseZahl0($("#p-bed").value);
+      } else {
+        neu.leistung = $("#p-leist").value.trim(); neu.lieferantId = $("#p-lief").value; neu.beschreibung = $("#p-besch").value.trim();
+        neu.menge = leseZahl0($("#p-fmenge").value); neu.einheit = $("#p-feinh").value.trim(); neu.einkaufspreis = leseZahl0($("#p-fek").value); neu.fracht = leseZahl0($("#p-ffracht").value);
+        neu.mindermenge = leseZahl0($("#p-fmm").value); neu.aufschlagProz = leseZahl0($("#p-fauf").value);
+      }
+      if (index < 0) (k[feld] = k[feld] || []).push(neu);
+      k.geaendert = Store.nowISO(); Store.save(); renderKalkEditor();
+      return true;
+    });
+  }
+  function montageModal(kalkId) {
+    var k = kalkById(kalkId); if (!k) return;
+    var m = k.montage || {};
+    var body = '<p class="hint">Montagezeit und Fahrtzeit werden getrennt geführt.</p>' +
+      '<div class="inline">' + fld2("Anzahl Monteure", "mo-anz", m.anzahlMonteure || 0, "number") + fld2("Montagezeit h", "mo-zeit", m.montagezeit || 0, "number") + "</div>" +
+      '<div class="inline">' + fld2("Interner Satz €/h", "mo-ik", m.internerSatz || 0, "number") + fld2("Verkaufssatz €/h", "mo-vk", m.verkaufSatz || 0, "number") + "</div>" +
+      '<div class="inline">' + fld2("Fahrtzeit h", "mo-fz", m.fahrtzeit || 0, "number") + fld2("Kilometer", "mo-km", m.km || 0, "number") + "</div>" +
+      '<div class="inline">' + fld2("Kilometersatz €", "mo-kms", m.kmSatz != null ? m.kmSatz : (num(db.settings.transportProKm) || 0.9), "number") + fld2("Hebegerät €", "mo-heb", m.hebegeraet || 0, "number") + "</div>" +
+      '<div class="inline">' + fld2("Übernachtung €", "mo-ueb", m.uebernachtung || 0, "number") + fld2("Taggeld €", "mo-tag", m.taggeld || 0, "number") + "</div>" +
+      '<div class="inline">' + fld2("Verbrauchsmaterial €", "mo-verb", m.verbrauch || 0, "number") + fld2("Sonstige €", "mo-son", m.sonstige || 0, "number") + "</div>" +
+      '<hr class="sep"><div class="lbl">Transport/Verpackung</div>' +
+      '<div class="inline">' + fld2("Verpackungsmaterial €", "tr-verp", (k.transport && k.transport.verpackungsmaterial) || 0, "number") + fld2("Paletten €", "tr-pal", (k.transport && k.transport.paletten) || 0, "number") + "</div>";
+    openModal("Montage & Transport", body, function () {
+      k.montage = { anzahlMonteure: leseZahl0($("#mo-anz").value), montagezeit: leseZahl0($("#mo-zeit").value), internerSatz: leseZahl0($("#mo-ik").value), verkaufSatz: leseZahl0($("#mo-vk").value), fahrtzeit: leseZahl0($("#mo-fz").value), km: leseZahl0($("#mo-km").value), kmSatz: leseZahl0($("#mo-kms").value), hebegeraet: leseZahl0($("#mo-heb").value), uebernachtung: leseZahl0($("#mo-ueb").value), taggeld: leseZahl0($("#mo-tag").value), verbrauch: leseZahl0($("#mo-verb").value), sonstige: leseZahl0($("#mo-son").value) };
+      k.transport = { verpackungsmaterial: leseZahl0($("#tr-verp").value), paletten: leseZahl0($("#tr-pal").value) };
+      k.geaendert = Store.nowISO(); Store.save(); renderKalkEditor();
+      return true;
+    });
+  }
+  function num(x) { var v = parseFloat(x); return isFinite(v) ? v : 0; }
 
   // ---- Produktgruppen-Verwaltung (Admin) --------------------
   function produktgruppeVerwendet(key) { return (db.konfigurationen || []).some(function (c) { return c.gruppeKey === key; }); }

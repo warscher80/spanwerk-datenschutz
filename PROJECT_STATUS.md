@@ -137,10 +137,70 @@ konfigurationen[] { id,nummer,bezeichnung,kundeId,projektId,kommission,gruppeKey
 - Feld-Editor bietet die gängigen Einstellungen; sehr komplexe
   Validierungsregeln (reguläre Ausdrücke o. ä.) sind noch nicht vorgesehen.
 
+---
+
+## Phase 3B – Vollständige Kalkulationslogik – ERLEDIGT ✅
+
+**Neue Datei**
+- `assets/js/kalkulation.js` – Decimal-sicherer Rechenkern (cent-genaue
+  Rundung `r2`, keine Float-Fehler): Material (Nettobedarf, Verschnitt,
+  Ausschuss, Aufrunden auf Verpackungseinheit, Fracht, Aufschlag, manueller
+  Preis), Arbeit (Personenstunden × Sätze), Maschine (fixe **und**
+  zeitabhängige Rüstkosten, Laufzeit, Mindestverrechnung, Werkzeug/Energie),
+  Fremdleistung, Montage (getrennte Fahrt-/Montagezeit), Transport,
+  Gemeinkosten (konfigurierbare Basis), Preis-Wasserfall (Selbstkosten →
+  Risiko → Gewinn → Rabatt → Netto → USt → Brutto), Deckungsbeitrag/Gewinn,
+  Warnungen, **Staffelpreise** (Rüstkostenverteilung), Preis-Snapshot,
+  Ableitung aus Produktkonfiguration.
+
+**Neue Datenstruktur** (`store.js`, `version: 4`)
+```
+settings.kalkZaehler, settings.toleranzen{gruen,gelb}
+kalkulationen[] { id,nummer,bezeichnung,kundeId,projektId,kommission,konfigId,
+                  gruppeKey,stueckzahl,version,status(Entwurf/freigegeben),
+                  material[],arbeit[],maschine[],fremd[],montage,transport,
+                  fertigungsGK,risikoProz,gewinnProz,manuellerAufschlag,
+                  rabattProz,mwstProz, snapshot,ergebnis, verlauf[] }
+```
+
+**Umgesetzt**
+- Eigene Seite „Kalkulation" (getrennt von der Legacy-„Schnellkalk."):
+  Liste mit Kennzahlen (offen/freigegeben, Netto-Summen), Suche/Filter,
+  Editor mit **Live-Neuberechnung**, Detail-/Kostenübersicht.
+- Positionen (Material/Arbeit/Maschine/Fremd) hinzufügen/bearbeiten/löschen;
+  Montage & Transport separat; alle automatisch vorgeschlagen und manuell
+  überschreibbar (inkl. manuellem Materialpreis mit Begründung).
+- „Kalkulation erstellen" direkt aus einer fertigen Produktkonfiguration
+  (Material/Arbeitsgänge/Montage werden vorbelegt).
+- **Freigabe** friert Preise per Snapshot ein; Änderungen erzeugen eine
+  **neue Version** (revisionssicher, Änderungsverlauf).
+- Staffelpreisansicht (1/10/50/100/250/500/1000) mit korrekter
+  Rüstkostenverteilung.
+- Warnungen: negativer DB/Gewinn, Preis unter Selbstkosten, hoher Rabatt,
+  fehlende Sätze/Materialpreise, veraltete Preise, fehlende Rüstkosten,
+  doppelte Bedienerkosten.
+- Rollen: nur Administrator/Büro; Werkstatt hat keinen Zugriff. Responsive.
+
+**Erfolgreiche Tests**
+- Rechenkern: **34/34 Formeltests** (`scratchpad`) – Material+Verschnitt,
+  Aufrunden, Arbeit (mehrere Mitarbeiter), Maschine fix/zeitabhängig, Fremd
+  mit Fracht+Aufschlag, Montage, Preis-Wasserfall, DB, Gewinn, negative
+  Marge, Staffelpreise, Decimal-Rundungen (0,1+0,2 / 19,99×3).
+- UI (`scratchpad/p3b.js`): Erstellen aus Konfiguration, Position hinzufügen
+  mit Live-Neuberechnung, Zuschlag-Änderung, Freigabe + Snapshot,
+  Versionierung (v1→v2), Staffelpreise, Rollen, mobile Darstellung.
+  Keine JS-Fehler.
+
+**Bekannte Einschränkungen**
+- Fix/variabel für den Deckungsbeitrag ist auf „alle direkten Kosten
+  variabel, Gemeinkosten fix" voreingestellt (noch nicht je Position
+  umschaltbar). Zuschnittoptimierung bewusst nicht enthalten (Schnittstelle
+  vorbereitet).
+
 ## Nächster Schritt
 
-**Phase 3B – Vollständige Kalkulationslogik:** aus einer gespeicherten
-Produktkonfiguration eine nachvollziehbare Kalkulation mit Material-, Arbeits-,
-Maschinen- und Rüstkosten (inkl. Verschnitt, Fremdleistungen, Montage,
-Transport, Gemeinkosten, Risiko, Gewinn, Rabatt, USt) erzeugen – mit
-Preis-Snapshot und Versionierung.
+**Phase 4 – Angebotsgenerator & PDF-Ausgabe:** aus einer freigegebenen
+Kalkulation ein professionelles Kundenangebot erzeugen – interne Daten
+(Einkaufspreise, Kostensätze, Gemeinkosten, Deckungsbeitrag, Gewinn) niemals
+im Kunden-PDF; Angebotsnummernkreis, Status, Editor, Textbausteine, Vorlagen,
+druckfertige PDF-Ausgabe.

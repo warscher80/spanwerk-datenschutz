@@ -40,7 +40,10 @@
     montagePauschaleAnfahrt: 1.0, // h Anfahrt-Rüstzeit pro Montage
     // Werkstoffdichten (g/cm³) – zentral für die Gewichtsberechnung im Konfigurator
     dichten: { Stahl: 7.85, Edelstahl: 7.90, Aluminium: 2.70 },
-    konfigZaehler: 1 // laufende Konfigurations-Nummer
+    konfigZaehler: 1, // laufende Konfigurations-Nummer
+    kalkZaehler: 1,   // laufende Kalkulations-Nummer
+    // Toleranzgrenzen für den Soll-Ist-Vergleich (Phase 5)
+    toleranzen: { gruen: 5, gelb: 15 }
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -155,9 +158,18 @@
         settings.konfigZaehler = konfigurationen.length + 1;
       } catch (e) { konfigurationen = []; }
     }
+    var kalkulationen = [];
+    var Kalk = w.Preisschmiede && w.Preisschmiede.Kalkulation;
+    if (Kalk) {
+      try {
+        kalkulationen = Kalk.beispielKalkulationen({ uid: uid, nowISO: nowISO, num: function (x) { var v = parseFloat(x); return isFinite(v) ? v : 0; }, kunden: kunden, projekte: projekte, konfigurationen: konfigurationen, settings: settings });
+        settings.kalkZaehler = kalkulationen.length + 1;
+      } catch (e) { kalkulationen = []; }
+    }
     return {
-      version: 3,
+      version: 4,
       settings: settings,
+      kalkulationen: kalkulationen,
       material: mats,
       kunden: kunden,
       lieferanten: lieferanten,
@@ -255,6 +267,10 @@
     if (!Array.isArray(obj.produktgruppen)) obj.produktgruppen = Vor ? JSON.parse(JSON.stringify(Vor.SEED_PRODUKTGRUPPEN)) : [];
     if (!Array.isArray(obj.vorlagen)) obj.vorlagen = Vor ? JSON.parse(JSON.stringify(Vor.SEED_VORLAGEN)) : [];
     if (!Array.isArray(obj.konfigurationen)) obj.konfigurationen = [];
+    // Kalkulationen (Phase 3B)
+    if (!Array.isArray(obj.kalkulationen)) obj.kalkulationen = [];
+    if (st.kalkZaehler == null) st.kalkZaehler = 1;
+    if (!st.toleranzen || typeof st.toleranzen !== "object") st.toleranzen = JSON.parse(JSON.stringify(ds.toleranzen));
     // Benutzer: es muss immer mindestens ein aktiver Admin existieren (Login)
     if (!Array.isArray(obj.users) || !obj.users.some(function (u) { return u && u.rolle === "admin" && u.aktiv !== false; })) {
       obj.users = SEED_USERS.map(makeUser);
