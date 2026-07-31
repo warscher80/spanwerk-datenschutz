@@ -77,18 +77,70 @@ Login-Card auf Tablet/Mobile im Viewport – **keine JS-Fehler**.
 
 ---
 
-## Offene Aufgaben (Folgephasen)
+---
 
-- **Phase 3:** Produktkonfigurator (Geländer, Zäune, Tore, Vordächer …) mit
-  parametrischen Zeit-/Materialmodellen ausbauen.
-- **Phase 4:** KI-/Lernfunktion vertiefen (Vorschläge, Preisautomatik).
-- Aufträge fester mit Projekten/Kommissionen verknüpfen (Auswahl im Auftrag).
-- Angebots-PDF um Bankdaten/UID aus den erweiterten Firmenstammdaten ergänzen.
-- Optional: feinere Rechte je Bereich, Mitarbeiter-Zeiterfassung je Person.
+## Phase 3A – Produktverwaltung & dynamischer Konfigurator – ERLEDIGT ✅
 
-## Nächster Umsetzungsschritt
+**Neue Dateien**
+- `assets/js/konfigurator.js` – Engine: 17 Feldtypen, Sichtbarkeits-/
+  Abhängigkeits-Engine (Operatoren =, !=, wahr, gesetzt, in, >, <), Pflicht-/
+  Bereichsvalidierung, sicherer Formel-Evaluator (nur Arithmetik), berechnete
+  Felder, Abschnitts-Gruppierung, Vorlagen-Snapshot.
+- `assets/js/vorlagen.js` – 11 Produktgruppen; vollständige Vorlagen für
+  **Geländer** (45 Felder), **Blecharbeiten** (inkl. Auto-Fläche/-Gewicht/
+  Materialbedarf) und **Serienteile**; 3 Beispielkonfigurationen.
 
-**Aufträge mit Projekten verknüpfen:** Im Auftrag ein Projekt/eine Kommission
-auswählbar machen und im Dashboard/Projektblatt je Projekt auswerten – als
-Brücke zwischen der neuen Projektverwaltung (Phase 2) und dem Auftragswesen,
-bevor der Produktkonfigurator (Phase 3) ausgebaut wird.
+**Neue Datenstrukturen** (`store.js`, `version: 3`)
+```
+settings.dichten { Stahl:7.85, Edelstahl:7.90, Aluminium:2.70 }  // g/cm³, zentral
+settings.konfigZaehler
+produktgruppen[]  { id,key,name,icon,aktiv,archiviert,sort }
+vorlagen[]        { id,gruppeKey,version,aktiv, felder[] }
+felder[]          { key,typ,frage,hilfe,einheit,pflicht,standard,min,max,sort,
+                    aktiv,optionen[],abh{feld,op,wert},formel }
+konfigurationen[] { id,nummer,bezeichnung,kundeId,projektId,kommission,gruppeKey,
+                    vorlageId,vorlageVersion,vorlageSnapshot[],antworten{},
+                    berechnet{},status,erstellt,geaendert,bearbeiter,verlauf[] }
+```
+
+**Umgesetzt**
+- Produktgruppen-Verwaltung (Admin): anlegen, bearbeiten, duplizieren,
+  sortieren, aktivieren/deaktivieren, archivieren – kein Hard-Delete
+  verwendeter Gruppen.
+- Dynamischer Fragen-Editor je Gruppe (alle Feldeinstellungen inkl.
+  Abhängigkeiten/Sichtbarkeit); Versionsnummer steigt bei Änderungen.
+- Assistent: Kunde/Projekt/Kommission → Produktgruppe → dynamische
+  Abschnitte → Zusammenfassung → Speichern; Autospeichern, Zurück/Weiter,
+  Fortschrittsanzeige, Pflichtfeldprüfung, Entwurf fortsetzen, Duplizieren,
+  Bearbeiten, Vorschau.
+- Versionierung über eingefrorenen Snapshot: Vorlagenänderungen verändern
+  bestehende Konfigurationen nicht.
+- Automatische Gewichts-/Flächenberechnung aus Länge/Breite/Blechstärke ×
+  Werkstoffdichte (zentral in Stammdaten).
+- Kommission durchgängig: im Assistenten, in Listen, durchsuch-/filterbar,
+  Kunde/Projekt zugeordnet, beim Duplizieren übernommen.
+- Ansichten: Konfigurations-Liste (Filter Suche/Gruppe/Status), Assistent,
+  Detail, Bearbeitung, Zusammenfassung, Produktgruppen-Verwaltung,
+  Fragen-Editor, Vorschau. Responsive (Desktop/Tablet/Smartphone).
+
+**Erfolgreiche Tests** (`scratchpad/p3a.js` + Engine-Test)
+- Gewichtsberechnung Stahl/Edelstahl/Aluminium; Fläche; Materialbedarf inkl.
+  Verschnitt · Sichtbarkeits-/Abhängigkeitsregeln · Pflichtfeldprüfung ·
+  Speichern & erneutes Laden · Autospeichern (Entwurf) · Duplizieren ·
+  Vorlagenversionierung (v1→v2) · Snapshot-Schutz bestehender Konfigurationen ·
+  Kommissionssuche/-filter · Rollen (werkstatt ohne Konfigurator) · mobile
+  Darstellung ohne Überlauf. Keine JS-Fehler.
+
+**Bekannte Einschränkungen**
+- Materialauswahl-Feld nutzt eine flache Materialliste (keine Gruppierung im
+  Dropdown); Zuschnittoptimierung bewusst nicht enthalten.
+- Feld-Editor bietet die gängigen Einstellungen; sehr komplexe
+  Validierungsregeln (reguläre Ausdrücke o. ä.) sind noch nicht vorgesehen.
+
+## Nächster Schritt
+
+**Phase 3B – Vollständige Kalkulationslogik:** aus einer gespeicherten
+Produktkonfiguration eine nachvollziehbare Kalkulation mit Material-, Arbeits-,
+Maschinen- und Rüstkosten (inkl. Verschnitt, Fremdleistungen, Montage,
+Transport, Gemeinkosten, Risiko, Gewinn, Rabatt, USt) erzeugen – mit
+Preis-Snapshot und Versionierung.

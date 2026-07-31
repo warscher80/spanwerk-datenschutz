@@ -31,6 +31,7 @@
     <ul class="nav">
       <li data-page="dashboard" class="active"><span class="ico">📊</span> <span class="nav-txt">Dashboard</span></li>
       <li data-page="kalkulation"><span class="ico">⚡</span> <span class="nav-txt">Kalkulation</span></li>
+      <li data-page="konfigurator"><span class="ico">📋</span> <span class="nav-txt">Konfigurator</span></li>
       <li data-page="auftraege"><span class="ico">📁</span> <span class="nav-txt">Aufträge</span></li>
       <li data-page="kundenprojekte"><span class="ico">👥</span> <span class="nav-txt">Kunden & Projekte</span></li>
       <li data-page="material"><span class="ico">🧱</span> <span class="nav-txt">Material</span></li>
@@ -65,6 +66,13 @@
     <section id="page-auftraege" class="page">
       <div class="page-head">
         <div><h2>Aufträge & Nachkalkulation</h2><p>Ist-Zeiten erfassen, Soll/Ist vergleichen – die App lernt daraus.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-konfigurator" class="page">
+      <div class="page-head">
+        <div><h2>Produktkonfigurator</h2><p>Produktart wählen, relevante Fragen beantworten, Konfiguration speichern.</p></div>
       </div>
       <div class="content"></div>
     </section>
@@ -120,6 +128,8 @@
 <!-- QR-Bibliotheken für den Geräte-Sync (offline eingebettet) -->
 <script src="assets/vendor/qrcode.js"></script>
 <script src="assets/vendor/jsQR.js"></script>
+<script src="assets/js/konfigurator.js"></script>
+<script src="assets/js/vorlagen.js"></script>
 <script src="assets/js/store.js"></script>
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/products.js"></script>

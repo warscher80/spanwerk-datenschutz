@@ -37,7 +37,10 @@
     verschnitt: 8,          // % Standard-Verschnitt
     mwst: 20,               // % USt
     transportProKm: 0.9,    // €/km (Hin- und Rückfahrt)
-    montagePauschaleAnfahrt: 1.0 // h Anfahrt-Rüstzeit pro Montage
+    montagePauschaleAnfahrt: 1.0, // h Anfahrt-Rüstzeit pro Montage
+    // Werkstoffdichten (g/cm³) – zentral für die Gewichtsberechnung im Konfigurator
+    dichten: { Stahl: 7.85, Edelstahl: 7.90, Aluminium: 2.70 },
+    konfigZaehler: 1 // laufende Konfigurations-Nummer
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -137,15 +140,33 @@
       id: uid(), nummer: "P-2026-001", name: "Geländer Terrasse", kundeId: kunden[0].id,
       kommission: "BV Musterstraße", status: "Aktiv", notiz: "", erstellt: nowISO()
     }];
+    var settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    // Produktkonfigurator: Produktgruppen, Vorlagen und Beispielkonfigurationen
+    var V = w.Preisschmiede && w.Preisschmiede.Vorlagen;
+    var produktgruppen = V ? JSON.parse(JSON.stringify(V.SEED_PRODUKTGRUPPEN)) : [];
+    var vorlagen = V ? JSON.parse(JSON.stringify(V.SEED_VORLAGEN)) : [];
+    var konfigurationen = [];
+    if (V) {
+      try {
+        konfigurationen = V.beispielKonfigurationen({
+          uid: uid, nowISO: nowISO, kunden: kunden, projekte: projekte, settings: settings,
+          Konfigurator: w.Preisschmiede.Konfigurator
+        });
+        settings.konfigZaehler = konfigurationen.length + 1;
+      } catch (e) { konfigurationen = []; }
+    }
     return {
-      version: 2,
-      settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+      version: 3,
+      settings: settings,
       material: mats,
       kunden: kunden,
       lieferanten: lieferanten,
       mitarbeiter: mitarbeiter,
       projekte: projekte,
       users: users,
+      produktgruppen: produktgruppen,
+      vorlagen: vorlagen,
+      konfigurationen: konfigurationen,
       // benutzerdefinierte Untergruppen je Produkt, z. B. { zaun: ["Doppelstabmattenzaun", ...] }
       untergruppen: {},
       auftraege: [],
@@ -226,6 +247,14 @@
     if (!Array.isArray(obj.lieferanten)) obj.lieferanten = SEED_LIEFERANTEN.map(function (l) { return Object.assign({ id: uid() }, l); });
     if (!Array.isArray(obj.mitarbeiter)) obj.mitarbeiter = SEED_MITARBEITER.map(function (m) { return Object.assign({ id: uid() }, m); });
     if (!Array.isArray(obj.projekte)) obj.projekte = [];
+    // Produktkonfigurator (Phase 3A)
+    var Vor = w.Preisschmiede && w.Preisschmiede.Vorlagen;
+    if (!st.dichten || typeof st.dichten !== "object") st.dichten = JSON.parse(JSON.stringify(ds.dichten));
+    ["Stahl", "Edelstahl", "Aluminium"].forEach(function (k) { if (typeof st.dichten[k] !== "number") st.dichten[k] = ds.dichten[k]; });
+    if (st.konfigZaehler == null) st.konfigZaehler = 1;
+    if (!Array.isArray(obj.produktgruppen)) obj.produktgruppen = Vor ? JSON.parse(JSON.stringify(Vor.SEED_PRODUKTGRUPPEN)) : [];
+    if (!Array.isArray(obj.vorlagen)) obj.vorlagen = Vor ? JSON.parse(JSON.stringify(Vor.SEED_VORLAGEN)) : [];
+    if (!Array.isArray(obj.konfigurationen)) obj.konfigurationen = [];
     // Benutzer: es muss immer mindestens ein aktiver Admin existieren (Login)
     if (!Array.isArray(obj.users) || !obj.users.some(function (u) { return u && u.rolle === "admin" && u.aktiv !== false; })) {
       obj.users = SEED_USERS.map(makeUser);

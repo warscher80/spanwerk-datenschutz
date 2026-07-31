@@ -7,6 +7,7 @@
   var Store = w.Preisschmiede.Store;
   var Auth = w.Preisschmiede.Auth;
   var Calc = w.Preisschmiede.Calc;
+  var Konfig = w.Preisschmiede.Konfigurator;
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
   var SCHRITTE = Products.SCHRITTE;
@@ -56,7 +57,8 @@
     dashboard: function () { renderDashboard(); }, stammdaten: function () { renderStammdaten(); },
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
-    kundenprojekte: function () { renderKundenProjekte(); }
+    kundenprojekte: function () { renderKundenProjekte(); },
+    konfigurator: function () { renderKonfigurator(); }
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
@@ -318,7 +320,7 @@
     });
   }
 
-  function kundeModal(id) {
+  function kundeModal(id, onSave) {
     var liste = db.kunden || (db.kunden = []);
     var k = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
     var body =
@@ -338,9 +340,11 @@
         strasse: $("#k-strasse").value.trim(), plzOrt: $("#k-plzOrt").value.trim(),
         tel: $("#k-tel").value.trim(), email: $("#k-email").value.trim()
       };
+      var ziel = k;
       if (k) { Object.keys(daten).forEach(function (key) { k[key] = daten[key]; }); }
-      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); }
+      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); ziel = daten; }
       Store.save(); renderKunden(); toast("Kunde gespeichert.");
+      if (onSave) onSave(ziel);
       return true;
     });
   }
@@ -388,7 +392,7 @@
       };
     });
   }
-  function projektModal(id) {
+  function projektModal(id, onSave) {
     var liste = db.projekte || (db.projekte = []);
     var p = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
     var kundeOpt = '<option value="">— kein Kunde —</option>' + (db.kunden || []).map(function (k) { return '<option value="' + k.id + '"' + (p && p.kundeId === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>"; }).join("");
@@ -403,11 +407,645 @@
       var name = $("#p-name").value.trim();
       if (!name) { toast("Bitte Projektnamen angeben.", "err"); return false; }
       var daten = { nummer: $("#p-nummer").value.trim(), name: name, kundeId: $("#p-kunde").value, kommission: $("#p-kommission").value.trim(), status: $("#p-status").value, notiz: $("#p-notiz").value.trim() };
+      var ziel = p;
       if (p) { Object.keys(daten).forEach(function (k) { p[k] = daten[k]; }); }
-      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); db.settings.projektZaehler = (db.settings.projektZaehler || 1) + 1; }
+      else { daten.id = Store.uid(); daten.erstellt = Store.nowISO(); liste.push(daten); ziel = daten; db.settings.projektZaehler = (db.settings.projektZaehler || 1) + 1; }
       Store.save(); renderProjekte(); toast("Projekt gespeichert.");
+      if (onSave) onSave(ziel);
       return true;
     });
+  }
+
+  // ============================================================
+  //  PRODUKTKONFIGURATOR (Phase 3A)
+  // ============================================================
+  var TAET_LABEL = {
+    cad: "CAD/Planung", projektleitung: "Projektleitung", arbeitsvorbereitung: "Arbeitsvorbereitung",
+    zuschnitt: "Zuschnitt", saegen: "Sägen", lasern: "Lasern", plasma: "Plasmaschneiden", bohren: "Bohren",
+    stanzen: "Stanzen", kanten: "Kanten", schweissen: "Schweißen", schleifen: "Schleifen", entgraten: "Entgraten",
+    oberflaeche: "Oberflächenbearbeitung", qualitaet: "Qualitätskontrolle", verpackung: "Verpackung",
+    beladung: "Beladung", montage: "Montage", fahrtzeit: "Fahrtzeit", dokumentation: "Dokumentation"
+  };
+  function taetLabel(k) { return TAET_LABEL[k] || k; }
+  function alleGruppen() { return db.produktgruppen || (db.produktgruppen = []); }
+  function aktiveGruppen() { return alleGruppen().filter(function (g) { return g.aktiv !== false && !g.archiviert; }).sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); }); }
+  function gruppeByKey(key) { return alleGruppen().filter(function (g) { return g.key === key; })[0] || null; }
+  function gruppeName(key) { var g = gruppeByKey(key); return g ? g.name : (key || "—"); }
+  function vorlageFuer(gruppeKey) {
+    var vs = (db.vorlagen || []).filter(function (v) { return v.gruppeKey === gruppeKey && v.aktiv !== false; });
+    return vs.sort(function (a, b) { return (b.version || 0) - (a.version || 0); })[0] || null;
+  }
+  // Für eine bestehende Konfiguration die eingefrorene Vorlage verwenden
+  function vorlageDerKonfig(cfg) {
+    if (cfg && cfg.vorlageSnapshot && cfg.vorlageSnapshot.length) {
+      return { id: cfg.vorlageId, gruppeKey: cfg.gruppeKey, version: cfg.vorlageVersion, felder: cfg.vorlageSnapshot };
+    }
+    return vorlageFuer(cfg ? cfg.gruppeKey : null);
+  }
+  function naechsteKonfigNr() {
+    var jahr = new Date().getFullYear();
+    var n = (db.settings.konfigZaehler || 1);
+    return "K-" + jahr + "-" + ("00" + n).slice(-3);
+  }
+
+  var kfState = null; // { config, vorlage, schritt, istBearbeitung }
+
+  function renderKonfigurator() {
+    if (kfState) renderWizard();
+    else renderKonfigListe();
+  }
+
+  // ---- Liste aller Produktkonfigurationen -------------------
+  var konfigFilter = { suche: "", gruppe: "", status: "" };
+  function renderKonfigListe() {
+    var root = $("#page-konfigurator .content");
+    var liste = db.konfigurationen || (db.konfigurationen = []);
+    var statusOpt = ["", "Entwurf", "Fertig"].map(function (s) { return '<option value="' + s + '"' + (konfigFilter.status === s ? " selected" : "") + ">" + (s || "Alle Status") + "</option>"; }).join("");
+    var gruppenOpt = '<option value="">Alle Produktgruppen</option>' + aktiveGruppen().map(function (g) { return '<option value="' + esc(g.key) + '"' + (konfigFilter.gruppe === g.key ? " selected" : "") + ">" + esc(g.name) + "</option>"; }).join("");
+    var html = '<div class="card">' +
+      '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-konfig-neu" type="button">+ Neue Konfiguration</button>' +
+      (Auth.darf("produktgruppen") ? ' <button class="btn sm" id="btn-produktgruppen" type="button">🗂️ Produktgruppen verwalten</button>' : "") + "</div>" +
+      '<div class="inline" style="margin-bottom:10px">' +
+        '<input id="konfig-suche" placeholder="🔍 Suche: Bezeichnung, Nr., Kommission, Kunde" value="' + esc(konfigFilter.suche) + '" style="flex:2">' +
+        '<select id="konfig-gruppe" style="flex:1;min-width:150px">' + gruppenOpt + "</select>" +
+        '<select id="konfig-status" style="flex:1;min-width:120px">' + statusOpt + "</select>" +
+      "</div>" +
+      '<div id="konfig-liste"></div></div>';
+    root.innerHTML = html;
+    $("#btn-konfig-neu").onclick = function () { konfigNeu(); };
+    var bpg = $("#btn-produktgruppen"); if (bpg) bpg.onclick = function () { renderProduktgruppen(); };
+    $("#konfig-suche").addEventListener("input", function () { konfigFilter.suche = this.value; zeichneKonfigListe(); });
+    $("#konfig-gruppe").addEventListener("change", function () { konfigFilter.gruppe = this.value; zeichneKonfigListe(); });
+    $("#konfig-status").addEventListener("change", function () { konfigFilter.status = this.value; zeichneKonfigListe(); });
+    zeichneKonfigListe();
+  }
+  function zeichneKonfigListe() {
+    var ziel = $("#konfig-liste"); if (!ziel) return;
+    var suche = (konfigFilter.suche || "").toLowerCase().trim();
+    var liste = (db.konfigurationen || []).filter(function (c) {
+      if (konfigFilter.gruppe && c.gruppeKey !== konfigFilter.gruppe) return false;
+      if (konfigFilter.status && (c.status || "Entwurf") !== konfigFilter.status) return false;
+      if (!suche) return true;
+      var hay = [c.bezeichnung, c.nummer, c.kommission, kundeName(c.kundeId)].filter(Boolean).join(" ").toLowerCase();
+      return hay.indexOf(suche) >= 0;
+    });
+    if (!liste.length) { ziel.innerHTML = '<div class="empty">Keine Konfigurationen. Lege mit „+ Neue Konfiguration" die erste an.</div>'; return; }
+    // Karten-Darstellung (mobiltauglich) + Tabelle am Desktop via CSS
+    var html = '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Bezeichnung</th><th>Produktgruppe</th><th>Kunde</th><th>Kommission</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.slice().reverse().forEach(function (c) {
+      html += "<tr><td>" + esc(c.nummer || "—") + "</td>" +
+        "<td><strong>" + esc(c.bezeichnung || "(ohne Bezeichnung)") + "</strong>" + (c.beispiel ? ' <span class="tag">Beispiel</span>' : "") + "</td>" +
+        "<td>" + esc(gruppeName(c.gruppeKey)) + "</td>" +
+        "<td>" + esc(kundeName(c.kundeId)) + "</td>" +
+        "<td>" + (c.kommission ? '<span class="tag">' + esc(c.kommission) + "</span>" : "—") + "</td>" +
+        "<td>" + ((c.status || "Entwurf") === "Entwurf" ? '<span class="muted">Entwurf</span>' : "Fertig") + "</td>" +
+        '<td class="num" style="white-space:nowrap">' +
+          '<button class="btn sm" data-kopen="' + c.id + '" type="button">Öffnen</button> ' +
+          '<button class="btn sm ghost" data-kdup="' + c.id + '" type="button" title="Duplizieren">📋</button> ' +
+          '<button class="btn sm danger" data-kdel="' + c.id + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div>";
+    ziel.innerHTML = html;
+    $all("[data-kopen]", ziel).forEach(function (b) { b.onclick = function () { konfigOeffnen(b.dataset.kopen); }; });
+    $all("[data-kdup]", ziel).forEach(function (b) { b.onclick = function () { konfigDuplizieren(b.dataset.kdup); }; });
+    $all("[data-kdel]", ziel).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Konfiguration löschen?")) { db.konfigurationen = db.konfigurationen.filter(function (c) { return c.id !== b.dataset.kdel; }); Store.save(); zeichneKonfigListe(); }
+      };
+    });
+  }
+  function konfigOeffnen(id) {
+    var c = (db.konfigurationen || []).filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+    if ((c.status || "Entwurf") === "Entwurf") konfigStart(c); // Entwurf fortsetzen
+    else konfigDetail(id);
+  }
+
+  // ---- Assistent (Wizard) -----------------------------------
+  function konfigNeu() {
+    var c = {
+      id: Store.uid(), nummer: naechsteKonfigNr(), bezeichnung: "",
+      kundeId: "", projektId: "", kommission: "", gruppeKey: "", vorlageId: "", vorlageVersion: null,
+      vorlageSnapshot: null, antworten: {}, berechnet: {}, status: "Entwurf",
+      erstellt: Store.nowISO(), geaendert: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", verlauf: []
+    };
+    db.konfigurationen.push(c);
+    db.settings.konfigZaehler = (db.settings.konfigZaehler || 1) + 1;
+    Store.save();
+    konfigStart(c);
+  }
+  function konfigStart(cfg) {
+    kfState = { config: cfg, vorlage: cfg.gruppeKey ? vorlageDerKonfig(cfg) : null, schritt: 0, istBearbeitung: (cfg.status === "Fertig") };
+    navTo("konfigurator");
+  }
+  function konfigBearbeiten(id) {
+    var c = (db.konfigurationen || []).filter(function (x) { return x.id === id; })[0];
+    if (c) konfigStart(c);
+  }
+  function konfigDuplizieren(id) {
+    var c = (db.konfigurationen || []).filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+    var kopie = JSON.parse(JSON.stringify(c));
+    kopie.id = Store.uid(); kopie.nummer = naechsteKonfigNr();
+    kopie.bezeichnung = (c.bezeichnung || "") + " (Kopie)"; kopie.status = "Entwurf"; kopie.beispiel = false;
+    kopie.erstellt = Store.nowISO(); kopie.geaendert = Store.nowISO();
+    kopie.verlauf = [{ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: "Aus " + (c.nummer || "Konfiguration") + " dupliziert (Kommission übernommen)" }];
+    db.konfigurationen.push(kopie);
+    db.settings.konfigZaehler = (db.settings.konfigZaehler || 1) + 1;
+    Store.save();
+    toast("Konfiguration dupliziert.");
+    konfigStart(kopie);
+  }
+
+  function wizardSchritte() {
+    var s = [{ key: "start", titel: "Auftraggeber & Kommission" }, { key: "gruppe", titel: "Produktgruppe" }];
+    if (kfState.vorlage) {
+      Konfig.abschnitte(kfState.vorlage).forEach(function (ab, i) { s.push({ key: "sec" + i, titel: ab.titel, abschnitt: ab }); });
+    }
+    s.push({ key: "zusammen", titel: "Zusammenfassung" });
+    return s;
+  }
+
+  function renderWizard() {
+    var root = $("#page-konfigurator .content");
+    var schritte = wizardSchritte();
+    if (kfState.schritt >= schritte.length) kfState.schritt = schritte.length - 1;
+    var akt = schritte[kfState.schritt];
+    var pct = Math.round((kfState.schritt) / (schritte.length - 1) * 100);
+    var html = '<div class="card">';
+    html += '<div class="wizard-head"><strong>' + esc(kfState.config.nummer) + "</strong> · Schritt " + (kfState.schritt + 1) + " von " + schritte.length + " – " + esc(akt.titel) + "</div>";
+    html += '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>';
+    html += '<div id="wizard-body"></div>';
+    html += '<div id="wizard-fehler"></div>';
+    html += '<div class="btn-row wizard-nav">' +
+      '<button class="btn ghost" id="wz-abbruch" type="button">Speichern & schließen</button>' +
+      (kfState.schritt > 0 ? '<button class="btn" id="wz-zurueck" type="button">← Zurück</button>' : "") +
+      (kfState.schritt < schritte.length - 1 ? '<button class="btn primary" id="wz-weiter" type="button">Weiter →</button>'
+        : '<button class="btn primary" id="wz-speichern" type="button">✓ Konfiguration speichern</button>') +
+      "</div></div>";
+    root.innerHTML = html;
+    renderWizardBody(akt);
+    $("#wz-abbruch").onclick = function () { wizardSammle(akt); konfigAutosave(); kfState = null; toast("Als Entwurf gespeichert."); renderKonfigurator(); };
+    if ($("#wz-zurueck")) $("#wz-zurueck").onclick = function () { wizardSammle(akt); konfigAutosave(); kfState.schritt--; renderWizard(); };
+    if ($("#wz-weiter")) $("#wz-weiter").onclick = function () {
+      wizardSammle(akt); konfigAutosave();
+      var f = schrittFehler(akt);
+      if (f.length) { zeigeWizardFehler(f); return; }
+      kfState.schritt++; renderWizard();
+    };
+    if ($("#wz-speichern")) $("#wz-speichern").onclick = function () { wizardSammle(akt); konfigSpeichern(); };
+  }
+
+  function renderWizardBody(akt) {
+    var host = $("#wizard-body");
+    var cfg = kfState.config;
+    if (akt.key === "start") {
+      var kundenOpt = '<option value="">— Kunde wählen —</option>' + (db.kunden || []).map(function (k) { return '<option value="' + k.id + '"' + (cfg.kundeId === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>"; }).join("");
+      var projOpt = '<option value="">— kein Projekt —</option>' + (db.projekte || []).map(function (p) { return '<option value="' + p.id + '"' + (cfg.projektId === p.id ? " selected" : "") + ">" + esc(p.nummer ? p.nummer + " · " : "") + esc(p.name) + "</option>"; }).join("");
+      host.innerHTML =
+        fld2("Bezeichnung der Konfiguration", "wz-bez", cfg.bezeichnung, "text") +
+        '<div class="inline" style="align-items:flex-end">' +
+          '<label class="fld" style="flex:1"><span class="lbl">Kunde</span><select id="wz-kunde">' + kundenOpt + "</select></label>" +
+          '<button class="btn sm" id="wz-kunde-neu" type="button" style="margin-bottom:14px">+ Kunde</button>' + "</div>" +
+        '<div class="inline" style="align-items:flex-end">' +
+          '<label class="fld" style="flex:1"><span class="lbl">Projekt</span><select id="wz-projekt">' + projOpt + "</select></label>" +
+          '<button class="btn sm" id="wz-projekt-neu" type="button" style="margin-bottom:14px">+ Projekt</button>' + "</div>" +
+        fld2("Kommission / Baustelle", "wz-kommission", cfg.kommission, "text") +
+        '<p class="hint">Die Kommission ist durchsuchbar, filterbar und wird beim Duplizieren übernommen.</p>';
+      $("#wz-kunde-neu").onclick = function () { wizardSammle(akt); kundeModal(null, function (k) { cfg.kundeId = k.id; konfigAutosave(); renderWizard(); }); };
+      $("#wz-projekt-neu").onclick = function () { wizardSammle(akt); projektModal(null, function (p) { cfg.projektId = p.id; if (p.kommission && !cfg.kommission) cfg.kommission = p.kommission; konfigAutosave(); renderWizard(); }); };
+      return;
+    }
+    if (akt.key === "gruppe") {
+      host.innerHTML = '<p class="hint">Produktgruppe wählen – danach erscheinen nur die dafür relevanten Fragen.</p><div class="gruppen-grid" id="wz-gruppen"></div>';
+      var grid = $("#wz-gruppen");
+      grid.innerHTML = aktiveGruppen().map(function (g) {
+        var hatVorlage = !!vorlageFuer(g.key);
+        return '<button class="gruppe-karte' + (cfg.gruppeKey === g.key ? " aktiv" : "") + (hatVorlage ? "" : " leer") + '" data-gk="' + esc(g.key) + '" type="button">' +
+          '<span class="gk-icon">' + esc(g.icon || "📦") + "</span><span class=\"gk-name\">" + esc(g.name) + "</span>" +
+          (hatVorlage ? "" : '<span class="gk-hint">noch keine Vorlage</span>') + "</button>";
+      }).join("");
+      $all("[data-gk]", grid).forEach(function (b) {
+        b.onclick = function () {
+          var gk = b.dataset.gk;
+          cfg.gruppeKey = gk;
+          var vl = vorlageFuer(gk);
+          cfg.vorlageId = vl ? vl.id : ""; cfg.vorlageVersion = vl ? vl.version : null;
+          kfState.vorlage = vl ? { id: vl.id, gruppeKey: gk, version: vl.version, felder: JSON.parse(JSON.stringify(vl.felder)) } : null;
+          konfigAutosave(); renderWizard();
+        };
+      });
+      return;
+    }
+    if (akt.key === "zusammen") { renderWizardZusammenfassung(host); return; }
+    // Abschnitts-Schritt: dynamische Felder rendern (nur sichtbare)
+    var felder = (akt.abschnitt.felder || []).filter(function (f) { return Konfig.feldSichtbar(f, cfg.antworten); });
+    if (!felder.length) { host.innerHTML = '<p class="hint">Für diesen Abschnitt sind aktuell keine Felder relevant.</p>'; return; }
+    host.innerHTML = felder.map(function (f) { return wizardFeldHTML(f); }).join("");
+    // Änderungen an Auswahl/Ja-Nein lösen Neu-Rendern aus (Abhängigkeiten)
+    $all("[data-fk]", host).forEach(function (inp) {
+      var typ = inp.getAttribute("data-typ");
+      if (typ === "einfach" || typ === "janein" || typ === "material" || typ === "maschine") {
+        inp.addEventListener("change", function () { wizardSammle(akt); konfigAutosave(); renderWizard(); });
+      }
+    });
+  }
+
+  function wizardFeldHTML(f) {
+    var cfg = kfState.config;
+    var v = cfg.antworten[f.key];
+    var t = Konfig.FELDTYPEN[f.typ] || {};
+    var lbl = esc(f.frage) + (f.pflicht ? ' <span style="color:var(--red)">*</span>' : "") + (f.einheit ? ' <span class="muted">(' + esc(f.einheit) + ")</span>" : "");
+    var hilfe = f.hilfe ? '<span class="lbl-hilfe">' + esc(f.hilfe) + "</span>" : "";
+    function wrap(inner) { return '<label class="fld"><span class="lbl">' + lbl + hilfe + "</span>" + inner + "</label>"; }
+    var attr = 'data-fk="' + esc(f.key) + '" data-typ="' + esc(f.typ) + '"';
+    if (f.typ === "hinweis") return '<p class="hint" style="margin:10px 0">' + esc(f.frage) + "</p>";
+    if (f.typ === "textarea") return wrap('<textarea ' + attr + ' rows="2" style="width:100%">' + esc(v == null ? (f.standard || "") : v) + "</textarea>");
+    if (t.numerisch) {
+      var nv = v == null ? (f.standard != null ? f.standard : "") : v;
+      return wrap('<input type="text" inputmode="decimal" ' + attr + ' value="' + esc(nv) + '">');
+    }
+    if (f.typ === "datum") return wrap('<input type="date" ' + attr + ' value="' + esc(v || "") + '">');
+    if (f.typ === "janein") { var an = (v === true || v === "ja"); return wrap('<select ' + attr + '><option value="nein"' + (an ? "" : " selected") + ">Nein</option><option value=\"ja\"" + (an ? " selected" : "") + ">Ja</option></select>"); }
+    if (f.typ === "einfach") {
+      var opts = (f.optionen || []).map(function (o) { var val = o.wert != null ? o.wert : o; return '<option value="' + esc(val) + '"' + (String(v == null ? f.standard : v) === String(val) ? " selected" : "") + ">" + esc(o.label || val) + "</option>"; }).join("");
+      return wrap('<select ' + attr + '><option value="">— bitte wählen —</option>' + opts + "</select>");
+    }
+    if (f.typ === "material") {
+      var mopts = (db.material || []).map(function (m) { return '<option value="' + m.id + '"' + (v === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("");
+      return wrap('<select ' + attr + '><option value="">— Material wählen —</option>' + mopts + "</select>");
+    }
+    if (f.typ === "maschine") {
+      var maopts = (db.settings.maschinen || []).map(function (m) { return '<option value="' + m.id + '"' + (v === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("");
+      return wrap('<select ' + attr + '><option value="">— Maschine wählen —</option>' + maopts + "</select>");
+    }
+    if (f.typ === "mehrfach") {
+      var quelle = f.quelle;
+      var eintraege;
+      if (quelle === "maschine") eintraege = (db.settings.maschinen || []).map(function (m) { return { wert: m.id, label: m.name }; });
+      else if (quelle === "taetigkeit") eintraege = Konfig.TAETIGKEITEN.map(function (k) { return { wert: k, label: taetLabel(k) }; });
+      else if (quelle === "material") eintraege = (db.material || []).map(function (m) { return { wert: m.id, label: m.name }; });
+      else eintraege = (f.optionen || []).map(function (o) { return { wert: o.wert != null ? o.wert : o, label: o.label || o.wert || o }; });
+      var sel = Array.isArray(v) ? v : [];
+      var boxes = eintraege.map(function (e) {
+        return '<label class="check"><input type="checkbox" data-mf="' + esc(f.key) + '" value="' + esc(e.wert) + '"' + (sel.map(String).indexOf(String(e.wert)) >= 0 ? " checked" : "") + "> " + esc(e.label) + "</label>";
+      }).join("");
+      return '<div class="fld"><span class="lbl">' + lbl + hilfe + '</span><div class="check-grid" data-fk="' + esc(f.key) + '" data-typ="mehrfach">' + boxes + "</div></div>";
+    }
+    // Standard: kurzer Text
+    return wrap('<input type="text" ' + attr + ' value="' + esc(v == null ? (f.standard || "") : v) + '">');
+  }
+
+  function wizardSammle(akt) {
+    var cfg = kfState.config;
+    if (akt.key === "start") {
+      cfg.bezeichnung = ($("#wz-bez") || {}).value != null ? $("#wz-bez").value.trim() : cfg.bezeichnung;
+      if ($("#wz-kunde")) cfg.kundeId = $("#wz-kunde").value;
+      if ($("#wz-projekt")) cfg.projektId = $("#wz-projekt").value;
+      if ($("#wz-kommission")) cfg.kommission = $("#wz-kommission").value.trim();
+      return;
+    }
+    if (akt.key === "gruppe" || akt.key === "zusammen") return;
+    var host = $("#wizard-body"); if (!host) return;
+    $all("[data-fk]", host).forEach(function (el) {
+      var key = el.getAttribute("data-fk"), typ = el.getAttribute("data-typ");
+      var t = Konfig.FELDTYPEN[typ] || {};
+      if (typ === "mehrfach") {
+        var werte = $all('[data-mf="' + key + '"]', el).filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        cfg.antworten[key] = werte;
+      } else if (typ === "janein") {
+        cfg.antworten[key] = (el.value === "ja");
+      } else if (t.numerisch) {
+        var raw = el.value.trim();
+        cfg.antworten[key] = raw === "" ? "" : leseZahl0(raw);
+      } else {
+        cfg.antworten[key] = el.value;
+      }
+    });
+  }
+
+  // Fehler nur für die sichtbaren Pflichtfelder des aktuellen Schritts
+  function schrittFehler(akt) {
+    var cfg = kfState.config;
+    if (akt.key === "start") { return cfg.bezeichnung ? [] : [{ text: "Bitte eine Bezeichnung angeben." }]; }
+    if (akt.key === "gruppe") { return cfg.gruppeKey && kfState.vorlage ? [] : [{ text: "Bitte eine Produktgruppe mit Vorlage wählen." }]; }
+    if (!akt.abschnitt) return [];
+    var fehler = [];
+    akt.abschnitt.felder.forEach(function (f) {
+      if (!Konfig.feldSichtbar(f, cfg.antworten)) return;
+      if (!f.pflicht) return;
+      var v = cfg.antworten[f.key];
+      if (v == null || v === "" || (Array.isArray(v) && !v.length)) fehler.push({ text: '„' + f.frage + '" ist ein Pflichtfeld.' });
+    });
+    return fehler;
+  }
+  function zeigeWizardFehler(f) {
+    var box = $("#wizard-fehler"); if (!box) return;
+    box.innerHTML = '<div class="fehler-box">⚠️ Bitte prüfen:<ul>' + f.map(function (x) { return "<li>" + esc(x.text) + "</li>"; }).join("") + "</ul></div>";
+    try { box.scrollIntoView({ block: "nearest" }); } catch (e) {}
+  }
+
+  function konfigAutosave() {
+    if (kfState.vorschau) return; // Vorschau wird nicht gespeichert
+    var cfg = kfState.config;
+    cfg.geaendert = Store.nowISO();
+    if (kfState.vorlage) { cfg.vorlageId = kfState.vorlage.id; cfg.vorlageVersion = kfState.vorlage.version; }
+    if (cfg.gruppeKey) cfg.berechnet = Konfig.berechne(vorlageDerKonfig(cfg), cfg.antworten, db.settings);
+    if (!db.konfigurationen.some(function (c) { return c.id === cfg.id; })) db.konfigurationen.push(cfg);
+    Store.save();
+  }
+
+  function konfigSpeichern() {
+    if (kfState.vorschau) { kfState = null; toast("Vorschau beendet."); renderProduktgruppen(); return; }
+    var cfg = kfState.config;
+    var vl = vorlageDerKonfig(cfg);
+    var fehler = Konfig.validiere(vl, cfg.antworten);
+    if (fehler.length) { zeigeWizardFehler(fehler); return; }
+    // Snapshot der Vorlage einfrieren (schützt vor späteren Vorlagenänderungen)
+    if (!cfg.vorlageSnapshot || !cfg.vorlageSnapshot.length) cfg.vorlageSnapshot = Konfig.snapshot(kfState.vorlage || vl);
+    cfg.berechnet = Konfig.berechne(vl, cfg.antworten, db.settings);
+    var warVorher = cfg.status;
+    cfg.status = "Fertig";
+    cfg.geaendert = Store.nowISO();
+    cfg.verlauf = cfg.verlauf || [];
+    cfg.verlauf.push({ datum: Store.nowISO(), bearbeiter: (Auth.current() || {}).benutzername || "", grund: warVorher === "Fertig" ? "Konfiguration bearbeitet" : "Konfiguration gespeichert" });
+    Store.save();
+    var id = cfg.id;
+    kfState = null;
+    toast("Produktkonfiguration gespeichert. ✅");
+    konfigDetail(id);
+  }
+
+  function renderWizardZusammenfassung(host) {
+    var cfg = kfState.config;
+    var vl = vorlageDerKonfig(cfg);
+    var html = '<div class="zusammen">';
+    html += '<div class="zeile"><span>Kunde</span><strong>' + esc(kundeName(cfg.kundeId)) + "</strong></div>";
+    html += '<div class="zeile"><span>Projekt</span><strong>' + esc((db.projekte || []).filter(function (p) { return p.id === cfg.projektId; }).map(function (p) { return p.name; })[0] || "—") + "</strong></div>";
+    html += '<div class="zeile"><span>Kommission</span><strong>' + esc(cfg.kommission || "—") + "</strong></div>";
+    html += '<div class="zeile"><span>Produktgruppe</span><strong>' + esc(gruppeName(cfg.gruppeKey)) + "</strong></div>";
+    html += "</div>";
+    Konfig.abschnitte(vl).forEach(function (ab) {
+      var felder = ab.felder.filter(function (f) { return Konfig.feldSichtbar(f, cfg.antworten) && Konfig.FELDTYPEN[f.typ] && (Konfig.FELDTYPEN[f.typ].input || Konfig.FELDTYPEN[f.typ].berechnet); });
+      var zeilen = felder.map(function (f) {
+        var wert = Konfig.FELDTYPEN[f.typ].berechnet ? cfg.berechnet[f.key] : cfg.antworten[f.key];
+        return '<div class="zeile"><span>' + esc(f.frage) + "</span><strong>" + esc(antwortText(f, wert)) + (f.einheit ? " " + esc(f.einheit) : "") + "</strong></div>";
+      }).join("");
+      if (zeilen) html += '<div class="zusammen-block"><div class="zb-titel">' + esc(ab.titel) + "</div>" + zeilen + "</div>";
+    });
+    var fehler = Konfig.validiere(vl, cfg.antworten);
+    if (fehler.length) html += '<div class="fehler-box" style="margin-top:12px">⚠️ Vor dem Speichern zu ergänzen:<ul>' + fehler.map(function (x) { return "<li>" + esc(x.text) + "</li>"; }).join("") + "</ul></div>";
+    host.innerHTML = html;
+  }
+  function antwortText(f, v) {
+    if (v == null || v === "") return "—";
+    if (f.typ === "janein") return (v === true || v === "ja") ? "Ja" : "Nein";
+    if (Array.isArray(v)) return v.map(function (x) { return mehrfachLabel(f, x); }).join(", ") || "—";
+    if (f.typ === "material") { var m = (db.material || []).filter(function (x) { return x.id === v; })[0]; return m ? m.name : v; }
+    if (f.typ === "maschine") { var ma = (db.settings.maschinen || []).filter(function (x) { return x.id === v; })[0]; return ma ? ma.name : v; }
+    if (Konfig.FELDTYPEN[f.typ] && Konfig.FELDTYPEN[f.typ].numerisch) return fmtZahl(v);
+    return String(v);
+  }
+  function mehrfachLabel(f, wert) {
+    if (f.quelle === "taetigkeit") return taetLabel(wert);
+    if (f.quelle === "maschine") { var m = (db.settings.maschinen || []).filter(function (x) { return x.id === wert; })[0]; return m ? m.name : wert; }
+    if (f.quelle === "material") { var mt = (db.material || []).filter(function (x) { return x.id === wert; })[0]; return mt ? mt.name : wert; }
+    return wert;
+  }
+  function fmtZahl(v) { var n = parseFloat(v); return isFinite(n) ? n.toLocaleString("de-AT", { maximumFractionDigits: 3 }) : String(v); }
+
+  // ---- Detailansicht einer Konfiguration --------------------
+  function konfigDetail(id) {
+    var cfg = (db.konfigurationen || []).filter(function (x) { return x.id === id; })[0];
+    if (!cfg) { renderKonfigListe(); return; }
+    kfState = null;
+    var root = $("#page-konfigurator .content");
+    var vl = vorlageDerKonfig(cfg);
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:10px">' +
+      '<button class="btn sm ghost" id="btn-konfig-zurueck" type="button">← Liste</button>' +
+      '<button class="btn sm" id="btn-konfig-edit" type="button">✏️ Bearbeiten</button>' +
+      '<button class="btn sm" id="btn-konfig-dup" type="button">📋 Duplizieren</button></div>';
+    html += "<h3>" + esc(cfg.bezeichnung || "(ohne Bezeichnung)") + ' <span class="sub">' + esc(cfg.nummer || "") + " · " + esc(gruppeName(cfg.gruppeKey)) + "</span></h3>";
+    html += '<div class="zusammen">' +
+      '<div class="zeile"><span>Kunde</span><strong>' + esc(kundeName(cfg.kundeId)) + "</strong></div>" +
+      '<div class="zeile"><span>Kommission</span><strong>' + esc(cfg.kommission || "—") + "</strong></div>" +
+      '<div class="zeile"><span>Status</span><strong>' + esc(cfg.status || "Entwurf") + "</strong></div>" +
+      '<div class="zeile"><span>Vorlage-Version</span><strong>v' + esc(cfg.vorlageVersion || "?") + " (Snapshot gesichert)</strong></div>" +
+      "</div>";
+    Konfig.abschnitte(vl).forEach(function (ab) {
+      var felder = ab.felder.filter(function (f) { return Konfig.feldSichtbar(f, cfg.antworten) && Konfig.FELDTYPEN[f.typ] && (Konfig.FELDTYPEN[f.typ].input || Konfig.FELDTYPEN[f.typ].berechnet); });
+      var zeilen = felder.map(function (f) {
+        var wert = Konfig.FELDTYPEN[f.typ].berechnet ? cfg.berechnet[f.key] : cfg.antworten[f.key];
+        return '<div class="zeile"><span>' + esc(f.frage) + "</span><strong>" + esc(antwortText(f, wert)) + (f.einheit ? " " + esc(f.einheit) : "") + "</strong></div>";
+      }).join("");
+      if (zeilen) html += '<div class="zusammen-block"><div class="zb-titel">' + esc(ab.titel) + "</div>" + zeilen + "</div>";
+    });
+    if (cfg.verlauf && cfg.verlauf.length) {
+      html += '<div class="zusammen-block"><div class="zb-titel">Änderungsverlauf</div>' +
+        cfg.verlauf.slice().reverse().map(function (v) { return '<div class="zeile"><span>' + fmtDate(v.datum) + " · " + esc(v.bearbeiter || "") + "</span><strong>" + esc(v.grund || "") + "</strong></div>"; }).join("") + "</div>";
+    }
+    html += "</div>";
+    root.innerHTML = html;
+    $("#btn-konfig-zurueck").onclick = function () { renderKonfigListe(); };
+    $("#btn-konfig-edit").onclick = function () { konfigBearbeiten(id); };
+    $("#btn-konfig-dup").onclick = function () { konfigDuplizieren(id); };
+  }
+
+  // ---- Produktgruppen-Verwaltung (Admin) --------------------
+  function produktgruppeVerwendet(key) { return (db.konfigurationen || []).some(function (c) { return c.gruppeKey === key; }); }
+  function renderProduktgruppen() {
+    if (!Auth.darf("produktgruppen")) { renderKonfigListe(); return; }
+    var root = $("#page-konfigurator .content");
+    var liste = alleGruppen().slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:12px">' +
+      '<button class="btn sm ghost" id="btn-pg-zurueck" type="button">← Konfigurator</button>' +
+      '<button class="btn primary sm" id="btn-pg-neu" type="button">+ Produktgruppe</button></div>' +
+      '<h3>Produktgruppen <span class="sub">' + liste.length + " Gruppen</span></h3>";
+    html += '<div class="table-wrap"><table><thead><tr><th></th><th>Produktgruppe</th><th>Vorlage</th><th>Verwendung</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.forEach(function (g, i) {
+      var vl = vorlageFuer(g.key);
+      var verw = (db.konfigurationen || []).filter(function (c) { return c.gruppeKey === g.key; }).length;
+      var status = g.archiviert ? '<span class="muted">archiviert</span>' : (g.aktiv === false ? '<span class="muted">inaktiv</span>' : "aktiv");
+      html += "<tr><td>" + esc(g.icon || "📦") + "</td>" +
+        "<td><strong>" + esc(g.name) + "</strong></td>" +
+        "<td>" + (vl ? "v" + vl.version + " · " + (vl.felder || []).length + " Felder" : '<span class="muted">keine</span>') + "</td>" +
+        '<td class="num">' + verw + "</td>" +
+        "<td>" + status + "</td>" +
+        '<td class="num" style="white-space:nowrap">' +
+          '<button class="btn sm ghost" data-pgup="' + g.id + '" type="button" title="nach oben"' + (i === 0 ? " disabled" : "") + ">▲</button> " +
+          '<button class="btn sm ghost" data-pgdown="' + g.id + '" type="button" title="nach unten"' + (i === liste.length - 1 ? " disabled" : "") + ">▼</button> " +
+          '<button class="btn sm" data-pgfelder="' + esc(g.key) + '" type="button" title="Fragen bearbeiten">🖉 Fragen</button> ' +
+          '<button class="btn sm ghost" data-pgedit="' + g.id + '" type="button">✏️</button> ' +
+          '<button class="btn sm ghost" data-pgdup="' + g.id + '" type="button" title="Duplizieren">📋</button> ' +
+          '<button class="btn sm ghost" data-pgtoggle="' + g.id + '" type="button">' + (g.aktiv === false ? "aktivieren" : "deaktiv.") + "</button> " +
+          '<button class="btn sm ghost" data-pgarch="' + g.id + '" type="button">' + (g.archiviert ? "wiederherst." : "archiv.") + "</button></td></tr>";
+    });
+    html += "</tbody></table></div><p class=\"hint\">Verwendete Produktgruppen können nicht gelöscht, aber deaktiviert oder archiviert werden – bestehende Konfigurationen bleiben unverändert.</p></div>";
+    root.innerHTML = html;
+    $("#btn-pg-zurueck").onclick = function () { renderKonfigListe(); };
+    $("#btn-pg-neu").onclick = function () { produktgruppeModal(null); };
+    $all("[data-pgedit]", root).forEach(function (b) { b.onclick = function () { produktgruppeModal(b.dataset.pgedit); }; });
+    $all("[data-pgfelder]", root).forEach(function (b) { b.onclick = function () { renderFeldEditor(b.dataset.pgfelder); }; });
+    $all("[data-pgdup]", root).forEach(function (b) { b.onclick = function () { produktgruppeDuplizieren(b.dataset.pgdup); }; });
+    $all("[data-pgtoggle]", root).forEach(function (b) { b.onclick = function () { var g = gruppeById(b.dataset.pgtoggle); if (g) { g.aktiv = g.aktiv === false; Store.save(); renderProduktgruppen(); } }; });
+    $all("[data-pgarch]", root).forEach(function (b) { b.onclick = function () { var g = gruppeById(b.dataset.pgarch); if (g) { g.archiviert = !g.archiviert; Store.save(); renderProduktgruppen(); } }; });
+    $all("[data-pgup]", root).forEach(function (b) { b.onclick = function () { verschiebeGruppe(b.dataset.pgup, -1); }; });
+    $all("[data-pgdown]", root).forEach(function (b) { b.onclick = function () { verschiebeGruppe(b.dataset.pgdown, 1); }; });
+  }
+  function gruppeById(id) { return alleGruppen().filter(function (g) { return g.id === id; })[0] || null; }
+  function verschiebeGruppe(id, richtung) {
+    var liste = alleGruppen().slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+    var idx = liste.findIndex(function (g) { return g.id === id; });
+    var ziel = idx + richtung;
+    if (idx < 0 || ziel < 0 || ziel >= liste.length) return;
+    var a = liste[idx].sort || 0, b = liste[ziel].sort || 0;
+    liste[idx].sort = b; liste[ziel].sort = a;
+    Store.save(); renderProduktgruppen();
+  }
+  function produktgruppeDuplizieren(id) {
+    var g = gruppeById(id); if (!g) return;
+    var kopie = Object.assign({}, g, { id: Store.uid(), key: g.key + "-kopie-" + Math.random().toString(36).slice(2, 6), name: g.name + " (Kopie)", sort: (g.sort || 0) + 5, archiviert: false });
+    db.produktgruppen.push(kopie);
+    // zugehörige Vorlage mitkopieren
+    var vl = vorlageFuer(g.key);
+    if (vl) { var vk = JSON.parse(JSON.stringify(vl)); vk.id = "vl-" + kopie.key; vk.gruppeKey = kopie.key; vk.version = 1; db.vorlagen.push(vk); }
+    Store.save(); renderProduktgruppen(); toast("Produktgruppe dupliziert.");
+  }
+  function produktgruppeModal(id) {
+    var g = id ? gruppeById(id) : null;
+    var body =
+      '<div class="inline">' + fld2("Name", "pg-name", g ? g.name : "", "text") + fld2("Icon (Emoji)", "pg-icon", g ? g.icon : "📦", "text") + "</div>" +
+      (g ? "" : '<p class="hint">Für die neue Gruppe wird automatisch eine leere Vorlage angelegt, deren Fragen du anschließend im Fragen-Editor definierst.</p>');
+    openModal(g ? "Produktgruppe bearbeiten" : "Produktgruppe anlegen", body, function () {
+      var name = $("#pg-name").value.trim();
+      if (!name) { toast("Bitte Namen angeben.", "err"); return false; }
+      if (g) { g.name = name; g.icon = $("#pg-icon").value.trim() || "📦"; }
+      else {
+        var key = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || ("grp-" + Math.random().toString(36).slice(2, 6));
+        if (gruppeByKey(key)) key = key + "-" + Math.random().toString(36).slice(2, 5);
+        var maxSort = alleGruppen().reduce(function (m, x) { return Math.max(m, x.sort || 0); }, 0);
+        db.produktgruppen.push({ id: Store.uid(), key: key, name: name, icon: $("#pg-icon").value.trim() || "📦", aktiv: true, archiviert: false, sort: maxSort + 10 });
+        db.vorlagen.push({ id: "vl-" + key, gruppeKey: key, version: 1, aktiv: true, erstellt: Store.nowISO(), felder: [] });
+      }
+      Store.save(); renderProduktgruppen(); toast("Produktgruppe gespeichert.");
+      return true;
+    });
+  }
+
+  // ---- Feld-Editor (Konfiguratorfragen) ---------------------
+  function renderFeldEditor(gruppeKey) {
+    var vl = vorlageFuer(gruppeKey);
+    var root = $("#page-konfigurator .content");
+    if (!vl) { toast("Keine Vorlage vorhanden.", "err"); renderProduktgruppen(); return; }
+    var felder = (vl.felder || []).slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:12px">' +
+      '<button class="btn sm ghost" id="btn-fe-zurueck" type="button">← Produktgruppen</button>' +
+      '<button class="btn primary sm" id="btn-fe-neu" type="button">+ Feld</button>' +
+      '<button class="btn sm" id="btn-fe-vorschau" type="button">👁 Vorschau</button></div>' +
+      "<h3>Fragen-Editor: " + esc(gruppeName(gruppeKey)) + ' <span class="sub">Vorlage v' + vl.version + " · " + felder.length + " Felder</span></h3>";
+    html += '<div class="table-wrap"><table><thead><tr><th></th><th>Frage</th><th>Feldschlüssel</th><th>Typ</th><th>Pflicht</th><th>Abhängig</th><th class="num">Aktion</th></tr></thead><tbody>';
+    felder.forEach(function (f, i) {
+      html += "<tr><td>" + (f.typ === "ueberschrift" ? "▸" : f.typ === "hinweis" ? "💬" : "") + "</td>" +
+        "<td><strong>" + esc(f.frage) + "</strong></td>" +
+        '<td><span class="muted" style="font-size:11px">' + esc(f.key) + "</span></td>" +
+        "<td>" + esc((Konfig.FELDTYPEN[f.typ] || {}).label || f.typ) + "</td>" +
+        "<td>" + (f.pflicht ? "ja" : "—") + "</td>" +
+        "<td>" + (f.abh && f.abh.feld ? esc(f.abh.feld) : "—") + "</td>" +
+        '<td class="num" style="white-space:nowrap">' +
+          '<button class="btn sm ghost" data-feup="' + i + '" type="button"' + (i === 0 ? " disabled" : "") + ">▲</button> " +
+          '<button class="btn sm ghost" data-fedown="' + i + '" type="button"' + (i === felder.length - 1 ? " disabled" : "") + ">▼</button> " +
+          '<button class="btn sm ghost" data-feedit="' + esc(f.key) + '" type="button">✏️</button> ' +
+          '<button class="btn sm danger" data-fedel="' + esc(f.key) + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div><p class=\"hint\">Änderungen erhöhen die Vorlagen-Version. Bereits gespeicherte Konfigurationen behalten ihren eingefrorenen Stand (Snapshot).</p></div>";
+    root.innerHTML = html;
+    $("#btn-fe-zurueck").onclick = function () { renderProduktgruppen(); };
+    $("#btn-fe-neu").onclick = function () { feldModal(gruppeKey, null); };
+    $("#btn-fe-vorschau").onclick = function () { konfigVorschau(gruppeKey); };
+    $all("[data-feedit]", root).forEach(function (b) { b.onclick = function () { feldModal(gruppeKey, b.dataset.feedit); }; });
+    $all("[data-fedel]", root).forEach(function (b) {
+      b.onclick = function () {
+        if (confirm("Feld löschen?")) { vl.felder = vl.felder.filter(function (x) { return x.key !== b.dataset.fedel; }); vl.version = (vl.version || 1) + 1; Store.save(); renderFeldEditor(gruppeKey); }
+      };
+    });
+    $all("[data-feup]", root).forEach(function (b) { b.onclick = function () { verschiebeFeld(vl, +b.dataset.feup, -1, gruppeKey); }; });
+    $all("[data-fedown]", root).forEach(function (b) { b.onclick = function () { verschiebeFeld(vl, +b.dataset.fedown, 1, gruppeKey); }; });
+  }
+  function verschiebeFeld(vl, idx, richtung, gruppeKey) {
+    var felder = (vl.felder || []).slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+    var ziel = idx + richtung;
+    if (ziel < 0 || ziel >= felder.length) return;
+    var a = felder[idx].sort || 0, b = felder[ziel].sort || 0;
+    felder[idx].sort = b; felder[ziel].sort = a;
+    vl.version = (vl.version || 1) + 1; Store.save(); renderFeldEditor(gruppeKey);
+  }
+  function feldModal(gruppeKey, feldKey) {
+    var vl = vorlageFuer(gruppeKey);
+    var f = feldKey ? (vl.felder || []).filter(function (x) { return x.key === feldKey; })[0] : null;
+    var typOpt = Object.keys(Konfig.FELDTYPEN).map(function (t) { return '<option value="' + t + '"' + (f && f.typ === t ? " selected" : "") + ">" + esc(Konfig.FELDTYPEN[t].label) + "</option>"; }).join("");
+    var andereFelder = (vl.felder || []).filter(function (x) { return x.key !== feldKey && Konfig.FELDTYPEN[x.typ] && Konfig.FELDTYPEN[x.typ].input; });
+    var abhOpt = '<option value="">— keine —</option>' + andereFelder.map(function (x) { return '<option value="' + esc(x.key) + '"' + (f && f.abh && f.abh.feld === x.key ? " selected" : "") + ">" + esc(x.frage) + "</option>"; }).join("");
+    var opOpt = ["=", "!=", "wahr", "gesetzt", "in", ">", "<"].map(function (o) { return '<option value="' + o + '"' + (f && f.abh && f.abh.op === o ? " selected" : "") + ">" + o + "</option>"; }).join("");
+    var body =
+      '<div class="inline">' + fld2("Sichtbare Frage", "fe-frage", f ? f.frage : "", "text") + fld2("Interne Bezeichnung (Schlüssel)", "fe-key", f ? f.key : "", "text") + "</div>" +
+      '<label class="fld"><span class="lbl">Feldtyp</span><select id="fe-typ">' + typOpt + "</select></label>" +
+      fld2("Hilfetext / Beschreibung", "fe-hilfe", f ? f.hilfe : "", "text") +
+      '<div class="inline">' + fld2("Einheit", "fe-einheit", f ? f.einheit : "", "text") + fld2("Standardwert", "fe-standard", f && f.standard != null ? f.standard : "", "text") + "</div>" +
+      '<div class="inline">' + fld2("Minimalwert", "fe-min", f && f.min != null ? f.min : "", "text") + fld2("Maximalwert", "fe-max", f && f.max != null ? f.max : "", "text") + "</div>" +
+      '<div class="inline">' +
+        '<label class="fld"><span class="lbl">Pflichtfeld</span><select id="fe-pflicht"><option value="0">Nein</option><option value="1"' + (f && f.pflicht ? " selected" : "") + ">Ja</option></select></label>" +
+        '<label class="fld"><span class="lbl">Anzeige</span><select id="fe-aktiv"><option value="1">aktiv</option><option value="0"' + (f && f.aktiv === false ? " selected" : "") + ">inaktiv</option></select></label>" +
+      "</div>" +
+      fld2("Auswahloptionen (bei Auswahl, mit Komma getrennt)", "fe-optionen", f && f.optionen ? f.optionen.map(function (o) { return o.wert != null ? o.wert : o; }).join(", ") : "", "text") +
+      fld2("Formel (bei berechnetem Feld, z. B. laenge/1000*breite/1000)", "fe-formel", f ? f.formel : "", "text") +
+      '<div class="lbl" style="margin:8px 0 4px">Sichtbarkeit (Abhängigkeit)</div>' +
+      '<div class="inline">' +
+        '<label class="fld"><span class="lbl">Nur anzeigen, wenn Feld</span><select id="fe-abhfeld">' + abhOpt + "</select></label>" +
+        '<label class="fld" style="max-width:110px"><span class="lbl">Bedingung</span><select id="fe-abhop">' + opOpt + "</select></label>" +
+        fld2("Wert", "fe-abhwert", f && f.abh ? (Array.isArray(f.abh.wert) ? f.abh.wert.join(", ") : f.abh.wert) : "", "text") +
+      "</div>";
+    openModal(f ? "Feld bearbeiten" : "Feld anlegen", body, function () {
+      var frage = $("#fe-frage").value.trim();
+      var key = $("#fe-key").value.trim() || frage.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+      if (!frage) { toast("Bitte eine Frage angeben.", "err"); return false; }
+      if (!key) { toast("Bitte einen Feldschlüssel angeben.", "err"); return false; }
+      if ((!f || f.key !== key) && (vl.felder || []).some(function (x) { return x.key === key; })) { toast("Feldschlüssel bereits vergeben.", "err"); return false; }
+      var typ = $("#fe-typ").value;
+      var neu = f || { sort: ((vl.felder || []).reduce(function (m, x) { return Math.max(m, x.sort || 0); }, 0)) + 10 };
+      neu.key = key; neu.typ = typ; neu.frage = frage;
+      neu.hilfe = $("#fe-hilfe").value.trim() || undefined;
+      neu.einheit = $("#fe-einheit").value.trim() || undefined;
+      var std = $("#fe-standard").value.trim(); neu.standard = std === "" ? undefined : (Konfig.FELDTYPEN[typ].numerisch ? leseZahl0(std) : std);
+      var mn = $("#fe-min").value.trim(); neu.min = mn === "" ? undefined : leseZahl0(mn);
+      var mx = $("#fe-max").value.trim(); neu.max = mx === "" ? undefined : leseZahl0(mx);
+      neu.pflicht = $("#fe-pflicht").value === "1";
+      neu.aktiv = $("#fe-aktiv").value === "1";
+      var optRaw = $("#fe-optionen").value.trim();
+      neu.optionen = optRaw ? optRaw.split(",").map(function (s) { return { wert: s.trim() }; }).filter(function (o) { return o.wert; }) : undefined;
+      neu.formel = $("#fe-formel").value.trim() || undefined;
+      var abhf = $("#fe-abhfeld").value;
+      if (abhf) {
+        var op = $("#fe-abhop").value, wertRaw = $("#fe-abhwert").value.trim();
+        var wert = op === "in" ? wertRaw.split(",").map(function (s) { return s.trim(); }).filter(Boolean) : wertRaw;
+        neu.abh = { feld: abhf, op: op, wert: wert };
+      } else neu.abh = undefined;
+      if (!f) (vl.felder = vl.felder || []).push(neu);
+      vl.version = (vl.version || 1) + 1;
+      Store.save(); renderFeldEditor(gruppeKey); toast("Feld gespeichert.");
+      return true;
+    });
+    setTimeout(function () { var ts = $("#fe-typ"); if (ts && f) ts.value = f.typ; var ps = $("#fe-pflicht"); if (ps) ps.value = f && f.pflicht ? "1" : "0"; }, 0);
+  }
+  function konfigVorschau(gruppeKey) {
+    var vl = vorlageFuer(gruppeKey);
+    if (!vl) { toast("Keine Vorlage.", "err"); return; }
+    var temp = {
+      id: "vorschau", nummer: "Vorschau", bezeichnung: "Vorschau " + gruppeName(gruppeKey),
+      kundeId: "", projektId: "", kommission: "", gruppeKey: gruppeKey, vorlageId: vl.id, vorlageVersion: vl.version,
+      vorlageSnapshot: null, antworten: {}, berechnet: {}, status: "Entwurf", verlauf: []
+    };
+    kfState = { config: temp, vorlage: { id: vl.id, gruppeKey: gruppeKey, version: vl.version, felder: JSON.parse(JSON.stringify(vl.felder)) }, schritt: 2, istBearbeitung: false, vorschau: true };
+    renderWizard();
   }
 
   // ---- Maschinen-Verwaltung -----------------------------------
