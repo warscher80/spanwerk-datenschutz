@@ -12,6 +12,7 @@
   var Angebot = w.Preisschmiede.Angebot;
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
+  var Ausw = w.Preisschmiede.Auswertung;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -92,66 +93,400 @@
   // ============================================================
   //  DASHBOARD / AUSWERTUNG
   // ============================================================
+  // ---- Dashboard-Zustand (Filter + Konfiguration, je Benutzer) --------
+  var DASH_PRESETS = [["heute", "Heute"], ["woche", "Diese Woche"], ["monat", "Dieser Monat"], ["quartal", "Dieses Quartal"], ["jahr", "Dieses Jahr"], ["vorjahr", "Vorjahr"], ["gesamt", "Gesamt"], ["custom", "Zeitraum …"]];
+  var DASH_KARTEN = [
+    { key: "kennzahlen", label: "Hauptkennzahlen", finanz: true },
+    { key: "angebote", label: "Angebotsauswertung", finanz: true },
+    { key: "auftraege", label: "Aufträge & Warnungen", finanz: false },
+    { key: "sollist", label: "Soll-Ist-Auswertung", finanz: true },
+    { key: "produktgruppen", label: "Produktgruppenvergleich", finanz: true },
+    { key: "kunden", label: "Kundenanalyse", finanz: true },
+    { key: "maschinen", label: "Maschinenauslastung", finanz: false },
+    { key: "lernen", label: "Lernfunktion", finanz: false }
+  ];
+  function dashCfgKey() { return "ps.dash." + ((Auth.current() || {}).id || "anon"); }
+  function ladeDashCfg() { try { return JSON.parse(w.localStorage.getItem(dashCfgKey())) || {}; } catch (e) { return {}; } }
+  function speichereDashCfg(c) { try { w.localStorage.setItem(dashCfgKey(), JSON.stringify(c)); } catch (e) {} }
+  var dashState = null;
+  function initDashState() {
+    var c = ladeDashCfg();
+    dashState = {
+      preset: c.preset || "jahr", custom: c.custom || { von: "", bis: "" },
+      kundeId: "", gruppeKey: "", status: "",
+      karten: c.karten || {}, schwellen: c.schwellen || { arbeitAbwProz: 10 }
+    };
+  }
+  function dashKarteSichtbar(key) { return dashState.karten[key] !== false; }
+  function dashOpts() { return { preset: dashState.preset, custom: dashState.custom, schwellen: dashState.schwellen }; }
+  function dashFilter() { var f = {}; if (dashState.kundeId) f.kundeId = dashState.kundeId; if (dashState.gruppeKey) f.gruppeKey = dashState.gruppeKey; if (dashState.status) f.status = dashState.status; return f; }
+
   function renderDashboard() {
+    if (!dashState) initDashState();
     var root = $("#page-dashboard .content");
-    var auftraege = db.auftraege;
-    var angebote = auftraege.filter(function (a) { return a.status === "Angebot"; });
-    var abgeschlossen = auftraege.filter(function (a) { return a.status === "Abgeschlossen"; });
-    var beauftragt = auftraege.filter(function (a) { return a.status === "Beauftragt" || a.status === "Abgeschlossen"; });
+    var finanz = Auth.darfFinanzen();
+    // Fertigung/Montage: nur operative Ansicht (keine Gewinn-/DB-Daten)
+    if (!finanz) { renderDashboardOperativ(root); return; }
+    var rep = Ausw.analysiere(db, dashFilter(), dashOpts());
+    var html = dashFilterleiste(rep);
+    if (dashKarteSichtbar("kennzahlen")) html += dashHauptkennzahlen(rep);
+    html += '<div class="grid cols-2" style="margin-top:16px;align-items:start">';
+    if (dashKarteSichtbar("angebote")) html += dashAngebote(rep);
+    if (dashKarteSichtbar("auftraege")) html += dashAuftraege(rep);
+    html += "</div>";
+    if (dashKarteSichtbar("produktgruppen")) html += dashProduktgruppen(rep);
+    html += '<div class="grid cols-2" style="margin-top:16px;align-items:start">';
+    if (dashKarteSichtbar("sollist")) html += dashSollIst(rep);
+    if (dashKarteSichtbar("maschinen")) html += dashMaschinen(rep);
+    html += "</div>";
+    html += '<div class="grid cols-2" style="margin-top:16px;align-items:start">';
+    if (dashKarteSichtbar("kunden")) html += dashKunden(rep);
+    if (dashKarteSichtbar("lernen")) html += dashLernen(rep);
+    html += "</div>";
+    html += '<div class="muted" style="font-size:11px;margin-top:14px;text-align:right">Datenstand: ' + fmtDateTime(rep.datenstand) + " · Alle Werte aus real gespeicherten Daten berechnet.</div>";
+    root.innerHTML = html;
+    verdrahteDashboard(rep);
+  }
 
-    var summeNetto = auftraege.reduce(function (s, a) { return s + auftragNetto(a); }, 0);
-    var umsatz = beauftragt.reduce(function (s, a) { return s + auftragNetto(a); }, 0);
-    var summeDB = auftraege.reduce(function (s, a) { return s + auftragDB(a); }, 0);
-    var gewinnUmsatz = beauftragt.reduce(function (s, a) { return s + auftragGewinn(a); }, 0);
-    var erfolg = auftraege.length ? Math.round(beauftragt.length / auftraege.length * 100) : 0;
-    // Ø Deckungsbeitrag % über Aufträge mit Netto
-    var dbProzListe = auftraege.map(function (a) { var n = auftragNetto(a); return n > 0 ? auftragDB(a) / n * 100 : null; }).filter(function (x) { return x != null; });
-    var avgDBproz = dbProzListe.length ? Math.round(dbProzListe.reduce(function (s, x) { return s + x; }, 0) / dbProzListe.length) : 0;
+  function dashFilterleiste(rep) {
+    var presetOpt = DASH_PRESETS.map(function (p) { return '<option value="' + p[0] + '"' + (dashState.preset === p[0] ? " selected" : "") + ">" + p[1] + "</option>"; }).join("");
+    var kundenOpt = '<option value="">Alle Kunden</option>' + (db.kunden || []).map(function (k) { return '<option value="' + k.id + '"' + (dashState.kundeId === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>"; }).join("");
+    var gruppenOpt = '<option value="">Alle Produktgruppen</option>' + (db.produktgruppen || []).map(function (g) { return '<option value="' + g.key + '"' + (dashState.gruppeKey === g.key ? " selected" : "") + ">" + esc(g.name) + "</option>"; }).join("");
+    var custom = dashState.preset === "custom" ?
+      '<input type="date" id="dash-von" value="' + esc(dashState.custom.von) + '" style="max-width:150px"><input type="date" id="dash-bis" value="' + esc(dashState.custom.bis) + '" style="max-width:150px">' : "";
+    // aktive Filter als entfernbare Chips
+    var chips = "";
+    if (dashState.kundeId) chips += dashChip("Kunde: " + kundeName(dashState.kundeId), "kundeId");
+    if (dashState.gruppeKey) chips += dashChip("Gruppe: " + gruppeName(dashState.gruppeKey), "gruppeKey");
+    if (dashState.status) chips += dashChip("Status: " + dashState.status, "status");
+    return '<div class="card" style="margin-bottom:16px">' +
+      '<div class="inline" style="flex-wrap:wrap;gap:8px;align-items:flex-end">' +
+        '<label class="fld" style="max-width:180px;margin:0"><span class="lbl">Zeitraum</span><select id="dash-preset">' + presetOpt + "</select></label>" +
+        custom +
+        '<label class="fld" style="max-width:200px;margin:0"><span class="lbl">Kunde</span><select id="dash-kunde">' + kundenOpt + "</select></label>" +
+        '<label class="fld" style="max-width:200px;margin:0"><span class="lbl">Produktgruppe</span><select id="dash-gruppe">' + gruppenOpt + "</select></label>" +
+        '<div style="flex:1"></div>' +
+        '<button class="btn sm ghost" id="dash-config" type="button">⚙️ Ansicht</button>' +
+        '<button class="btn sm ghost" id="dash-export" type="button">⬇️ Export</button>' +
+      "</div>" +
+      '<div style="margin-top:8px;font-size:12px"><span class="muted">Zeitraum: <strong>' + esc(rep.zeitraum.label) + "</strong> (" + fmtDate(rep.zeitraum.von) + "–" + fmtDate(rep.zeitraum.bis) + ")</span> " + chips + "</div>" +
+      "</div>";
+  }
+  function dashChip(label, feld) { return '<span class="tag" style="cursor:pointer" data-dashchip="' + feld + '" title="Filter entfernen">' + esc(label) + " ✕</span> "; }
 
-    // Genauigkeit aus abgeschlossenen Aufträgen
-    var genauigkeit = "—";
-    var abwListe = abgeschlossen.map(function (a) { var si = Calc.sollIst(a); return si ? Math.abs(si.abwProz) : null; }).filter(function (x) { return x != null; });
-    if (abwListe.length) {
-      var avgAbw = Math.round(abwListe.reduce(function (s, x) { return s + x; }, 0) / abwListe.length);
-      genauigkeit = (100 - avgAbw) + " %";
+  function dashHauptkennzahlen(rep) {
+    var hk = rep.hauptkennzahlen;
+    function karte(label, kz, fmt, cls, drill) {
+      var wert = fmt === "eur" ? fmtEUR(kz.wert) : fmt === "proz" ? Ausw.fmtProz(kz.wert, 1) : fmtZahl(kz.wert);
+      var v = kz.vergleich, delta = "";
+      if (v && v.vergleichbar && v.proz != null) {
+        var pfeil = v.richtung === "auf" ? "▲" : v.richtung === "ab" ? "▼" : "→";
+        delta = '<div class="delta ' + (v.richtung === "auf" ? "up" : v.richtung === "ab" ? "down" : "") + '">' + pfeil + " " + Ausw.fmtProz(Math.abs(v.proz), 1) + " ggü. Vorperiode</div>";
+      } else { delta = '<div class="delta muted">kein Vergleich</div>'; }
+      return '<div class="stat" style="cursor:pointer" data-drill="' + (drill || "") + '"><div class="label">' + esc(label) + '</div><div class="value ' + (cls || "") + '">' + wert + "</div>" + delta + "</div>";
     }
+    return '<h3 style="margin:0 0 8px">Betriebswirtschaftliche Lage</h3><div class="grid cols-4">' +
+      karte("Offener Angebotswert", hk.offenerAngebotswert, "eur", "accent", "angebote") +
+      karte("Angenommener Angebotswert", hk.angenommenerAngebotswert, "eur", "green", "angebote") +
+      karte("Auftragswert (netto)", hk.auftragswert, "eur", "", "auftraege") +
+      karte("Tatsächl. Selbstkosten", hk.selbstkostenIst, "eur", "", "auftraege") +
+      "</div><div class=\"grid cols-4\" style=\"margin-top:14px\">" +
+      karte("Deckungsbeitrag", hk.deckungsbeitrag, "eur", "green", "auftraege") +
+      karte("Deckungsbeitragsquote", hk.dbQuote, "proz", "", "auftraege") +
+      karte("Gewinn (kalkuliert)", hk.gewinnSoll, "eur", "accent", "auftraege") +
+      karte("Gewinn (tatsächlich)", hk.gewinnIst, "eur", "accent", "auftraege") +
+      "</div><div class=\"grid cols-4\" style=\"margin-top:14px\">" +
+      karte("Laufende Aufträge", hk.laufendeAuftraege, "zahl", "", "auftraege") +
+      karte("Verspätete Aufträge", hk.verspaeteteAuftraege, "zahl", (hk.verspaeteteAuftraege.wert > 0 ? "warn" : ""), "auftraege") +
+      karte("Ø Soll-Ist-Abweichung", hk.avgAbweichung, "proz", "", "sollist") +
+      karte("Abschlussquote", hk.abschlussquote, "proz", "", "angebote") +
+      "</div>";
+  }
 
-    var html = "";
-    html += '<div class="grid cols-4">';
-    html += stat("Aufträge / Angebote", auftraege.length + " / " + angebote.length);
-    html += stat("Angebotswert (netto)", fmtEUR(summeNetto), "accent", "alle Vorgänge");
-    html += stat("Umsatz (beauftragt)", fmtEUR(umsatz), "green", beauftragt.length + " Aufträge");
-    html += stat("Erfolgsquote", erfolg + " %", "", "beauftragt / alle");
-    html += "</div>";
-    html += '<div class="grid cols-4" style="margin-top:16px">';
-    html += stat("Deckungsbeitrag Σ", fmtEUR(summeDB), "green");
-    html += stat("Gewinn (beauftragt)", fmtEUR(gewinnUmsatz), "accent");
-    html += stat("Ø Deckungsbeitrag", avgDBproz + " %");
-    html += stat("Kalkulations-Genauigkeit", genauigkeit, "", abgeschlossen.length + " nachkalkuliert");
-    html += "</div>";
+  function dashAngebote(rep) {
+    var a = rep.angebote;
+    var chart = svgBalken([
+      { label: "Angenommen", wert: a.angenommen, farbe: "var(--green, #2fbf71)" },
+      { label: "Offen", wert: a.offen, farbe: "var(--accent, #f5a623)" },
+      { label: "Abgelehnt", wert: a.abgelehnt, farbe: "#e06666" },
+      { label: "Abgelaufen", wert: a.abgelaufen, farbe: "#999" }
+    ], "Angebote nach Status");
+    return '<div class="card"><div class="inline" style="justify-content:space-between"><h3 style="margin:0">📄 Angebotsauswertung</h3><button class="btn sm ghost" data-drill="angebote" type="button">Details</button></div>' +
+      '<div class="grid cols-2" style="margin-top:10px">' +
+      stat("Angebotswert", fmtEUR(a.wert), "", a.anzahl + " Angebote") +
+      stat("Ø Angebotswert", fmtEUR(a.durchschnittswert)) +
+      stat("Abschlussquote (Anzahl)", Ausw.fmtProz(a.abschlussquoteAnzahl, 0), "green") +
+      stat("Abschlussquote (Wert)", Ausw.fmtProz(a.abschlussquoteWert, 0), "green") +
+      "</div>" + chart +
+      '<div class="muted" style="font-size:11px;margin-top:6px">Offene Angebote (' + a.offen + ") werden nicht als abgelehnt gewertet.</div>" +
+      "</div>";
+  }
 
-    // Erkenntnisse
-    html += '<div class="grid cols-2" style="margin-top:16px">';
-    html += '<div class="card"><h3>🧠 Was die App gelernt hat</h3>' + erkenntnisseHTML(4) + "</div>";
+  function dashAuftraege(rep) {
+    var a = rep.auftraege;
+    var warn = rep.warnungen;
+    var warnHtml = warn.length ? warn.slice(0, 6).map(function (wn) {
+      var ico = wn.prio >= 3 ? "🔴" : wn.prio === 2 ? "🟠" : "🟡";
+      return '<div class="insight" style="cursor:pointer" data-warnauftrag="' + wn.auftragId + '"><span class="ico">' + ico + "</span><span>" + esc(wn.text) + "</span></div>";
+    }).join("") : '<div class="empty">Keine auffälligen Abweichungen im Zeitraum.</div>';
+    return '<div class="card"><div class="inline" style="justify-content:space-between"><h3 style="margin:0">📁 Aufträge</h3><button class="btn sm ghost" data-drill="auftraege" type="button">Alle Aufträge</button></div>' +
+      '<div class="grid cols-3" style="margin-top:10px">' +
+      dashMini("Laufend", a.laufend, "auftraege") +
+      dashMini("Über Budget", a.ueberBudget, "auftraege", a.ueberBudget > 0 ? "warn" : "") +
+      dashMini("Negativer Gewinn", a.negativerGewinn, "auftraege", a.negativerGewinn > 0 ? "warn" : "") +
+      dashMini("Ohne Zeiterfassung", a.ohneZeiterfassung, "auftraege") +
+      dashMini("Verspätet", a.verspaetet, "auftraege", a.verspaetet > 0 ? "warn" : "") +
+      dashMini("Nachkalkuliert", a.anzahlNachkalkuliert, "auftraege") +
+      "</div>" +
+      '<h4 style="margin:14px 0 6px">Priorisierte Warnungen</h4>' + warnHtml +
+      "</div>";
+  }
+  function dashMini(label, wert, drill, cls) { return '<div class="stat" style="cursor:pointer;padding:8px" data-drill="' + (drill || "") + '"><div class="label">' + esc(label) + '</div><div class="value ' + (cls || "") + '" style="font-size:20px">' + fmtZahl(wert) + "</div></div>"; }
 
-    // Letzte Aufträge
-    html += '<div class="card"><h3>Letzte Vorgänge</h3>';
-    if (!auftraege.length) {
-      html += '<div class="empty">Noch keine Aufträge. Lege in „Kalkulation“ deinen ersten Vorgang an.</div>';
-    } else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Status</th><th class="num">Netto</th><th class="num">DB</th></tr></thead><tbody>';
-      auftraege.slice().reverse().slice(0, 6).forEach(function (a) {
-        html += "<tr><td>" + esc(a.titel) + (a.kommission ? ' <span class="tag">' + esc(a.kommission) + "</span>" : "") +
-          '<br><span class="muted" style="font-size:11px">' + fmtDate(a.erstellt) + "</span></td>" +
+  function dashProduktgruppen(rep) {
+    var g = rep.produktgruppen;
+    if (!g.length) return '<div class="card" style="margin-top:16px"><h3>🧩 Produktgruppen</h3><div class="empty">Keine beauftragten Aufträge im Zeitraum.</div></div>';
+    var rows = g.map(function (x) {
+      return '<tr style="cursor:pointer" data-drillgruppe="' + x.key + '"><td><strong>' + esc(x.name) + "</strong>" + (x.belastbar ? "" : ' <span class="tag" title="weniger als 3 Aufträge – statistisch wenig belastbar">wenig Daten</span>') + "</td>" +
+        '<td class="num">' + x.anzahl + "</td>" +
+        '<td class="num">' + fmtEUR(x.umsatz) + "</td>" +
+        '<td class="num">' + fmtEUR(x.db) + "</td>" +
+        '<td class="num">' + Ausw.fmtProz(x.dbQuote, 0) + "</td>" +
+        '<td class="num">' + fmtEUR(x.gewinn) + "</td>" +
+        '<td class="num">' + (x.avgAbweichung != null ? (x.avgAbweichung > 0 ? "+" : "") + Ausw.fmtProz(x.avgAbweichung, 0) : "—") + "</td></tr>";
+    }).join("");
+    return '<div class="card" style="margin-top:16px"><h3>🧩 Produktgruppenvergleich</h3>' +
+      '<div class="table-wrap"><table><thead><tr><th>Gruppe</th><th class="num">Aufträge</th><th class="num">Umsatz</th><th class="num">DB</th><th class="num">DB-Quote</th><th class="num">Gewinn</th><th class="num">Ø Abw.</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+  }
+
+  function dashSollIst(rep) {
+    var s = rep.sollIst;
+    if (!s.zeilen.length) return '<div class="card"><h3>⚖️ Soll-Ist</h3><div class="empty">Noch keine Ist-Zeiten erfasst.</div></div>';
+    var rows = s.zeilen.map(function (z) {
+      var cls = z.abwProz > 10 ? "warn" : z.abwProz < -10 ? "green" : "";
+      return "<tr><td>" + esc(z.label) + '</td><td class="num">' + fmtZahl(z.soll) + '</td><td class="num">' + fmtZahl(z.ist) + '</td><td class="num ' + cls + '">' + (z.abwProz > 0 ? "+" : "") + Ausw.fmtProz(z.abwProz, 0) + "</td></tr>";
+    }).join("");
+    return '<div class="card"><h3>⚖️ Soll-Ist-Auswertung <span class="sub">' + s.anzahlAuftraege + " Aufträge</span></h3>" +
+      '<div class="table-wrap"><table><thead><tr><th>Tätigkeit</th><th class="num">Soll h</th><th class="num">Ist h</th><th class="num">Abw.</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+  }
+
+  function dashMaschinen(rep) {
+    var m = rep.maschinen.filter(function (x) { return x.hatDaten; });
+    if (!m.length) return '<div class="card"><h3>🛠️ Maschinen</h3><div class="empty">Keine Maschinendaten im Zeitraum.</div></div>';
+    var rows = m.map(function (x) {
+      return "<tr><td>" + esc(x.name) + (x.auffaellig ? ' <span class="tag" title="hohe Rüst-/Zeitabweichung">auffällig</span>' : "") + "</td>" +
+        '<td class="num">' + fmtZahl(x.istStunden) + " / " + fmtZahl(x.kapazitaet) + "</td>" +
+        '<td class="num">' + Ausw.fmtProz(x.auslastung, 0) + "</td>" +
+        '<td class="num ' + (x.ruestabweichung > 15 ? "warn" : "") + '">' + (x.ruestabweichung > 0 ? "+" : "") + Ausw.fmtProz(x.ruestabweichung, 0) + "</td></tr>";
+    }).join("");
+    return '<div class="card"><h3>🛠️ Maschinenauslastung</h3>' +
+      '<div class="table-wrap"><table><thead><tr><th>Maschine</th><th class="num">Ist / Kapaz.</th><th class="num">Auslastung</th><th class="num">Zeitabw.</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<div class="muted" style="font-size:11px;margin-top:4px">Kapazität je Maschine unter Stammdaten pflegbar.</div></div>';
+  }
+
+  function dashKunden(rep) {
+    var k = rep.kunden.slice(0, 8);
+    if (!k.length) return '<div class="card"><h3>👥 Kunden</h3><div class="empty">Keine Kundenaktivität im Zeitraum.</div></div>';
+    var rows = k.map(function (x) {
+      return "<tr><td><strong>" + esc(x.name) + "</strong></td>" +
+        '<td class="num">' + fmtEUR(x.umsatz) + "</td>" +
+        '<td class="num">' + fmtEUR(x.deckungsbeitrag) + "</td>" +
+        '<td class="num">' + x.auftraege + "</td>" +
+        '<td class="num">' + Ausw.fmtProz(x.abschlussquote, 0) + "</td></tr>";
+    }).join("");
+    return '<div class="card"><h3>👥 Kundenanalyse <span class="sub">Top nach Umsatz</span></h3>' +
+      '<div class="table-wrap"><table><thead><tr><th>Kunde</th><th class="num">Umsatz</th><th class="num">DB</th><th class="num">Aufträge</th><th class="num">Abschluss</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+  }
+
+  function dashLernen(rep) {
+    var l = rep.lernen;
+    var gen = l.kalkulationsgenauigkeit != null ? Ausw.fmtProz(l.kalkulationsgenauigkeit, 0) : "—";
+    return '<div class="card"><div class="inline" style="justify-content:space-between"><h3 style="margin:0">🧠 Lernfunktion</h3><button class="btn sm ghost" data-drill="lernen" type="button">Details</button></div>' +
+      '<div class="grid cols-2" style="margin-top:10px">' +
+      stat("Lernfähige Aufträge", fmtZahl(l.lernfaehigeAuftraege), "", l.belastbar ? "belastbar" : "wenig Daten") +
+      stat("Erkannte Muster", fmtZahl(l.erkenntnisse)) +
+      stat("Kalkulationsgenauigkeit", gen, "green") +
+      stat("Ø Konfidenz", l.avgKonfidenz != null ? Ausw.fmtProz(l.avgKonfidenz, 0) : "—") +
+      "</div>" +
+      (l.belastbar ? "" : '<div class="muted" style="font-size:11px;margin-top:6px">Genauigkeit wird erst ab 3 nachkalkulierten Aufträgen als belastbar ausgewiesen.</div>') +
+      "</div>";
+  }
+
+  // Operatives Dashboard für Fertigung/Montage – KEINE Gewinn-/DB-Daten
+  function renderDashboardOperativ(root) {
+    var offene = (db.auftraege || []).filter(function (a) { return a.status !== "Abgeschlossen" && a.status !== "abgeschlossen"; });
+    var html = '<div class="card"><h3>🔧 Meine Aufträge</h3><p class="muted" style="font-size:12px">Zugewiesene Aufträge, Kommissionen und Arbeitsgänge.</p>';
+    if (!offene.length) html += '<div class="empty">Aktuell keine offenen Aufträge.</div>';
+    else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Auftrag</th><th>Kommission</th><th>Status</th><th class="num">Soll/Ist h</th></tr></thead><tbody>';
+      offene.slice().reverse().forEach(function (a) {
+        var si = Calc.sollIst(a);
+        html += "<tr><td><strong>" + esc(a.titel || a.bezeichnung || "—") + "</strong></td>" +
+          "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : "—") + "</td>" +
           "<td>" + statusBadge(a.status) + "</td>" +
-          '<td class="num">' + fmtEUR(auftragNetto(a)) + "</td>" +
-          '<td class="num">' + fmtEUR(auftragDB(a)) + "</td></tr>";
+          '<td class="num">' + (si ? fmtZahl(si.sollStunden) + " / " + fmtZahl(si.istStunden) : "—") + "</td></tr>";
       });
       html += "</tbody></table></div>";
     }
-    html += "</div></div>";
-
+    html += "</div>";
     root.innerHTML = html;
+  }
+
+  // ---- Einfaches, offlinefähiges SVG-Balkendiagramm ------------------
+  function svgBalken(daten, titel) {
+    var max = Math.max(1, Math.max.apply(null, daten.map(function (d) { return d.wert; })));
+    var bw = 46, gap = 22, h = 90, pad = 18;
+    var breite = daten.length * (bw + gap) + gap;
+    var balken = daten.map(function (d, i) {
+      var bh = Math.round(d.wert / max * h);
+      var x = gap + i * (bw + gap), y = pad + (h - bh);
+      return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="4" fill="' + d.farbe + '"><title>' + esc(d.label) + ": " + d.wert + "</title></rect>" +
+        '<text x="' + (x + bw / 2) + '" y="' + (pad + h + 14) + '" text-anchor="middle" font-size="10" fill="currentColor">' + esc(d.label) + "</text>" +
+        '<text x="' + (x + bw / 2) + '" y="' + (y - 4) + '" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor">' + d.wert + "</text>";
+    }).join("");
+    return '<div style="margin-top:10px;overflow-x:auto"><svg role="img" aria-label="' + esc(titel) + '" viewBox="0 0 ' + breite + " " + (h + pad + 22) + '" style="max-width:100%;height:auto;color:var(--text,#333)">' + balken + "</svg></div>";
+  }
+
+  function fmtZahl(n) { return (typeof n === "number" ? n : parseFloat(n) || 0).toLocaleString("de-AT", { maximumFractionDigits: 1 }); }
+  function fmtDateTime(iso) { try { return new Date(iso).toLocaleString("de-AT"); } catch (e) { return "—"; } }
+
+  // ---- Verdrahtung: Filter, Drill-down, Export, Konfiguration ---------
+  function verdrahteDashboard(rep) {
+    var ps = $("#dash-preset"); if (ps) ps.onchange = function () { dashState.preset = this.value; persistDash(); renderDashboard(); };
+    var vo = $("#dash-von"); if (vo) vo.onchange = function () { dashState.custom.von = this.value; persistDash(); renderDashboard(); };
+    var bi = $("#dash-bis"); if (bi) bi.onchange = function () { dashState.custom.bis = this.value; persistDash(); renderDashboard(); };
+    var ku = $("#dash-kunde"); if (ku) ku.onchange = function () { dashState.kundeId = this.value; renderDashboard(); };
+    var gr = $("#dash-gruppe"); if (gr) gr.onchange = function () { dashState.gruppeKey = this.value; renderDashboard(); };
+    $all("[data-dashchip]").forEach(function (c) { c.onclick = function () { dashState[c.dataset.dashchip] = ""; renderDashboard(); }; });
+    $all("[data-drill]").forEach(function (el2) { el2.onclick = function () { dashDrill(el2.dataset.drill); }; });
+    $all("[data-drillgruppe]").forEach(function (el2) { el2.onclick = function () { dashState.gruppeKey = el2.dataset.drillgruppe; renderDashboard(); }; });
+    $all("[data-warnauftrag]").forEach(function (el2) { el2.onclick = function () { dashOeffneAuftrag(el2.dataset.warnauftrag); }; });
+    var cfg = $("#dash-config"); if (cfg) cfg.onclick = dashConfigModal;
+    var exp = $("#dash-export"); if (exp) exp.onclick = function () { dashExportModal(rep); };
+  }
+  function persistDash() { var c = ladeDashCfg(); c.preset = dashState.preset; c.custom = dashState.custom; c.karten = dashState.karten; c.schwellen = dashState.schwellen; speichereDashCfg(c); }
+  function dashDrill(ziel) {
+    if (ziel === "angebote") navTo("angebote");
+    else if (ziel === "auftraege") navTo("auftraege");
+    else if (ziel === "lernen") navTo("lernen");
+    else if (ziel === "sollist") navTo("auftraege");
+  }
+  function dashOeffneAuftrag(id) {
+    var a = (db.auftraege || []).filter(function (x) { return x.id === id; })[0];
+    if (!a) return;
+    auftragFilter.suche = a.titel || a.nummer || ""; auftragFilter.status = "";
+    navTo("auftraege");
+  }
+
+  function dashConfigModal() {
+    var boxes = DASH_KARTEN.map(function (k) {
+      return '<label class="check"><input type="checkbox" data-dk="' + k.key + '"' + (dashKarteSichtbar(k.key) ? " checked" : "") + "> " + esc(k.label) + "</label>";
+    }).join("");
+    var presetOpt = DASH_PRESETS.map(function (p) { return '<option value="' + p[0] + '"' + (dashState.preset === p[0] ? " selected" : "") + ">" + p[1] + "</option>"; }).join("");
+    var body = '<p class="muted" style="font-size:12px">Karten ein-/ausblenden (nur für dich gespeichert).</p><div class="check-grid">' + boxes + "</div>" +
+      '<label class="fld" style="margin-top:12px"><span class="lbl">Standard-Zeitraum</span><select id="dk-preset">' + presetOpt + "</select></label>" +
+      fld2("Warnschwelle Arbeitsabweichung %", "dk-schwelle", dashState.schwellen.arbeitAbwProz, "number");
+    openModal("Dashboard-Ansicht", body, function () {
+      $all("[data-dk]").forEach(function (b) { dashState.karten[b.dataset.dk] = b.checked; });
+      dashState.preset = $("#dk-preset").value;
+      dashState.schwellen.arbeitAbwProz = leseZahl0($("#dk-schwelle").value) || 10;
+      persistDash(); renderDashboard();
+      return true;
+    });
+  }
+
+  function dashExportModal(rep) {
+    var body = '<p class="muted" style="font-size:12px">Bericht für Zeitraum <strong>' + esc(rep.zeitraum.label) + '</strong>' + (dashState.kundeId ? " · Kunde: " + esc(kundeName(dashState.kundeId)) : "") + (dashState.gruppeKey ? " · Gruppe: " + esc(gruppeName(dashState.gruppeKey)) : "") + ".</p>" +
+      '<div class="btn-row" style="flex-wrap:wrap">' +
+      '<button class="btn sm" data-rep="angebote" type="button">Angebotsbericht CSV</button>' +
+      '<button class="btn sm" data-rep="auftraege" type="button">Auftragsbericht CSV</button>' +
+      '<button class="btn sm" data-rep="sollist" type="button">Soll-Ist CSV</button>' +
+      '<button class="btn sm" data-rep="produktgruppen" type="button">Produktgruppen CSV</button>' +
+      '<button class="btn sm" data-rep="maschinen" type="button">Maschinen CSV</button>' +
+      '<button class="btn sm" data-rep="kunden" type="button">Kunden CSV</button>' +
+      '<button class="btn sm ghost" data-rep="print" type="button">🖨️ Druckansicht</button>' +
+      "</div>";
+    openModal("Bericht exportieren", body, null, "Schließen");
+    $all("[data-rep]").forEach(function (b) { b.onclick = function () { dashExport(b.dataset.rep, rep); }; });
+  }
+  function dashExport(typ, rep) {
+    var kopf = "Bericht: " + typ + ";Zeitraum: " + rep.zeitraum.label + " (" + fmtDate(rep.zeitraum.von) + "-" + fmtDate(rep.zeitraum.bis) + ");Erstellt: " + fmtDateTime(rep.datenstand);
+    var zeilen = [], titel = "Bericht";
+    if (typ === "angebote") { titel = "Angebotsbericht"; var a = rep.angebote; zeilen = [["Kennzahl", "Wert"], ["Anzahl", a.anzahl], ["Angebotswert", a.wert], ["Angenommen", a.angenommen], ["Abgelehnt", a.abgelehnt], ["Offen", a.offen], ["Abschlussquote Anzahl %", a.abschlussquoteAnzahl], ["Abschlussquote Wert %", a.abschlussquoteWert]]; }
+    else if (typ === "auftraege") { titel = "Auftragsbericht"; zeilen = [["Nummer", "Titel", "Status", "Netto", "SelbstSoll", "SelbstIst", "DB", "GewinnSoll", "GewinnIst", "AbwProz"]].concat(rep.auftraege.alle.map(function (x) { return [x.nummer, x.titel, x.status, x.netto, x.selbstSoll, x.selbstIst != null ? x.selbstIst : "", x.dbSoll, x.gewinnSoll, x.gewinnIst != null ? x.gewinnIst : "", x.abwProz != null ? x.abwProz : ""]; })); }
+    else if (typ === "sollist") { titel = "SollIst-Bericht"; zeilen = [["Taetigkeit", "Soll_h", "Ist_h", "AbwAbs", "AbwProz"]].concat(rep.sollIst.zeilen.map(function (z) { return [z.label, z.soll, z.ist, z.abwAbs, z.abwProz]; })); }
+    else if (typ === "produktgruppen") { titel = "Produktgruppenbericht"; zeilen = [["Gruppe", "Auftraege", "Umsatz", "Selbst", "DB", "DBQuote", "Gewinn", "GewinnQuote", "AvgAbw", "Belastbar"]].concat(rep.produktgruppen.map(function (g) { return [g.name, g.anzahl, g.umsatz, g.selbst, g.db, g.dbQuote, g.gewinn, g.gewinnQuote, g.avgAbweichung != null ? g.avgAbweichung : "", g.belastbar ? "ja" : "nein"]; })); }
+    else if (typ === "maschinen") { titel = "Maschinenbericht"; zeilen = [["Maschine", "Kapazitaet_h", "Ist_h", "Auslastung", "Ruestabweichung", "Auftraege", "Maschinenkosten"]].concat(rep.maschinen.map(function (m) { return [m.name, m.kapazitaet, m.istStunden, m.auslastung, m.ruestabweichung, m.anzahlAuftraege, m.maschinenkosten]; })); }
+    else if (typ === "kunden") { titel = "Kundenbericht"; zeilen = [["Kunde", "Angebote", "Angebotswert", "Auftraege", "Umsatz", "DB", "Gewinn", "Abschlussquote"]].concat(rep.kunden.map(function (k) { return [k.name, k.angebote, k.angebotswert, k.auftraege, k.umsatz, k.deckungsbeitrag, k.gewinn, k.abschlussquote]; })); }
+    else if (typ === "print") { dashDruck(rep); return; }
+    csvDownload(titel + "_" + rep.zeitraum.label.replace(/\s+/g, "_") + ".csv", kopf, zeilen);
+  }
+  // CSV mit Schutz gegen Formula-Injection (=,+,-,@ am Zellanfang)
+  function csvZelle(v) { var s = String(v == null ? "" : v); if (/^[=+\-@]/.test(s)) s = "'" + s; if (/[";\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; }
+  function csvDownload(dateiname, kopf, zeilen) {
+    var body = zeilen.map(function (z) { return z.map(csvZelle).join(";"); }).join("\r\n");
+    var inhalt = "﻿" + kopf + "\r\n\r\n" + body;
+    try {
+      var blob = new Blob([inhalt], { type: "text/csv;charset=utf-8" });
+      var url = w.URL.createObjectURL(blob);
+      var a = d.createElement("a"); a.href = url; a.download = dateiname; d.body.appendChild(a); a.click();
+      setTimeout(function () { d.body.removeChild(a); w.URL.revokeObjectURL(url); }, 100);
+      toast("Export erstellt: " + dateiname);
+    } catch (e) { toast("Export nicht möglich.", "err"); }
+  }
+  function dashDruck(rep) {
+    var a = rep.auftraege, an = rep.angebote;
+    var html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Management-Bericht</title><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px}h1{font-size:18px}h2{font-size:14px;margin-top:18px;border-bottom:1px solid #ccc}table{border-collapse:collapse;width:100%;margin-top:6px}td,th{border:1px solid #ddd;padding:4px 6px;text-align:left}.num{text-align:right}.noprint{position:fixed;top:8px;right:8px}@media print{.noprint{display:none}}</style></head><body>' +
+      '<div class="noprint"><button onclick="window.print()">Drucken / PDF</button></div>' +
+      "<h1>Management-Bericht</h1><p>Zeitraum: <strong>" + esc(rep.zeitraum.label) + "</strong> (" + fmtDate(rep.zeitraum.von) + "–" + fmtDate(rep.zeitraum.bis) + ")" + (dashState.kundeId ? " · Kunde: " + esc(kundeName(dashState.kundeId)) : "") + "<br>Erstellt: " + fmtDateTime(rep.datenstand) + " · Interner Bericht – kein Kundenangebot.</p>" +
+      "<h2>Angebote</h2><table><tr><th>Kennzahl</th><th class='num'>Wert</th></tr>" +
+      "<tr><td>Angebotswert</td><td class='num'>" + fmtEUR(an.wert) + "</td></tr><tr><td>Angenommen / Abgelehnt / Offen</td><td class='num'>" + an.angenommen + " / " + an.abgelehnt + " / " + an.offen + "</td></tr><tr><td>Abschlussquote (Anzahl)</td><td class='num'>" + Ausw.fmtProz(an.abschlussquoteAnzahl, 0) + "</td></tr></table>" +
+      "<h2>Aufträge</h2><table><tr><th>Kennzahl</th><th class='num'>Wert</th></tr>" +
+      "<tr><td>Auftragswert netto</td><td class='num'>" + fmtEUR(a.auftragswertNetto) + "</td></tr><tr><td>Deckungsbeitrag</td><td class='num'>" + fmtEUR(a.deckungsbeitrag) + "</td></tr><tr><td>Gewinn (Soll / Ist)</td><td class='num'>" + fmtEUR(a.gewinnSoll) + " / " + fmtEUR(a.gewinnIst) + "</td></tr><tr><td>Ø Soll-Ist-Abweichung</td><td class='num'>" + Ausw.fmtProz(a.avgAbweichung, 0) + "</td></tr></table>" +
+      "<h2>Produktgruppen</h2><table><tr><th>Gruppe</th><th class='num'>Umsatz</th><th class='num'>DB</th><th class='num'>Gewinn</th></tr>" +
+      rep.produktgruppen.map(function (g) { return "<tr><td>" + esc(g.name) + "</td><td class='num'>" + fmtEUR(g.umsatz) + "</td><td class='num'>" + fmtEUR(g.db) + "</td><td class='num'>" + fmtEUR(g.gewinn) + "</td></tr>"; }).join("") + "</table>" +
+      "</body></html>";
+    var wp = w.open("", "_blank"); if (!wp) { toast("Bitte Pop-ups erlauben.", "err"); return; }
+    wp.document.open(); wp.document.write(html); wp.document.close();
+  }
+
+  // ---- Performance-Testdaten (Admin, klar gekennzeichnet) ------------
+  function perfTestdaten(n) {
+    if (!Auth.istAdmin()) { toast("Nur für Administratoren.", "err"); return; }
+    n = Math.max(10, Math.min(5000, n | 0));
+    if (!w.confirm("Es werden ~" + n + " Test-Aufträge und ~" + (n * 2) + " Test-Angebote erzeugt (mit _testdaten markiert). Fortfahren?")) return;
+    var gruppen = (db.produktgruppen || []).map(function (g) { return g.key; }); if (!gruppen.length) gruppen = ["gelaender"];
+    var kunden = db.kunden || []; var jetzt = Date.now(); var t0 = jetzt;
+    for (var i = 0; i < n; i++) {
+      var gk = gruppen[i % gruppen.length]; var k = kunden[i % Math.max(1, kunden.length)];
+      var netto = 1500 + (i * 137 % 9000); var sollH = 20 + i % 60; var faktor = 0.85 + (i % 40) / 100; var istH = sollH * faktor;
+      var abgeschlossen = i % 3 !== 0; var erstellt = new Date(jetzt - (i % 330) * 86400000).toISOString();
+      db.auftraege.push({
+        id: Store.uid(), _testdaten: true, erstellt: erstellt, status: abgeschlossen ? "Abgeschlossen" : "Beauftragt",
+        titel: "TEST " + gk + " #" + (i + 1), kundeId: k ? k.id : null, kommission: "TEST-" + (i + 1), gruppeKey: gk, nettowert: netto,
+        positionen: [{ produktKey: gk, kalk: { zeiten: { cad: sollH * 0.1, schweissen: sollH * 0.6, montage: sollH * 0.3 }, netto: netto }, ist: abgeschlossen ? { zeiten: { cad: istH * 0.1, schweissen: istH * 0.6, montage: istH * 0.3 } } : null }],
+        kalk: { netto: netto, selbstkosten: netto * 0.72, deckungsbeitrag: netto * 0.28, gewinn: netto * 0.12, stundenGesamt: sollH }, fremdkosten: []
+      });
+    }
+    var statuses = ["angenommen", "abgelehnt", "versendet", "Entwurf", "abgelaufen"];
+    for (var j = 0; j < n * 2; j++) {
+      var gk2 = gruppen[j % gruppen.length]; var k2 = kunden[j % Math.max(1, kunden.length)]; var netto2 = 1000 + (j * 97 % 8000);
+      db.angebote.push({
+        id: Store.uid(), _testdaten: true, nummer: "TESTAN-" + (j + 1), version: 1, status: statuses[j % statuses.length],
+        erstellt: new Date(jetzt - (j % 330) * 86400000).toISOString(), kundeId: k2 ? k2.id : null, kommission: "TEST-" + (j + 1), gruppeKey: gk2, nettowert: netto2,
+        positionen: [{ typ: "normal", kurz: "Testposition", menge: 1, einheit: "Pos", einzelpreis: netto2, mwstProz: 20 }]
+      });
+    }
+    Store.save();
+    var t1 = Date.now(); Ausw.analysiere(db, {}, { preset: "jahr" }); var t2 = Date.now();
+    renderStammdaten();
+    toast(n + " Test-Aufträge erzeugt (" + (t1 - t0) + " ms). Dashboard-Aggregation: " + (t2 - t1) + " ms.");
+  }
+  function perfTestdatenEntfernen() {
+    if (!w.confirm("Alle mit _testdaten markierten Datensätze entfernen?")) return;
+    db.auftraege = (db.auftraege || []).filter(function (a) { return !a._testdaten; });
+    db.angebote = (db.angebote || []).filter(function (a) { return !a._testdaten; });
+    Store.save(); renderStammdaten(); toast("Testdaten entfernt.");
   }
 
   function stat(label, value, cls, delta) {
@@ -240,8 +575,19 @@
         "</div>" +
         '<p class="hint">Geräte-Sync: PC und Handy im selben WLAN verbinden und alle Daten übertragen.</p>' +
         '<input type="file" id="file-import" accept="application/json" style="display:none">' +
-      "</div>";
+      "</div>" +
+      (Auth.istAdmin() ?
+        '<hr class="sep"><div class="card" style="border-left:3px solid #e0a000"><h3>🧪 Performance-Testdaten <span class="sub">nur für Entwicklung/Test</span></h3>' +
+        '<p class="muted" style="font-size:13px">Erzeugt viele klar gekennzeichnete Testaufträge/-angebote, um die Dashboard-Performance zu prüfen. Diese Daten sind mit <code>_testdaten</code> markiert und werden nicht automatisch in einer Produktivumgebung angelegt.</p>' +
+        '<div class="inline" style="align-items:flex-end"><label class="fld" style="max-width:160px"><span class="lbl">Umfang (Aufträge)</span><input id="perf-n" type="number" value="1000" min="10" max="5000"></label>' +
+        '<button class="btn" id="btn-perf-gen" type="button">Testdaten erzeugen</button>' +
+        '<button class="btn danger" id="btn-perf-del" type="button">Testdaten entfernen</button></div>' +
+        '<div id="perf-info" class="muted" style="font-size:12px;margin-top:6px"></div></div>'
+        : "");
     $("#btn-sync").onclick = syncModal;
+    if ($("#btn-perf-gen")) $("#btn-perf-gen").onclick = function () { perfTestdaten(leseZahl0($("#perf-n").value) || 1000); };
+    if ($("#btn-perf-del")) $("#btn-perf-del").onclick = perfTestdatenEntfernen;
+    if ($("#perf-info")) $("#perf-info").textContent = "Aktuell " + (db.auftraege || []).filter(function (a) { return a._testdaten; }).length + " Test-Aufträge, " + (db.angebote || []).filter(function (a) { return a._testdaten; }).length + " Test-Angebote.";
 
     $("#btn-save-stammdaten").onclick = function () {
       s.rates.cad = numv("#rate-cad"); s.rates.fertigung = numv("#rate-fertigung");
@@ -1849,7 +2195,13 @@
         fld2("Rüstkostensatz (€/h)", "ma-rksatz", rks, "number") +
         fld2("Fixe Rüstkosten (€ je Auftrag)", "ma-rfix", fix, "number") +
       "</div>" +
-      '<p class="hint">Rüstkosten je Auftrag = Rüstzeit × Rüstkostensatz + fixe Rüstkosten. Werden einmal berechnet, sobald der zugeordnete Arbeitsschritt anfällt.</p>';
+      '<h4 style="margin:12px 0 4px">Kapazität (für Auslastungsanalyse)</h4>' +
+      '<div class="inline">' +
+        fld2("Arbeitstage / Jahr", "ma-tage", m && m.arbeitstage != null ? m.arbeitstage : 220, "number") +
+        fld2("Stunden / Tag", "ma-stdtag", m && m.stundenProTag != null ? m.stundenProTag : 8, "number") +
+        fld2("Wartung/Stillstand (h/Jahr)", "ma-wartung", m && m.wartungStunden != null ? m.wartungStunden : 0, "number") +
+      "</div>" +
+      '<p class="hint">Rüstkosten je Auftrag = Rüstzeit × Rüstkostensatz + fixe Rüstkosten. Verfügbare Kapazität = Arbeitstage × Stunden/Tag − Wartung.</p>';
     openModal(m ? "Maschine bearbeiten" : "Maschine anlegen", body, function () {
       var name = $("#ma-name").value.trim();
       if (!name) { toast("Bitte Maschinennamen angeben.", "err"); return false; }
@@ -1858,9 +2210,12 @@
         stundensatz: leseZahl0($("#ma-satz").value),
         ruestzeitStd: leseZahl0($("#ma-rzeit").value),
         ruestkostensatz: leseZahl0($("#ma-rksatz").value),
-        fixeRuestkosten: leseZahl0($("#ma-rfix").value)
+        fixeRuestkosten: leseZahl0($("#ma-rfix").value),
+        arbeitstage: leseZahl0($("#ma-tage").value) || 220,
+        stundenProTag: leseZahl0($("#ma-stdtag").value) || 8,
+        wartungStunden: leseZahl0($("#ma-wartung").value)
       };
-      if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestzeitStd = daten.ruestzeitStd; m.ruestkostensatz = daten.ruestkostensatz; m.fixeRuestkosten = daten.fixeRuestkosten; delete m.ruestkosten; }
+      if (m) { m.name = daten.name; m.schritt = daten.schritt; m.stundensatz = daten.stundensatz; m.ruestzeitStd = daten.ruestzeitStd; m.ruestkostensatz = daten.ruestkostensatz; m.fixeRuestkosten = daten.fixeRuestkosten; m.arbeitstage = daten.arbeitstage; m.stundenProTag = daten.stundenProTag; m.wartungStunden = daten.wartungStunden; delete m.ruestkosten; }
       else { daten.id = Store.uid(); liste.push(daten); }
       Store.save(); renderMaschinen(); toast("Maschine gespeichert.");
       return true;

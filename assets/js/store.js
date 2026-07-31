@@ -23,13 +23,14 @@
     // Maschinen: Maschinenstundensatz (€/h) + Rüstung. Die Rüstkosten je
     // Auftrag ergeben sich aus Rüstzeit (h) × Rüstkostensatz (€/h) + fixen
     // Rüstkosten (€). Zugeordnet zu einem Arbeitsschritt (schritt-Key).
+    // Kapazität (arbeitstage, stundenProTag, wartungStunden) für Auslastungsanalyse
     maschinen: [
-      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestzeitStd: 0.15, ruestkostensatz: 40, fixeRuestkosten: 2 },
-      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestzeitStd: 0.30, ruestkostensatz: 60, fixeRuestkosten: 12 },
-      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestzeitStd: 0.25, ruestkostensatz: 55, fixeRuestkosten: 6 },
-      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestzeitStd: 0.10, ruestkostensatz: 40, fixeRuestkosten: 1 },
-      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1 },
-      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1 }
+      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestzeitStd: 0.15, ruestkostensatz: 40, fixeRuestkosten: 2,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 30 },
+      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestzeitStd: 0.30, ruestkostensatz: 60, fixeRuestkosten: 12, arbeitstage: 220, stundenProTag: 8, wartungStunden: 60 },
+      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestzeitStd: 0.25, ruestkostensatz: 55, fixeRuestkosten: 6,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 40 },
+      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestzeitStd: 0.10, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20 },
+      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20 },
+      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 15 }
     ],
     materialAufschlag: 12,  // % auf Materialeinkauf
     gemeinkosten: 14,       // % auf Selbstkosten
@@ -123,6 +124,41 @@
     };
   }
 
+  // Beispielaufträge mit echten Soll-/Ist-Daten, damit das Management-
+  // Dashboard (Phase 7A) reale Nachkalkulation, Deckungsbeitrag, Gewinn
+  // und Kalkulationsgenauigkeit zeigen kann. Datumswerte relativ zu heute.
+  function beispielAuftraege(kunden) {
+    function vorTagen(t) { var d = new Date(); d.setDate(d.getDate() - t); return d.toISOString(); }
+    function pos(produktKey, netto, soll, ist) { return [{ produktKey: produktKey, label: null, kalk: { zeiten: soll, netto: netto }, ist: ist ? { zeiten: ist, erfasstAm: vorTagen(2) } : null }]; }
+    function auftrag(o) {
+      return Object.assign({
+        id: uid(), erstellt: o.erstellt, status: o.status, kommission: o.kommission,
+        kundeId: o.kundeId, titel: o.titel, gruppeKey: o.gruppeKey,
+        positionen: pos(o.gruppeKey, o.netto, o.soll, o.ist),
+        kalk: { netto: o.netto, selbstkosten: o.selbst, deckungsbeitrag: o.db, gewinn: o.gewinn, stundenGesamt: o.stunden },
+        fremdkosten: o.fremd || [], nettowert: o.netto
+      });
+    }
+    var k0 = kunden[0] ? kunden[0].id : null, k1 = kunden[1] ? kunden[1].id : k0, k2 = kunden[2] ? kunden[2].id : k0;
+    return [
+      auftrag({ titel: "Balkongeländer Musterstraße", gruppeKey: "gelaender", kundeId: k0, kommission: "BV Musterstraße", status: "Abgeschlossen", erstellt: vorTagen(50), netto: 4200, selbst: 3100, db: 1100, gewinn: 700, stunden: 46,
+        soll: { cad: 4, zuschnitt: 3, schweissen: 18, schleifen: 6, oberflaeche: 5, montage: 10 },
+        ist:  { cad: 3.5, zuschnitt: 3, schweissen: 17, schleifen: 6, oberflaeche: 5, montage: 9 } }),
+      auftrag({ titel: "Stahltreppe Wohnhaus Berger", gruppeKey: "treppen", kundeId: k1, kommission: "Wohnhaus Berger", status: "Abgeschlossen", erstellt: vorTagen(38), netto: 8600, selbst: 6400, db: 2200, gewinn: 1400, stunden: 92,
+        soll: { cad: 8, zuschnitt: 6, lasern: 5, biegen: 4, schweissen: 40, schleifen: 12, montage: 17 },
+        ist:  { cad: 10, zuschnitt: 7, lasern: 5, biegen: 5, schweissen: 49, schleifen: 15, montage: 21 } }),
+      auftrag({ titel: "Doppelstabzaun Grundstück Nord", gruppeKey: "zaeune", kundeId: k2, kommission: "GST Nord", status: "Beauftragt", erstellt: vorTagen(9), netto: 5300, selbst: 3900, db: 1400, gewinn: 900, stunden: 34,
+        soll: { cad: 3, zuschnitt: 8, schweissen: 10, oberflaeche: 4, montage: 9 }, ist: null }),
+      auftrag({ titel: "Blechkassetten Serie 40 Stk.", gruppeKey: "blecharbeiten", kundeId: k0, kommission: "Serie B40", status: "Abgeschlossen", erstellt: vorTagen(24), netto: 3100, selbst: 2350, db: 750, gewinn: 480, stunden: 28,
+        soll: { cad: 3, lasern: 8, biegen: 10, schleifen: 4, verpackung: 3 },
+        ist:  { cad: 3, lasern: 8, biegen: 10, schleifen: 4, verpackung: 3 } }),
+      auftrag({ titel: "Sonderkonstruktion Vordach Glas", gruppeKey: "sonderkonstruktionen", kundeId: k1, kommission: "Vordach Glas", status: "Abgeschlossen", erstellt: vorTagen(15), netto: 7400, selbst: 6100, db: 1300, gewinn: 300, stunden: 78,
+        soll: { cad: 12, zuschnitt: 6, lasern: 4, biegen: 6, schweissen: 30, schleifen: 8, montage: 12 },
+        ist:  { cad: 18, zuschnitt: 7, lasern: 4, biegen: 8, schweissen: 44, schleifen: 12, montage: 20 },
+        fremd: [{ bezeichnung: "Glasfüllungen (Zukauf)", betrag: 900 }] })
+    ];
+  }
+
   function fresh() {
     var mats = SEED_MATERIAL.map(function (m) {
       return {
@@ -181,7 +217,7 @@
       } catch (e) { angebote = []; }
     }
     return {
-      version: 5,
+      version: 6,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -197,7 +233,7 @@
       konfigurationen: konfigurationen,
       // benutzerdefinierte Untergruppen je Produkt, z. B. { zaun: ["Doppelstabmattenzaun", ...] }
       untergruppen: {},
-      auftraege: [],
+      auftraege: beispielAuftraege(kunden),
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -235,6 +271,10 @@
       if (typeof m.ruestzeitStd !== "number") m.ruestzeitStd = 0;
       if (typeof m.ruestkostensatz !== "number") m.ruestkostensatz = (st.rates && st.rates.fertigung) || 40;
       if (typeof m.stundensatz !== "number") m.stundensatz = 0;
+      // Kapazität für Auslastungsanalyse (Phase 7A)
+      if (typeof m.arbeitstage !== "number") m.arbeitstage = 220;
+      if (typeof m.stundenProTag !== "number") m.stundenProTag = 8;
+      if (typeof m.wartungStunden !== "number") m.wartungStunden = 0;
       delete m.ruestkosten;
     });
     if (st.projektZaehler == null) st.projektZaehler = 1;

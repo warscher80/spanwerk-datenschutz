@@ -71,6 +71,11 @@
     return liste.indexOf(bereich) >= 0;
   }
   function istAdmin() { return rolle() === "admin"; }
+  // Darf die aktuelle Rolle vertrauliche betriebswirtschaftliche Kennzahlen
+  // (Gewinn, Deckungsbeitrag, Margen, Selbst-/Einkaufskosten) sehen?
+  // Geschäftsführung (admin) und Kalkulation/Büro (buero): ja.
+  // Fertigung/Montage (werkstatt): nein – nur operative Informationen.
+  function darfFinanzen() { var r = rolle(); return r === "admin" || r === "buero"; }
 
   // Benutzer anlegen/aktualisieren (nur sinnvoll für Admin – UI erzwingt das).
   function speichereUser(daten, pin) {
@@ -109,7 +114,7 @@
     ROLLEN: ROLLEN, RECHTE: RECHTE,
     login: login, logout: logout, restore: restore,
     current: current, istAngemeldet: istAngemeldet,
-    rolle: rolle, rolleLabel: rolleLabel, darf: darf, istAdmin: istAdmin,
+    rolle: rolle, rolleLabel: rolleLabel, darf: darf, istAdmin: istAdmin, darfFinanzen: darfFinanzen,
     speichereUser: speichereUser, loescheUser: loescheUser,
     findByName: findByName
   };

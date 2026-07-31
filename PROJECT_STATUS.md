@@ -4,7 +4,7 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: Umsetzung **Phase 4 (Angebotsgenerator & PDF)** abgeschlossen.
+Letzte Aktualisierung: Umsetzung **Phase 7A (Management-Dashboard)** abgeschlossen.
 
 ---
 
@@ -267,10 +267,104 @@ textbausteine[] { id,kategorie,titel,text,standard,aktiv,sort }
 - PDF entsteht über die Browser-Druckfunktion (offline, keine PDF-Bibliothek);
   das Layout ist auf A4 optimiert. E-Mail-Versand nicht enthalten.
 
+## Phase 7A – Management-Dashboard & betriebswirtschaftliche Auswertungen – ERLEDIGT ✅
+
+**Architektur-Hinweis:** Die App ist eine vollständig **offline** laufende
+Vanilla-JS-Anwendung (localStorage, kein Server, keine SQL-DB, kein
+TypeScript). Die Vorgaben des Masterprompts (serverseitige Aggregation,
+DB-Indizes, TypeScript-Prüfung) sind sinngemäß auf diese Realität übertragen:
+Aggregation clientseitig, „Migration" = idempotentes `store.js`-`migrate()`,
+„TypeScript-Prüfung" = `node --check`. Alle Kennzahlen werden aus real
+gespeicherten Daten berechnet – keine fest verdrahteten oder zufälligen Werte.
+
+**Neue Datei**
+- `assets/js/auswertung.js` – reine, testbare Analyse-Engine (keine
+  DOM-Zugriffe): Zeitraum-Presets (heute/Woche/Monat/Quartal/Jahr/Vorjahr/
+  benutzerdefiniert) mit Vorperiode, Filter (Kunde/Produktgruppe/Kommission/
+  Status), Hauptkennzahlen mit Vorperiodenvergleich, Angebotsauswertung
+  (Abschlussquote nach **Anzahl** und **Wert**), Auftrags-/Soll-Ist-Auswertung,
+  priorisierte Warnliste, Produktgruppenvergleich, Kundenanalyse,
+  Maschinenanalyse (Kapazität/Auslastung/Rüstabweichung), Lernauswertung.
+  Division-durch-Null-geschützt (`pct`), Decimal-Rundung (`r2`).
+
+**Datenmodell** (`store.js`, `version: 6`)
+- Maschinen um **Kapazität** ergänzt (`arbeitstage`, `stundenProTag`,
+  `wartungStunden`) – in den Stammdaten pflegbar; Auslastung = Ist-Stunden /
+  (Arbeitstage × Std/Tag − Wartung).
+- **Beispielaufträge mit echten Soll-/Ist-Daten** geseedet (u. a. ein
+  überzogener Auftrag mit negativem Gewinn + Fremdkosten), damit das Dashboard
+  reale Nachkalkulation, DB, Gewinn und Kalkulationsgenauigkeit zeigt.
+- Beide Auftrags-Formen (Legacy-„Vorgang" und Phase-4-Auftrag mit
+  Soll-Snapshot) werden in der Engine über `normAuftrag` vereinheitlicht.
+
+**Umgesetzt**
+- **Rollenabhängiges Dashboard:** Geschäftsführung (admin) & Kalkulation
+  (buero) sehen alle Kennzahlen; **Fertigung/Montage (werkstatt) sehen ein
+  rein operatives Dashboard OHNE Gewinn-/Deckungsbeitragsdaten**
+  (`Auth.darfFinanzen`). E2E bestätigt: keine vertraulichen Begriffe im
+  Werkstatt-Dashboard.
+- **Zentrale Filterleiste** (Zeitraum + Kunde + Produktgruppe), auf alle
+  Elemente angewandt, aktive Filter als entfernbare Chips.
+- **Hauptkennzahlen** mit aktuellem Wert, Vorperiodenvergleich (▲/▼ %),
+  „kein Vergleich" bei nicht vergleichbaren Zeiträumen (keine irreführenden
+  Prozentangaben).
+- **Angebotsauswertung** inkl. Abschlussquote nach Anzahl/Wert; offene
+  Angebote werden nie als abgelehnt gewertet (durch Test abgesichert).
+- **Auftragsauswertung** (laufend, über Budget, negativer Gewinn, ohne
+  Zeiterfassung, verspätet, nachkalkuliert) mit **priorisierter Warnliste**
+  – jede Warnung führt per Klick zum betroffenen Auftrag (Drill-down).
+- **Soll-Ist**, **Produktgruppenvergleich** (mit „wenig Daten"-Kennzeichnung
+  ab < 3 Aufträgen), **Kundenanalyse**, **Maschinenauslastung**,
+  **Lernfunktions-Auswertung** (Genauigkeit nur bei ≥ 3 Ist-Aufträgen
+  ausgewiesen).
+- **Drill-down** auf Karten/Diagramme/Produktgruppen/Warnungen.
+- **Offlinefähige SVG-Balkendiagramme** (kein externes Chart-Framework),
+  Tabellen scrollen mobil innerhalb `.table-wrap`.
+- **Berichtsexport**: CSV (mit Schutz gegen **CSV-Formula-Injection**) für
+  Angebots-, Auftrags-, Soll-Ist-, Produktgruppen-, Maschinen- und
+  Kundenbericht; **Druckansicht** (interner Bericht, klar kein
+  Kundenangebot). Exporte weisen Zeitraum + Filter aus.
+- **Dashboard-Konfiguration je Benutzer** (Karten ein-/ausblenden,
+  Standard-Zeitraum, Warnschwelle) – nur lokal für den Benutzer gespeichert.
+- **Performance-Testdaten-Generator** (nur Admin, Datensätze mit
+  `_testdaten` gekennzeichnet, nicht automatisch in Produktion, wieder
+  entfernbar).
+
+**Erfolgreiche Tests**
+- Engine (`scratchpad/p7a.js`): **48/48** – Zeiträume, Division/0,
+  Decimal-Rundung, Abschlussquote (Anzahl & Wert, Kontrollrechnung), offen ≠
+  abgelehnt, Auftragswert/Selbstkosten/DB (Kontrollrechnung), negativer
+  Gewinn, Warnungen mit Drill-down-ID + Priorisierung, Soll-Ist,
+  Produktgruppen, Kunden, Maschinen-Verfügbarkeit/Rüstabweichung,
+  Lernauswertung, Vorperiodenvergleich, Filter (Kunde/Produktgruppe),
+  Euro-/Prozent-Formatierung.
+- UI/E2E (`scratchpad/p7a-e2e.js`): Filterleiste, 26 KPI-Karten,
+  Zeitraum-/Kundenfilter + Chip-Entfernung, Drill-down zu Angeboten/Aufträgen,
+  Warnung → Auftragsseite, Karten aus-/einblenden, Export-Optionen,
+  Maschinen-Kapazitätsfelder, **Werkstatt ohne Finanzdaten**, mobile
+  Darstellung ohne Überlauf. Keine JS-Fehler.
+- Performance: voller Report über **1005 Aufträge + 2002 Angebote in ~60 ms**
+  (warm ~21 ms).
+
+**Bekannte Einschränkungen**
+- Aggregation läuft clientseitig (Offline-App ohne Server) – dank kompakter
+  Datenhaltung auch bei mehreren tausend Datensätzen performant.
+- Getrennte Zeiterfassungs-/Maschinen-/Materialbuchungstabellen (formale
+  Phase 5) existieren noch nicht; Ist-Daten stammen aus den Positions-
+  Ist-Zeiten der Aufträge. Personen-/Gehaltsauswertungen bewusst nicht
+  enthalten. Standort-Filter mangels Standortdaten nicht aktiv.
+
 ## Nächster Schritt
 
-**Phase 5 – Aufträge, mobile Zeiterfassung & Nachkalkulation:** aus
-angenommenen Angeboten Aufträge steuern, Ist-Zeiten/Material/Maschinen mobil
-erfassen, Soll-Ist-Vergleich (Nachkalkulation). Danach **Phase 6 –
-statistische Lernfunktion** (regelbasiert, ohne externe KI-API/neuronale
-Netze, erklärbare Vorschläge mit Konfidenzwerten).
+**Phase 7B – Materialpreisimporte, Lieferantenschnittstellen & ERP-
+Vorbereitung:** CSV-/XLSX-Importzentrale mit Spaltenzuordnung, Validierung,
+Preisversionierung/-freigabe und Importprofilen; modulare SupplierAdapter
+(Frankstahl u. a.) und KingBill-Dateiexport – nicht konfigurierte Live-APIs
+werden eindeutig als „Dateiimport/-export" gekennzeichnet, keine
+vorgetäuschte Live-Schnittstelle, kein Web-Scraping.
+
+**Weiterhin offen (formal):** Phase 5 (dedizierte mobile Zeiterfassung &
+Nachkalkulations-Tabellen) und Phase 6 (statistische Lernfunktion, regel-
+basiert, ohne externe KI). Eine Legacy-Variante beider Bereiche
+(Ist-Zeiterfassung je Auftragsposition, Erkenntnis-/Korrekturfaktoren) ist
+bereits vorhanden und speist das Dashboard.
