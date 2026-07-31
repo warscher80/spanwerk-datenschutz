@@ -38,6 +38,15 @@ Der Build läuft in GitHub Actions („Apps bauen (Android + Windows)") und legt
 APK und Windows-`.exe` in das Release `app-latest`. Ein echter externer
 Produktiv-Deploy wird **nicht** automatisch durchgeführt.
 
+## Freigabestufen (Phase 9)
+
+In der App (System-Seite, nur Admin) einstellbar:
+Entwicklung → Interner Test → Pilot → eingeschränkter Produktivbetrieb →
+Produktivbetrieb. Ab **Pilot** wird beim ersten Login ein PIN-Wechsel
+erzwungen. Die aktuelle Stufe wird Administratoren als Banner angezeigt.
+Der **Wartungsmodus** kennzeichnet kontrollierte Updates (siehe
+`RELEASE_PROCESS.md`).
+
 ## Betriebsmodi
 
 - **Entwicklung/Test:** Beispieldaten sind aktiv (klar als „Beispiel"

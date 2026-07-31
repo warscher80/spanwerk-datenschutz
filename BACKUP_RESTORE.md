@@ -34,6 +34,15 @@ Alternativ **Geräte-Sync (WLAN)** zum Übertragen auf ein zweites Gerät.
 4. Stichprobe prüfen: eine ältere freigegebene Kalkulation/ein Angebot öffnen
    und Werte kontrollieren (müssen unverändert sein).
 
+## Backup-Überwachung (System-Seite, Phase 9)
+
+Administratoren sehen unter **System → Backup-Überwachung**: Zeitpunkt und
+Status des letzten Backups, Backup-Größe, Aufbewahrungsdauer, ob ein
+Restore-Test vermerkt ist, sowie Warnungen (kein Backup / zu alt /
+fehlgeschlagen / Speicher knapp / Restore nie getestet). „Backup erstellen &
+protokollieren" erzeugt das Backup **und** aktualisiert diese Anzeige. Ein
+echter Restore auf die aktive Datenbank wird bewusst **nicht** ausgeführt.
+
 ## Empfohlene Strategie
 
 - **Häufigkeit:** täglich am Betriebsende, zusätzlich vor größeren

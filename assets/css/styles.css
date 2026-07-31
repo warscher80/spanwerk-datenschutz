@@ -78,6 +78,23 @@ a { color: var(--accent-2); }
 .sidebar-foot a { display: block; margin-top: 6px; }
 .app-version { font-weight: 700; color: var(--accent); margin-bottom: 8px; font-size: 12px; }
 
+/* ---------- Feedback-Knopf & Release-Banner (Phase 9) ---------- */
+.fab-feedback {
+  position: fixed; right: 18px; bottom: 18px; z-index: 90;
+  width: 46px; height: 46px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent); color: #1a1208; font-size: 20px;
+  box-shadow: var(--shadow);
+}
+.fab-feedback:hover { filter: brightness(1.08); }
+.release-banner {
+  position: fixed; top: 0; right: 0; z-index: 95;
+  padding: 3px 12px; font-size: 11px; font-weight: 700; color: #10141b;
+  border-bottom-left-radius: 8px; letter-spacing: .3px; opacity: .92;
+}
+@media (max-width: 900px) {
+  .fab-feedback { bottom: 76px; }
+}
+
 /* ---------- Main ---------- */
 /* min-width:0 verhindert, dass breite Inhalte (Tabellen/Filterleisten) den
    1fr-Grid-Track über die Viewport-Breite hinaus aufziehen (Tablet-Überlauf). */

@@ -3,6 +3,29 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 9 – Pilotbetrieb & Betriebsüberwachung  (Schema v9)
+### Hinzugefügt
+- Betriebs-/Monitoring-Engine `betrieb.js`: Release-Stufen, Systemstatus,
+  Healthchecks (nicht-konfigurierte Adapter = kein Systemfehler),
+  Backup-Überwachung + Warnungen, aggregierte Betriebswarnungen,
+  anonymisiertes Support-Paket (ohne Secrets, mit Vorschau + Sicherheitsnetz),
+  Feedback-/Fehlerlog-Modelle, Pilotkennzahlen (echte Zahlen).
+- Admin-**System-Seite** (Status/Health/Backup/Warnungen/Pilot-Kennzahlen/
+  Feedback/Fehlerprotokoll/Support/Freigabestufe/Wartungsmodus).
+- Globaler **Feedback-Knopf** (alle Rollen); Feedback-Statusworkflow.
+- Globales **Fehlerprotokoll** mit Fehler-ID (keine Secrets/Personendaten);
+  Fehler-ID in Modal-Fehlermeldungen.
+- **First-Login-PIN-Pflicht** ab Freigabestufe Pilot (Standard-PIN abgelehnt).
+- Release-Stufen-Banner für Administration.
+- Datenschema **v9**: `feedback[]`, `fehlerlog[]`, `settings.betrieb`
+  (releaseStufe/backupMeta/wartungsmodus), `user.pinGeaendert`.
+- Pilot-Doku: PILOT_PLAN, PILOT_CHECKLIST, OPERATIONS_GUIDE, INCIDENT_RESPONSE,
+  RELEASE_PROCESS, SUPPORT_GUIDE, PILOT_RESULTS_TEMPLATE.
+### Tests
+- `tests/referenz.test.js` auf **43/43** erweitert (Betrieb: Healthchecks,
+  Backup-Warnungen, Support-Paket ohne Secrets, Warnungssortierung,
+  Fehler-ID-Format, Pilotkennzahlen).
+
 ## Phase 8 – Gesamtprüfung & Produktionsvorbereitung
 ### Behoben
 - **Hoch:** Angebots-Snapshot hielt Referenzen auf Firma/Kunde – spätere

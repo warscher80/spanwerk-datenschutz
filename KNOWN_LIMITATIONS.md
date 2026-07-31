@@ -50,6 +50,20 @@ einem gemeinsam genutzten Gerät vertretbar dokumentiert.
 - **Keine** DSGVO-Zertifizierung – rechtliche Prüfung durch Fachleute
   erforderlich (Aufbewahrung, Lösch-/Anonymisierungskonzept).
 
+## Betrieb / Pilot (Phase 9)
+
+- **Feedback & Fehlerprotokoll bleiben lokal** in der App (kein Versand an
+  einen Server). Support-Paket wird als Datei exportiert.
+- **Keine externen Benachrichtigungen** (Push/SMS/E-Mail) – vorbereitet, nicht
+  aktiv.
+- **Backup-Überwachung** stützt sich auf die in der App protokollierten
+  Backup-Zeitpunkte (manueller Export) – es gibt keinen automatischen
+  Server-Backup-Job.
+- **Healthchecks** prüfen den Client (App/Speicher/PDF/Backup); es gibt keinen
+  Server-Healthcheck-Endpunkt.
+- **Freigabestufen** sind ein organisatorischer Schalter in der App, kein
+  technisch getrennter Deploy je Stufe.
+
 ## Zeitzonen
 
 - Zeitstempel werden als ISO/UTC gespeichert und in österreichischer

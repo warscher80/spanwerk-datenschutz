@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -121,9 +121,9 @@ t("SNAP Revision B hat erhaltenen Vorgänger A", !!(revB && revA && revA.revisio
 // =============================================================
 //  4) MIGRATIONEN (leer + bestehend + idempotent)
 // =============================================================
-t("MIG fresh() liefert version 8 + alle Arrays", (function () {
+t("MIG fresh() liefert aktuelle Version + alle Arrays", (function () {
   var f = Store.fresh ? Store.fresh() : null; if (!f) return true; // fresh evtl. nicht exportiert
-  return f.version === 8 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote);
+  return f.version === 9 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog);
 })());
 t("MIG migrate({}) füllt Defaults ohne Crash", (function () {
   try { var m = Store.migrate({}); return m && m.settings && Array.isArray(m.material) && Array.isArray(m.dokumente) && !!m.planung && !!m.settings.planung; } catch (e) { return false; }
@@ -153,6 +153,34 @@ if (angebot) {
   var ausg = Ang.kundenAusgabe(angebot, { firma: db.settings.firma, kunde: {}, datum: "", gueltigBis: "", fmtEUR: function (x) { return x; } });
   t("SEC keine internen Felder in Kundenausgabe", Ang.enthaeltInterne(ausg).length === 0);
 }
+
+// =============================================================
+//  6) BETRIEB / MONITORING (Phase 9)
+// =============================================================
+var Betrieb = P.Betrieb;
+if (Betrieb) {
+  var db2 = Store.load();
+  // Healthchecks: nicht konfigurierte Adapter machen System NICHT unhealthy
+  var hc = Betrieb.healthchecks(db2);
+  t("BETRIEB Healthcheck Gesamtstatus gültig", ["healthy", "degraded", "unhealthy"].indexOf(hc.gesamt) >= 0);
+  t("BETRIEB Adapter separat als nicht konfiguriert", hc.adapter.every(function (a) { return a.status === "nicht konfiguriert"; }) && hc.gesamt !== "unhealthy");
+  // Backup-Warnungen wenn kein Backup
+  db2.settings.betrieb.backupMeta = { letztes: null, status: "keins", restoreGetestet: false };
+  var bs = Betrieb.backupStatus(db2, Date.now());
+  t("BETRIEB Backup-Warnung wenn kein Backup", bs.warnungen.some(function (w2) { return /kein Backup/i.test(w2.text); }));
+  // Support-Paket enthält KEINE Secrets
+  var paket = Betrieb.supportPaket(db2, { version: "1.0", build: "x" }, "TestBrowser", Date.now());
+  t("BETRIEB Support-Paket ohne sensible Felder", Betrieb.enthaeltSensibles(paket).length === 0);
+  t("BETRIEB Support-Paket enthält keine Benutzer-Hashes", JSON.stringify(paket).indexOf(db2.users[0].hash) < 0);
+  // Betriebswarnungen sind ein Array mit Schweregraden
+  var bw = Betrieb.betriebswarnungen(db2, Date.now());
+  t("BETRIEB Warnungen sortiert nach Schwere", bw.every(function (w2, i, arr) { return i === 0 || arr[i - 1].schwere >= w2.schwere; }));
+  // Fehler-ID deterministisch aus Seed
+  t("BETRIEB Fehler-ID Format", /^ERR-[0-9A-Z]+$/.test(Betrieb.fehlerId(1730000000000)));
+  // Pilotkennzahlen = echte Zahlen
+  var pk = Betrieb.pilotKennzahlen(db2, Date.now());
+  t("BETRIEB Pilotkennzahlen real", pk.auftraege === (db2.auftraege || []).length && typeof pk.nachkalkuliert === "number");
+} else { t("BETRIEB Modul geladen", false); }
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

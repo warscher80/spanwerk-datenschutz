@@ -4,14 +4,20 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 8 – Gesamtprüfung & Produktionsvorbereitung**
-durchgeführt. Prüfbericht, Bewertung und Testergebnisse in **`AUDIT_REPORT.md`**;
-Formeln in `CALCULATION_RULES.md`, Sicherheit in `SECURITY.md`, Backup in
-`BACKUP_RESTORE.md`, Grenzen in `KNOWN_LIMITATIONS.md`, Deployment in
-`DEPLOYMENT.md`, Architektur in `ARCHITECTURE.md`. Referenz-/Invarianten-/
-Migrationstests: `tests/referenz.test.js` (35/35).
-**Reifegrad:** bereit für internen Test-/Pilotbetrieb; voller Produktivbetrieb
-(Mehrbenutzer/Server/ERP-Live) noch nicht – siehe Bericht.
+Letzte Aktualisierung: **Phase 9 – Pilotbetrieb & Betriebsüberwachung**
+umgesetzt. Neue Betriebs-Engine (`betrieb.js`) + Admin-**System-Seite**
+(Status, Healthchecks, Backup-Überwachung, Betriebswarnungen, Pilot-Kennzahlen,
+Feedback, Fehlerprotokoll, Support-Paket, Freigabestufen). First-Login-PIN-
+Pflicht ab Pilotstufe. Datenschema **v9** (`feedback`, `fehlerlog`,
+`settings.betrieb`).
+Doku: `AUDIT_REPORT.md`, `CALCULATION_RULES.md`, `SECURITY.md`,
+`BACKUP_RESTORE.md`, `KNOWN_LIMITATIONS.md`, `DEPLOYMENT.md`,
+`ARCHITECTURE.md`, `PILOT_PLAN.md`, `PILOT_CHECKLIST.md`, `OPERATIONS_GUIDE.md`,
+`INCIDENT_RESPONSE.md`, `RELEASE_PROCESS.md`, `SUPPORT_GUIDE.md`,
+`PILOT_RESULTS_TEMPLATE.md`. Tests: `tests/referenz.test.js` (43/43).
+**Reifegrad:** **Pilot kann mit Einschränkungen starten** (siehe
+AUDIT_REPORT → Pilot-Startentscheidung); voller Produktivbetrieb
+(Mehrbenutzer/Server/ERP-Live) noch nicht.
 
 ---
 

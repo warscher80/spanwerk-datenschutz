@@ -157,3 +157,35 @@ dokumentiert. Die verbleibenden Einschränkungen sind architektonisch (Offline/
 Einzelplatz) bzw. bewusst nicht vorgetäuschte Fremdanbindungen und sauber
 dokumentiert. Kein echter externer Produktiv-Deploy wird ohne ausdrückliche
 Freigabe und Zielumgebung durchgeführt.
+
+---
+
+## Nachtrag Phase 9 – Pilot-Startentscheidung
+
+**Entscheidung: Der Pilot kann mit Einschränkungen starten.** ✅⚠️
+
+Begründung: Alle kritischen/hohen Phase-8-Fehler sind behoben (Angebots-
+Snapshot, Responsive). Referenzkalkulation korrekt, Angebots-PDF kundensicher,
+Rollen greifen, Migrationen idempotent, Backup-Überwachung und Feedback-/
+Fehlerprotokoll mit Fehler-IDs vorhanden, Healthchecks unterscheiden
+healthy/degraded/unhealthy und werten nicht-konfigurierte Adapter nicht als
+Systemfehler. First-Login-PIN-Pflicht ab Pilotstufe.
+
+**Offene kritische Fehler:** keine. **Offene hohe Fehler:** keine.
+
+**Einschränkungen für den Pilot** (siehe `KNOWN_LIMITATIONS.md`): Offline-/
+Einzelplatz-Architektur (Datenabgleich per Backup/WLAN), `localStorage`-Limit,
+Rollenschutz auf Anwendungsebene (kein Server-Zwang), nicht angebundene
+Fremdsysteme (Frankstahl/KingBill/OCR) klar gekennzeichnet.
+
+**Erforderliche externe Entscheidungen/Zugangsdaten:** echte Betriebsdaten
+(kontrollierter Pilotimport), spätere Server-/ERP-Anbindung, rechtliche
+DSGVO-Prüfung.
+
+**Empfehlung:** Pilotdauer **4–6 Wochen**, **6–8 Benutzer**, ein zentraler PC +
+1–2 mobile Geräte, tägliches Backup, wöchentliche Auswertung
+(`PILOT_RESULTS_TEMPLATE.md`).
+
+**Übergang zum Produktivbetrieb** setzt voraus: Backend mit echter
+Benutzer-/Zugriffstrennung und Serverdatenhaltung, Phase 7B (Importzentrale),
+Ausbau Phase 5/6, bestandener Pilot ohne offene kritische/hohe Fehler.

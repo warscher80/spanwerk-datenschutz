@@ -15,6 +15,7 @@
   var Ausw = w.Preisschmiede.Auswertung;
   var Plan = w.Preisschmiede.Planung;
   var Dok = w.Preisschmiede.Dokumente;
+  var Betrieb = w.Preisschmiede.Betrieb;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -64,6 +65,7 @@
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
     planung: function () { renderPlanung(); },
     dokumente: function () { renderDokumente(); },
+    system: function () { renderSystem(); },
     kundenprojekte: function () { renderKundenProjekte(); },
     konfigurator: function () { renderKonfigurator(); },
     kalkulationen: function () { renderKalkulationen(); },
@@ -1120,6 +1122,188 @@
     var body = '<div class="table-wrap"><table><thead><tr><th>Feld</th><th>' + esc(vorg.revision || "alt") + "</th><th>" + esc(d.revision || "neu") + "</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody></table></div>" +
       (rv.relevant ? '<div class="fehler-box" style="margin-top:8px">Relevante Änderung erkannt. Betroffene Kalkulationen sollten als möglicherweise veraltet geprüft werden – keine automatische Neuberechnung.</div>' : '<div class="muted" style="margin-top:8px">Keine kalkulationsrelevante Änderung erkannt.</div>');
     openModal("Revisionsvergleich " + esc(vorg.revision || "") + " → " + esc(d.revision || ""), body, null, "Schließen");
+  }
+
+  // ============================================================
+  //  BETRIEB / SYSTEM / FEEDBACK / FEHLERLOG (Phase 9)
+  // ============================================================
+  function buildInfo() { return (w.PS_BUILD || { version: (db.settings.appVersion || "Web-Vorschau"), build: "—" }); }
+
+  // Technisches Fehlerprotokoll (Ringpuffer, KEINE Secrets/Personendaten)
+  function protokolliereFehler(err, modul) {
+    try {
+      var eintrag = Betrieb.fehlerEintrag({
+        modul: modul || "", nachricht: (err && err.message) || String(err || "Fehler"),
+        kontext: (err && err.stack ? String(err.stack).split("\n")[1] || "" : "").trim().slice(0, 160),
+        browser: (w.navigator && w.navigator.userAgent || "").slice(0, 160),
+        rolle: (Auth.current() || {}).rolle || "", zeitpunkt: Store.nowISO()
+      }, Date.now());
+      db.fehlerlog = db.fehlerlog || [];
+      db.fehlerlog.push(eintrag);
+      if (db.fehlerlog.length > 200) db.fehlerlog = db.fehlerlog.slice(-200);
+      Store.save();
+      return eintrag.id;
+    } catch (e) { return "ERR-000000"; }
+  }
+
+  // ---- Feedback (für alle angemeldeten Rollen) ----------------------
+  function feedbackModal(kontextModul) {
+    var katOpt = Betrieb.FEEDBACK_KATEGORIEN.map(function (k) { return "<option>" + esc(k) + "</option>"; }).join("");
+    var body = '<div class="inline"><label class="fld"><span class="lbl">Kategorie</span><select id="fb-kat">' + katOpt + '</select></label><label class="fld"><span class="lbl">Priorität</span><select id="fb-prio"><option>niedrig</option><option selected>mittel</option><option>hoch</option></select></label></div>' +
+      fld2("Betroffener Bereich / Kommission", "fb-modul", kontextModul || "", "text") +
+      '<label class="fld"><span class="lbl">Beschreibung</span><textarea id="fb-text" rows="4" style="width:100%" placeholder="Was ist passiert? Was war zu erwarten?"></textarea></label>' +
+      '<p class="hint">Es werden keine Passwörter oder vertraulichen Kalkulationsinhalte übertragen. Diese Meldung bleibt lokal in der App.</p>';
+    openModal("Feedback / Problem melden", body, function () {
+      var text = $("#fb-text").value.trim(); if (!text) { toast("Bitte eine Beschreibung eingeben.", "err"); return false; }
+      var nk = db.settings.betrieb.feedbackZaehler || 1;
+      var fb = Betrieb.feedbackNeu({
+        nummer: "FB-" + ("000" + nk).slice(-3), kategorie: $("#fb-kat").value, prioritaet: $("#fb-prio").value,
+        beschreibung: text, modul: $("#fb-modul").value.trim(), kommission: $("#fb-modul").value.trim(),
+        benutzer: (Auth.current() || {}).benutzername || "", zeitpunkt: Store.nowISO(),
+        kontext: (w.navigator && w.navigator.userAgent || "").slice(0, 120)
+      }, Date.now());
+      db.feedback = db.feedback || []; db.feedback.push(fb);
+      db.settings.betrieb.feedbackZaehler = nk + 1; Store.save();
+      toast("Danke! Meldung " + fb.nummer + " gespeichert.");
+      if (Auth.darf("system") && $("#page-system.active")) renderSystem();
+      return true;
+    }, "Senden");
+  }
+  // Globaler Feedback-Knopf (einmalig), für alle angemeldeten Benutzer
+  function initFeedbackButton() {
+    if ($("#fab-feedback")) return;
+    var btn = el("button", { id: "fab-feedback", type: "button", title: "Feedback / Problem melden", "aria-label": "Feedback melden" }, "💬");
+    btn.className = "fab-feedback";
+    btn.onclick = function () { feedbackModal(""); };
+    d.body.appendChild(btn);
+  }
+
+  // ---- System-/Betriebsseite (nur Administration) -------------------
+  function renderSystem() {
+    var root = $("#page-system .content");
+    if (!Auth.darf("system")) { root.innerHTML = '<div class="empty">Kein Zugriff.</div>'; return; }
+    var now = Date.now();
+    var status = Betrieb.systemstatus(db, buildInfo(), now);
+    var hc = Betrieb.healthchecks(db);
+    var bk = Betrieb.backupStatus(db, now);
+    var warn = Betrieb.betriebswarnungen(db, now);
+    var pk = Betrieb.pilotKennzahlen(db, now);
+    var st = Betrieb.stufe(status.releaseStufeKey);
+    var stufeOpt = Betrieb.RELEASE_STUFEN.map(function (s) { return '<option value="' + s.key + '"' + (s.key === status.releaseStufeKey ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join("");
+    function healthBadge(s) { var f = s === "healthy" ? "#2fbf71" : s === "degraded" ? "#e0a000" : s === "unhealthy" ? "#e06666" : "#888"; return '<span class="badge" style="background:' + f + ';color:#fff">' + esc(s) + "</span>"; }
+
+    var html = '<div class="card" style="border-left:4px solid ' + st.farbe + '"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+      '<div><strong style="font-size:15px">Freigabestufe: ' + esc(st.label) + "</strong>" + (status.wartungsmodus ? ' <span class="tag" style="background:#e06666;color:#fff">WARTUNGSMODUS</span>' : "") + "</div>" +
+      '<div class="inline" style="flex:0"><select id="sys-stufe" style="min-width:200px">' + stufeOpt + '</select><button class="btn sm" id="sys-stufe-set" type="button">Stufe setzen</button>' +
+      '<button class="btn sm ' + (status.wartungsmodus ? "danger" : "ghost") + '" id="sys-wartung" type="button">' + (status.wartungsmodus ? "Wartung beenden" : "Wartungsmodus") + "</button></div></div></div>";
+
+    // Systemstatus + Health
+    html += '<div class="grid cols-2" style="align-items:start;margin-top:12px">';
+    html += '<div class="card"><h3>🩺 Systemstatus</h3><div class="table-wrap"><table><tbody>' +
+      dokZeile("App-Version", esc(status.appVersion) + " · Build " + esc(status.build)) +
+      dokZeile("Datenschema", "v" + status.schemaVersion) +
+      dokZeile("Speicher", status.speicher.genutztKB + " / " + status.speicher.limitKB + " kB (" + status.speicher.prozent + " %) " + healthBadge(status.speicher.status)) +
+      dokZeile("Letztes Backup", bk.letztes ? (fmtDateTime(bk.letztes) + " · " + (bk.alterTage != null ? bk.alterTage + " T alt" : "")) : '<span style="color:#e06666">keins</span>') +
+      dokZeile("Datensätze", status.zaehler.kunden + " Kunden · " + status.zaehler.kalkulationen + " Kalk. · " + status.zaehler.angebote + " Angebote · " + status.zaehler.auftraege + " Aufträge") +
+      "</tbody></table></div></div>";
+    html += '<div class="card"><h3>❤️ Healthchecks <span class="sub">' + healthBadge(hc.gesamt) + "</span></h3>" +
+      hc.checks.map(function (c) { return '<div class="zeile"><span>' + esc(c.name) + " <span class=\"muted\" style=\"font-size:11px\">" + esc(c.detail) + "</span></span><strong>" + healthBadge(c.status) + "</strong></div>"; }).join("") +
+      '<div class="muted" style="font-size:11px;margin:8px 0 2px">Nicht konfigurierte Schnittstellen (kein Systemfehler):</div>' +
+      hc.adapter.map(function (a) { return '<div class="zeile"><span>' + esc(a.name) + '</span><strong><span class="tag">' + esc(a.status) + "</span></strong></div>"; }).join("") +
+      "</div>";
+    html += "</div>";
+
+    // Backup-Überwachung
+    html += '<div class="card" style="margin-top:12px"><h3>💾 Backup-Überwachung</h3>' +
+      '<div class="grid cols-3">' +
+      stat("Letztes Backup", bk.letztes ? fmtDate(bk.letztes) : "—", bk.letztes ? "" : "warn") +
+      stat("Status", esc(bk.status)) +
+      stat("Restore getestet", bk.restoreGetestet ? "ja" : "nein", bk.restoreGetestet ? "green" : "warn") +
+      "</div>" +
+      (bk.warnungen.length ? bk.warnungen.map(function (wn) { return '<div class="insight"><span class="ico">' + (wn.schwere >= 3 ? "🔴" : wn.schwere === 2 ? "🟠" : "🟡") + "</span><span>" + esc(wn.text) + "</span></div>"; }).join("") : '<div class="muted" style="font-size:12px">Keine Backup-Warnungen.</div>') +
+      '<div class="btn-row" style="margin-top:8px"><button class="btn sm" id="sys-backup-jetzt" type="button">⬇️ Backup erstellen &amp; protokollieren</button><button class="btn sm ghost" id="sys-restore-getestet" type="button">Wiederherstellung als getestet markieren</button></div>' +
+      '<p class="hint">Es wird kein echter Restore auf die aktive Datenbank ausgeführt. Restore-Test bitte in einem separaten Browserprofil gemäß BACKUP_RESTORE.md.</p></div>';
+
+    // Betriebswarnungen
+    html += '<div class="card" style="margin-top:12px"><h3>⚠️ Betriebswarnungen <span class="sub">' + warn.length + "</span></h3>" +
+      (warn.length ? warn.slice(0, 20).map(function (wn) { return '<div class="insight"><span class="ico">' + (wn.schwere >= 3 ? "🔴" : wn.schwere === 2 ? "🟠" : "🟡") + "</span><span>" + esc(wn.text) + "</span></div>"; }).join("") : '<div class="empty">Keine offenen Betriebswarnungen.</div>') + "</div>";
+
+    // Pilot-Kennzahlen (echte Zahlen)
+    html += '<div class="card" style="margin-top:12px"><h3>🧪 Pilot-Kennzahlen</h3><div class="grid cols-4">' +
+      stat("Aktive Benutzer", pk.benutzer) + stat("Kalkulationen", pk.kalkulationen) + stat("Angebote", pk.angebote) + stat("Aufträge", pk.auftraege) +
+      "</div><div class=\"grid cols-4\" style=\"margin-top:10px\">" +
+      stat("Nachkalkuliert", pk.nachkalkuliert) + stat("Zeitbuchungen", pk.erfassteZeitbuchungen) + stat("Offene Timer", pk.offeneTimer, pk.offeneTimer ? "warn" : "") + stat("Feedback offen", pk.offeneFeedback) +
+      "</div><div class=\"muted\" style=\"font-size:11px;margin-top:6px\">Nur reale Zählwerte – keine künstlichen Erfolgskennzahlen.</div></div>";
+
+    // Feedback-Liste
+    var fbs = (db.feedback || []).slice().reverse();
+    html += '<div class="card" style="margin-top:12px"><div class="inline" style="justify-content:space-between"><h3 style="margin:0">💬 Feedback (' + fbs.length + ')</h3><button class="btn sm" id="sys-fb-neu" type="button">+ Meldung</button></div>';
+    html += fbs.length ? '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Kategorie</th><th>Prio</th><th>Beschreibung</th><th>Status</th></tr></thead><tbody>' +
+      fbs.slice(0, 30).map(function (f) {
+        var stsOpt = Betrieb.FEEDBACK_STATUS.map(function (s) { return '<option value="' + s + '"' + (f.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+        return "<tr><td>" + esc(f.nummer || f.id) + "</td><td>" + esc(f.kategorie) + "</td><td>" + esc(f.prioritaet) + "</td><td>" + esc((f.beschreibung || "").slice(0, 70)) + "</td>" +
+          '<td><select data-fbstatus="' + f.id + '" style="font-size:11px">' + stsOpt + "</select></td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Noch keine Meldungen.</div>';
+    html += "</div>";
+
+    // Fehlerprotokoll + Support-Paket
+    var fl = (db.fehlerlog || []).slice().reverse().slice(0, 20);
+    html += '<div class="card" style="margin-top:12px"><div class="inline" style="justify-content:space-between"><h3 style="margin:0">🧾 Fehlerprotokoll (' + (db.fehlerlog || []).length + ')</h3><div class="inline" style="flex:0"><button class="btn sm" id="sys-support" type="button">📦 Support-Paket</button><button class="btn sm ghost" id="sys-log-clear" type="button">Log leeren</button></div></div>';
+    html += fl.length ? '<div class="table-wrap"><table><thead><tr><th>Fehler-ID</th><th>Zeit</th><th>Modul</th><th>Nachricht</th></tr></thead><tbody>' +
+      fl.map(function (f) { return "<tr><td><code>" + esc(f.id) + "</code></td><td>" + fmtDateTime(f.zeitpunkt) + "</td><td>" + esc(f.modul || "—") + "</td><td>" + esc((f.nachricht || "").slice(0, 80)) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Keine Fehler protokolliert.</div>';
+    html += '<p class="hint">Protokoll enthält keine Passwörter, Tokens oder vollständigen Personendaten. Bei einem Problem die Fehler-ID dem Administrator nennen.</p></div>';
+
+    root.innerHTML = html;
+    // Verdrahtung
+    $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); renderSystem(); toast("Freigabestufe gesetzt."); };
+    $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
+    $("#sys-backup-jetzt").onclick = function () { systemBackup(); };
+    $("#sys-restore-getestet").onclick = function () { db.settings.betrieb.backupMeta.restoreGetestet = true; db.settings.betrieb.backupMeta.letzterRestoreTest = Store.nowISO(); Store.save(); renderSystem(); toast("Restore-Test vermerkt."); };
+    $("#sys-fb-neu").onclick = function () { feedbackModal(""); };
+    $("#sys-support").onclick = function () { supportPaketDialog(); };
+    $("#sys-log-clear").onclick = function () { if (confirm("Fehlerprotokoll leeren?")) { db.fehlerlog = []; Store.save(); renderSystem(); } };
+    $all("[data-fbstatus]").forEach(function (s) { s.onchange = function () { var f = (db.feedback || []).filter(function (x) { return x.id === s.dataset.fbstatus; })[0]; if (f) { f.status = this.value; f.bearbeiter = (Auth.current() || {}).benutzername || ""; Store.save(); } }; });
+  }
+
+  function systemBackup() {
+    try {
+      var json = Store.exportJSON();
+      var blob = new Blob([json], { type: "application/json" });
+      var url = w.URL.createObjectURL(blob);
+      var a = el("a"); a.href = url; a.download = "preisschmiede-backup.json"; d.body.appendChild(a); a.click(); d.body.removeChild(a); w.URL.revokeObjectURL(url);
+      db.settings.betrieb.backupMeta = db.settings.betrieb.backupMeta || {};
+      db.settings.betrieb.backupMeta.letztes = Store.nowISO();
+      db.settings.betrieb.backupMeta.status = "ok";
+      db.settings.betrieb.backupMeta.groesseKB = Math.round(json.length / 1024);
+      Store.save(); renderSystem(); toast("Backup erstellt und protokolliert.");
+    } catch (e) { db.settings.betrieb.backupMeta.status = "fehlgeschlagen"; Store.save(); toast("Backup fehlgeschlagen (ID " + protokolliereFehler(e, "backup") + ").", "err"); }
+  }
+
+  function supportPaketDialog() {
+    var paket = Betrieb.supportPaket(db, buildInfo(), (w.navigator && w.navigator.userAgent) || "", Date.now());
+    var sensibel = Betrieb.enthaeltSensibles(paket);
+    var vorschau = JSON.stringify(paket, null, 2);
+    var body = '<p class="muted" style="font-size:12px">Vorschau des Support-Pakets. Enthält KEINE Passwörter, Tokens, Secrets, vollständigen Kundendaten oder vertraulichen Kalkulationen.</p>' +
+      (sensibel.length ? '<div class="fehler-box">Achtung: potenziell sensible Felder erkannt (' + esc(sensibel.join(", ")) + ") – Export blockiert.</div>" : "") +
+      '<pre style="white-space:pre-wrap;font-size:11px;background:var(--panel-2);padding:8px;border-radius:6px;max-height:320px;overflow:auto">' + esc(vorschau) + "</pre>";
+    openModalWide("Support-Paket – Vorschau", body, sensibel.length ? null : function () {
+      var blob = new Blob([vorschau], { type: "application/json" });
+      var url = w.URL.createObjectURL(blob);
+      var a = el("a"); a.href = url; a.download = "preisschmiede-support.json"; d.body.appendChild(a); a.click(); d.body.removeChild(a); w.URL.revokeObjectURL(url);
+      toast("Support-Paket exportiert."); return true;
+    }, null, null);
+  }
+
+  // Release-Stufen-Banner (nur für Administration sichtbar)
+  function aktualisiereReleaseBanner() {
+    var alt = $("#release-banner"); if (alt) alt.parentNode.removeChild(alt);
+    if (!Auth.istAngemeldet() || !Auth.darf("system")) return;
+    var b = (db.settings.betrieb) || {}; var st = Betrieb.stufe(b.releaseStufe);
+    if (st.key === "produktion" && !b.wartungsmodus) return; // im Vollbetrieb dezent
+    var bar = el("div", { id: "release-banner" }, (b.wartungsmodus ? "🛠️ WARTUNGSMODUS · " : "") + "Stufe: " + esc(st.label));
+    bar.className = "release-banner";
+    bar.style.background = st.farbe;
+    d.body.appendChild(bar);
   }
 
   function stat(label, value, cls, delta) {
@@ -4247,7 +4431,7 @@
     function safe(fn) {
       return function () {
         try { if (fn() !== false) close(); }
-        catch (e) { console.error("Aktion fehlgeschlagen:", e); toast("Aktion fehlgeschlagen — bitte Eingaben prüfen.", "err"); }
+        catch (e) { console.error("Aktion fehlgeschlagen:", e); var id = protokolliereFehler(e, "modal"); toast("Aktion fehlgeschlagen (ID " + id + ") — bitte Eingaben prüfen.", "err"); }
       };
     }
     $("#modal-cancel").onclick = close;
@@ -4504,7 +4688,32 @@
     verbergeLogin();
     aktualisiereUserBox();
     wendeRollenNavAn();
+    initFeedbackButton();
+    aktualisiereReleaseBanner();
     navTo(ersteErlaubteSeite());
+    ersterLoginPinCheck();
+  }
+  // Beim ersten Login mit noch nicht geänderter PIN zum Wechsel auffordern.
+  // Erzwungen erst ab Freigabestufe Pilot (in Entwicklung/Test nicht, damit
+  // Demo-/Beispielbenutzer ungestört bleiben).
+  function ersterLoginPinCheck() {
+    var u = Auth.current(); if (!u || u.pinGeaendert) return;
+    var stufe = (db.settings.betrieb && db.settings.betrieb.releaseStufe) || "test";
+    if (["pilot", "eingeschraenkt", "produktion"].indexOf(stufe) < 0) return;
+    setTimeout(function () {
+      var body = '<p class="muted" style="font-size:13px">Bitte vergib zum Schutz deiner Daten eine eigene PIN (mind. 4 Ziffern). Die Standard-PIN ist unsicher.</p>' +
+        '<label class="fld"><span class="lbl">Neue PIN</span><input type="password" id="pin-neu" inputmode="numeric" autocomplete="off"></label>' +
+        '<label class="fld"><span class="lbl">Neue PIN wiederholen</span><input type="password" id="pin-neu2" inputmode="numeric" autocomplete="off"></label>';
+      openModal("PIN ändern (Erst-Login)", body, function () {
+        var p1 = $("#pin-neu").value, p2 = $("#pin-neu2").value;
+        if (!/^\d{4,}$/.test(p1)) { toast("Mindestens 4 Ziffern.", "err"); return false; }
+        if (p1 !== p2) { toast("PINs stimmen nicht überein.", "err"); return false; }
+        if (p1 === "1234") { toast("Bitte nicht die Standard-PIN verwenden.", "err"); return false; }
+        Auth.speichereUser({ id: u.id, name: u.name, benutzername: u.benutzername, rolle: u.rolle, aktiv: u.aktiv }, p1);
+        var uu = Store.load().users.filter(function (x) { return x.id === u.id; })[0]; if (uu) { uu.pinGeaendert = true; Store.save(); }
+        toast("PIN geändert. ✅"); return true;
+      }, "PIN speichern");
+    }, 400);
   }
   function initLogin() {
     var btn = $("#login-btn"); if (!btn) return;
@@ -4518,9 +4727,10 @@
   }
 
   function init() {
-    // Globale Fehlerabfangung: Die App soll nie komplett einfrieren
-    w.addEventListener("error", function (ev) { console.error("Fehler abgefangen:", ev.error || ev.message); });
-    w.addEventListener("unhandledrejection", function (ev) { console.error("Hintergrund-Fehler abgefangen:", ev.reason); });
+    // Globale Fehlerabfangung: Die App soll nie komplett einfrieren; Fehler
+    // werden ohne Secrets protokolliert und mit einer Fehler-ID versehen.
+    w.addEventListener("error", function (ev) { console.error("Fehler abgefangen:", ev.error || ev.message); try { protokolliereFehler(ev.error || { message: ev.message }, "global"); } catch (e) {} });
+    w.addEventListener("unhandledrejection", function (ev) { console.error("Hintergrund-Fehler abgefangen:", ev.reason); try { protokolliereFehler(ev.reason || { message: "unhandledrejection" }, "async"); } catch (e) {} });
 
     $all(".nav li").forEach(function (li) { li.onclick = function () { navTo(li.dataset.page); }; });
     var vtext = (w.PSBUILD && w.PSBUILD.version) ? "Version " + w.PSBUILD.version : "Web-Version";

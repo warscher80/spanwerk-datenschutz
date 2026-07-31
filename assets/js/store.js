@@ -53,7 +53,14 @@
     // Qualifikationen (Phase 7C), vom Admin verwaltbar
     qualifikationen: ["MAG-Schweißen", "WIG-Schweißen", "Edelstahlschweißen", "Laserschneiden", "Abkantpresse", "Stapler", "Kran", "Montage", "Projektleitung", "Qualitätsprüfung"],
     // Dokumentenverwaltung (Phase 7D)
-    dokumentZaehler: 1
+    dokumentZaehler: 1,
+    // Betrieb/Pilot (Phase 9)
+    betrieb: {
+      releaseStufe: "test",           // entwicklung|test|pilot|eingeschraenkt|produktion
+      wartungsmodus: false,
+      backupMeta: { letztes: null, status: "keins", groesseKB: null, aufbewahrungTage: 30, restoreGetestet: false, letzterRestoreTest: null },
+      feedbackZaehler: 1
+    }
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -288,7 +295,7 @@
       } catch (e) { angebote = []; }
     }
     return {
-      version: 8,
+      version: 9,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -309,6 +316,9 @@
       planung: beispielPlanung(auftraegeSeed, settings, mitarbeiter),
       // Dokumente/Zeichnungen/Stücklisten (Phase 7D)
       dokumente: beispielDokumente(kunden, auftraegeSeed),
+      // Betrieb/Pilot (Phase 9): Feedback- und Fehlerprotokoll
+      feedback: [],
+      fehlerlog: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -452,6 +462,15 @@
     // Dokumente (Phase 7D)
     if (!Array.isArray(obj.dokumente)) obj.dokumente = [];
     if (st.dokumentZaehler == null) st.dokumentZaehler = (obj.dokumente.length || 0) + 1;
+    // Betrieb/Pilot (Phase 9)
+    if (!st.betrieb || typeof st.betrieb !== "object") st.betrieb = JSON.parse(JSON.stringify(ds.betrieb));
+    if (st.betrieb.releaseStufe == null) st.betrieb.releaseStufe = "test";
+    if (typeof st.betrieb.wartungsmodus !== "boolean") st.betrieb.wartungsmodus = false;
+    if (!st.betrieb.backupMeta || typeof st.betrieb.backupMeta !== "object") st.betrieb.backupMeta = JSON.parse(JSON.stringify(ds.betrieb.backupMeta));
+    if (st.betrieb.feedbackZaehler == null) st.betrieb.feedbackZaehler = 1;
+    if (!Array.isArray(obj.feedback)) obj.feedback = [];
+    if (!Array.isArray(obj.fehlerlog)) obj.fehlerlog = [];
+    (obj.users || []).forEach(function (u) { if (u && typeof u.pinGeaendert !== "boolean") u.pinGeaendert = false; });
     return obj;
   }
 
