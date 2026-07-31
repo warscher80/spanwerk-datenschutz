@@ -13,6 +13,7 @@
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
   var Ausw = w.Preisschmiede.Auswertung;
+  var Plan = w.Preisschmiede.Planung;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -60,6 +61,7 @@
     dashboard: function () { renderDashboard(); }, stammdaten: function () { renderStammdaten(); },
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
+    planung: function () { renderPlanung(); },
     kundenprojekte: function () { renderKundenProjekte(); },
     konfigurator: function () { renderKonfigurator(); },
     kalkulationen: function () { renderKalkulationen(); },
@@ -487,6 +489,339 @@
     db.auftraege = (db.auftraege || []).filter(function (a) { return !a._testdaten; });
     db.angebote = (db.angebote || []).filter(function (a) { return !a._testdaten; });
     Store.save(); renderStammdaten(); toast("Testdaten entfernt.");
+  }
+
+  // ============================================================
+  //  FERTIGUNGSPLANUNG (Phase 7C)
+  // ============================================================
+  var PLAN_STATUS = ["geplant", "material fehlt", "bereit", "in Arbeit", "pausiert", "Qualitätsprüfung", "fertig", "bereit zur Montage"];
+  var PLAN_VIEWS = [["uebersicht", "📋 Übersicht"], ["maschinen", "🛠️ Maschinen"], ["mitarbeiter", "👷 Team"], ["gantt", "📊 Gantt"], ["kanban", "🗂️ Kanban"], ["montage", "🚚 Montage"], ["werkstatt", "🏭 Werkstatt"]];
+  var planState = { view: "uebersicht", filter: { kommission: "", auftragId: "", maschineId: "", status: "" } };
+
+  function planElemente() { return (db.planung && db.planung.elemente) || (db.planung = db.planung || { elemente: [], versionen: [], benachrichtigungen: [], montage: [] }).elemente; }
+  function planSettings() { return db.settings; }
+  function maschineNameP(id) { var m = (db.settings.maschinen || []).filter(function (x) { return x.id === id; })[0]; return m ? m.name : (id || "—"); }
+  function maNamen(ids) { return (ids || []).map(function (id) { var m = (db.mitarbeiter || []).filter(function (x) { return x.id === id; })[0]; return m ? m.name : id; }).join(", ") || "—"; }
+  function fmtDT(iso) { if (!iso) return "—"; try { var d = new Date(iso); return d.toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return "—"; } }
+  function planAuftragName(id) { var a = (db.auftraege || []).filter(function (x) { return x.id === id; })[0]; return a ? (a.titel || a.nummer || "—") : "—"; }
+
+  function planGefiltert() {
+    var f = planState.filter;
+    return planElemente().filter(function (e) {
+      if (f.kommission && (e.kommission || "").toLowerCase().indexOf(f.kommission.toLowerCase()) < 0) return false;
+      if (f.auftragId && e.auftragId !== f.auftragId) return false;
+      if (f.maschineId && e.maschineId !== f.maschineId) return false;
+      if (f.status && e.status !== f.status) return false;
+      return true;
+    });
+  }
+
+  function renderPlanung() {
+    var root = $("#page-planung .content");
+    if (!Auth.darfFinanzen()) { renderPlanungWerkstatt(root); return; }
+    var alle = planElemente();
+    var konf = Plan.konflikte(alle, db, planSettings());
+    var opt = Plan.ruestOptimierung(alle, db, planSettings());
+    var offeneAuftr = (db.auftraege || []).filter(function (a) { return a.status === "Beauftragt" || a.status === "angelegt"; });
+    // Kopf: Tabs + Aktionen
+    var tabs = PLAN_VIEWS.map(function (v) { return '<button class="btn sm ' + (planState.view === v[0] ? "primary" : "ghost") + '" data-planview="' + v[0] + '" type="button">' + v[1] + "</button>"; }).join(" ");
+    var html = '<div class="card" style="margin-bottom:14px"><div class="btn-row" style="flex-wrap:wrap;gap:6px">' + tabs + "</div>";
+    html += planFilterleiste();
+    html += "</div>";
+    // Konflikt- & Optimierungspanel
+    html += '<div class="grid cols-2" style="align-items:start;margin-bottom:14px">';
+    html += planKonfliktPanel(konf);
+    html += planOptPanel(opt);
+    html += "</div>";
+    // Ansicht
+    if (planState.view === "uebersicht") html += planUebersicht(konf);
+    else if (planState.view === "maschinen") html += planMaschinenbelegung();
+    else if (planState.view === "mitarbeiter") html += planTeambelegung();
+    else if (planState.view === "gantt") html += planGantt(konf);
+    else if (planState.view === "kanban") html += planKanban();
+    else if (planState.view === "montage") html += planMontage();
+    else if (planState.view === "werkstatt") html += planWerkstattVorschau();
+    root.innerHTML = html;
+    verdrahtePlanung(offeneAuftr);
+  }
+
+  function planFilterleiste() {
+    var f = planState.filter;
+    var auftrOpt = '<option value="">Alle Aufträge</option>' + (db.auftraege || []).map(function (a) { return '<option value="' + a.id + '"' + (f.auftragId === a.id ? " selected" : "") + ">" + esc(a.titel || a.nummer) + "</option>"; }).join("");
+    var maschOpt = '<option value="">Alle Maschinen</option>' + (db.settings.maschinen || []).map(function (m) { return '<option value="' + m.id + '"' + (f.maschineId === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("");
+    var statusOpt = '<option value="">Alle Status</option>' + PLAN_STATUS.map(function (s) { return '<option value="' + s + '"' + (f.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+    return '<div class="inline" style="flex-wrap:wrap;gap:8px;margin-top:10px">' +
+      '<input id="plan-komm" placeholder="🔍 Kommission" value="' + esc(f.kommission) + '" style="flex:1;min-width:160px">' +
+      '<select id="plan-auftrag" style="flex:1;min-width:160px">' + auftrOpt + "</select>" +
+      '<select id="plan-maschine" style="flex:1;min-width:140px">' + maschOpt + "</select>" +
+      '<select id="plan-status" style="flex:1;min-width:130px">' + statusOpt + "</select>" +
+      '<button class="btn sm" id="plan-auto" type="button">🤖 Auto-Vorschlag</button>' +
+      '<button class="btn sm ghost" id="plan-export" type="button">⬇️ Export</button>' +
+      "</div>";
+  }
+
+  function planKonfliktPanel(konf) {
+    if (!konf.length) return '<div class="card"><h3>✅ Konflikte</h3><div class="empty">Keine Konflikte im aktuellen Plan.</div></div>';
+    var rows = konf.slice(0, 12).map(function (k) {
+      var ico = k.schwere >= 3 ? "🔴" : k.schwere === 2 ? "🟠" : "🟡";
+      return '<div class="insight"><span class="ico">' + ico + '</span><span>' + esc(k.text) + "</span></div>";
+    }).join("");
+    return '<div class="card"><h3>⚠️ Konflikte <span class="sub">' + konf.length + "</span></h3>" + rows + "</div>";
+  }
+  function planOptPanel(opt) {
+    if (!opt.length) return '<div class="card"><h3>♻️ Rüstoptimierung</h3><div class="empty">Kein Optimierungspotenzial erkannt.</div></div>';
+    var rows = opt.slice(0, 6).map(function (o) { return '<div class="insight"><span class="ico">💡</span><span>' + esc(o.text) + "</span></div>"; }).join("");
+    return '<div class="card"><h3>♻️ Rüstoptimierung</h3>' + rows + "</div>";
+  }
+
+  function konfliktFuer(id, konf) { return konf.filter(function (k) { return (k.elemente || []).indexOf(id) >= 0; }); }
+
+  function planUebersicht(konf) {
+    var list = planGefiltert();
+    if (!list.length) return '<div class="card"><div class="empty">Keine Planungselemente. Erzeuge über „Auto-Vorschlag" eine Planung aus einem beauftragten Auftrag.</div></div>';
+    var rows = list.map(function (e) {
+      var kf = konfliktFuer(e.id, konf);
+      var badge = kf.length ? ' <span class="tag" style="background:#e06666;color:#fff" title="' + esc(kf.map(function (k) { return k.text; }).join("\n")) + '">' + kf.length + " Konflikt" + (kf.length > 1 ? "e" : "") + "</span>" : "";
+      var matBadge = e.material && (e.material.status === "verspätet" || e.material.status === "nicht verfügbar") ? ' <span class="tag" style="background:#e0a000;color:#fff">Material ' + esc(e.material.status) + "</span>" : "";
+      return "<tr><td>" + (e.kommission ? '<span class="tag">' + esc(e.kommission) + "</span>" : "—") + "</td>" +
+        "<td><strong>" + esc(e.bezeichnung || e.arbeitsgang) + "</strong>" + badge + matBadge + '<br><span class="muted" style="font-size:11px">' + esc(planAuftragName(e.auftragId)) + "</span></td>" +
+        "<td>" + esc(maschineNameP(e.maschineId)) + "</td>" +
+        "<td>" + esc(maNamen(e.mitarbeiterIds)) + "</td>" +
+        "<td>" + fmtDT(e.start) + "<br><span class=\"muted\" style=\"font-size:11px\">" + fmtDT(e.ende) + "</span></td>" +
+        '<td class="num">' + fmtZahl(e.planWert || e.dauerStd) + " h</td>" +
+        "<td>" + planStatusBadge(e.status) + "</td>" +
+        '<td class="num"><button class="btn sm ghost" data-planedit="' + e.id + '" type="button">✏️</button></td></tr>';
+    }).join("");
+    return '<div class="card"><h3>Arbeitsgänge <span class="sub">' + list.length + "</span></h3>" +
+      '<div class="table-wrap"><table><thead><tr><th>Kommission</th><th>Arbeitsgang</th><th>Maschine</th><th>Team</th><th>Beginn/Ende</th><th class="num">Dauer</th><th>Status</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+  }
+  function planStatusBadge(s) {
+    var farbe = { "geplant": "#888", "material fehlt": "#e0a000", "bereit": "#3a7", "in Arbeit": "#2b8", "pausiert": "#e0a000", "Qualitätsprüfung": "#5a9", "fertig": "#2fbf71", "bereit zur Montage": "#39c" }[s] || "#888";
+    return '<span class="badge" style="background:' + farbe + ';color:#fff">' + esc(s || "—") + "</span>";
+  }
+
+  function planMaschinenbelegung() {
+    var list = planGefiltert().filter(function (e) { return e.maschineId; });
+    var grp = {};
+    list.forEach(function (e) { (grp[e.maschineId] = grp[e.maschineId] || []).push(e); });
+    var html = '<div class="card"><h3>🛠️ Maschinenbelegung</h3>';
+    (db.settings.maschinen || []).forEach(function (m) {
+      var els = (grp[m.id] || []).sort(function (a, b) { return new Date(a.start || 0) - new Date(b.start || 0); });
+      if (!els.length) return;
+      var kap = Plan.maschineKapazitaetStunden(m);
+      var geplant = els.reduce(function (s, e) { return s + Ausw.num(e.planWert || e.dauerStd); }, 0);
+      html += '<div style="margin:10px 0 4px"><strong>' + esc(m.name) + '</strong> <span class="muted" style="font-size:12px">· ' + esc(m.standort || "") + " · " + fmtZahl(geplant) + " h geplant · Kapazität " + fmtZahl(kap) + " h/Jahr</span></div>";
+      html += '<div class="table-wrap"><table><tbody>' + els.map(function (e) {
+        return "<tr><td>" + (e.kommission ? '<span class="tag">' + esc(e.kommission) + "</span> " : "") + esc(e.bezeichnung || e.arbeitsgang) + "</td><td>" + fmtDT(e.start) + " – " + fmtDT(e.ende) + '</td><td class="num">' + fmtZahl(e.planWert || e.dauerStd) + " h</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    });
+    html += "</div>";
+    return html;
+  }
+
+  function planTeambelegung() {
+    var list = planGefiltert();
+    var grp = {};
+    list.forEach(function (e) { (e.mitarbeiterIds || []).forEach(function (mid) { (grp[mid] = grp[mid] || []).push(e); }); });
+    var html = '<div class="card"><h3>👷 Team- & Mitarbeiterbelegung</h3>';
+    (db.mitarbeiter || []).forEach(function (ma) {
+      var els = (grp[ma.id] || []).sort(function (a, b) { return new Date(a.start || 0) - new Date(b.start || 0); });
+      if (!els.length) return;
+      html += '<div style="margin:10px 0 4px"><strong>' + esc(ma.name) + '</strong> <span class="muted" style="font-size:12px">· ' + esc(ma.team || "") + " · Qualifikationen: " + esc((ma.qualifikationen || []).join(", ") || "—") + "</span></div>";
+      html += '<div class="table-wrap"><table><tbody>' + els.map(function (e) {
+        return "<tr><td>" + esc(e.bezeichnung || e.arbeitsgang) + "</td><td>" + fmtDT(e.start) + " – " + fmtDT(e.ende) + "</td><td>" + esc(maschineNameP(e.maschineId)) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    });
+    if (html.indexOf("<tr>") < 0) html += '<div class="empty">Noch keine Mitarbeiter zugewiesen.</div>';
+    html += "</div>";
+    return html;
+  }
+
+  function planGantt(konf) {
+    var list = planGefiltert().filter(function (e) { return e.start && e.ende; }).sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+    if (!list.length) return '<div class="card"><h3>📊 Gantt</h3><div class="empty">Keine terminierten Arbeitsgänge. Auf kleinen Bildschirmen dient die Übersicht als Liste.</div></div>';
+    var min = Math.min.apply(null, list.map(function (e) { return new Date(e.start).getTime(); }));
+    var max = Math.max.apply(null, list.map(function (e) { return new Date(e.ende).getTime(); }));
+    var span = Math.max(1, max - min);
+    var rows = list.map(function (e) {
+      var l = (new Date(e.start).getTime() - min) / span * 100;
+      var b = Math.max(1.5, (new Date(e.ende).getTime() - new Date(e.start).getTime()) / span * 100);
+      var konfl = konfliktFuer(e.id, konf).length > 0;
+      var farbe = konfl ? "#e06666" : e.typ === "montage" ? "#39c" : "var(--accent, #f5a623)";
+      return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0">' +
+        '<div style="width:150px;flex:none;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(e.bezeichnung || "") + '">' + (e.kommission ? esc(e.kommission) + ": " : "") + esc(e.arbeitsgang) + "</div>" +
+        '<div style="flex:1;position:relative;height:18px;background:var(--panel-2,#f0f0f0);border-radius:4px">' +
+          '<div title="' + esc((e.bezeichnung || "") + " · " + fmtDT(e.start) + "–" + fmtDT(e.ende)) + '" style="position:absolute;left:' + l + "%;width:" + b + "%;top:2px;height:14px;background:" + farbe + ';border-radius:3px"></div>' +
+        "</div></div>";
+    }).join("");
+    return '<div class="card"><h3>📊 Gantt-Ansicht <span class="sub">' + fmtDate(new Date(min).toISOString()) + " – " + fmtDate(new Date(max).toISOString()) + "</span></h3>" +
+      '<div style="overflow-x:auto">' + rows + "</div>" +
+      '<div class="muted" style="font-size:11px;margin-top:6px">Rot = Arbeitsgang mit Konflikt · Blau = Montage. Terminverschiebung über „Übersicht → ✏️".</div></div>';
+  }
+
+  function planKanban() {
+    var list = planGefiltert();
+    var html = '<div class="card"><h3>🗂️ Fertigungs-Kanban</h3><div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px">';
+    PLAN_STATUS.forEach(function (st) {
+      var els = list.filter(function (e) { return (e.status || "geplant") === st || (st === "material fehlt" && e.material && e.material.status === "verspätet" && e.status === "geplant"); });
+      html += '<div style="flex:0 0 220px;min-width:220px"><div style="font-weight:700;font-size:12px;margin-bottom:6px">' + planStatusBadge(st) + " <span class=\"muted\">" + els.length + "</span></div>";
+      html += els.map(function (e) {
+        var kb = e.material && e.material.status === "verspätet" ? '<div style="font-size:10px;color:#e0a000">⚠ Material verspätet</div>' : "";
+        return '<div class="card" style="padding:8px;margin-bottom:6px;cursor:pointer" data-planedit="' + e.id + '"><strong style="font-size:12px">' + esc(e.arbeitsgang) + "</strong>" +
+          (e.kommission ? ' <span class="tag" style="font-size:10px">' + esc(e.kommission) + "</span>" : "") +
+          '<div style="font-size:11px;color:var(--muted,#777)">' + esc(planAuftragName(e.auftragId)) + "</div>" +
+          '<div style="font-size:10px">' + esc(maschineNameP(e.maschineId)) + " · " + fmtZahl(e.planWert || e.dauerStd) + " h · " + fmtDT(e.start) + "</div>" + kb + "</div>";
+      }).join("") || '<div class="muted" style="font-size:11px">—</div>';
+      html += "</div>";
+    });
+    html += "</div></div>";
+    return html;
+  }
+
+  function planMontage() {
+    var list = planGefiltert().filter(function (e) { return e.typ === "montage"; });
+    var html = '<div class="card"><h3>🚚 Montageplanung</h3>';
+    if (!list.length) html += '<div class="empty">Keine Montageeinsätze geplant.</div>';
+    else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Kommission</th><th>Auftrag</th><th>Team</th><th>Beginn</th><th class="num">Dauer</th><th>Material</th><th></th></tr></thead><tbody>';
+      html += list.map(function (e) {
+        return "<tr><td>" + (e.kommission ? '<span class="tag">' + esc(e.kommission) + "</span>" : "—") + "</td><td>" + esc(planAuftragName(e.auftragId)) + "</td><td>" + esc(maNamen(e.mitarbeiterIds)) + "</td><td>" + fmtDT(e.start) + '</td><td class="num">' + fmtZahl(e.planWert || e.dauerStd) + " h</td><td>" + esc((e.material && e.material.status) || "—") + '</td><td class="num"><button class="btn sm ghost" data-planedit="' + e.id + '" type="button">✏️</button></td></tr>';
+      }).join("");
+      html += "</tbody></table></div>";
+    }
+    html += '<div class="muted" style="font-size:11px;margin-top:6px">Montageeinsätze prüfen Team-, Fahrzeug- und Hebegerätverfügbarkeit gegen andere Termine.</div></div>';
+    return html;
+  }
+
+  // Werkstattansicht (auch als eigene Rolle) – KEINE Finanzdaten
+  function planWerkstattVorschau() { return planWerkstattHTML(); }
+  function renderPlanungWerkstatt(root) { root.innerHTML = planWerkstattHTML(); verdrahtePlanungWerkstatt(); }
+  function planWerkstattHTML() {
+    var heute = new Date(); heute.setHours(0, 0, 0, 0);
+    var morgen = new Date(heute.getTime() + 86400000);
+    var alle = planElemente();
+    var heuteEls = alle.filter(function (e) { return e.start && new Date(e.start) >= heute && new Date(e.start) < morgen; });
+    var naechste = alle.filter(function (e) { return e.start && new Date(e.start) >= morgen && (e.status !== "fertig"); }).sort(function (a, b) { return new Date(a.start) - new Date(b.start); }).slice(0, 8);
+    function zeile(e) {
+      var mat = e.material && e.material.status === "verspätet" ? ' <span class="tag" style="background:#e0a000;color:#fff">Material fehlt</span>' : "";
+      return "<tr><td>" + (e.kommission ? '<span class="tag">' + esc(e.kommission) + "</span>" : "—") + "</td>" +
+        "<td><strong>" + esc(e.arbeitsgang) + "</strong>" + mat + "</td>" +
+        "<td>" + esc(maschineNameP(e.maschineId)) + "</td><td>" + esc(maNamen(e.mitarbeiterIds)) + "</td>" +
+        '<td class="num">' + fmtZahl(e.planWert || e.dauerStd) + " h</td><td>" + planStatusBadge(e.status) + "</td>" +
+        '<td class="num"><button class="btn sm primary" data-planstart="' + e.id + '" type="button">▶ Start</button></td></tr>';
+    }
+    var html = '<div class="card"><h3>🏭 Werkstatt – heute</h3>';
+    if (!heuteEls.length) html += '<div class="empty">Für heute sind keine Arbeitsgänge geplant.</div>';
+    else html += '<div class="table-wrap"><table><thead><tr><th>Kommission</th><th>Arbeitsgang</th><th>Maschine</th><th>Team</th><th class="num">Soll</th><th>Status</th><th></th></tr></thead><tbody>' + heuteEls.map(zeile).join("") + "</tbody></table></div>";
+    html += "</div>";
+    html += '<div class="card" style="margin-top:12px"><h3>Nächste Arbeitsgänge</h3>';
+    html += naechste.length ? '<div class="table-wrap"><table><tbody>' + naechste.map(function (e) { return "<tr><td>" + (e.kommission ? '<span class="tag">' + esc(e.kommission) + "</span> " : "") + esc(e.arbeitsgang) + "</td><td>" + fmtDT(e.start) + "</td><td>" + esc(maschineNameP(e.maschineId)) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">—</div>';
+    html += '<div class="muted" style="font-size:11px;margin-top:6px">Werkstattansicht – nur operative Fertigungsdaten, keine vertraulichen Kennzahlen.</div></div>';
+    return html;
+  }
+  function verdrahtePlanungWerkstatt() {
+    $all("[data-planstart]").forEach(function (b) { b.onclick = function () { planStart(b.dataset.planstart); }; });
+  }
+  function planStart(id) {
+    var e = planElemente().filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    e.status = "in Arbeit"; e.startIst = e.startIst || Store.nowISO(); Store.save();
+    toast("Arbeitsgang gestartet – Zeiterfassung läuft.");
+    if (Auth.darfFinanzen()) renderPlanung(); else renderPlanungWerkstatt($("#page-planung .content"));
+  }
+
+  function verdrahtePlanung(offeneAuftr) {
+    $all("[data-planview]").forEach(function (b) { b.onclick = function () { planState.view = b.dataset.planview; renderPlanung(); }; });
+    var pk = $("#plan-komm"); if (pk) pk.addEventListener("input", function () { planState.filter.kommission = this.value; renderPlanung(); });
+    var pa = $("#plan-auftrag"); if (pa) pa.onchange = function () { planState.filter.auftragId = this.value; renderPlanung(); };
+    var pm = $("#plan-maschine"); if (pm) pm.onchange = function () { planState.filter.maschineId = this.value; renderPlanung(); };
+    var pst = $("#plan-status"); if (pst) pst.onchange = function () { planState.filter.status = this.value; renderPlanung(); };
+    var pauto = $("#plan-auto"); if (pauto) pauto.onclick = function () { planAutoDialog(offeneAuftr); };
+    var pexp = $("#plan-export"); if (pexp) pexp.onclick = planExport;
+    $all("[data-planedit]").forEach(function (b) { b.onclick = function () { planElementModal(b.dataset.planedit); }; });
+    $all("[data-planstart]").forEach(function (b) { b.onclick = function () { planStart(b.dataset.planstart); }; });
+  }
+
+  // ---- Element bearbeiten (konfliktgeprüft) -------------------------
+  function planElementModal(id) {
+    var e = planElemente().filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    var maschOpt = '<option value="">— keine —</option>' + (db.settings.maschinen || []).map(function (m) { return '<option value="' + m.id + '"' + (e.maschineId === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("");
+    var maBoxes = (db.mitarbeiter || []).map(function (m) { return '<label class="check"><input type="checkbox" data-planma="' + m.id + '"' + ((e.mitarbeiterIds || []).indexOf(m.id) >= 0 ? " checked" : "") + "> " + esc(m.name) + "</label>"; }).join("");
+    var statusOpt = PLAN_STATUS.map(function (s) { return '<option value="' + s + '"' + (e.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+    var matOpt = ["nicht geprüft", "verfügbar", "teilweise verfügbar", "bestellt", "verspätet", "gesperrt", "nicht verfügbar"].map(function (s) { return '<option value="' + s + '"' + (e.material && e.material.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+    var startVal = e.start ? new Date(e.start).toISOString().slice(0, 16) : "";
+    var body = '<div class="muted" style="font-size:12px">' + esc(e.bezeichnung || e.arbeitsgang) + " · " + esc(planAuftragName(e.auftragId)) + "</div>" +
+      '<div class="inline"><label class="fld"><span class="lbl">Beginn</span><input type="datetime-local" id="pe-start" value="' + startVal + '"></label>' + fld2("Dauer (h)", "pe-dauer", e.planWert || e.dauerStd, "number") + "</div>" +
+      '<div class="inline"><label class="fld"><span class="lbl">Maschine</span><select id="pe-maschine">' + maschOpt + '</select></label><label class="fld"><span class="lbl">Status</span><select id="pe-status">' + statusOpt + "</select></label></div>" +
+      '<label class="fld"><span class="lbl">Materialstatus</span><select id="pe-material">' + matOpt + "</select></label>" +
+      '<div class="inline"><label class="fld"><span class="lbl">Fixtermin (nicht verschiebbar)</span><select id="pe-fix"><option value="0">nein</option><option value="1"' + (e.fixtermin ? " selected" : "") + ">ja</option></select></label></div>" +
+      '<div class="fld"><span class="lbl">Mitarbeiter / Team</span><div class="check-grid">' + maBoxes + "</div></div>";
+    openModal("Arbeitsgang planen", body, function () {
+      var kopie = JSON.parse(JSON.stringify(e));
+      var startISO = $("#pe-start").value ? new Date($("#pe-start").value).toISOString() : null;
+      kopie.start = startISO;
+      kopie.planWert = leseZahl0($("#pe-dauer").value) || kopie.planWert;
+      if (startISO) kopie.ende = Plan.addArbeitsstunden(startISO, kopie.planWert, planSettings()).toISOString();
+      kopie.maschineId = $("#pe-maschine").value || null;
+      kopie.status = $("#pe-status").value;
+      kopie.material = { status: $("#pe-material").value, werkstoff: (e.material || {}).werkstoff };
+      kopie.fixtermin = $("#pe-fix").value === "1"; kopie.verschiebbar = !kopie.fixtermin;
+      kopie.mitarbeiterIds = $all("[data-planma]").filter(function (b) { return b.checked; }).map(function (b) { return b.dataset.planma; });
+      // Konfliktprüfung mit der geänderten Kopie
+      var probe = planElemente().map(function (x) { return x.id === id ? kopie : x; });
+      var neueKonf = Plan.konflikte(probe, db, planSettings()).filter(function (k) { return (k.elemente || []).indexOf(id) >= 0; });
+      if (neueKonf.length && !confirm("Diese Änderung erzeugt Konflikte:\n- " + neueKonf.map(function (k) { return k.text; }).join("\n- ") + "\n\nTrotzdem speichern?")) return false;
+      Object.keys(kopie).forEach(function (k) { e[k] = kopie[k]; });
+      Store.save(); toast("Planung gespeichert."); renderPlanung();
+      return true;
+    });
+  }
+
+  // ---- Automatischer Planungsvorschlag (nicht-destruktiv) ----------
+  function planAutoDialog(offeneAuftr) {
+    if (!offeneAuftr.length) { toast("Keine beauftragten Aufträge zum Einplanen.", "err"); return; }
+    var opt = offeneAuftr.map(function (a) { return '<option value="' + a.id + '">' + esc(a.titel || a.nummer) + (a.kommission ? " · " + esc(a.kommission) : "") + "</option>"; }).join("");
+    var body = '<label class="fld"><span class="lbl">Auftrag</span><select id="pa-auftrag">' + opt + "</select></label>" +
+      '<label class="fld"><span class="lbl">Frühester Start</span><input type="date" id="pa-start" value="' + new Date().toISOString().slice(0, 10) + '"></label>' +
+      '<p class="hint">Der Vorschlag terminiert die Arbeitsgänge nach Ablaufreihenfolge und Maschinenkapazität. Bestehende Planungen werden erst nach ausdrücklicher Übernahme ersetzt.</p>';
+    openModal("Automatischer Planungsvorschlag", body, function () {
+      var aid = $("#pa-auftrag").value;
+      var a = (db.auftraege || []).filter(function (x) { return x.id === aid; })[0]; if (!a) return false;
+      var startAb = $("#pa-start").value ? new Date($("#pa-start").value + "T07:00:00").toISOString() : null;
+      // vorhandene Elemente dieses Auftrags oder neu aus Kalkulation
+      var bestehend = planElemente().filter(function (e) { return e.auftragId === aid; });
+      var basis = bestehend.length ? JSON.parse(JSON.stringify(bestehend)) : Plan.planAusAuftrag(a, db, planSettings());
+      var vor = Plan.autoPlan(basis, db, planSettings(), startAb);
+      if (!vor.ok) { toast(vor.grund, "err"); return false; }
+      // Zweites Modal (Vorschlag) ersetzt den Inhalt – nicht automatisch schließen,
+      // sonst würde das gerade geöffnete Vorschlagsmodal wieder versteckt.
+      planVorschlagAnzeigen(a, vor, bestehend.length > 0);
+      return false;
+    }, "Vorschlag erstellen");
+  }
+  function planVorschlagAnzeigen(auftrag, vor, ersetzt) {
+    var rows = vor.elemente.map(function (e) {
+      var kf = (vor.konflikte || []).filter(function (k) { return (k.elemente || []).indexOf(e.id) >= 0; });
+      return "<tr><td>" + esc(e.arbeitsgang) + "</td><td>" + esc(maschineNameP(e.maschineId)) + "</td><td>" + fmtDT(e.start) + "</td><td>" + fmtDT(e.ende) + "</td><td>" + (kf.length ? '<span style="color:#e06666">' + kf.length + " ⚠</span>" : "✓") + "</td></tr>";
+    }).join("");
+    var konfHinweis = (vor.konflikte && vor.konflikte.length) ? '<div class="fehler-box" style="margin-top:8px">' + vor.konflikte.length + " Konflikt(e) im Vorschlag: " + esc(vor.konflikte.slice(0, 4).map(function (k) { return k.text; }).join(" · ")) + "</div>" : '<div class="muted" style="font-size:12px;margin-top:6px">Keine Konflikte im Vorschlag.</div>';
+    var body = '<p class="muted" style="font-size:12px">' + esc(vor.grund) + "</p>" +
+      '<div class="table-wrap"><table><thead><tr><th>Arbeitsgang</th><th>Maschine</th><th>Beginn</th><th>Ende</th><th>Konflikt</th></tr></thead><tbody>' + rows + "</tbody></table></div>" + konfHinweis;
+    openModal("Vorschlag für " + (auftrag.titel || auftrag.nummer), body, function () {
+      // Übernehmen: bestehende Elemente des Auftrags ersetzen, Version protokollieren
+      db.planung.elemente = planElemente().filter(function (e) { return e.auftragId !== auftrag.id; }).concat(vor.elemente);
+      (db.planung.versionen = db.planung.versionen || []).push({ datum: Store.nowISO(), benutzer: (Auth.current() || {}).benutzername || "", auftragId: auftrag.id, grund: "Automatischer Planungsvorschlag übernommen", anzahl: vor.elemente.length });
+      (db.planung.benachrichtigungen = db.planung.benachrichtigungen || []).push({ id: Store.uid(), typ: "planaenderung", text: "Planung für " + (auftrag.titel || auftrag.nummer) + " aktualisiert.", datum: Store.nowISO(), gelesen: false });
+      Store.save(); toast("Planungsvorschlag übernommen."); planState.filter.auftragId = auftrag.id; renderPlanung();
+      return true;
+    }, "Vorschlag übernehmen");
+  }
+
+  function planExport() {
+    var list = planGefiltert();
+    var zeilen = [["Kommission", "Auftrag", "Arbeitsgang", "Maschine", "Team", "Beginn", "Ende", "Dauer_h", "Status", "Material"]].concat(list.map(function (e) {
+      return [e.kommission, planAuftragName(e.auftragId), e.arbeitsgang, maschineNameP(e.maschineId), maNamen(e.mitarbeiterIds), e.start || "", e.ende || "", e.planWert || e.dauerStd, e.status, (e.material && e.material.status) || ""];
+    }));
+    csvDownload("Fertigungsplan.csv", "Fertigungsplan;Erstellt: " + fmtDateTime(new Date().toISOString()) + ";Filter Kommission: " + (planState.filter.kommission || "alle"), zeilen);
   }
 
   function stat(label, value, cls, delta) {

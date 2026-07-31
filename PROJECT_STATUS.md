@@ -4,7 +4,7 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: Umsetzung **Phase 7A (Management-Dashboard)** abgeschlossen.
+Letzte Aktualisierung: Umsetzung **Phase 7C (Fertigungsplanung)** abgeschlossen.
 
 ---
 
@@ -354,6 +354,72 @@ gespeicherten Daten berechnet – keine fest verdrahteten oder zufälligen Werte
   Ist-Zeiten der Aufträge. Personen-/Gehaltsauswertungen bewusst nicht
   enthalten. Standort-Filter mangels Standortdaten nicht aktiv.
 
+## Phase 7C – Fertigungsplanung, Kapazitäten & Terminübersicht – ERLEDIGT ✅
+
+**Neue Datei**
+- `assets/js/planung.js` – reine, testbare Planungs-Engine (keine
+  DOM-Zugriffe): österreichische **Feiertage** (Ostercomputus, konfigurierbar),
+  Arbeitstage/Schichtmodell, arbeitszeitkonformes Terminieren
+  (`addArbeitsstunden` überspringt Nächte/Wochenenden/Feiertage),
+  Maschinen- und Mitarbeiterkapazität, **Abhängigkeiten** (ES/SS/EE + Puffer)
+  mit **Zyklusprüfung** (topologische Sortierung), **Konflikterkennung**
+  (Maschinen-/Mitarbeiter-/Fahrzeug-/Hebegerät-Doppelbelegung, Qualifikation,
+  Abwesenheit, Maschinenberechtigung, Mindestbesetzung, Abhängigkeits­verletzung,
+  Materialrisiko, gefährdeter Liefertermin), **automatischer Planungsvorschlag**
+  (Vorwärtsterminierung, nicht-destruktiv, begründet), **Rüstoptimierung**
+  (Gruppierung nach Maschine+Material, nachvollziehbare Ersparnis),
+  gewichteter **Fortschritt**, **Terminprognose** (als Schätzung
+  gekennzeichnet), Plan-Ist-Vergleich.
+
+**Datenmodell** (`store.js`, `version: 7`)
+- `settings.planung` (Schicht/Arbeitstage/Feiertage), `settings.qualifikationen`.
+- Maschinen um `maxParallel`, `standort`, `alternativMaschinen`, `qualifikation`
+  erweitert; Mitarbeiter um `qualifikationen`, `abwesenheiten` (ohne
+  medizinische Details), `maschinenberechtigungen`, `team`, `standort`.
+- `db.planung` { elemente, versionen, benachrichtigungen, montage }.
+- **Beispielplanung mit bewusst erzeugten Konflikten** (Maschinen- und
+  Mitarbeiter-Doppelbelegung, verspätetes Material, gefährdeter Liefertermin,
+  Alternativmaschine, Rüstoptimierungspotenzial).
+
+**Umgesetzt (UI)**
+- Eigene Seite **Planung** mit Ansichten: Übersicht, Maschinenbelegung,
+  Team-/Mitarbeiterbelegung, **Gantt-lite**, **Kanban** (8 Fertigungsstatus),
+  Montageplanung, **Werkstattansicht**.
+- Zentrale Filterleiste; die **Kommission ist in allen Ansichten sichtbar und
+  durchsuchbar**.
+- **Konfliktpanel** (priorisiert) und **Rüstoptimierungs-Panel** aus realen
+  Plandaten.
+- **Automatischer Planungsvorschlag** je Auftrag mit Vorschau (Start/Ende/
+  Maschine/Konflikte/Begründung) – wird **erst nach ausdrücklicher Übernahme**
+  wirksam, legt eine **Planungsversion** an.
+- **Konfliktgeprüftes Verschieben/Zuweisen** eines Arbeitsgangs (Termin, Dauer,
+  Maschine, Team, Status, Material, Fixtermin); erzeugt eine Änderung Konflikte,
+  wird ausdrücklich rückgefragt.
+- **Werkstattansicht** (auch als eigene Rolle Fertigung/Montage): heutige und
+  nächste Arbeitsgänge mit Start-Schaltfläche für die Zeiterfassung – **ohne
+  vertrauliche Kalkulations-/Gewinn-/Deckungsbeitragsdaten**.
+- CSV-Export des Fertigungsplans (mit Filter/Zeitstempel).
+
+**Erfolgreiche Tests**
+- Engine (`scratchpad/p7c.js`): **37/37** – Kapazität, Maschinen-/Mitarbeiter-/
+  Fahrzeug-Doppelbelegung, Qualifikation, Abwesenheit, Schichtmodell, Feiertag
+  (Computus), Abhängigkeitsverletzung, **Zyklusverhinderung**, Material,
+  Planung aus Kalkulation, **Kalkulation bleibt unverändert**, Drag-/Move-
+  Konfliktprüfung, Auto-Vorschlag (Reihenfolge/Begründung), Alternativmaschine,
+  Rüstoptimierung, Montage-/Fahrzeugkonflikt, gewichteter Fortschritt,
+  Terminprognose, Plan-Ist, Fixtermin, Kommission je Element, Seed-Konflikte.
+- UI/E2E (`scratchpad/p7c-e2e.js`): 7 Ansichten, Konflikt-/Optimierungspanel,
+  Kommission durchsuchbar, Kanban, Element-Editor, Auto-Vorschlag +
+  Versionierung, Export, **Werkstatt ohne vertrauliche Kennzahlen**, mobil
+  ohne Überlauf. Keine JS-Fehler.
+
+**Bekannte Einschränkungen**
+- Terminverschiebung erfolgt über einen konfliktgeprüften Editor (funktional
+  äquivalent), **echtes Pixel-Drag-and-drop im Gantt** und Zoom-Stufen sind
+  noch nicht umgesetzt. Feiertage/Schicht sind konfigurierbar hinterlegt, eine
+  eigene Verwaltungs-UI dafür folgt. Benachrichtigungen sind intern gespeichert
+  (kein Push/SMS/E-Mail – bewusst als spätere Erweiterung vorbereitet).
+
 ## Nächster Schritt
 
 **Phase 7B – Materialpreisimporte, Lieferantenschnittstellen & ERP-
@@ -361,10 +427,11 @@ Vorbereitung:** CSV-/XLSX-Importzentrale mit Spaltenzuordnung, Validierung,
 Preisversionierung/-freigabe und Importprofilen; modulare SupplierAdapter
 (Frankstahl u. a.) und KingBill-Dateiexport – nicht konfigurierte Live-APIs
 werden eindeutig als „Dateiimport/-export" gekennzeichnet, keine
-vorgetäuschte Live-Schnittstelle, kein Web-Scraping.
+vorgetäuschte Live-Schnittstelle, kein Web-Scraping. Danach: Zeichnungs-/
+Stücklistenimport und abschließender Gesamtcheck.
 
 **Weiterhin offen (formal):** Phase 5 (dedizierte mobile Zeiterfassung &
 Nachkalkulations-Tabellen) und Phase 6 (statistische Lernfunktion, regel-
 basiert, ohne externe KI). Eine Legacy-Variante beider Bereiche
 (Ist-Zeiterfassung je Auftragsposition, Erkenntnis-/Korrekturfaktoren) ist
-bereits vorhanden und speist das Dashboard.
+bereits vorhanden und speist Dashboard und Planung.

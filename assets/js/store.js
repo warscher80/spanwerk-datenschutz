@@ -23,14 +23,15 @@
     // Maschinen: Maschinenstundensatz (€/h) + Rüstung. Die Rüstkosten je
     // Auftrag ergeben sich aus Rüstzeit (h) × Rüstkostensatz (€/h) + fixen
     // Rüstkosten (€). Zugeordnet zu einem Arbeitsschritt (schritt-Key).
-    // Kapazität (arbeitstage, stundenProTag, wartungStunden) für Auslastungsanalyse
+    // Kapazität (arbeitstage, stundenProTag, wartungStunden) für Auslastungsanalyse;
+    // maxParallel/standort/alternativMaschinen/qualifikation für die Fertigungsplanung (7C)
     maschinen: [
-      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestzeitStd: 0.15, ruestkostensatz: 40, fixeRuestkosten: 2,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 30 },
-      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestzeitStd: 0.30, ruestkostensatz: 60, fixeRuestkosten: 12, arbeitstage: 220, stundenProTag: 8, wartungStunden: 60 },
-      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestzeitStd: 0.25, ruestkostensatz: 55, fixeRuestkosten: 6,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 40 },
-      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestzeitStd: 0.10, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20 },
-      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20 },
-      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 15 }
+      { id: "m-saege",    name: "Säge",            schritt: "zuschnitt",  stundensatz: 22, ruestzeitStd: 0.15, ruestkostensatz: 40, fixeRuestkosten: 2,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 30, maxParallel: 1, standort: "Halle 1", alternativMaschinen: [], qualifikation: "" },
+      { id: "m-laser",    name: "Laser",           schritt: "lasern",     stundensatz: 95, ruestzeitStd: 0.30, ruestkostensatz: 60, fixeRuestkosten: 12, arbeitstage: 220, stundenProTag: 8, wartungStunden: 60, maxParallel: 1, standort: "Halle 1", alternativMaschinen: ["m-saege"], qualifikation: "Laserschneiden" },
+      { id: "m-abkant",   name: "Abkantpresse",    schritt: "biegen",     stundensatz: 70, ruestzeitStd: 0.25, ruestkostensatz: 55, fixeRuestkosten: 6,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 40, maxParallel: 1, standort: "Halle 1", alternativMaschinen: [], qualifikation: "Abkantpresse" },
+      { id: "m-bohr",     name: "Bohrmaschine",    schritt: "bohren",     stundensatz: 18, ruestzeitStd: 0.10, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20, maxParallel: 2, standort: "Halle 1", alternativMaschinen: [], qualifikation: "" },
+      { id: "m-schweiss", name: "Schweißgerät",    schritt: "schweissen", stundensatz: 14, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 20, maxParallel: 3, standort: "Halle 2", alternativMaschinen: [], qualifikation: "MAG-Schweißen" },
+      { id: "m-schleif",  name: "Schleifmaschine", schritt: "schleifen",  stundensatz: 10, ruestzeitStd: 0.05, ruestkostensatz: 40, fixeRuestkosten: 1,  arbeitstage: 220, stundenProTag: 8, wartungStunden: 15, maxParallel: 2, standort: "Halle 2", alternativMaschinen: [], qualifikation: "" }
     ],
     materialAufschlag: 12,  // % auf Materialeinkauf
     gemeinkosten: 14,       // % auf Selbstkosten
@@ -46,7 +47,11 @@
     // Toleranzgrenzen für den Soll-Ist-Vergleich (Phase 5)
     toleranzen: { gruen: 5, gelb: 15 },
     // Angebots-Nummernkreis (Phase 4), konfigurierbar
-    angebotNummernkreis: { praefix: "AN", jahr: null, laufend: 1, mindestlaenge: 4, jaehrlicherNeustart: true }
+    angebotNummernkreis: { praefix: "AN", jahr: null, laufend: 1, mindestlaenge: 4, jaehrlicherNeustart: true },
+    // Fertigungsplanung (Phase 7C): Schicht-/Arbeitszeitmodell + Feiertage
+    planung: { schichtStunden: 8, schichtStart: 7, arbeitstage: [1, 2, 3, 4, 5], feiertageAktiv: true, feiertage: [], pufferStd: 0 },
+    // Qualifikationen (Phase 7C), vom Admin verwaltbar
+    qualifikationen: ["MAG-Schweißen", "WIG-Schweißen", "Edelstahlschweißen", "Laserschneiden", "Abkantpresse", "Stapler", "Kran", "Montage", "Projektleitung", "Qualitätsprüfung"]
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -80,10 +85,10 @@
     { name: "MetallProfi", kundennummer: "", ansprechpartner: "", tel: "", email: "", web: "", notiz: "Beschläge & Befestigung" }
   ];
   var SEED_MITARBEITER = [
-    { name: "Nico Warscher", gruppe: "projektleitung", stundensatz: 78, aktiv: true },
-    { name: "CAD / Planung", gruppe: "cad", stundensatz: 65, aktiv: true },
-    { name: "Werkstatt 1", gruppe: "fertigung", stundensatz: 58, aktiv: true },
-    { name: "Monteur 1", gruppe: "montage", stundensatz: 62, aktiv: true }
+    { name: "Nico Warscher", gruppe: "projektleitung", stundensatz: 78, aktiv: true, team: "Leitung", standort: "Halle 1", qualifikationen: ["Projektleitung", "Qualitätsprüfung", "Montage"], maschinenberechtigungen: [], abwesenheiten: [], maxStundenProTag: 8 },
+    { name: "CAD / Planung", gruppe: "cad", stundensatz: 65, aktiv: true, team: "Büro", standort: "Halle 1", qualifikationen: ["Laserschneiden"], maschinenberechtigungen: ["m-laser"], abwesenheiten: [], maxStundenProTag: 8 },
+    { name: "Werkstatt 1", gruppe: "fertigung", stundensatz: 58, aktiv: true, team: "Fertigung A", standort: "Halle 2", qualifikationen: ["MAG-Schweißen", "WIG-Schweißen", "Abkantpresse"], maschinenberechtigungen: ["m-schweiss", "m-abkant", "m-saege"], abwesenheiten: [], maxStundenProTag: 8 },
+    { name: "Monteur 1", gruppe: "montage", stundensatz: 62, aktiv: true, team: "Montage 1", standort: "Baustelle", qualifikationen: ["Montage", "Stapler"], maschinenberechtigungen: [], abwesenheiten: [], maxStundenProTag: 8 }
   ];
   var SEED_KUNDEN = [
     { name: "Muster Bau GmbH", ansprechpartner: "Herr Huber", strasse: "Industriestraße 5", plzOrt: "9500 Villach", tel: "04242 12345", email: "office@musterbau.at", notiz: "Gewerbekunde" },
@@ -129,6 +134,7 @@
   // und Kalkulationsgenauigkeit zeigen kann. Datumswerte relativ zu heute.
   function beispielAuftraege(kunden) {
     function vorTagen(t) { var d = new Date(); d.setDate(d.getDate() - t); return d.toISOString(); }
+    function inTagen(t) { var d = new Date(); d.setDate(d.getDate() + t); return d.toISOString(); }
     function pos(produktKey, netto, soll, ist) { return [{ produktKey: produktKey, label: null, kalk: { zeiten: soll, netto: netto }, ist: ist ? { zeiten: ist, erfasstAm: vorTagen(2) } : null }]; }
     function auftrag(o) {
       return Object.assign({
@@ -147,8 +153,10 @@
       auftrag({ titel: "Stahltreppe Wohnhaus Berger", gruppeKey: "treppen", kundeId: k1, kommission: "Wohnhaus Berger", status: "Abgeschlossen", erstellt: vorTagen(38), netto: 8600, selbst: 6400, db: 2200, gewinn: 1400, stunden: 92,
         soll: { cad: 8, zuschnitt: 6, lasern: 5, biegen: 4, schweissen: 40, schleifen: 12, montage: 17 },
         ist:  { cad: 10, zuschnitt: 7, lasern: 5, biegen: 5, schweissen: 49, schleifen: 15, montage: 21 } }),
-      auftrag({ titel: "Doppelstabzaun Grundstück Nord", gruppeKey: "zaeune", kundeId: k2, kommission: "GST Nord", status: "Beauftragt", erstellt: vorTagen(9), netto: 5300, selbst: 3900, db: 1400, gewinn: 900, stunden: 34,
-        soll: { cad: 3, zuschnitt: 8, schweissen: 10, oberflaeche: 4, montage: 9 }, ist: null }),
+      Object.assign(auftrag({ titel: "Doppelstabzaun Grundstück Nord", gruppeKey: "zaeune", kundeId: k2, kommission: "GST Nord", status: "Beauftragt", erstellt: vorTagen(9), netto: 5300, selbst: 3900, db: 1400, gewinn: 900, stunden: 34,
+        soll: { cad: 3, zuschnitt: 8, schweissen: 10, oberflaeche: 4, montage: 9 }, ist: null }), { liefertermin: inTagen(4), prioritaet: 1 }),
+      Object.assign(auftrag({ titel: "Edelstahlgeländer Stiege West", gruppeKey: "gelaender", kundeId: k1, kommission: "Stiege West", status: "Beauftragt", erstellt: vorTagen(5), netto: 6100, selbst: 4400, db: 1700, gewinn: 1050, stunden: 40,
+        soll: { cad: 5, zuschnitt: 6, lasern: 4, biegen: 4, schweissen: 12, schleifen: 5, montage: 4 }, ist: null }), { liefertermin: inTagen(12), prioritaet: 2 }),
       auftrag({ titel: "Blechkassetten Serie 40 Stk.", gruppeKey: "blecharbeiten", kundeId: k0, kommission: "Serie B40", status: "Abgeschlossen", erstellt: vorTagen(24), netto: 3100, selbst: 2350, db: 750, gewinn: 480, stunden: 28,
         soll: { cad: 3, lasern: 8, biegen: 10, schleifen: 4, verpackung: 3 },
         ist:  { cad: 3, lasern: 8, biegen: 10, schleifen: 4, verpackung: 3 } }),
@@ -157,6 +165,38 @@
         ist:  { cad: 18, zuschnitt: 7, lasern: 4, biegen: 8, schweissen: 44, schleifen: 12, montage: 20 },
         fremd: [{ bezeichnung: "Glasfüllungen (Zukauf)", betrag: 900 }] })
     ];
+  }
+
+  // Beispiel-Fertigungsplanung mit bewusst erzeugten Konflikten
+  // (Maschinen-/Mitarbeiter-Doppelbelegung, verspätetes Material,
+  // gefährdeter Liefertermin, Rüstoptimierungspotenzial).
+  function beispielPlanung(auftraege, settings, mitarbeiter) {
+    var P = w.Preisschmiede && w.Preisschmiede.Planung;
+    var basis = { elemente: [], versionen: [], benachrichtigungen: [], montage: [] };
+    if (!P) return basis;
+    try {
+      var offene = auftraege.filter(function (a) { return a.status === "Beauftragt"; });
+      if (!offene.length) offene = auftraege.slice(0, 2);
+      var start = new Date(); start.setHours(7, 0, 0, 0);
+      var ctx = { settings: settings, auftraege: auftraege, mitarbeiter: mitarbeiter };
+      var alle = [];
+      // Jeder Auftrag getrennt ab demselben Start eingeplant → realistische
+      // Maschinenüberschneidungen zwischen den Aufträgen.
+      offene.slice(0, 2).forEach(function (a) {
+        var els = P.planAusAuftrag(a, ctx, settings);
+        var vor = P.autoPlan(els, ctx, settings, start.toISOString());
+        if (vor.ok) alle = alle.concat(vor.elemente);
+      });
+      var fert = mitarbeiter[2], mont = mitarbeiter[3];
+      alle.forEach(function (e) {
+        if (["schweissen", "biegen", "zuschnitt", "lasern"].indexOf(e.arbeitsgang) >= 0 && fert) e.mitarbeiterIds = [fert.id];
+        if (e.typ === "montage" && mont) e.mitarbeiterIds = [mont.id];
+        if (["lasern", "zuschnitt"].indexOf(e.arbeitsgang) >= 0) e.ruestMerkmale = { material: "Edelstahl", staerke: 3 };
+      });
+      if (alle[0]) alle[0].material = { status: "verspätet", werkstoff: "Edelstahl" };
+      var benach = [{ id: uid(), typ: "zuweisung", text: "Neue Fertigungsplanung wurde erstellt (" + alle.length + " Arbeitsgänge).", datum: nowISO(), gelesen: false }];
+      return { elemente: alle, versionen: [], benachrichtigungen: benach, montage: [] };
+    } catch (e) { return basis; }
   }
 
   function fresh() {
@@ -182,6 +222,7 @@
       kommission: "BV Musterstraße", status: "Aktiv", notiz: "", erstellt: nowISO()
     }];
     var settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    var auftraegeSeed = beispielAuftraege(kunden);
     // Produktkonfigurator: Produktgruppen, Vorlagen und Beispielkonfigurationen
     var V = w.Preisschmiede && w.Preisschmiede.Vorlagen;
     var produktgruppen = V ? JSON.parse(JSON.stringify(V.SEED_PRODUKTGRUPPEN)) : [];
@@ -217,7 +258,7 @@
       } catch (e) { angebote = []; }
     }
     return {
-      version: 6,
+      version: 7,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -233,7 +274,9 @@
       konfigurationen: konfigurationen,
       // benutzerdefinierte Untergruppen je Produkt, z. B. { zaun: ["Doppelstabmattenzaun", ...] }
       untergruppen: {},
-      auftraege: beispielAuftraege(kunden),
+      auftraege: auftraegeSeed,
+      // Fertigungsplanung (Phase 7C)
+      planung: beispielPlanung(auftraegeSeed, settings, mitarbeiter),
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -275,6 +318,11 @@
       if (typeof m.arbeitstage !== "number") m.arbeitstage = 220;
       if (typeof m.stundenProTag !== "number") m.stundenProTag = 8;
       if (typeof m.wartungStunden !== "number") m.wartungStunden = 0;
+      // Planungsfelder (Phase 7C)
+      if (typeof m.maxParallel !== "number") m.maxParallel = 1;
+      if (m.standort == null) m.standort = "";
+      if (!Array.isArray(m.alternativMaschinen)) m.alternativMaschinen = [];
+      if (m.qualifikation == null) m.qualifikation = "";
       delete m.ruestkosten;
     });
     if (st.projektZaehler == null) st.projektZaehler = 1;
@@ -314,6 +362,16 @@
     // Neue Verwaltungs-Entitäten (Betriebsverwaltung)
     if (!Array.isArray(obj.lieferanten)) obj.lieferanten = SEED_LIEFERANTEN.map(function (l) { return Object.assign({ id: uid() }, l); });
     if (!Array.isArray(obj.mitarbeiter)) obj.mitarbeiter = SEED_MITARBEITER.map(function (m) { return Object.assign({ id: uid() }, m); });
+    // Planungsfelder für Mitarbeiter (Phase 7C)
+    obj.mitarbeiter.forEach(function (m) {
+      if (!m) return;
+      if (!Array.isArray(m.qualifikationen)) m.qualifikationen = [];
+      if (!Array.isArray(m.abwesenheiten)) m.abwesenheiten = [];
+      if (!Array.isArray(m.maschinenberechtigungen)) m.maschinenberechtigungen = [];
+      if (m.team == null) m.team = "";
+      if (m.standort == null) m.standort = "";
+      if (m.maxStundenProTag == null) m.maxStundenProTag = 8;
+    });
     if (!Array.isArray(obj.projekte)) obj.projekte = [];
     // Produktkonfigurator (Phase 3A)
     var Vor = w.Preisschmiede && w.Preisschmiede.Vorlagen;
@@ -350,6 +408,15 @@
         }];
       }
     });
+    // Fertigungsplanung (Phase 7C)
+    if (!st.planung || typeof st.planung !== "object") st.planung = JSON.parse(JSON.stringify(ds.planung));
+    Object.keys(ds.planung).forEach(function (k) { if (st.planung[k] == null) st.planung[k] = JSON.parse(JSON.stringify(ds.planung[k])); });
+    if (!Array.isArray(st.qualifikationen)) st.qualifikationen = ds.qualifikationen.slice();
+    if (!obj.planung || typeof obj.planung !== "object") obj.planung = { elemente: [], versionen: [], benachrichtigungen: [], montage: [] };
+    if (!Array.isArray(obj.planung.elemente)) obj.planung.elemente = [];
+    if (!Array.isArray(obj.planung.versionen)) obj.planung.versionen = [];
+    if (!Array.isArray(obj.planung.benachrichtigungen)) obj.planung.benachrichtigungen = [];
+    if (!Array.isArray(obj.planung.montage)) obj.planung.montage = [];
     return obj;
   }
 
