@@ -9,6 +9,7 @@
   var Calc = w.Preisschmiede.Calc;
   var Konfig = w.Preisschmiede.Konfigurator;
   var Kalk = w.Preisschmiede.Kalkulation;
+  var Angebot = w.Preisschmiede.Angebot;
   var Products = w.Preisschmiede.Products;
   var Datanorm = w.Preisschmiede.Datanorm;
   var SCHRITTE = Products.SCHRITTE;
@@ -60,7 +61,8 @@
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
     kundenprojekte: function () { renderKundenProjekte(); },
     konfigurator: function () { renderKonfigurator(); },
-    kalkulationen: function () { renderKalkulationen(); }
+    kalkulationen: function () { renderKalkulationen(); },
+    angebote: function () { renderAngebote(); }
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
@@ -1189,6 +1191,403 @@
     });
   }
   function num(x) { var v = parseFloat(x); return isFinite(v) ? v : 0; }
+
+  // ============================================================
+  //  ANGEBOTE (Phase 4)
+  // ============================================================
+  var angebotState = null; // { id, view }
+  var angebotFilter = { suche: "", status: "" };
+  var ANG_STATUS = ["Entwurf", "interne Prüfung", "freigegeben", "versendet", "angesehen", "in Verhandlung", "angenommen", "teilweise angenommen", "abgelehnt", "abgelaufen", "storniert", "in Auftrag umgewandelt"];
+
+  function angebotById(id) { return (db.angebote || []).filter(function (a) { return a.id === id; })[0] || null; }
+  function angebotKontext(a) {
+    var kunde = (db.kunden || []).filter(function (k) { return k.id === a.kundeId; })[0] || {};
+    var projekt = (db.projekte || []).filter(function (p) { return p.id === a.projektId; })[0];
+    var erstellt = a.erstellt ? new Date(a.erstellt) : new Date();
+    var gueltig = new Date(erstellt.getTime()); gueltig.setDate(gueltig.getDate() + (a.gueltigTage || 30));
+    return { firma: db.settings.firma, kunde: kunde, kundeName: kunde.name || "", ansprechpartner: a.ansprechpartner || (kunde.ansprechpartner || ""), projekt: projekt ? projekt.name : "", datum: fmtDate(a.erstellt), gueltigBis: gueltig.toLocaleDateString("de-AT"), fmtEUR: fmtEUR };
+  }
+  function naechsteAngebotNr() {
+    var nk = db.settings.angebotNummernkreis || { praefix: "AN", laufend: 1, mindestlaenge: 4 };
+    return Angebot.naechsteNummer({ praefix: nk.praefix, jahr: new Date().getFullYear(), laufend: nk.laufend, mindestlaenge: nk.mindestlaenge });
+  }
+
+  function renderAngebote() {
+    if (angebotState && angebotById(angebotState.id)) { if (angebotState.view === "detail") angebotDetail(angebotState.id); else angebotEditor(angebotState.id); }
+    else { angebotState = null; renderAngebotListe(); }
+  }
+  function renderAngebotListe() {
+    var root = $("#page-angebote .content");
+    var liste = db.angebote || (db.angebote = []);
+    var offen = 0, angenommen = 0, abgelehnt = 0, entschieden = 0, gewonnen = 0;
+    liste.forEach(function (a) { var s = Angebot.summen(a); if (/angenommen/.test(a.status) || a.status === "in Auftrag umgewandelt") { angenommen += s.netto; entschieden++; gewonnen++; } else if (a.status === "abgelehnt") { abgelehnt += s.netto; entschieden++; } else if (a.status !== "storniert") offen += s.netto; });
+    var quote = entschieden > 0 ? Math.round(gewonnen / entschieden * 100) : 0;
+    var statusOpt = '<option value="">Alle Status</option>' + ANG_STATUS.map(function (s) { return '<option value="' + s + '"' + (angebotFilter.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("");
+    var html = '<div class="grid cols-4" style="margin-bottom:14px">' +
+      stat("Offene Angebote", fmtEUR(offen), "", "Netto") + stat("Angenommen", fmtEUR(angenommen), "", "Netto") +
+      stat("Abgelehnt", fmtEUR(abgelehnt), "", "Netto") + stat("Abschlussquote", quote + " %", "", entschieden + " entschieden") + "</div>";
+    html += '<div class="card"><div class="btn-row" style="margin-bottom:10px"><button class="btn primary sm" id="btn-ang-neu" type="button">+ Neues Angebot</button>' +
+      (Auth.darf("textbausteine") ? ' <button class="btn sm" id="btn-textbausteine" type="button">📝 Textbausteine</button>' : "") + "</div>" +
+      '<div class="inline" style="margin-bottom:10px"><input id="ang-suche" placeholder="🔍 Nr., Kunde, Kommission, Bezeichnung" value="' + esc(angebotFilter.suche) + '" style="flex:2"><select id="ang-status" style="flex:1;min-width:150px">' + statusOpt + "</select></div>" +
+      '<div id="ang-liste"></div></div>';
+    root.innerHTML = html;
+    $("#btn-ang-neu").onclick = function () { angebotNeuDialog(); };
+    var bt = $("#btn-textbausteine"); if (bt) bt.onclick = function () { renderTextbausteine(); };
+    $("#ang-suche").addEventListener("input", function () { angebotFilter.suche = this.value; zeichneAngebotListe(); });
+    $("#ang-status").addEventListener("change", function () { angebotFilter.status = this.value; zeichneAngebotListe(); });
+    zeichneAngebotListe();
+  }
+  function zeichneAngebotListe() {
+    var ziel = $("#ang-liste"); if (!ziel) return;
+    var suche = (angebotFilter.suche || "").toLowerCase().trim();
+    var liste = (db.angebote || []).filter(function (a) {
+      if (angebotFilter.status && a.status !== angebotFilter.status) return false;
+      if (!suche) return true;
+      return [a.nummer, a.bezeichnung, a.kommission, kundeName(a.kundeId)].filter(Boolean).join(" ").toLowerCase().indexOf(suche) >= 0;
+    });
+    if (!liste.length) { ziel.innerHTML = '<div class="empty">Keine Angebote. Erstelle eines aus einer freigegebenen Kalkulation.</div>'; return; }
+    var html = '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Bezeichnung</th><th>Kunde</th><th>Kommission</th><th class="num">Netto</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.slice().reverse().forEach(function (a) {
+      var s = Angebot.summen(a);
+      html += "<tr><td>" + esc(a.nummer) + (a.version > 1 ? " v" + a.version : "") + "</td>" +
+        "<td><strong>" + esc(a.bezeichnung || "—") + "</strong>" + (a.beispiel ? ' <span class="tag">Beispiel</span>' : "") + "</td>" +
+        "<td>" + esc(kundeName(a.kundeId)) + "</td>" +
+        "<td>" + (a.kommission ? '<span class="tag">' + esc(a.kommission) + "</span>" : "—") + "</td>" +
+        '<td class="num">' + fmtEUR(s.netto) + "</td><td>" + statusBadgeKalk(a.status) + "</td>" +
+        '<td class="num" style="white-space:nowrap"><button class="btn sm" data-angopen="' + a.id + '" type="button">Öffnen</button> ' +
+          '<button class="btn sm ghost" data-angpdf="' + a.id + '" type="button" title="PDF">🖨️</button> ' +
+          '<button class="btn sm ghost" data-angdup="' + a.id + '" type="button" title="Duplizieren">📋</button> ' +
+          '<button class="btn sm danger" data-angdel="' + a.id + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div>";
+    ziel.innerHTML = html;
+    $all("[data-angopen]", ziel).forEach(function (b) { b.onclick = function () { var a = angebotById(b.dataset.angopen); angebotState = { id: b.dataset.angopen, view: (a.status === "Entwurf" || a.status === "interne Prüfung") ? "editor" : "detail" }; renderAngebote(); }; });
+    $all("[data-angpdf]", ziel).forEach(function (b) { b.onclick = function () { angebotPDF(b.dataset.angpdf); }; });
+    $all("[data-angdup]", ziel).forEach(function (b) { b.onclick = function () { angebotDuplizieren(b.dataset.angdup); }; });
+    $all("[data-angdel]", ziel).forEach(function (b) { b.onclick = function () { if (confirm("Angebot löschen?")) { db.angebote = db.angebote.filter(function (a) { return a.id !== b.dataset.angdel; }); Store.save(); zeichneAngebotListe(); } }; });
+  }
+
+  function angebotNeuDialog() {
+    var frei = (db.kalkulationen || []).filter(function (k) { return k.status === "freigegeben"; });
+    if (!frei.length) { toast("Keine freigegebene Kalkulation vorhanden. Bitte zuerst eine Kalkulation freigeben.", "err"); return; }
+    var kalkOpt = frei.map(function (k) { return '<option value="' + k.id + '">' + esc(k.nummer + " · " + (k.bezeichnung || "")) + "</option>"; }).join("");
+    var body = '<label class="fld"><span class="lbl">Freigegebene Kalkulation</span><select id="an-kalk">' + kalkOpt + "</select></label>" +
+      '<label class="fld"><span class="lbl">Angebotsart</span><select id="an-modus"><option value="detail">Detailliert</option><option value="zusammen">Zusammengefasst</option><option value="pauschal">Pauschalangebot</option></select></label>';
+    openModal("Neues Angebot aus Kalkulation", body, function () {
+      var k = (db.kalkulationen || []).filter(function (x) { return x.id === $("#an-kalk").value; })[0];
+      if (!k) return false;
+      var std = {}; (db.textbausteine || []).forEach(function (t) { if (t.standard) std[t.kategorie] = t.text; });
+      var a = {
+        id: Store.uid(), nummer: naechsteAngebotNr(), bezeichnung: k.bezeichnung, kundeId: k.kundeId, projektId: k.projektId, kommission: k.kommission,
+        ansprechpartner: "", lieferadresse: "", kalkId: k.id, kalkVersion: k.version, betreff: k.bezeichnung,
+        einleitung: std["Einleitung"] || "", positionen: Angebot.ausKalkulation(k, Kalk, $("#an-modus").value),
+        rabattProz: 0, mwstProz: k.mwstProz || 20, zahlungsbedingungen: std["Zahlungsbedingungen"] || "", lieferbedingungen: std["Lieferbedingungen"] || "",
+        ausfuehrungszeitraum: std["Ausführungszeit"] || "", voraussetzungen: "", ausschluesse: "", schlusstext: std["Schlussformel"] || "",
+        vorlageId: "vorlage-standard", status: "Entwurf", version: 1, gueltigTage: 30, erstellt: Store.nowISO(), geaendert: Store.nowISO(), ersteller: (Auth.current() || {}).benutzername || "", statusVerlauf: [{ datum: Store.nowISO(), von: "", zu: "Entwurf", benutzer: (Auth.current() || {}).benutzername || "", notiz: "Aus Kalkulation " + k.nummer + " erstellt" }]
+      };
+      db.angebote.push(a);
+      var nk = db.settings.angebotNummernkreis; nk.laufend = (nk.laufend || 1) + 1;
+      Store.save(); angebotState = { id: a.id, view: "editor" }; renderAngebote();
+      return true;
+    }, "Erstellen");
+  }
+  function angebotDuplizieren(id) {
+    var a = angebotById(id); if (!a) return;
+    var k = JSON.parse(JSON.stringify(a));
+    k.id = Store.uid(); k.nummer = naechsteAngebotNr(); k.bezeichnung = (a.bezeichnung || "") + " (Kopie)"; k.status = "Entwurf"; k.version = 1; k.beispiel = false; k.auftragId = null;
+    k.erstellt = Store.nowISO(); k.geaendert = Store.nowISO();
+    k.statusVerlauf = [{ datum: Store.nowISO(), von: "", zu: "Entwurf", benutzer: (Auth.current() || {}).benutzername || "", notiz: "Aus " + a.nummer + " dupliziert" }];
+    db.angebote.push(k); var nk = db.settings.angebotNummernkreis; nk.laufend = (nk.laufend || 1) + 1; Store.save();
+    toast("Angebot dupliziert."); angebotState = { id: k.id, view: "editor" }; renderAngebote();
+  }
+
+  function angebotEditor(id) {
+    var a = angebotById(id); if (!a) { angebotState = null; renderAngebotListe(); return; }
+    var root = $("#page-angebote .content");
+    var s = Angebot.summen(a);
+    var ktx = angebotKontext(a);
+    // offene Platzhalter prüfen
+    var werte = Angebot.platzhalterWerte(a, ktx);
+    var alleTexte = [a.betreff, a.einleitung, a.zahlungsbedingungen, a.lieferbedingungen, a.ausfuehrungszeitraum, a.schlusstext].join(" ");
+    var offen = Angebot.offenePlatzhalter(alleTexte, werte);
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:8px">' +
+      '<button class="btn sm ghost" id="btn-ang-zurueck" type="button">← Liste</button>' +
+      '<button class="btn sm" id="btn-ang-pdf" type="button">🖨️ PDF/Vorschau</button>' +
+      '<button class="btn primary sm" id="btn-ang-freigabe" type="button">✓ Freigeben</button></div>';
+    html += "<h3>" + esc(a.bezeichnung || "Angebot") + ' <span class="sub">' + esc(a.nummer) + " · v" + a.version + " · " + statusBadgeKalk(a.status) + "</span></h3>";
+    if (offen.length) html += '<div class="fehler-box" style="margin-bottom:10px">⚠️ Offene Platzhalter: ' + offen.map(function (x) { return "{{" + esc(x) + "}}"; }).join(", ") + " – werden im PDF leer dargestellt.</div>";
+    html += '<div class="inline">' + fld2("Betreff", "ae-betreff", a.betreff || "", "text") + fld2("Ansprechpartner", "ae-ap", a.ansprechpartner || "", "text") + "</div>";
+    html += '<div class="inline">' + fld2("Kommission", "ae-komm", a.kommission || "", "text") + fld2("Gültig (Tage)", "ae-gueltig", a.gueltigTage || 30, "number") + fld2("Rabatt %", "ae-rabatt", a.rabattProz || 0, "number") + "</div>";
+    // Positionen
+    html += '<div class="card" style="background:var(--panel-2);margin-top:10px"><div class="btn-row" style="justify-content:space-between;margin-bottom:6px"><strong>Positionen (' + (a.positionen || []).length + ')</strong><button class="btn sm" id="btn-ang-pos-add" type="button">+ Position</button></div>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Nr.</th><th>Bezeichnung</th><th>Typ</th><th class="num">Menge</th><th class="num">EP</th><th class="num">GP</th><th class="num"></th></tr></thead><tbody>';
+    (a.positionen || []).forEach(function (p, i) {
+      var t = Angebot.POSTYPEN[p.typ] || {};
+      var gp = t.rechnet ? Angebot.posSumme(p) : (t.optional || t.alternativ ? Angebot.posSumme(p) : null);
+      html += "<tr" + (t.struktur ? ' style="opacity:.8"' : "") + "><td>" + esc(p.nummer || "") + "</td>" +
+        "<td>" + esc(p.kurz || "") + (t.optional ? ' <span class="tag">optional</span>' : t.alternativ ? ' <span class="tag">Alt.</span>' : "") + "</td>" +
+        "<td>" + esc(t.label || p.typ) + "</td>" +
+        '<td class="num">' + (p.menge != null && t.rechnet ? fmtZahl(p.menge) : "—") + "</td>" +
+        '<td class="num">' + (t.rechnet || t.optional || t.alternativ ? fmtEUR(p.einzelpreis) : "—") + "</td>" +
+        '<td class="num">' + (gp != null ? fmtEUR(gp) : "—") + "</td>" +
+        '<td class="num" style="white-space:nowrap"><button class="btn sm ghost" data-angposedit="' + i + '" type="button">✏️</button> <button class="btn sm danger" data-angposdel="' + i + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div></div>";
+    // Texte
+    html += '<div class="card" style="margin-top:10px"><strong>Texte</strong>' +
+      textFeld("Einleitung", "ae-einl", a.einleitung, "Einleitung") +
+      textFeld("Zahlungsbedingungen", "ae-zahl", a.zahlungsbedingungen, "Zahlungsbedingungen") +
+      textFeld("Lieferbedingungen", "ae-lief", a.lieferbedingungen, "Lieferbedingungen") +
+      textFeld("Ausführungszeitraum", "ae-ausf", a.ausfuehrungszeitraum, "Ausführungszeit") +
+      textFeld("Schlusstext", "ae-schluss", a.schlusstext, "Schlussformel") + "</div>";
+    html += '<div id="ang-summary">' + angebotSummaryHTML(s) + "</div></div>";
+    root.innerHTML = html;
+    $("#btn-ang-zurueck").onclick = function () { angebotState = null; renderAngebotListe(); };
+    $("#btn-ang-pdf").onclick = function () { angebotSammle(a); angebotPDF(id); };
+    $("#btn-ang-freigabe").onclick = function () { angebotSammle(a); angebotFreigeben(id); };
+    $("#btn-ang-pos-add").onclick = function () { angebotSammle(a); posAngebotModal(id, -1); };
+    $all("[data-angposedit]", root).forEach(function (b) { b.onclick = function () { angebotSammle(a); posAngebotModal(id, +b.dataset.angposedit); }; });
+    $all("[data-angposdel]", root).forEach(function (b) { b.onclick = function () { angebotSammle(a); a.positionen.splice(+b.dataset.angposdel, 1); Store.save(); angebotEditor(id); }; });
+    // Live: Rabatt/Gültig ändern -> Summary neu
+    ["ae-rabatt", "ae-gueltig"].forEach(function (fid) { var el = $("#" + fid); if (el) el.addEventListener("change", function () { angebotSammle(a); $("#ang-summary").innerHTML = angebotSummaryHTML(Angebot.summen(a)); }); });
+    // Textbaustein-Buttons
+    $all("[data-tb]", root).forEach(function (b) { b.onclick = function () { textbausteinWaehlen(b.dataset.tb, b.dataset.tbfield); }; });
+  }
+  function textFeld(label, id, val, kategorie) {
+    return '<label class="fld"><span class="lbl">' + esc(label) + ' <button class="btn sm ghost" data-tb="' + esc(kategorie) + '" data-tbfield="' + id + '" type="button" style="padding:1px 6px;font-size:11px">Baustein</button></span><textarea id="' + id + '" rows="2" style="width:100%">' + esc(val || "") + "</textarea></label>";
+  }
+  function textbausteinWaehlen(kategorie, fieldId) {
+    var bausteine = (db.textbausteine || []).filter(function (t) { return t.kategorie === kategorie && t.aktiv !== false; });
+    if (!bausteine.length) { toast("Keine Textbausteine in dieser Kategorie.", "err"); return; }
+    var body = bausteine.map(function (t, i) { return '<label class="check"><input type="radio" name="tbw" value="' + i + '"' + (i === 0 ? " checked" : "") + "> <strong>" + esc(t.titel) + "</strong></label><div class=\"muted\" style=\"font-size:12px;margin:2px 0 10px 24px\">" + esc(t.text.slice(0, 120)) + "</div>"; }).join("");
+    openModal("Textbaustein: " + kategorie, body, function () {
+      var sel = $all('input[name="tbw"]').filter(function (r) { return r.checked; })[0];
+      if (sel) { var el = $("#" + fieldId); if (el) el.value = bausteine[+sel.value].text; }
+      return true;
+    }, "Übernehmen");
+  }
+  function angebotSammle(a) {
+    if ($("#ae-betreff")) a.betreff = $("#ae-betreff").value.trim();
+    if ($("#ae-ap")) a.ansprechpartner = $("#ae-ap").value.trim();
+    if ($("#ae-komm")) a.kommission = $("#ae-komm").value.trim();
+    if ($("#ae-gueltig")) a.gueltigTage = leseZahl0($("#ae-gueltig").value) || 30;
+    if ($("#ae-rabatt")) a.rabattProz = leseZahl0($("#ae-rabatt").value);
+    if ($("#ae-einl")) a.einleitung = $("#ae-einl").value;
+    if ($("#ae-zahl")) a.zahlungsbedingungen = $("#ae-zahl").value;
+    if ($("#ae-lief")) a.lieferbedingungen = $("#ae-lief").value;
+    if ($("#ae-ausf")) a.ausfuehrungszeitraum = $("#ae-ausf").value;
+    if ($("#ae-schluss")) a.schlusstext = $("#ae-schluss").value;
+    a.geaendert = Store.nowISO(); Store.save();
+  }
+  function angebotSummaryHTML(s) {
+    var html = '<div class="card" style="margin-top:10px;background:var(--panel-2)"><strong>Summen</strong>' +
+      line("Zwischensumme", fmtEUR(s.zwischensumme), "sub") +
+      (s.zuschlaege ? line("Zuschläge", fmtEUR(s.zuschlaege), "sub") : "") +
+      (s.rabatt ? line("Rabatt", "−" + fmtEUR(s.rabatt), "sub") : "") +
+      line("Nettosumme", fmtEUR(s.netto));
+    s.steuerZeilen.forEach(function (z) { html += line("USt " + z.satz + " %", fmtEUR(z.steuer), "sub"); });
+    html += line("Bruttosumme", fmtEUR(s.brutto));
+    if (s.optionalSumme) html += '<hr class="sep">' + line("Optionale Positionen (nicht enthalten)", fmtEUR(s.optionalSumme), "sub") + line("Gesamt mit Optionen (netto)", fmtEUR(s.nettoMitOptionen), "sub");
+    return html + "</div>";
+  }
+  function posAngebotModal(id, index) {
+    var a = angebotById(id); if (!a) return;
+    var p = index >= 0 ? a.positionen[index] : { typ: "normal", aktiv: true };
+    var typOpt = Object.keys(Angebot.POSTYPEN).map(function (t) { return '<option value="' + t + '"' + (p.typ === t ? " selected" : "") + ">" + esc(Angebot.POSTYPEN[t].label) + "</option>"; }).join("");
+    var body = '<div class="inline">' + fld2("Positionsnummer", "ap-nr", p.nummer || "", "text") + '<label class="fld"><span class="lbl">Positionsart</span><select id="ap-typ">' + typOpt + "</select></label></div>" +
+      fld2("Kurzbezeichnung", "ap-kurz", p.kurz || "", "text") +
+      '<label class="fld"><span class="lbl">Ausführliche Beschreibung</span><textarea id="ap-besch" rows="2" style="width:100%">' + esc(p.beschreibung || "") + "</textarea></label>" +
+      '<div class="inline">' + fld2("Menge", "ap-menge", p.menge != null ? p.menge : 1, "number") + fld2("Einheit", "ap-einh", p.einheit || "Pos", "text") + "</div>" +
+      '<div class="inline">' + fld2("Einzelpreis €", "ap-ep", p.einzelpreis != null ? p.einzelpreis : "", "number") + fld2("USt %", "ap-mwst", p.mwstProz != null ? p.mwstProz : (a.mwstProz || 20), "number") + "</div>" +
+      '<div class="inline">' +
+        '<label class="fld"><span class="lbl">Optional aktiviert (in Summe)</span><select id="ap-aktiviert"><option value="0">nein</option><option value="1"' + (p.aktiviert ? " selected" : "") + ">ja</option></select></label>" +
+        '<label class="fld"><span class="lbl">Seitenumbruch davor</span><select id="ap-umbruch"><option value="0">nein</option><option value="1"' + (p.seitenumbruch ? " selected" : "") + ">ja</option></select></label>" +
+      "</div>";
+    openModal(index >= 0 ? "Position bearbeiten" : "Position hinzufügen", body, function () {
+      var neu = index >= 0 ? p : { aktiv: true };
+      neu.nummer = $("#ap-nr").value.trim(); neu.typ = $("#ap-typ").value; neu.kurz = $("#ap-kurz").value.trim(); neu.beschreibung = $("#ap-besch").value.trim();
+      neu.menge = leseZahl0($("#ap-menge").value); neu.einheit = $("#ap-einh").value.trim(); neu.einzelpreis = leseZahl0($("#ap-ep").value); neu.mwstProz = leseZahl0($("#ap-mwst").value);
+      neu.aktiviert = $("#ap-aktiviert").value === "1"; neu.seitenumbruch = $("#ap-umbruch").value === "1";
+      if (index < 0) { if (!neu.nummer) neu.nummer = String((a.positionen || []).filter(function (x) { return (Angebot.POSTYPEN[x.typ] || {}).rechnet; }).length + 1); (a.positionen = a.positionen || []).push(neu); }
+      Store.save(); angebotEditor(id);
+      return true;
+    });
+  }
+
+  function angebotFreigeben(id) {
+    var a = angebotById(id); if (!a) return;
+    var s = Angebot.summen(a); var ktx = angebotKontext(a);
+    var werte = Angebot.platzhalterWerte(a, ktx);
+    var probleme = [];
+    if (!a.kundeId) probleme.push("Kein Empfänger/Kunde ausgewählt.");
+    if (!(a.positionen || []).some(function (p) { return (Angebot.POSTYPEN[p.typ] || {}).rechnet; })) probleme.push("Keine berechnende Position vorhanden.");
+    if (s.netto <= 0) probleme.push("Nettosumme ist 0.");
+    var offen = Angebot.offenePlatzhalter([a.betreff, a.einleitung, a.zahlungsbedingungen, a.lieferbedingungen, a.schlusstext].join(" "), werte);
+    if (offen.length) probleme.push("Ungelöste Platzhalter: " + offen.map(function (x) { return "{{" + x + "}}"; }).join(", "));
+    if (!db.settings.firma.uid) probleme.push("Firmen-UID fehlt (Stammdaten).");
+    if (probleme.length && !confirm("Vor der Freigabe:\n- " + probleme.join("\n- ") + "\n\nTrotzdem freigeben?")) return;
+    // Snapshot der Ausgabe einfrieren
+    a.snapshot = { ausgabe: Angebot.kundenAusgabe(a, ktx), summen: s, datum: Store.nowISO(), vorlageId: a.vorlageId };
+    angebotSetStatus(a, "freigegeben", "Freigegeben (v" + a.version + ")");
+    Store.save(); toast("Angebot freigegeben. ✅"); angebotState = { id: id, view: "detail" }; renderAngebote();
+  }
+  function angebotSetStatus(a, neu, notiz) {
+    (a.statusVerlauf = a.statusVerlauf || []).push({ datum: Store.nowISO(), von: a.status, zu: neu, benutzer: (Auth.current() || {}).benutzername || "", notiz: notiz || "" });
+    a.status = neu; a.geaendert = Store.nowISO();
+  }
+  function angebotVersionNeu(id) {
+    var a = angebotById(id); if (!a) return;
+    a.version = (a.version || 1) + 1; a.snapshot = null;
+    angebotSetStatus(a, "Entwurf", "Neue Version " + a.version + " zur Bearbeitung");
+    Store.save(); angebotState = { id: id, view: "editor" }; renderAngebote();
+  }
+
+  function angebotDetail(id) {
+    var a = angebotById(id); if (!a) { renderAngebotListe(); return; }
+    var root = $("#page-angebote .content");
+    var s = Angebot.summen(a);
+    var statusOpt = ANG_STATUS.map(function (st) { return '<option value="' + st + '"' + (a.status === st ? " selected" : "") + ">" + st + "</option>"; }).join("");
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:8px">' +
+      '<button class="btn sm ghost" id="btn-ang-zurueck" type="button">← Liste</button>' +
+      '<button class="btn sm" id="btn-ang-pdf" type="button">🖨️ PDF</button>' +
+      (a.status === "Entwurf" || a.status === "interne Prüfung" ? '<button class="btn sm" id="btn-ang-edit" type="button">✏️ Bearbeiten</button>' : '<button class="btn sm" id="btn-ang-version" type="button">✏️ Neue Version</button>') +
+      (/angenommen/.test(a.status) ? '<button class="btn primary sm" id="btn-ang-auftrag" type="button">➡️ In Auftrag umwandeln</button>' : "") + "</div>";
+    html += "<h3>" + esc(a.bezeichnung || "Angebot") + ' <span class="sub">' + esc(a.nummer) + " · v" + a.version + "</span></h3>";
+    html += '<div class="inline" style="align-items:flex-end;margin-bottom:8px"><label class="fld" style="max-width:220px"><span class="lbl">Status</span><select id="ang-status-sel">' + statusOpt + '</select></label><button class="btn sm" id="btn-ang-status" type="button" style="margin-bottom:14px">Status setzen</button></div>';
+    html += '<div class="muted" style="font-size:12px;margin-bottom:10px">' + esc(kundeName(a.kundeId)) + (a.kommission ? " · Kommission: " + esc(a.kommission) : "") + "</div>";
+    html += angebotSummaryHTML(s);
+    if (a.auftragId) html += '<div class="insight" style="margin-top:10px"><span class="ico">➡️</span><span>In Auftrag umgewandelt.</span></div>';
+    if (a.statusVerlauf && a.statusVerlauf.length) html += '<div class="card" style="margin-top:10px;background:var(--panel-2)"><strong>Statusverlauf</strong>' + a.statusVerlauf.slice().reverse().map(function (v) { return '<div class="zeile"><span>' + fmtDate(v.datum) + " · " + esc(v.benutzer || "") + "</span><strong>" + esc(v.zu) + (v.notiz ? " – " + esc(v.notiz) : "") + "</strong></div>"; }).join("") + "</div>";
+    html += "</div>";
+    root.innerHTML = html;
+    $("#btn-ang-zurueck").onclick = function () { angebotState = null; renderAngebotListe(); };
+    $("#btn-ang-pdf").onclick = function () { angebotPDF(id); };
+    if ($("#btn-ang-edit")) $("#btn-ang-edit").onclick = function () { angebotState = { id: id, view: "editor" }; renderAngebote(); };
+    if ($("#btn-ang-version")) $("#btn-ang-version").onclick = function () { angebotVersionNeu(id); };
+    if ($("#btn-ang-auftrag")) $("#btn-ang-auftrag").onclick = function () { angebotZuAuftrag(id); };
+    $("#btn-ang-status").onclick = function () { angebotSetStatus(a, $("#ang-status-sel").value, "Status geändert"); Store.save(); angebotDetail(id); };
+  }
+
+  function angebotZuAuftrag(id) {
+    var a = angebotById(id); if (!a) return;
+    if (a.auftragId && (db.auftraege || []).some(function (x) { return x.id === a.auftragId; })) { if (!confirm("Dieses Angebot wurde bereits in einen Auftrag umgewandelt. Erneut umwandeln?")) return; }
+    var kalk = (db.kalkulationen || []).filter(function (k) { return k.id === a.kalkId; })[0];
+    var auftrag = {
+      id: Store.uid(), nummer: "AU-" + new Date().getFullYear() + "-" + ("000" + ((db.auftraege || []).length + 1)).slice(-4),
+      titel: a.bezeichnung, kundeId: a.kundeId, projektId: a.projektId, kommission: a.kommission,
+      angebotId: a.id, angebotVersion: a.version, kalkId: a.kalkId, kalkVersion: a.kalkVersion,
+      sollSnapshot: kalk ? { kalk: JSON.parse(JSON.stringify(kalk)), ergebnis: kalk.ergebnis || Kalk.berechne(kalk, db.settings), datum: Store.nowISO() } : null,
+      nettowert: Angebot.summen(a).netto, status: "angelegt", erstellt: Store.nowISO(),
+      // Kompatibel zum Legacy-Auftragsmodell (positionen/kalk für sollIst)
+      positionen: kalk ? [{ produktKey: kalk.gruppeKey, kalk: { zeiten: {}, netto: Angebot.summen(a).netto }, ist: null, label: a.bezeichnung }] : [],
+      kalk: { netto: Angebot.summen(a).netto, stundenGesamt: 0, selbstkosten: kalk && kalk.ergebnis ? kalk.ergebnis.selbst : 0, deckungsbeitrag: kalk && kalk.ergebnis ? kalk.ergebnis.deckungsbeitrag : 0, gewinn: kalk && kalk.ergebnis ? kalk.ergebnis.gewinn : 0 }
+    };
+    db.auftraege.push(auftrag);
+    a.auftragId = auftrag.id;
+    angebotSetStatus(a, "in Auftrag umgewandelt", "Auftrag " + auftrag.nummer + " erstellt");
+    Store.save(); toast("Auftrag " + auftrag.nummer + " erstellt. ✅"); angebotDetail(id);
+  }
+
+  // ---- PDF / Druckvorschau (kundensicher) -------------------
+  function angebotPDF(id) {
+    var a = angebotById(id); if (!a) return;
+    var ktx = angebotKontext(a);
+    // Bei freigegebenem Angebot den eingefrorenen Snapshot verwenden
+    var ausgabe = (a.snapshot && a.snapshot.ausgabe) ? a.snapshot.ausgabe : Angebot.kundenAusgabe(a, ktx);
+    // Sicherheitsnetz: interne Daten dürfen nicht enthalten sein
+    var leaks = Angebot.enthaeltInterne(ausgabe);
+    if (leaks.length) { toast("PDF abgebrochen: interne Daten erkannt (" + leaks.join(", ") + ").", "err"); return; }
+    var vorlage = (db.settings.angebotVorlagen || []).filter(function (v) { return v.id === a.vorlageId; })[0] || (db.settings.angebotVorlagen || [])[0] || {};
+    var html = angebotDruckHTML(ausgabe, vorlage, Angebot.dateiname(a, a.kommission));
+    var wpdf = w.open("", "_blank");
+    if (!wpdf) { toast("Bitte Pop-ups erlauben, um das PDF zu erzeugen.", "err"); return; }
+    wpdf.document.open(); wpdf.document.write(html); wpdf.document.close();
+  }
+  function angebotDruckHTML(o, vorlage, dateiname) {
+    var akz = vorlage.akzentfarbe || "#f5a623";
+    var f = o.firma || {};
+    function e(x) { return esc(x == null ? "" : x); }
+    function absatz(t) { return t ? '<p>' + e(t).replace(/\n/g, "<br>") + "</p>" : ""; }
+    var posRows = o.positionen.map(function (p) {
+      if (p.typ === "ueberschrift") return '<tr class="ueber"><td colspan="5"><strong>' + e(p.kurz) + "</strong></td></tr>";
+      if (p.typ === "text") return '<tr class="txt"><td colspan="5">' + e(p.kurz) + (p.beschreibung ? "<br><span class='klein'>" + e(p.beschreibung) + "</span>" : "") + "</td></tr>";
+      if (p.typ === "zwischensumme") return '<tr class="zwsum"><td colspan="4">Zwischensumme</td><td class="r">' + fmtEUR(p.gesamtpreis || 0) + "</td></tr>";
+      var opt = p.optional ? " (optional)" : p.alternativ ? " (Alternative)" : "";
+      return (p.seitenumbruch ? '<tr class="umbruch"><td colspan="5"></td></tr>' : "") + "<tr><td class='r'>" + e(p.nummer) + "</td><td><strong>" + e(p.kurz) + "</strong>" + opt + (p.beschreibung ? "<br><span class='klein'>" + e(p.beschreibung) + "</span>" : "") + "</td><td class='r'>" + (p.menge != null ? fmtZahl(p.menge) + " " + e(p.einheit) : "") + "</td><td class='r'>" + (p.einzelpreis != null ? fmtEUR(p.einzelpreis) : "") + "</td><td class='r'>" + (p.optional || p.alternativ ? "<em>optional</em>" : fmtEUR(p.gesamtpreis || 0)) + "</td></tr>";
+    }).join("");
+    var steuer = o.summen.steuerZeilen.map(function (z) { return '<tr><td>zzgl. USt ' + z.satz + " %</td><td class='r'>" + fmtEUR(z.steuer) + "</td></tr>"; }).join("");
+    var optBlock = o.summen.optionalSumme ? '<div class="hinweis">Optionale Positionen (' + fmtEUR(o.summen.optionalSumme) + ' netto) sind nicht im Angebotspreis enthalten. Gesamtpreis mit Optionen: ' + fmtEUR(o.summen.nettoMitOptionen) + " netto.</div>" : "";
+    return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>' + e(dateiname) + '</title><style>' +
+      '@page{size:A4;margin:18mm 16mm 20mm;}@media print{.noprint{display:none}}' +
+      'body{font-family:' + (vorlage.schrift || "Helvetica,Arial,sans-serif") + ';color:#1a1a1a;font-size:11px;line-height:1.5;margin:0;}' +
+      '.kopf{display:flex;justify-content:space-between;border-bottom:2px solid ' + akz + ';padding-bottom:8px;margin-bottom:14px;}' +
+      '.logo{font-size:22px;font-weight:800;color:' + akz + ';}.firma-klein{font-size:10px;color:#555;text-align:right;}' +
+      '.empf{margin:10px 0 4px;}.meta{float:right;text-align:right;font-size:10px;color:#444;}' +
+      'h1{font-size:15px;margin:16px 0 6px;}table.pos{width:100%;border-collapse:collapse;margin:8px 0;}' +
+      'table.pos th{background:' + akz + '22;text-align:left;padding:5px;border-bottom:1px solid ' + akz + ';font-size:10px;}' +
+      'table.pos td{padding:5px;border-bottom:1px solid #eee;vertical-align:top;}.r{text-align:right;}.klein{color:#666;font-size:10px;}' +
+      'tr.ueber td{background:#f5f5f5;padding-top:8px;}tr.zwsum td{border-top:1px solid #ccc;font-weight:600;}tr.umbruch{page-break-before:always;}' +
+      '.summen{width:52%;margin-left:auto;margin-top:8px;}.summen table{width:100%;border-collapse:collapse;}.summen td{padding:3px 5px;}' +
+      '.summen tr.netto td,.summen tr.brutto td{font-weight:700;border-top:1px solid #333;}.hinweis{font-size:10px;color:#555;margin-top:6px;}' +
+      '.block{margin-top:12px;}.block h2{font-size:12px;color:' + akz + ';margin:0 0 3px;}.fuss{margin-top:24px;border-top:1px solid #ccc;padding-top:6px;font-size:9px;color:#666;display:flex;justify-content:space-between;}' +
+      '.unter{margin-top:30px;display:flex;justify-content:space-between;}.unter div{width:45%;border-top:1px solid #333;padding-top:4px;text-align:center;font-size:10px;}' +
+      '.noprint{position:fixed;top:8px;right:8px;}.btn{background:' + akz + ';border:none;padding:8px 14px;border-radius:6px;font-weight:700;cursor:pointer;}' +
+      '</style></head><body>' +
+      '<div class="noprint"><button class="btn" onclick="window.print()">Als PDF drucken/speichern</button></div>' +
+      '<div class="kopf"><div class="logo">' + e(f.name || "Firma") + '</div><div class="firma-klein">' + e(f.strasse) + "<br>" + e(f.plzOrt) + "<br>" + e(f.tel) + " · " + e(f.email) + (f.uid ? "<br>UID: " + e(f.uid) : "") + "</div></div>" +
+      '<div class="meta">Angebot <strong>' + e(o.nummer) + "</strong><br>Datum: " + e(o.datum) + "<br>Gültig bis: " + e(o.gueltigBis) + (o.kommission ? "<br>Kommission: " + e(o.kommission) : "") + "</div>" +
+      '<div class="empf"><strong>' + e(o.kunde.name) + "</strong>" + (o.ansprechpartner ? "<br>z. Hd. " + e(o.ansprechpartner) : "") + "<br>" + e(o.kunde.strasse) + "<br>" + e(o.kunde.plzOrt) + "</div>" +
+      "<h1>" + e(o.betreff || "Angebot") + "</h1>" + absatz(o.einleitung) +
+      '<table class="pos"><thead><tr><th>Pos</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzel</th><th class="r">Gesamt</th></tr></thead><tbody>' + posRows + "</tbody></table>" +
+      '<div class="summen"><table><tr><td>Zwischensumme</td><td class="r">' + fmtEUR(o.summen.zwischensumme) + "</td></tr>" +
+        (o.summen.zuschlaege ? '<tr><td>Zuschläge</td><td class="r">' + fmtEUR(o.summen.zuschlaege) + "</td></tr>" : "") +
+        (o.summen.rabatt ? '<tr><td>Rabatt</td><td class="r">−' + fmtEUR(o.summen.rabatt) + "</td></tr>" : "") +
+        '<tr class="netto"><td>Nettosumme</td><td class="r">' + fmtEUR(o.summen.netto) + "</td></tr>" + steuer +
+        '<tr class="brutto"><td>Bruttosumme</td><td class="r">' + fmtEUR(o.summen.brutto) + "</td></tr></table>" + optBlock + "</div>" +
+      (o.zahlungsbedingungen ? '<div class="block"><h2>Zahlungsbedingungen</h2>' + absatz(o.zahlungsbedingungen) + "</div>" : "") +
+      (o.lieferbedingungen ? '<div class="block"><h2>Lieferbedingungen</h2>' + absatz(o.lieferbedingungen) + "</div>" : "") +
+      (o.ausfuehrungszeitraum ? '<div class="block"><h2>Ausführungszeitraum</h2>' + absatz(o.ausfuehrungszeitraum) + "</div>" : "") +
+      (o.ausschluesse ? '<div class="block"><h2>Ausschlüsse</h2>' + absatz(o.ausschluesse) + "</div>" : "") +
+      absatz(o.schlusstext) +
+      '<div class="unter"><div>Ort, Datum</div><div>' + e(f.name) + "</div></div>" +
+      '<div class="fuss"><span>' + e(f.name) + " · " + e(f.plzOrt) + (f.uid ? " · UID " + e(f.uid) : "") + (vorlage.zeigeBank && f.iban ? " · " + e(f.iban) : "") + "</span><span>" + e(o.nummer) + "</span></div>" +
+      "</body></html>";
+  }
+
+  // ---- Textbausteine-Verwaltung -----------------------------
+  function renderTextbausteine() {
+    var root = $("#page-angebote .content");
+    var liste = (db.textbausteine || []).slice().sort(function (a, b) { return (a.kategorie || "").localeCompare(b.kategorie || "") || (a.sort || 0) - (b.sort || 0); });
+    var html = '<div class="card"><div class="btn-row" style="margin-bottom:10px"><button class="btn sm ghost" id="btn-tb-zurueck" type="button">← Angebote</button><button class="btn primary sm" id="btn-tb-neu" type="button">+ Textbaustein</button></div><h3>Textbausteine</h3>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Kategorie</th><th>Titel</th><th>Standard</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+    liste.forEach(function (t) {
+      html += "<tr><td>" + esc(t.kategorie) + "</td><td><strong>" + esc(t.titel) + "</strong></td><td>" + (t.standard ? "★" : "—") + "</td><td>" + (t.aktiv === false ? '<span class="muted">inaktiv</span>' : "aktiv") + "</td>" +
+        '<td class="num"><button class="btn sm ghost" data-tbedit="' + t.id + '" type="button">✏️</button> <button class="btn sm danger" data-tbdel="' + t.id + '" type="button">🗑️</button></td></tr>';
+    });
+    html += "</tbody></table></div></div>";
+    root.innerHTML = html;
+    $("#btn-tb-zurueck").onclick = function () { renderAngebotListe(); };
+    $("#btn-tb-neu").onclick = function () { textbausteinModal(null); };
+    $all("[data-tbedit]", root).forEach(function (b) { b.onclick = function () { textbausteinModal(b.dataset.tbedit); }; });
+    $all("[data-tbdel]", root).forEach(function (b) { b.onclick = function () { if (confirm("Textbaustein löschen?")) { db.textbausteine = db.textbausteine.filter(function (t) { return t.id !== b.dataset.tbdel; }); Store.save(); renderTextbausteine(); } }; });
+  }
+  function textbausteinModal(id) {
+    var t = id ? (db.textbausteine || []).filter(function (x) { return x.id === id; })[0] : null;
+    var kats = ["Einleitung", "Leistungsbeschreibung", "Zahlungsbedingungen", "Lieferbedingungen", "Ausführungszeit", "Montagebedingungen", "Bauseitige Leistungen", "Gewährleistung", "Ausschlüsse", "Schlussformel", "Datenschutz", "Individuell"];
+    var katOpt = kats.map(function (k) { return '<option' + (t && t.kategorie === k ? " selected" : "") + ">" + esc(k) + "</option>"; }).join("");
+    var body = '<div class="inline"><label class="fld"><span class="lbl">Kategorie</span><select id="tb-kat">' + katOpt + "</select></label>" + fld2("Titel", "tb-titel", t ? t.titel : "", "text") + "</div>" +
+      '<label class="fld"><span class="lbl">Text (Platzhalter: {{kunde}}, {{projekt}}, {{kommission}}, {{angebotsnummer}} …)</span><textarea id="tb-text" rows="4" style="width:100%">' + esc(t ? t.text : "") + "</textarea></label>" +
+      '<label class="fld"><span class="lbl">Als Standard verwenden</span><select id="tb-std"><option value="0">nein</option><option value="1"' + (t && t.standard ? " selected" : "") + ">ja</option></select></label>";
+    openModal(t ? "Textbaustein bearbeiten" : "Textbaustein anlegen", body, function () {
+      var titel = $("#tb-titel").value.trim(); if (!titel) { toast("Bitte Titel angeben.", "err"); return false; }
+      var std = $("#tb-std").value === "1", kat = $("#tb-kat").value;
+      if (std) (db.textbausteine || []).forEach(function (x) { if (x.kategorie === kat && (!t || x.id !== t.id)) x.standard = false; });
+      if (t) { t.kategorie = kat; t.titel = titel; t.text = $("#tb-text").value; t.standard = std; }
+      else db.textbausteine.push({ id: Store.uid(), kategorie: kat, titel: titel, text: $("#tb-text").value, standard: std, aktiv: true, sort: 999 });
+      Store.save(); renderTextbausteine(); toast("Textbaustein gespeichert.");
+      return true;
+    });
+  }
 
   // ---- Produktgruppen-Verwaltung (Admin) --------------------
   function produktgruppeVerwendet(key) { return (db.konfigurationen || []).some(function (c) { return c.gruppeKey === key; }); }

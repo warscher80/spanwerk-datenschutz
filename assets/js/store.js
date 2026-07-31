@@ -43,7 +43,9 @@
     konfigZaehler: 1, // laufende Konfigurations-Nummer
     kalkZaehler: 1,   // laufende Kalkulations-Nummer
     // Toleranzgrenzen für den Soll-Ist-Vergleich (Phase 5)
-    toleranzen: { gruen: 5, gelb: 15 }
+    toleranzen: { gruen: 5, gelb: 15 },
+    // Angebots-Nummernkreis (Phase 4), konfigurierbar
+    angebotNummernkreis: { praefix: "AN", jahr: null, laufend: 1, mindestlaenge: 4, jaehrlicherNeustart: true }
   };
 
   // ---- Beispiel-Materialdatenbank ---------------------------
@@ -166,10 +168,24 @@
         settings.kalkZaehler = kalkulationen.length + 1;
       } catch (e) { kalkulationen = []; }
     }
+    // Angebote (Phase 4)
+    var Ang = w.Preisschmiede && w.Preisschmiede.Angebot;
+    var textbausteine = [], angebote = [];
+    if (Ang) {
+      settings.angebotVorlagen = [JSON.parse(JSON.stringify(Ang.DEFAULT_VORLAGE))];
+      textbausteine = Ang.SEED_TEXTBAUSTEINE.map(function (t, i) { return Object.assign({ id: uid(), aktiv: true, sort: (i + 1) * 10 }, t); });
+      try {
+        angebote = Ang.beispielAngebote({ uid: uid, nowISO: nowISO, jahr: new Date().getFullYear(), kalkulationen: kalkulationen, Kalkulation: Kalk });
+        settings.angebotNummernkreis.laufend = angebote.length + 1;
+        settings.angebotZaehler = angebote.length + 1;
+      } catch (e) { angebote = []; }
+    }
     return {
-      version: 4,
+      version: 5,
       settings: settings,
       kalkulationen: kalkulationen,
+      angebote: angebote,
+      textbausteine: textbausteine,
       material: mats,
       kunden: kunden,
       lieferanten: lieferanten,
@@ -271,6 +287,12 @@
     if (!Array.isArray(obj.kalkulationen)) obj.kalkulationen = [];
     if (st.kalkZaehler == null) st.kalkZaehler = 1;
     if (!st.toleranzen || typeof st.toleranzen !== "object") st.toleranzen = JSON.parse(JSON.stringify(ds.toleranzen));
+    // Angebote (Phase 4)
+    var Ang2 = w.Preisschmiede && w.Preisschmiede.Angebot;
+    if (!Array.isArray(obj.angebote)) obj.angebote = [];
+    if (!Array.isArray(obj.textbausteine)) obj.textbausteine = Ang2 ? Ang2.SEED_TEXTBAUSTEINE.map(function (t, i) { return Object.assign({ id: uid(), aktiv: true, sort: (i + 1) * 10 }, t); }) : [];
+    if (!st.angebotNummernkreis || typeof st.angebotNummernkreis !== "object") st.angebotNummernkreis = JSON.parse(JSON.stringify(ds.angebotNummernkreis));
+    if (!Array.isArray(st.angebotVorlagen)) st.angebotVorlagen = Ang2 ? [JSON.parse(JSON.stringify(Ang2.DEFAULT_VORLAGE))] : [];
     // Benutzer: es muss immer mindestens ein aktiver Admin existieren (Login)
     if (!Array.isArray(obj.users) || !obj.users.some(function (u) { return u && u.rolle === "admin" && u.aktiv !== false; })) {
       obj.users = SEED_USERS.map(makeUser);

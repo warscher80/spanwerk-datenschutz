@@ -4,7 +4,7 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: Umsetzung **Phase 1 & 2** abgeschlossen.
+Letzte Aktualisierung: Umsetzung **Phase 4 (Angebotsgenerator & PDF)** abgeschlossen.
 
 ---
 
@@ -197,10 +197,80 @@ kalkulationen[] { id,nummer,bezeichnung,kundeId,projektId,kommission,konfigId,
   umschaltbar). Zuschnittoptimierung bewusst nicht enthalten (Schnittstelle
   vorbereitet).
 
+## Phase 4 – Angebotsgenerator & PDF-Ausgabe – ERLEDIGT ✅
+
+**Neue Datei**
+- `assets/js/angebot.js` – Angebots-Engine (Positionstypen, Summen,
+  Platzhalter, **kundensichere Ausgabe**): Positionsarten (normal,
+  Überschrift, Text, Zwischensumme, Pauschal, **optional**, **alternativ**,
+  Bedarf, Nachlass, Zuschlag), positionsgenaue USt, Summenberechnung mit
+  getrennt gehaltenen optionalen Positionen, Angebotsnummernkreis mit
+  jährlichem Neustart, Platzhalter-Ersetzung (`{{kunde}}`, `{{projekt}}`,
+  `{{kommission}}`, `{{angebotsnummer}}` …), Erkennung offener Platzhalter,
+  Ableitung aus einer freigegebenen Kalkulation (Modi detail/zusammen/
+  pauschal), Standard-Textbausteine und -Vorlage, Beispielangebote.
+
+**Kundensichere Ausgabe (zentrale Anforderung)**
+- `Angebot.kundenAusgabe()` erzeugt ein **separates Ausgabeobjekt per
+  Whitelist** – nur kundenrelevante Felder (Firma, Kunde, Positionen mit
+  End-/Einzelpreisen, Summen, Texte). Interne Werte (Einkaufspreise, interne
+  Stundensätze, Gemeinkosten, Deckungsbeitrag, Gewinn, Risiko,
+  Selbstkosten, interne Notizen, Lieferantenkonditionen) sind **strukturell
+  nicht enthalten** – nicht nur im Frontend ausgeblendet.
+- `Angebot.enthaeltInterne()` – rekursiver Leak-Detektor gegen eine
+  Verbotsliste; läuft als **Sicherheitsnetz vor jeder PDF-Erzeugung** und
+  bricht ab, falls interne Daten erkannt würden.
+
+**Neue Datenstruktur** (`store.js`, `version: 5`)
+```
+settings.angebotNummernkreis{praefix,jahr,laufend,mindestlaenge,
+                             jaehrlicherNeustart}, settings.angebotVorlagen[]
+angebote[] { id,nummer,version,status,bezeichnung,kundeId,projektId,kommission,
+             kalkId,kalkVersion,betreff,ansprechpartner,gueltigTage,rabattProz,
+             positionen[],einleitung,zahlungs-/liefer-/ausführungstexte,
+             schlusstext, snapshot{ausgabe,summen,datum}, statusVerlauf[],
+             auftragId }
+textbausteine[] { id,kategorie,titel,text,standard,aktiv,sort }
+```
+
+**Umgesetzt**
+- Eigene Seite „Angebote": Kennzahlen (offen/angenommen/abgelehnt/
+  Abschlussquote), Suche/Statusfilter, Liste mit PDF/Duplizieren/Löschen.
+- **Angebot aus freigegebener Kalkulation** erzeugen (3 Detailgrade).
+- Editor: Kopfdaten, Rabatt, Positionsverwaltung (alle Positionstypen,
+  optional/alternativ), Textfelder mit **Textbaustein-Auswahl**, Live-Summen.
+- **Freigabe** friert die kundensichere Ausgabe per Snapshot ein (prüft
+  Empfänger, berechnende Position, offene Platzhalter, Firmen-UID).
+- Statusworkflow (12 Stufen) mit Statusverlauf; **Neue Version** für
+  Änderungen nach Freigabe (revisionssicher).
+- **Druckfertige A4-PDF-Ausgabe** (Firmenkopf, Empfänger, Positionstabelle,
+  Summen mit USt, Zahlungs-/Liefer-/Ausführungstexte, Unterschriftszeilen) –
+  offline über Druckvorschau, ohne Server/Bibliothek.
+- **Umwandlung angenommener Angebote in Aufträge** (mit Soll-Snapshot der
+  Kalkulation, legacy-kompatible Auftragsstruktur, Schutz vor
+  Doppel-Umwandlung).
+- Textbausteinverwaltung (Kategorien, Standard je Kategorie, aktiv/inaktiv).
+- Rollen: Administrator/Büro; Werkstatt hat keinen Zugriff. Responsive.
+
+**Erfolgreiche Tests**
+- Engine (`angebot.js`): **17/17** Tests – Summen, optionale Positionen
+  (nicht im Netto), Nummernkreis, Platzhalter, kundensichere Ausgabe,
+  Leak-Detektor.
+- UI/E2E (`scratchpad/p4.js`): Angebot aus Kalkulation erstellen, optionale
+  Position separat gehalten, Freigabe + Snapshot, **Leak-Detektor ohne
+  Treffer**, **keine verbotenen Begriffe in Kundenausgabe oder PDF-HTML**,
+  PDF mit Angebotssummen erzeugt, Auftragsumwandlung mit Soll-Snapshot,
+  Doppel-Umwandlung geschützt, Rollen (Werkstatt ohne Angebote, Büro mit),
+  mobile Darstellung ohne Überlauf. Keine JS-Fehler.
+
+**Bekannte Einschränkungen**
+- PDF entsteht über die Browser-Druckfunktion (offline, keine PDF-Bibliothek);
+  das Layout ist auf A4 optimiert. E-Mail-Versand nicht enthalten.
+
 ## Nächster Schritt
 
-**Phase 4 – Angebotsgenerator & PDF-Ausgabe:** aus einer freigegebenen
-Kalkulation ein professionelles Kundenangebot erzeugen – interne Daten
-(Einkaufspreise, Kostensätze, Gemeinkosten, Deckungsbeitrag, Gewinn) niemals
-im Kunden-PDF; Angebotsnummernkreis, Status, Editor, Textbausteine, Vorlagen,
-druckfertige PDF-Ausgabe.
+**Phase 5 – Aufträge, mobile Zeiterfassung & Nachkalkulation:** aus
+angenommenen Angeboten Aufträge steuern, Ist-Zeiten/Material/Maschinen mobil
+erfassen, Soll-Ist-Vergleich (Nachkalkulation). Danach **Phase 6 –
+statistische Lernfunktion** (regelbasiert, ohne externe KI-API/neuronale
+Netze, erklärbare Vorschläge mit Konfidenzwerten).
