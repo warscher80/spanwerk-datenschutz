@@ -132,13 +132,17 @@ const resetState = page => page.evaluate(() => {
       K.cart = { schlipf: 1 };  out.schlipf = K.totals();     // 9,00 ohne Pfand
       K.cart = { soda: 3 };     out.soda = K.totals();        // 0,50 ohne Pfand
       K.cart = { bier50: 1, soda: 1 }; out.mix = K.totals();  // 4,50+2 Pfand + 0,50
+      K.cart = { sommerbowl: 2 }; out.bowl = K.totals();      // 4,50 + 2 Pfand je Becher
       K.cart = {};
-      return { out, items: K.MENU.length, name: K.CLUBCFG.name };
+      return { out, items: K.MENU.length, name: K.CLUBCFG.name, bowl: K.byId('sommerbowl') };
     });
     eq(t.out.schlipf, { wareC: 900, pfandC: 0, totalC: 900 }, 'Schlipfkrapfen 9,00 €');
     eq(t.out.soda, { wareC: 150, pfandC: 0, totalC: 150 }, '3× Soda 0,50 = 1,50 €');
     eq(t.out.mix, { wareC: 500, pfandC: 200, totalC: 700 }, 'Bier + Soda-Aufpreis');
-    eq(t.items, 13, 'SCL hat 13 Artikel');
+    eq(t.out.bowl, { wareC: 900, pfandC: 400, totalC: 1300 }, '2× SommerBowl 4,50 € + Pfand = 13,00 €');
+    ok(t.bowl && t.bowl.name === 'SommerBowl' && t.bowl.c === 450 && t.bowl.pfand === true && t.bowl.cat === 'getraenke',
+       'SommerBowl: 4,50 € Getränk mit Pfand vorhanden');
+    eq(t.items, 14, 'SCL hat 14 Artikel (inkl. SommerBowl)');
     eq(t.name, 'SCL', 'SCL-Name korrekt');
     await ctx.close();
   }
