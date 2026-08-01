@@ -96,30 +96,36 @@ jobs:
           git push --force origin HEAD:gh-pages
           echo "gh-pages aktualisiert"
 
-      - name: Pages-Seite einrichten
+      # Das ERSTMALIGE Anlegen einer Pages-Seite verlangt Admin-Rechte, die ein
+      # Workflow-Token grundsaetzlich nicht hat - dieser Schritt kann das also
+      # nicht selbst erledigen und darf den Deploy deshalb auch nicht scheitern
+      # lassen. Der Inhalt liegt zu diesem Zeitpunkt bereits auf gh-pages;
+      # sobald Pages einmal von Hand auf diesen Branch gestellt wurde,
+      # veroeffentlicht jeder weitere Lauf ohne Zutun.
+      - name: Pages-Status pruefen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
-            echo "Pages bereits aktiv – Quelle auf gh-pages setzen."
-            gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/"
+          if URL=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .html_url 2>/dev/null); then
+            {
+              echo "### Testversion veroeffentlicht"
+              echo ""
+              echo "- App: ${URL}index.html"
+              echo "- Mobil: ${URL}mobil.html"
+              echo "- Kundenportal: ${URL}portal.html"
+              echo "- Build: ${{ github.run_number }}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Veroeffentlicht unter ${URL}"
           else
-            echo "Pages noch nicht aktiv – wird eingerichtet."
-            gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/"
+            {
+              echo "### Inhalt bereitgestellt – Pages noch nicht aktiviert"
+              echo ""
+              echo "Der Branch \`gh-pages\` ist aktuell (Build ${{ github.run_number }})."
+              echo "Einmalig noetig, danach laeuft es von selbst:"
+              echo ""
+              echo "**Settings → Pages → Source: \"Deploy from a branch\" → Branch: \`gh-pages\` / \`/ (root)\` → Save**"
+              echo ""
+              echo "Das Anlegen der Seite verlangt Admin-Rechte, die ein Workflow-Token nicht besitzt."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Hinweis: Pages ist noch nicht aktiviert – Inhalt liegt auf gh-pages bereit."
           fi
-
-      - name: Adresse ausgeben
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          URL=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .html_url)
-          {
-            echo "### Testversion veroeffentlicht"
-            echo ""
-            echo "- App: ${URL}index.html"
-            echo "- Mobil: ${URL}mobil.html"
-            echo "- Kundenportal: ${URL}portal.html"
-            echo "- Build: ${{ github.run_number }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "$URL"
