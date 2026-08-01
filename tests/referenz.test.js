@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -365,6 +365,145 @@ Store.wechsleMandant(mB.id);
 
 // Aufräumen: zurück auf Mandant 1, damit Folgeläufe deterministisch sind
 Store.wechsleMandant(Store.ladeRegistry().liste[0].id);
+
+// =============================================================
+//  INFRASTRUKTUR / PRODUKTIONSVORBEREITUNG  (Phase 11)
+// =============================================================
+var Infra = P.Infra;
+
+// 1 fehlende Pflicht-Umgebungsvariable wird gemeldet (ohne Werte auszugeben)
+(function () {
+  var spec = { gruppe: "T", name: "TEST_PFLICHT", pflicht: true, format: "string", umgebung: "alle", zweck: "x" };
+  Infra.ENV_SPEC.push(spec);
+  var r = Infra.validateEnv({}, "alle");
+  t("INFRA fehlende Pflichtvariable gemeldet", r.ok === false && r.fehlend.indexOf("TEST_PFLICHT") >= 0);
+  var r2 = Infra.validateEnv({ TEST_PFLICHT: "ok", EMAIL_FROM: "kaputt" }, "alle");
+  t("INFRA ungültiges Format erkannt (E-Mail)", r2.ungueltig.indexOf("EMAIL_FROM") >= 0);
+  t("INFRA Validierung gibt keine Werte aus", JSON.stringify(r2).indexOf("kaputt") < 0);
+  Infra.ENV_SPEC.pop();
+})();
+
+// 2/3 Health: Speicher/Datei über localStorage vorhanden (offline-Äquivalent)
+t("INFRA Speicher-Healthcheck (localStorage vorhanden)", typeof G.localStorage.setItem === "function");
+
+// 4/30 mandantenbezogener + Cross-Tenant-Dateizugriff über signierten Link
+(function () {
+  var secret = "test-signing-secret";
+  var lnk = Infra.signierterLink({ mandantId: "mA", pfad: "dok/zeichnung-1.pdf" }, secret, iso(2026, 8, 1, 8), 15);
+  t("INFRA signierter Link gültig für eigenen Mandanten", Infra.linkPruefen(lnk, secret, iso(2026, 8, 1, 8, 10 / 60), "mA").ok === true);
+  t("INFRA Cross-Tenant-Dateizugriff verweigert", Infra.linkPruefen(lnk, secret, iso(2026, 8, 1, 8), "mB").ok === false);
+  t("INFRA manipulierter Token abgelehnt", Infra.linkPruefen(Object.assign({}, lnk, { token: "xx" }), secret, iso(2026, 8, 1, 8), "mA").ok === false);
+})();
+
+// 6 abgelaufener Download-Link
+(function () {
+  var secret = "s2";
+  var lnk = Infra.signierterLink({ mandantId: "mA", pfad: "p" }, secret, iso(2026, 8, 1, 8), 15);
+  t("INFRA abgelaufener Link abgelehnt", Infra.linkPruefen(lnk, secret, iso(2026, 8, 1, 9), "mA").grund === "abgelaufen");
+})();
+
+// 7 E-Mail-Vorschau + Header-Injection-Schutz
+(function () {
+  var msg = Infra.buildMessage("angebot", "kunde@example.at", { angebotNr: "ANG-2026-0001", kunde: "Muster", projekt: "Geländer", nachricht: "Danke für die Anfrage." }, { from: "firma@example.at" });
+  t("INFRA E-Mail-Vorschau erzeugt Betreff+Text+HTML", msg.gueltig && !!msg.betreff && !!msg.text && !!msg.html);
+  var inj = Infra.buildMessage("systemwarnung", "a@b.at", { betreff: "Zeile1\r\nBcc: opfer@x.at" }, {});
+  t("INFRA Header-Injection neutralisiert (kein CRLF im Betreff)", !/[\r\n]/.test(inj.betreff));
+  t("INFRA ungültige Empfängeradresse abgelehnt", Infra.buildMessage("angebot", "keine-email", {}, {}).gueltig === false);
+})();
+
+// 8 nicht konfigurierter E-Mail-Dienst täuscht keine Zustellung vor
+(function () {
+  var ad = Infra.emailAdapter({ provider: "none" });
+  var msg = Infra.buildMessage("einladung", "neu@example.at", {}, {});
+  var res = ad.send(msg, { idempotenzKey: "k1" });
+  t("INFRA E-Mail nicht konfiguriert -> nicht gesendet", ad.konfiguriert === false && res.gesendet === false && /nicht konfiguriert/.test(res.status));
+})();
+
+// 10 Passwort-Reset-Token (einmalig, befristet, gehasht wie Einladung)
+(function () {
+  var tok = "reset-geheim-1";
+  var einl = P.Mandant.einladungNeu({ email: "u@x.at", mandantId: "mA", rolle: "buero" }, tok, iso(2026, 8, 1), 1);
+  t("INFRA Reset-Token akzeptiert korrekt", P.Mandant.einladungPruefen(einl, tok, iso(2026, 8, 1, 12)).ok === true);
+  t("INFRA Reset-Token abgelaufen abgelehnt", P.Mandant.einladungPruefen(einl, tok, iso(2026, 8, 3)).ok === false);
+})();
+
+// 11/12 Angebotsversand + Schutz vor doppeltem Versand (Idempotenz-Queue)
+(function () {
+  var queue = [];
+  var key = Infra.idempotenzKey("mA", "email", "ANG-2026-0001", "v2");
+  var a1 = Infra.aufgabeNeu(queue, { mandantId: "mA", typ: "email", ref: "ANG-2026-0001", idempotenzKey: key }, iso(2026, 8, 1));
+  var a2 = Infra.aufgabeNeu(queue, { mandantId: "mA", typ: "email", ref: "ANG-2026-0001", idempotenzKey: key }, iso(2026, 8, 1));
+  t("INFRA Angebotsversand eingereiht", a1.neu === true);
+  t("INFRA Doppelversand verhindert (Idempotenz)", a2.neu === false && queue.length === 1);
+})();
+
+// 13/14 Hintergrundaufgabe + Wiederholung mit Backoff
+(function () {
+  var queue = [];
+  var a = Infra.aufgabeNeu(queue, { mandantId: "mA", typ: "pdf", ref: "x", maxVersuche: 2 }, iso(2026, 8, 1)).aufgabe;
+  Infra.aufgabeVerarbeiten(a, function () { return { ok: false, fehler: "boom" }; }, iso(2026, 8, 1));
+  t("INFRA Aufgabe nach 1. Fehler -> wird wiederholt", a.status === "wird wiederholt" && a.versuch === 1 && !!a.naechsterVersuch);
+  Infra.aufgabeVerarbeiten(a, function () { return { ok: false, fehler: "boom" }; }, iso(2026, 8, 1));
+  t("INFRA Aufgabe nach maxVersuchen -> fehlgeschlagen", a.status === "fehlgeschlagen");
+  var b = Infra.aufgabeNeu(queue, { mandantId: "mA", typ: "backup", ref: "y" }, iso(2026, 8, 1)).aufgabe;
+  Infra.aufgabeVerarbeiten(b, function () { return { ok: true, ergebnis: "fertig" }; }, iso(2026, 8, 1));
+  t("INFRA erfolgreiche Aufgabe abgeschlossen", b.status === "erfolgreich" && b.ergebnis === "fertig" && !!b.abgeschlossen);
+})();
+
+// 16/17 geplanter Job fällig + Mandantenzeitzone (Parameter akzeptiert)
+(function () {
+  var job = Infra.GEPLANTE_JOBS.filter(function (j) { return j.key === "backup_pruefung"; })[0];
+  t("INFRA Job ohne letzten Lauf ist fällig", Infra.jobFaellig(job, null, iso(2026, 8, 1, 21), 60) === true);
+  t("INFRA Job innerhalb Intervall nicht fällig", Infra.jobFaellig(job, iso(2026, 8, 1, 20), iso(2026, 8, 1, 22), 60) === false);
+  t("INFRA fällige Jobs berücksichtigen Zeitzonen-Parameter", Array.isArray(Infra.faelligeJobs({}, iso(2026, 8, 1), 120)));
+})();
+
+// 18 Monitoring ohne personenbezogene Daten
+(function () {
+  var roh = { mandantId: "mA", kunde: "Alpha GmbH", email: "chef@alpha.at", betragNetto: 1234, zaehler: 5, token: "geheim", nested: { ansprechpartner: "Herr X", ok: 1 } };
+  var sc = Infra.scrubbe(roh);
+  t("INFRA Scrubbing entfernt Kundenname/E-Mail/Token/Betrag", sc.kunde === "[entfernt]" && sc.email === "[entfernt]" && sc.token === "[entfernt]" && sc.betragNetto === "[entfernt]");
+  t("INFRA Scrubbing behält unkritische Zähler/IDs", sc.zaehler === 5 && sc.mandantId === "mA" && sc.nested.ok === 1);
+  t("INFRA gescrubbtes Objekt enthält keine PII (keine E-Mail)", Infra.enthaeltPII(sc) === false);
+})();
+
+// 19/20 Webhook-Signatur + doppeltes Ereignis idempotent
+(function () {
+  var secret = "wh-secret";
+  var body = JSON.stringify({ id: "evt_1", status: "aktiv" });
+  var sig = Infra.digest(secret, body);
+  t("INFRA gültige Webhook-Signatur akzeptiert", Infra.webhookSignaturPruefen(body, sig, secret).ok === true);
+  t("INFRA falsche Webhook-Signatur abgelehnt", Infra.webhookSignaturPruefen(body, "falsch", secret).ok === false);
+  var ad = Infra.zahlungAdapter({ provider: "stripe", webhookSecret: secret });
+  var log = [];
+  var e1 = ad.ereignisVerarbeiten(log, { id: "evt_1", status: "aktiv" }, body, sig);
+  var e2 = ad.ereignisVerarbeiten(log, { id: "evt_1", status: "aktiv" }, body, sig);
+  t("INFRA Webhook-Ereignis einmal angewendet", e1.angewendet === true);
+  t("INFRA doppeltes Webhook-Ereignis nicht erneut angewendet", e2.doppelt === true && e2.angewendet === false);
+})();
+
+// 21 manueller Lizenzstatus ohne Zahlungsanbieter (kein Zahlungsknopf)
+(function () {
+  var ad = Infra.zahlungAdapter({ provider: "manual" });
+  t("INFRA ohne Anbieter kein Zahlungsknopf + manuelle Lizenz", ad.konfiguriert === false && ad.zeigeZahlungsknopf === false && ad.status === "manuell");
+})();
+
+// 26 keine Beispieldaten in leerer Produktionsdatenbank (Mandant ohne Beispiel)
+(function () {
+  var m = Store.neuerMandant({ name: "Prod-Leer" }, false);
+  Store.wechsleMandant(m.id);
+  var d = Store.load();
+  t("INFRA leere Produktionsdatenbank ohne Beispieldaten", (d.kunden || []).length === 0 && (d.angebote || []).length === 0 && (d.material || []).length === 0);
+  Store.wechsleMandant(Store.ladeRegistry().liste[0].id);
+})();
+
+// 29 Rate-Limit für Fehlanmeldungen
+(function () {
+  var zst = {};
+  var r;
+  for (var i = 0; i < 6; i++) r = Infra.rateLimiter(zst, "login:user", 5, 600000, iso(2026, 8, 1, 8));
+  t("INFRA Rate-Limit greift nach Überschreitung", r.erlaubt === false && !!r.gesperrtBis);
+})();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

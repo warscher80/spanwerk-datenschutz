@@ -83,6 +83,25 @@ einem gemeinsam genutzten Gerät vertretbar dokumentiert.
 - **Nutzungslimits** (Benutzer/Speicher) sind **Kulanz-Warnungen** (80/90/100 %)
   und brechen laufende Prozesse nicht hart ab.
 
+## Produktionsinfrastruktur (Phase 11)
+
+- **Kein Backend:** echte serverseitige DB, persistenter Objektspeicher, echte
+  Cron-Jobs, Webhooks, echter E-Mail-/Zahlungsbetrieb sind **nicht** aktiv. Die
+  App bleibt statisch/offline; `infra.js` bereitet diese Adapter ehrlich als
+  „nicht konfiguriert" vor, ohne Funktion vorzutäuschen.
+- **E-Mail:** nur **Vorschaumodus** – ohne konfigurierten Dienst wird nichts
+  versendet (Status „nicht gesendet – Dienst nicht konfiguriert").
+- **Zahlung:** keine echte Abbuchung, keine Kartendaten; ohne Anbieter manuelle
+  Lizenzverwaltung, kein Zahlungsknopf.
+- **Geplante Aufgaben** laufen nur, **während die App geöffnet ist** (kein
+  Server-Cron).
+- **Signierte Download-Links** nutzen offline einen dokumentierten Digest statt
+  echtem HMAC; echtes serverseitiges Signieren erfordert ein Backend.
+- **Externes Monitoring/Fehlertracking** nur mit Konfiguration; Daten werden
+  vorher von PII/Secrets bereinigt (`scrubbe`).
+- **Docker/Hosting** liefert nur die **statischen** Dateien aus; es ist kein
+  Applikationsserver enthalten.
+
 ## Zeitzonen
 
 - Zeitstempel werden als ISO/UTC gespeichert und in österreichischer

@@ -4,7 +4,22 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 10 – Mandantenfähigkeit, Firmenkonten &
+Letzte Aktualisierung: **Phase 11 – Hosting, Domain, E-Mail, Monitoring &
+Produktionsinfrastruktur** umgesetzt. Neue Infrastruktur-Engine (`infra.js`):
+Env-Validierung (ohne Secret-Ausgabe), modularer E-Mail-Adapter + Vorlagen
+(Vorschaumodus, kein vorgetäuschter Versand, Header-Injection-/Doppelversand-
+schutz), signierte ablaufende mandantengebundene Download-Links, Hintergrund-
+aufgaben-Queue (Status/Retry/Idempotenz), geplante Jobs (Zeitzone), Monitoring-
+Scrubbing (ohne PII) + interne Alarme, Zahlungsadapter (Webhook-Signatur,
+idempotent, keine Kartendaten), Rate-Limiter. **Reproduzierbares Hosting**
+(`Dockerfile` non-root nginx + Healthcheck, `deploy/` Security-Header, managed
+static) – lokal per `docker build/run` verifiziert. CI-Gates (`ci.yml`:
+Syntax/Env/Tests/Secret-Scan/Build), `.env.example` vollständig gruppiert,
+`check-env.mjs`/`secret-scan.mjs`. System-Seite: Infrastruktur-Panel. Ehrlich:
+Offline-App ohne Backend – Server-Dienste bewusst „nicht konfiguriert". Doku:
+`PRODUCTION_INFRASTRUCTURE.md`. Tests **134/134**. Datenschema unverändert **v9**.
+
+Vorher: **Phase 10 – Mandantenfähigkeit, Firmenkonten &
 Lizenzvorbereitung** umgesetzt. **Datenbank-pro-Mandant** (getrennte
 `localStorage`-Namespaces): globale Registry `preisschmiede.mandanten.v1` +
 je Firma `preisschmiede.tenant.<id>`. Neue Mandanten-Engine (`mandant.js`):
@@ -38,6 +53,7 @@ KNOWN_LIMITATIONS.md).
 |---|---|---|
 | Datenhaltung | `assets/js/store.js` | localStorage, Migration, Beispieldaten, PIN-Hash, **Mandanten-Registry + Namespace-Routing** |
 | Mandantenfähigkeit | `assets/js/mandant.js` | Tarife, Feature-Flags, Lizenz, Nutzung, Einladungen, Support, Export |
+| Infrastruktur | `assets/js/infra.js` | Env-Validierung, E-Mail-/Zahlungsadapter, Aufgaben-Queue, geplante Jobs, signierte Links, Monitoring-Scrubbing, Rate-Limit |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |
 | Produkte | `assets/js/products.js` | Produkt-/Zeitmodelle (Basis) |

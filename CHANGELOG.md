@@ -3,6 +3,50 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 11 – Hosting, Domain, E-Mail, Monitoring & Produktionsinfrastruktur  (Schema v9)
+
+### Ehrliche Einordnung
+- Die App bleibt **statisch/offline** (localStorage). Server-abhängige
+  Anforderungen (PostgreSQL, Objektspeicher, echte Cron/Webhooks, echter
+  E-Mail-/Zahlungsbetrieb) sind **bewusst nicht** aktiviert und klar als
+  „erfordert Backend / nicht konfiguriert" dokumentiert.
+
+### Hinzugefügt
+- **Infrastruktur-Engine `infra.js`** (rein, testbar): Env-Spezifikation +
+  Validierung (ohne Wertausgabe), modularer **E-Mail-Adapter** + Vorlagen
+  (Vorschaumodus, kein vorgetäuschter Versand, Header-Injection-Schutz,
+  Doppelversandschutz), **signierte, ablaufende, mandantengebundene
+  Download-Links**, **Hintergrundaufgaben-Queue** (Status/Retry/Idempotenz),
+  **geplante Jobs** (Fälligkeit, Mandantenzeitzone), **Monitoring-Scrubbing**
+  (keine PII/Secrets) + interne **Alarme** (kritisch/hoch/mittel),
+  **Zahlungsadapter** (Webhook-Signatur, idempotent, keine Kartendaten, kein
+  Zahlungsknopf ohne Anbieter), **Rate-Limiter**.
+- **Reproduzierbares Hosting:** `Dockerfile` (Multi-Stage, unprivilegiertes
+  nginx, non-root uid 101, `HEALTHCHECK /healthz`, keine Secrets/Beispieldaten),
+  `.dockerignore`, `deploy/nginx.conf` (Security-Header, Dotfile-Sperre),
+  `deploy/netlify.toml` + `deploy/_headers` (managed static). **Lokal per
+  `docker build`/`run` verifiziert** (200 auf /healthz, Header gesetzt, non-root).
+- **`.env.example`** vollständig gruppiert (App/DB/Auth/Storage/E-Mail/PDF/Jobs/
+  Monitoring/Lieferanten/ERP/Zahlung/Sicherheit) mit Zweck/Pflicht/Beispiel/
+  Format/Umgebung; **`scripts/check-env.mjs`** validiert Pflichtvariablen ohne
+  Secret-Ausgabe; **`scripts/secret-scan.mjs`** + CI-Gate.
+- **CI-Workflow `ci.yml`**: Syntax → Env-Validierung → Tests → Secret-Scan →
+  Build. **Kein** automatisches Produktions-Deployment (nur mit Freigabe).
+- **System-Seite:** Panel „Infrastruktur & Produktion" (Adapter-Status, interne
+  Alarme, fällige geplante Jobs, E-Mail-Vorschau).
+- Doku: `PRODUCTION_INFRASTRUCTURE.md` (Analyse-Tabelle, Hosting-Anforderungen,
+  Varianten A/B, Container, Env, DB, Dateispeicher, Domain-/SPF-DKIM-DMARC-
+  Checkliste, E-Mail, Monitoring, Alarmierung, Zahlung, CI/CD, Release, Wartung,
+  Rollback, Produktions-Checkliste, getestet vs. vorbereitet, nächster Schritt).
+
+### Tests
+- `tests/referenz.test.js` auf **134/134** erweitert (32 neue Infra-Tests:
+  Env-Validierung, signierte/abgelaufene/Cross-Tenant-Links, E-Mail-Vorschau/
+  Header-Injection/nicht-konfiguriert, Reset-Token, Angebotsversand +
+  Doppelschutz, Aufgabe/Retry/Idempotenz, geplanter Job/Zeitzone, Scrubbing
+  ohne PII, Webhook-Signatur/Duplikat, manuelle Lizenz, leere Prod-DB,
+  Rate-Limit) + Browser-Smoke (Infrastruktur-Panel, E-Mail-Vorschau).
+
 ## Phase 10 – Mandantenfähigkeit, Firmenkonten & Lizenzvorbereitung  (Schema v9)
 
 ### Architektur

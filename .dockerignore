@@ -1,0 +1,17 @@
+# Nur die statischen Quellen gehören in den Build-Kontext.
+.git
+.github
+node_modules
+www
+android
+desktop
+brand
+tests
+*.md
+.env
+.env.*
+!.env.example
+package-lock.json
+capacitor.config.json
+Dockerfile
+.dockerignore

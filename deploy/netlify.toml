@@ -1,0 +1,25 @@
+# Managed Static Hosting (Variante A) – Beispiel für Netlify.
+# Baut das statische Bundle und veröffentlicht www/. Keine Server-Laufzeit.
+# Es werden KEINE Secrets benötigt. Vor produktiver Nutzung: eigene Domain
+# verbinden und HTTPS/HSTS am Anbieter aktivieren.
+
+[build]
+  command = "node scripts/copyweb.mjs"
+  publish = "www"
+
+# SPA-Fallback auf index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Sicherheits-Header (siehe auch deploy/_headers)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "same-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(self)"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'"

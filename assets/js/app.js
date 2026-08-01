@@ -17,6 +17,7 @@
   var Dok = w.Preisschmiede.Dokumente;
   var Betrieb = w.Preisschmiede.Betrieb;
   var Mandant = w.Preisschmiede.Mandant;
+  var Infra = w.Preisschmiede.Infra;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -1397,8 +1398,12 @@
     // Mandanten (Firmen) – Wechsel, Verwaltung, Tarif/Lizenz/Nutzung
     html += mandantenCardHtml(now);
 
+    // Infrastruktur & Produktion (Adapter, Alarme, geplante Jobs) – Phase 11
+    html += infraCardHtml(now);
+
     root.innerHTML = html;
     verdrahteMandantenCard(now);
+    verdrahteInfraCard(now);
     // Verdrahtung
     $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); markierePilotFunktionen(); renderSystem(); toast("Freigabestufe gesetzt."); };
     $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
@@ -1479,6 +1484,95 @@
     if ($("#mt-export")) $("#mt-export").onclick = function () { mandantExportieren(); };
     $all("[data-mt-wechsel]").forEach(function (b) { b.onclick = function () { mandantWechselFlow(b.getAttribute("data-mt-wechsel")); }; });
     $all("[data-mt-edit]").forEach(function (b) { b.onclick = function () { mandantEditModal(b.getAttribute("data-mt-edit")); }; });
+  }
+
+  // ============================================================
+  //  INFRASTRUKTUR & PRODUKTION (Phase 11) – nur Administration
+  //  Zeigt ehrlich den Status der (noch nicht konfigurierten)
+  //  Adapter, interne Alarme und fällige geplante Aufgaben.
+  // ============================================================
+  function infraAdapterConfig() {
+    // Aus Umgebungs-/Build-Schaltern; offline i. d. R. nicht konfiguriert.
+    var b = (w.PSBUILD || {});
+    return {
+      email: { provider: b.EMAIL_PROVIDER || "none", apiKey: b.EMAIL_API_KEY || "", from: b.EMAIL_FROM || "" },
+      zahlung: { provider: b.PAYMENT_PROVIDER || "none", webhookSecret: b.PAYMENT_WEBHOOK_SECRET || "" },
+      monitoring: { url: b.MONITORING_URL || "", dsn: b.ERROR_TRACKING_DSN || "" }
+    };
+  }
+  function infraAlarmQuelle(now) {
+    var bk = Betrieb.backupStatus(db, now);
+    var status = Betrieb.systemstatus(db, buildInfo(), now);
+    return {
+      appErreichbar: true, dbErreichbar: true,
+      backupFehlerFolge: (db.settings.betrieb.backupMeta && db.settings.betrieb.backupMeta.status === "fehlgeschlagen") ? 1 : 0,
+      speicherKnapp: status.speicher && status.speicher.prozent >= 90,
+      emailGestoert: false,
+      anmeldeFehler: (db.fehlerlog || []).filter(function (f) { return f.modul === "anmeldung"; }).length
+    };
+  }
+  function infraCardHtml(now) {
+    if (!Infra) return "";
+    var cfg = infraAdapterConfig();
+    var email = Infra.emailAdapter(cfg.email);
+    var zahlung = Infra.zahlungAdapter(cfg.zahlung);
+    var monKonf = !!(cfg.monitoring.url || cfg.monitoring.dsn);
+    function badge(ok, textOk, textNok) { var f = ok ? "#2fbf71" : "#888"; return '<span class="badge" style="background:' + f + ';color:#fff">' + esc(ok ? textOk : textNok) + "</span>"; }
+
+    var html = '<div class="card" style="margin-top:12px;border-left:4px solid #6b7cff"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+      '<h3 style="margin:0">🛰️ Infrastruktur &amp; Produktion</h3>' +
+      '<div class="inline" style="flex:0"><button class="btn sm" id="infra-mailvorschau" type="button">✉️ E-Mail-Vorschau</button></div></div>';
+
+    // Adapter-Status
+    html += '<div class="grid cols-3" style="margin-top:10px;align-items:start">';
+    html += '<div class="card"><div class="muted" style="font-size:11px">E-Mail-Dienst</div>' + badge(email.konfiguriert, "konfiguriert", "nicht konfiguriert") +
+      '<div class="muted" style="font-size:11px;margin-top:4px">' + (email.konfiguriert ? "Versand über Backend" : "Vorschaumodus – kein Versand, keine vorgetäuschte Zustellung") + "</div></div>";
+    html += '<div class="card"><div class="muted" style="font-size:11px">Zahlungsanbieter</div>' + badge(zahlung.konfiguriert, "konfiguriert", zahlung.status === "manuell" ? "manuell" : "nicht konfiguriert") +
+      '<div class="muted" style="font-size:11px;margin-top:4px">' + (zahlung.konfiguriert ? "Abo aktiv" : "Keine echte Abbuchung · manuelle Lizenzverwaltung") + "</div></div>";
+    html += '<div class="card"><div class="muted" style="font-size:11px">Monitoring / Fehlertracking</div>' + badge(monKonf, "extern aktiv", "intern (extern optional)") +
+      '<div class="muted" style="font-size:11px;margin-top:4px">Interne Statusansicht aktiv; externer Dienst nur mit Konfiguration (ohne PII).</div></div>';
+    html += "</div>";
+
+    // Interne Alarme
+    var alarme = Infra.alarme(infraAlarmQuelle(now));
+    html += '<div class="muted" style="font-size:11px;margin:12px 0 4px">Alarme (intern sichtbar, kein externer Versand):</div>';
+    html += alarme.length
+      ? alarme.slice(0, 8).map(function (a) { return '<div class="insight"><span class="ico">' + (a.rang >= 3 ? "🔴" : a.rang === 2 ? "🟠" : "🟡") + "</span><span><strong>" + esc(a.stufe) + ":</strong> " + esc(a.text) + "</span></div>"; }).join("")
+      : '<div class="muted" style="font-size:12px">Keine offenen Alarme.</div>';
+
+    // Fällige geplante Aufgaben
+    var plan = (db.settings.betrieb && db.settings.betrieb.jobPlan) || {};
+    var faellig = Infra.faelligeJobs(plan, now, 0);
+    html += '<div class="muted" style="font-size:11px;margin:12px 0 4px">Geplante Aufgaben (' + faellig.length + " fällig, mandantengetrennt, Zeitzone berücksichtigt):</div>";
+    html += '<div class="inline" style="flex-wrap:wrap;gap:6px">' + Infra.GEPLANTE_JOBS.map(function (j) {
+      var f = faellig.indexOf(j.key) >= 0;
+      return '<span class="tag" style="background:' + (f ? "#fff3e0" : "#eef") + ";color:" + (f ? "#a15c00" : "#556") + '">' + (f ? "⏰ " : "· ") + esc(j.name) + "</span>";
+    }).join("") + "</div>";
+
+    html += '<p class="hint">Diese App läuft offline (localStorage). E-Mail-, Zahlungs- und externe Monitoring-Dienste erfordern ein Backend und sind bewusst NICHT als funktionsfähig ausgegeben. Reproduzierbares Hosting (Docker/nginx + managed static), CI-Gates und Env-Validierung siehe PRODUCTION_INFRASTRUCTURE.md.</p></div>';
+    return html;
+  }
+  function verdrahteInfraCard(now) {
+    if (!Infra) return;
+    if ($("#infra-mailvorschau")) $("#infra-mailvorschau").onclick = function () { infraMailVorschau(); };
+  }
+  // E-Mail-Vorschau: baut eine echte Nachricht aus den Vorlagen, zeigt sie an
+  // und macht transparent, dass OHNE Dienst NICHTS versendet wird.
+  function infraMailVorschau() {
+    var m = Store.aktiverMandant() || {};
+    var cfg = infraAdapterConfig();
+    var ad = Infra.emailAdapter(cfg.email);
+    var msg = Infra.buildMessage("angebot", "kunde@example.at", {
+      mandant: m, angebotNr: "ANG-2026-0001", kunde: "Beispiel Kunde", ansprechpartner: "Frau Muster",
+      projekt: "Geländer Terrasse", kommission: "BV Beispiel", nachricht: "Vielen Dank für Ihre Anfrage."
+    }, { from: cfg.email.from });
+    var res = ad.send(msg, { idempotenzKey: "vorschau" });
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:6px">Status: <strong>' + esc(res.status) + "</strong> – " +
+      (res.gesendet ? "gesendet" : "es wird nichts versendet (Vorschau).") + "</div>" +
+      '<label class="fld"><span class="lbl">Betreff</span><input value="' + esc(msg.betreff) + '" readonly></label>' +
+      '<label class="fld"><span class="lbl">Textvorschau</span><textarea rows="8" readonly style="font-family:monospace;font-size:12px">' + esc(msg.text) + "</textarea></label>" +
+      '<p class="hint">E-Mail-Vorlagen enthalten keine internen Kalkulationswerte/Secrets. Ohne konfigurierten E-Mail-Dienst wird keine Zustellung vorgetäuscht (Status „nicht gesendet – Dienst nicht konfiguriert").</p>';
+    openModalWide("E-Mail-Vorschau (Angebot)", body, null, null, null);
   }
 
   // Firmenwechsel: Timer-Wächter -> Sitzung zurücksetzen -> Namespace wechseln

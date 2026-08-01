@@ -38,6 +38,37 @@ Der Build läuft in GitHub Actions („Apps bauen (Android + Windows)") und legt
 APK und Windows-`.exe` in das Release `app-latest`. Ein echter externer
 Produktiv-Deploy wird **nicht** automatisch durchgeführt.
 
+## Reproduzierbares Hosting (Phase 11)
+
+Die statische App kann zusätzlich reproduzierbar bereitgestellt werden – siehe
+`PRODUCTION_INFRASTRUCTURE.md` für Details und die ehrliche Abgrenzung
+(Offline-App ohne Backend).
+
+**Variante A – Managed Static Hosting** (empfohlen für den Start):
+```
+node scripts/copyweb.mjs   # erzeugt www/
+# www/ bei Netlify/Cloudflare Pages/GitHub Pages veröffentlichen
+# Header/Fallback: deploy/netlify.toml + deploy/_headers
+```
+
+**Variante B – Docker/VPS** (volle Kontrolle, non-root nginx, Healthcheck):
+```
+docker build -t preisschmiede-web .
+docker run -d -p 8080:8080 preisschmiede-web
+curl -f http://localhost:8080/healthz   # -> 200 "ok"
+```
+
+**Qualitäts-Gates (CI, `.github/workflows/ci.yml`):**
+```
+for f in assets/js/*.js; do node --check "$f"; done   # Syntax/„TS"-Prüfung
+node scripts/check-env.mjs .env.example prod-backend    # Env-Validierung (ohne Secrets)
+node tests/referenz.test.js                              # Referenz-/Sicherheitstests
+node scripts/secret-scan.mjs                             # Secret-Scan
+node scripts/copyweb.mjs                                 # Produktions-Build
+```
+Es gibt **kein** automatisches Produktions-Deployment – nur kontrolliert und mit
+ausdrücklicher Freigabe (siehe `RELEASE_PROCESS.md`).
+
 ## Freigabestufen (Phase 9)
 
 In der App (System-Seite, nur Admin) einstellbar:

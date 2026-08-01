@@ -85,6 +85,27 @@
   Downloads, echte Auth/Zahlung/E-Mail) ist ein Backend nötig. Siehe
   `MULTITENANCY.md` und `KNOWN_LIMITATIONS.md`.
 
+## Produktionsinfrastruktur & Adapter (Phase 11)
+
+- **Reproduzierbares Hosting:** Docker-Image mit **unprivilegiertem nginx**
+  (non-root uid 101), `HEALTHCHECK /healthz`, Security-Header (CSP/HSTS/XFO/
+  Referrer-Policy/Permissions-Policy), Directory-Listing aus, Dotfile-Sperre
+  (`/\.` → 403). Managed-Static-Alternative mit `deploy/_headers`/`netlify.toml`.
+- **Keine Secrets im Repo:** `scripts/secret-scan.mjs` (CI-Gate) + strikte
+  `.dockerignore`; `.env.example` enthält nur leere Platzhalter. Env-Validierung
+  (`scripts/check-env.mjs`) gibt **niemals Werte** aus.
+- **E-Mail-Adapter:** Header-Injection-Schutz (CR/LF entfernt), E-Mail-
+  Validierung, Anhangsbegrenzung, **keine** Secrets/internen Kalkulationswerte
+  in Vorlagen, sichere einmalige Tokens mit Ablauf, **Doppelversandschutz**
+  (Idempotenz). Ohne Dienst: kein Versand, keine vorgetäuschte Zustellung.
+- **Signierte Download-Links:** mandantengebunden, zeitlich begrenzt,
+  Cross-Tenant-Prüfung, konstante-Zeit-Vergleich (offline-Digest, echtes HMAC
+  serverseitig nachzurüsten).
+- **Zahlungs-Webhooks:** Signaturprüfung + idempotente Verarbeitung; **keine**
+  Tarifänderung durch Browserparameter; **keine** Kartendaten.
+- **Monitoring:** `scrubbe` entfernt PII/Secrets vor jeder externen Übertragung.
+- **Rate-Limit:** Fehlanmeldungs-Limiter (`rateLimiter`).
+
 ## Sicherheitsbefunde (Kurzregister)
 
 | Schwere | Befund | Status |

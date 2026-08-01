@@ -1,0 +1,60 @@
+name: CI – Qualitätssicherung
+
+# Qualitäts-Gates für jeden Push/PR: Syntax („TypeScript-Prüfung" für reines
+# JS), Referenz-/Berechnungs-/Berechtigungs-/Sicherheitstests, ENV-Validierung,
+# Secret-Scan und Produktions-Build. KEIN automatisches Produktions-Deployment –
+# eine Veröffentlichung erfolgt nur kontrolliert und mit ausdrücklicher Freigabe.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "index.html"
+      - "datenschutz.html"
+      - "assets/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".env.example"
+      - "Dockerfile"
+      - "deploy/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  quality:
+    name: Lint, Tests, Build, Secret-Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Reines JS-Projekt: node --check ist die Syntax-/„TypeScript"-Prüfung.
+      - name: Syntaxprüfung (node --check)
+        run: |
+          set -e
+          for f in assets/js/*.js; do node --check "$f"; done
+          echo "Alle JS-Dateien syntaktisch OK."
+
+      - name: Umgebungsvariablen validieren (ohne Secrets)
+        run: node scripts/check-env.mjs .env.example prod-backend
+
+      - name: Referenz-, Berechnungs-, Berechtigungs- und Sicherheitstests
+        run: node tests/referenz.test.js
+
+      - name: Secret-Scan (kein Secret im Repository)
+        run: node scripts/secret-scan.mjs
+
+      - name: Produktions-Build (statisches Bundle)
+        run: node scripts/copyweb.mjs
+
+      # Deployment in eine Testumgebung / Produktion ist bewusst NICHT
+      # automatisiert. Es erfolgt kontrolliert gemäß RELEASE_PROCESS.md und
+      # PRODUCTION_INFRASTRUCTURE.md, nur mit ausdrücklicher Freigabe.
+      - name: Hinweis Deployment
+        run: echo "Kein automatisches Deployment. Freigabe gemäß RELEASE_PROCESS.md erforderlich."
