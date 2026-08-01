@@ -3,6 +3,65 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 16A – Qualitätsmanagement-Kern, Prüfpläne & Abweichungen  (Schema v13)
+
+### Hinzugefügt
+- **QM-Engine `assets/js/qualitaet.js`** (rein/testbar, keine UI): konfigurierbare
+  Qualitätsstammdaten (Prüfarten, Merkmale, Methoden, Toleranzen, Fehlerarten/
+  -klassen, Risikostufen, Abweichungsgründe, Korrekturmaßnahmen,
+  Zertifikatsarten, Reklamationsarten, Freigabestufen).
+- **Versionierte Prüfpläne** mit Freigabe-Workflow und **unveränderbarem
+  Prüfplan-Snapshot** je Prüfauftrag – spätere Vorlagenänderungen verändern
+  laufende/abgeschlossene Aufträge nicht. Prüfschritte mit 13 Prüfzeitpunkten,
+  15 Merkmaltypen, Soll/Toleranzen, Methode, Prüfmittel, Stichprobe, Pflicht-,
+  Foto-, Dokument- und Freigabepflicht sowie „bei Fehler sperren".
+- **Zentrale Toleranzprüfung**: `Abweichung = Ist − Soll`, Grenzwerte
+  **eingeschlossen**, asymmetrische Toleranzen, Ergebnisse innerhalb/außerhalb/
+  Nachprüfung/nicht bewertbar; Messung mit ungültigem Prüfmittel ergibt nie
+  stillschweigend „bestanden".
+- **Prüfaufträge** (9 Status) mit zentraler Auswertung (offene Pflichtschritte,
+  sperrende Fehler, fehlende Nachweise) und geschütztem Abschluss.
+- **Wareneingangsprüfung** über den Phase-15A-Lagerkern: QS-Bestand bleibt
+  gesperrt, Teilfreigabe gibt nur die geprüfte Menge frei (**keine zweite
+  Bestandslogik**).
+- **Abweichungen** (9 Status, Doppelschutz über Idempotenzschlüssel),
+  **Sperrung** von Bauteil/Materialcharge/Arbeitsgang/Auftragsteil/Lieferung/
+  Montagefreigabe nur mit Berechtigung, Grund, Benutzer, Zeitpunkt und Audit –
+  inkl. Ermittlung betroffener Reservierungen/Entnahmen/Aufträge/Kommissionen.
+- **Nacharbeit** (Herkunft intern/Lieferant/Kunde/konstruktiv/**ungeklärt**),
+  **Nachprüfung** aus demselben Snapshot, **Ausschuss** mit Lagerbuchung und
+  getrennten Qualitätskosten, **Sonderfreigabe** (nur mit Beurteilung und
+  freigebender Person).
+- **Ursachenanalyse** mit strikt getrennten Kandidaten und bestätigter Ursache
+  (5-Why + Mensch/Maschine/Material/Methode/Umgebung/Messung).
+- **Korrekturmaßnahmen** (8 Status) mit Wirksamkeitsprüfung, **Kundenreklamation**
+  (9 Status, Bewertung nur ausdrücklich mit Begründung) und
+  **Lieferantenreklamation** mit direkter Chargensperre.
+- **Qualitätskosten** nach 11 Kostenarten, **Prüfmittel/Kalibrierung** inkl.
+  Ermittlung betroffener früherer Prüfungen, **Audit-Protokoll** aller
+  Qualitätsaktionen.
+- **Offline-Übernahme** über die Phase-14-Queue: Idempotenz, zentrale
+  Toleranzberechnung, Konfliktprüfung (fehlender/abgeschlossener Prüfauftrag,
+  abweichende Prüfplanversion), **keine automatische Freigabe offline**, keine
+  doppelte Abweichung, lokale Daten bleiben bei Konflikt erhalten.
+- **Schema v13**: additive QM-Arrays in `store.js` (`fresh`/`migrate`, ohne
+  Datenverlust) + `settings.qualitaet`; Beispieldaten nur in Testumgebung.
+  `qualitaet.js` in `index.html`, `mobil.html`, `sw.js`-SHELL (v5) und Testharness.
+
+### Tests / Prüfungen
+- Referenztests **441/441** (95 neue QM-Tests) + Ablauf-Durchlauf über die
+  Beispieldaten; bestehende E2E unverändert grün (Desktop 14/14, Mobil 13/13).
+  `node --check`, Secret-Scan, Produktions-Build grün.
+
+### Ehrlich / Grenzen
+- **Keine Normkonformität und keine Zertifizierung wird behauptet.** Keine
+  Schweiß-, Bau- oder Qualitätsnorm ist im Code hinterlegt – Normen und
+  Prüfvorschriften sind ausschließlich konfigurierbare Freitext-Referenzen.
+- **Keine automatische Schuldzuweisung**, keine automatische Sonderfreigabe,
+  keine automatische Bewertung von Reklamationen, keine automatische
+  Kostenweitergabe, **keine qualifizierte elektronische Signatur**.
+- Noch **keine Qualitätsoberfläche** und keine mobile QM-Oberfläche.
+
 ## Phase 15B – Lageroberfläche, Inventur, QR-Erfassung & mobile Buchungen  (Schema v12)
 
 ### Hinzugefügt

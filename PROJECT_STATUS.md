@@ -4,7 +4,38 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 15B – Lageroberfläche, Inventur, QR-Erfassung &
+Letzte Aktualisierung: **Phase 16A – Qualitätsmanagement-Kern, Prüfpläne &
+Abweichungen** umgesetzt. Reiner, testbarer QM-Kern (`assets/js/qualitaet.js`,
+`window.Preisschmiede.Qualitaet`) **ohne UI**: konfigurierbare Qualitäts-
+stammdaten, **versionierte Prüfpläne** mit unveränderbarem **Prüfplan-Snapshot**
+je Auftrag (spätere Vorlagenänderungen verändern laufende/abgeschlossene
+Aufträge nicht), Prüfschritte mit 13 Prüfzeitpunkten und 15 Merkmaltypen,
+**zentrale Toleranzprüfung** (`Abweichung = Ist − Soll`; Grenzwerte
+eingeschlossen; innerhalb/außerhalb/Nachprüfung/nicht bewertbar), Prüfaufträge
+mit 9 Statuswerten und zentraler Auswertung, **Wareneingangsprüfung** über den
+Phase-15A-Lagerkern (QS-Bestand, Teilfreigabe – nur freigegebene Mengen werden
+verfügbar; keine zweite Bestandslogik), Abweichungen (9 Status, Doppelschutz),
+**Sperrung** von Bauteil/Charge/Arbeitsgang/Auftragsteil/Lieferung/
+Montagefreigabe nur mit Berechtigung + Grund + Audit inkl. Auswirkungsanalyse,
+**Nacharbeit → Nachprüfung** (neuer Prüfauftrag aus demselben Snapshot),
+**Ausschuss** mit Lagerbuchung und getrennten Kosten, **Sonderfreigabe** (nie
+automatisch), Ursachenanalyse mit **getrennten Kandidaten und bestätigter
+Ursache** (5-Why + 6M), Korrekturmaßnahmen mit Wirksamkeitsprüfung, Kunden- und
+**Lieferantenreklamation mit direkter Chargensperre**, Qualitätskosten nach
+11 Kostenarten, **Prüfmittel/Kalibrierung** (abgelaufene Kalibrierung → Messung
+gilt als „Nachprüfung erforderlich"; betroffene frühere Prüfungen ermittelbar),
+**Audit-Protokoll** und **Offline-Übernahme** über die Phase-14-Queue
+(Idempotenz, Konfliktprüfung, **keine automatische Freigabe offline**, keine
+doppelte Abweichung, lokale Daten bleiben erhalten). Schema **v13** (additive
+QM-Arrays, Migration ohne Datenverlust), Beispieldaten nur in Testumgebung.
+Tests **441/441** (95 neue QM-Tests) + Ablauf-Durchlauf; bestehende E2E
+(Desktop 14/14, Mobil 13/13) unverändert grün. **Ehrlich: keine Normkonformität
+und keine Zertifizierung; keine Norm im Code – Normen/Prüfvorschriften nur als
+konfigurierbare Freitext-Referenz; keine automatische Schuldzuweisung; keine
+qualifizierte elektronische Signatur; noch keine Qualitätsoberfläche.**
+Doku: QUALITY.md.
+
+Vorher: **Phase 15B – Lageroberfläche, Inventur, QR-Erfassung &
 mobile Buchungen** umgesetzt. Vollständige Lager-UI (`assets/js/lager-ui.js`,
 neue Seite „Lager") auf **demselben Phase-15A-Kern** – keine zweite
 Bestandslogik. 15 Register: Dashboard (alle Bestandsarten, unter Meldebestand,
@@ -202,6 +233,7 @@ KNOWN_LIMITATIONS.md).
 | Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
 | PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
 | Mobile Werkstatt/Montage | `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js` | Touch-Oberfläche über dem Offline-Kern: Timer/Maschine/Material/Stückzahl/Montage/Fotos, Sync-/Konfliktansicht, Terminalmodus, keine Preisdaten |
+| Qualitätsmanagement | `assets/js/qualitaet.js` | Prüfpläne/Versionierung/Snapshot, zentrale Toleranzprüfung, Prüfaufträge, Wareneingangsprüfung, Abweichung/Sperre/Nacharbeit/Nachprüfung, Ausschuss, Sonderfreigabe, Reklamationen, Qualitätskosten, Prüfmittel, Audit, Offline |
 | Lager-UI (Desktop) | `assets/js/lager-ui.js` | Seite „Lager": Dashboard, Bestand, Struktur, Journal+Gegenbuchung, Wareneingangs-Assistent, Reservierung, Entnahme, Rückgabe, Umlagerung, Reststücke, Chargen/Rückverfolgung, Inventur, Bestellungen, QR/Etiketten, Berichte |
 | Lagerkern | `assets/js/lager.js` | Lagerstruktur, Artikel, Bewegungsjournal (unveränderbar), Bestand (verfügbar/reserviert/gesperrt/QS/bestellt), Wareneingang, Chargen + Rückverfolgung, Reservierung, Entnahme/Rückgabe, Reststücke, Bestellvorschlag, Bewertung, Idempotenz, Rechte |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |

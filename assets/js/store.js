@@ -341,6 +341,174 @@
     } catch (e) { return leer; }
   }
 
+  // Beispiel-Qualitätsdaten (nur Testumgebung, Phase 16A). Baut über die reine
+  // QM-Engine einen vollständigen Ablauf auf: Prüfpläne (versioniert/freigegeben),
+  // Prüfaufträge mit Snapshot, bestandene und nicht bestandene Prüfung,
+  // Abweichung → Sperrung → Nacharbeit → Nachprüfung, Ausschuss, Sonderfreigabe,
+  // Kunden- und Lieferantenreklamation, gültiges und abgelaufenes Prüfmittel.
+  // Normen/Prüfvorschriften sind reine Freitext-Referenzen (keine Konformität!).
+  function beispielQualitaet(lagerSeed, auftraege, kunden, lieferanten, mandantId) {
+    var Q = w.Preisschmiede && w.Preisschmiede.Qualitaet;
+    var leer = { qualPruefplaene: [], qualPruefauftraege: [], qualAbweichungen: [], qualSperren: [], qualNacharbeiten: [], qualAusschuss: [], qualSonderfreigaben: [], qualMassnahmen: [], qualReklamationen: [], qualLieferantenReklamationen: [], qualPruefmittel: [], qualKosten: [], qualAudit: [], qualWareneingangspruefungen: [], qualKonflikte: [] };
+    if (!Q) return leer;
+    try {
+      var jz = nowISO();
+      var vorTagenISO = function (n) { return new Date(Date.now() - n * 86400000).toISOString(); };
+      var inTagenISO = function (n) { return new Date(Date.now() + n * 86400000).toISOString(); };
+      var s = { stammdaten: Q.standardStammdaten(), pruefplaene: [], pruefauftraege: [], abweichungen: [], sperren: [], nacharbeiten: [], ausschuss: [], sonderfreigaben: [], massnahmen: [], reklamationen: [], lieferantenReklamationen: [], pruefmittel: [], qualitaetskosten: [], audit: [], wareneingangspruefungen: [], konflikte: [] };
+      var lagerState = { artikel: lagerSeed.lagerArtikel, plaetze: lagerSeed.lagerplaetze, chargen: lagerSeed.lagerChargen, bewegungen: lagerSeed.lagerBewegungen, reservierungen: lagerSeed.lagerReservierungen, reststuecke: lagerSeed.lagerReststuecke, wareneingaenge: lagerSeed.wareneingaenge, bestellungen: lagerSeed.bestellungen, konflikte: lagerSeed.lagerKonflikte, inventuren: lagerSeed.lagerInventuren };
+
+      // --- Prüfmittel: eines gültig, eines mit abgelaufener Kalibrierung ---
+      var pmGut = Q.pruefmittelNeu(s, { mandantId: mandantId, nummer: "PM-001", bezeichnung: "Messschieber digital 150 mm", hersteller: "Mitutoyo", modell: "500-196-30", seriennummer: "MS-88213", messbereich: "0–150 mm", genauigkeit: "0,02 mm", standort: "Werkstatt", verantwortlicher: "buero", kalibrierintervallTage: 365, letzteKalibrierung: vorTagenISO(60) }, jz);
+      var pmAlt = Q.pruefmittelNeu(s, { mandantId: mandantId, nummer: "PM-002", bezeichnung: "Schichtdickenmessgerät", hersteller: "Elcometer", modell: "456", seriennummer: "SD-4471", messbereich: "0–1500 µm", genauigkeit: "±1 %", standort: "Oberfläche", verantwortlicher: "buero", kalibrierintervallTage: 365, letzteKalibrierung: vorTagenISO(500) }, jz);
+      Q.pruefmittelStatusAktualisieren(s, jz);
+
+      // --- Prüfplan 1: Edelstahlgeländer (freigegeben, v1 -> v2) ---
+      var pp1 = Q.pruefplanNeu(s, {
+        mandantId: mandantId, nummer: "PP-GEL-01", bezeichnung: "Edelstahlgeländer – Fertigung & Endabnahme",
+        produktgruppeKey: "gelaender", arbeitsgang: "schweissen", verantwortlicheRolle: "buero",
+        beschreibung: "Maß-, Schweiß- und Oberflächenprüfung für Edelstahlgeländer.",
+        referenz: "Kundenvorgabe BV Musterstraße (Freitext-Referenz, keine Konformitätsaussage)",
+        schritte: [
+          { nummer: 1, bezeichnung: "Pfostenabstand", pruefzeitpunkt: "nach Schweißen", merkmal: "Maß", merkmalTyp: "mass", sollwert: 1200, einheit: "mm", obereToleranz: 5, untereToleranz: 5, methode: "Bandmaß", pruefmittelId: pmGut.id, pflicht: true, beiFehlerSperren: true, rolle: "werkstatt" },
+          { nummer: 2, bezeichnung: "Handlaufhöhe", pruefzeitpunkt: "nach Schweißen", merkmal: "Maß", merkmalTyp: "mass", sollwert: 1000, einheit: "mm", obereToleranz: 10, untereToleranz: 10, methode: "Bandmaß", pruefmittelId: pmGut.id, pflicht: true, beiFehlerSperren: false },
+          { nummer: 3, bezeichnung: "Schweißnaht Sichtprüfung", pruefzeitpunkt: "nach Schweißen", merkmal: "Schweißnaht (Sicht)", merkmalTyp: "sicht", methode: "Sichtprüfung", pflicht: true, fotoErforderlich: true, beiFehlerSperren: true },
+          { nummer: 4, bezeichnung: "Oberfläche geschliffen", pruefzeitpunkt: "nach Schleifen", merkmal: "Oberfläche", merkmalTyp: "sicht", methode: "Sichtprüfung", pflicht: true, beiFehlerSperren: false },
+          { nummer: 5, bezeichnung: "Endabnahme vollständig", pruefzeitpunkt: "Endabnahme", merkmal: "Vollständigkeit", merkmalTyp: "bestaetigung", pflicht: true, freigabeErforderlich: true }
+        ], benutzer: "admin"
+      }, jz);
+      Q.pruefplanFreigeben(s, pp1.id, "admin", "admin", jz);
+      // Neue Version (v2) – Vorgänger bleibt unverändert erhalten
+      var pp1v2 = Q.pruefplanNeueVersion(s, pp1.id, { beschreibung: "v2: Toleranz Handlaufhöhe verschärft.", benutzer: "admin", schritte: pp1.schritte.map(function (x) { return x.nummer === 2 ? Object.assign({}, x, { obereToleranz: 5, untereToleranz: 5 }) : x; }) }, jz);
+      if (pp1v2.ok) Q.pruefplanFreigeben(s, pp1v2.pruefplan.id, "admin", "admin", jz);
+
+      // --- Prüfplan 2: Blecharbeit (freigegeben) ---
+      var pp2 = Q.pruefplanNeu(s, {
+        mandantId: mandantId, nummer: "PP-BLE-01", bezeichnung: "Blecharbeit – Zuschnitt & Kanten",
+        produktgruppeKey: "blech", arbeitsgang: "biegen", verantwortlicheRolle: "buero",
+        beschreibung: "Maß- und Winkelprüfung für Blechteile.",
+        referenz: "interne Werksvorgabe (Freitext)",
+        schritte: [
+          { nummer: 1, bezeichnung: "Zuschnittlänge", pruefzeitpunkt: "nach Zuschnitt", merkmal: "Maß", merkmalTyp: "mass", sollwert: 500, einheit: "mm", obereToleranz: 1, untereToleranz: 1, methode: "Messschieber", pruefmittelId: pmGut.id, pflicht: true, beiFehlerSperren: true },
+          { nummer: 2, bezeichnung: "Kantwinkel", pruefzeitpunkt: "nach Kanten", merkmal: "Winkel", merkmalTyp: "winkel", sollwert: 90, einheit: "°", obereToleranz: 1, untereToleranz: 1, methode: "Winkelmesser", pflicht: true, beiFehlerSperren: false },
+          { nummer: 3, bezeichnung: "Beschichtungsdicke", pruefzeitpunkt: "nach Oberflächenbehandlung", merkmal: "Beschichtungsdicke", merkmalTyp: "zahl", sollwert: 80, einheit: "µm", obereToleranz: 20, untereToleranz: 20, methode: "Schichtdickenmessung", pruefmittelId: pmAlt.id, pflicht: false }
+        ], benutzer: "admin"
+      }, jz);
+      Q.pruefplanFreigeben(s, pp2.id, "admin", "admin", jz);
+
+      var aufA = (auftraege || []).filter(function (a) { return a.status === "Beauftragt"; })[0] || (auftraege || [])[0] || {};
+      var aufB = (auftraege || []).filter(function (a) { return a.id !== aufA.id; })[0] || aufA;
+
+      // --- Prüfauftrag 1: BESTANDEN (alle Werte in Toleranz) ---
+      var pa1 = Q.pruefauftragNeu(s, { mandantId: mandantId, auftragId: aufA.id, kommission: aufA.kommission, bauteil: "Geländer Feld 1", pruefplanId: (pp1v2.ok ? pp1v2.pruefplan.id : pp1.id), pruefer: "werkstatt", geplantesDatum: jz, benutzer: "buero" }, jz);
+      if (pa1.ok) {
+        Q.ergebnisErfassen(s, pa1.pruefauftrag.id, { schrittNummer: 1, wert: 1202, pruefer: "werkstatt" }, jz);
+        Q.ergebnisErfassen(s, pa1.pruefauftrag.id, { schrittNummer: 2, wert: 1005, pruefer: "werkstatt" }, jz);   // exakt auf Grenzwert (v2: ±5)
+        Q.ergebnisErfassen(s, pa1.pruefauftrag.id, { schrittNummer: 3, wert: "io", pruefer: "werkstatt", fotoRef: "foto-schweissnaht-1" }, jz);
+        Q.ergebnisErfassen(s, pa1.pruefauftrag.id, { schrittNummer: 4, wert: "io", pruefer: "werkstatt" }, jz);
+        Q.ergebnisErfassen(s, pa1.pruefauftrag.id, { schrittNummer: 5, wert: true, pruefer: "buero" }, jz);
+        Q.pruefauftragAbschliessen(s, pa1.pruefauftrag.id, { pruefer: "buero", rolle: "buero" }, jz);
+      }
+
+      // --- Prüfauftrag 2: NICHT BESTANDEN -> Abweichung -> Sperre -> Nacharbeit -> Nachprüfung ---
+      var pa2 = Q.pruefauftragNeu(s, { mandantId: mandantId, auftragId: aufB.id, kommission: aufB.kommission, bauteil: "Geländer Feld 2", pruefplanId: (pp1v2.ok ? pp1v2.pruefplan.id : pp1.id), pruefer: "werkstatt", geplantesDatum: jz, benutzer: "buero" }, jz);
+      var abw1 = null;
+      if (pa2.ok) {
+        Q.ergebnisErfassen(s, pa2.pruefauftrag.id, { schrittNummer: 1, wert: 1218, pruefer: "werkstatt" }, jz);   // außerhalb (+18 > +5), sperrend
+        Q.ergebnisErfassen(s, pa2.pruefauftrag.id, { schrittNummer: 2, wert: 998, pruefer: "werkstatt" }, jz);
+        Q.ergebnisErfassen(s, pa2.pruefauftrag.id, { schrittNummer: 3, wert: "io", pruefer: "werkstatt", fotoRef: "foto-schweissnaht-2" }, jz);
+        Q.ergebnisErfassen(s, pa2.pruefauftrag.id, { schrittNummer: 4, wert: "io", pruefer: "werkstatt" }, jz);
+        Q.ergebnisErfassen(s, pa2.pruefauftrag.id, { schrittNummer: 5, wert: true, pruefer: "buero" }, jz);
+        Q.pruefauftragAbschliessen(s, pa2.pruefauftrag.id, { pruefer: "buero", rolle: "buero" }, jz);
+        var a1 = Q.abweichungNeu(s, {
+          mandantId: mandantId, auftragId: aufB.id, kommission: aufB.kommission, bauteil: "Geländer Feld 2",
+          arbeitsgang: "schweissen", pruefauftragId: pa2.pruefauftrag.id, beschreibung: "Pfostenabstand 1218 mm statt 1200 mm (+18 mm).",
+          fehlerart: "Maßabweichung", fehlerklasse: "hauptfehler", menge: 1, ersteller: "werkstatt", risikostufe: "mittel",
+          sofortmassnahme: "Bauteil gekennzeichnet und zurückgestellt.", rolle: "werkstatt"
+        }, jz);
+        if (a1.ok) {
+          abw1 = a1.abweichung;
+          Q.sperreNeu(s, { mandantId: mandantId, objektTyp: "Auftragsteil", objektId: aufB.id, abweichungId: abw1.id, grund: "Maßabweichung Pfostenabstand", benutzer: "buero", rolle: "buero" }, jz);
+          // Ursachenanalyse: zwei Kandidaten, einer bestätigt (ausdrücklich)
+          var k1 = Q.ursacheKandidatHinzufuegen(s, abw1.id, { text: "Anschlag der Schweißvorrichtung verschoben", kategorie: "Maschine", benutzer: "werkstatt", fuenfWhy: ["Abstand zu groß", "Anschlag verschoben", "Fixierung gelöst", "Vibration", "Wartungsintervall zu lang"] }, jz);
+          Q.ursacheKandidatHinzufuegen(s, abw1.id, { text: "Zeichnungsmaß falsch abgelesen", kategorie: "Mensch", benutzer: "buero" }, jz);
+          if (k1.ok) Q.ursacheBestaetigen(s, abw1.id, k1.kandidat.id, { benutzer: "admin", herkunft: "intern", grund: "Vorrichtung nachgemessen" }, jz);
+          // Nacharbeitsfreigabe erfordert das Recht „nacharbeitFreigeben" (nur admin).
+          var na1 = Q.nacharbeitNeu(s, { mandantId: mandantId, abweichungId: abw1.id, ursacheText: "Anschlag neu ausgerichtet", herkunft: "intern", taetigkeit: "Pfosten trennen, neu positionieren, schweißen, schleifen", mitarbeitergruppe: "Schweißerei", geplanteZeitStd: 2.5, tatsaechlicheZeitStd: 3, termin: inTagenISO(2), benutzer: "admin", rolle: "admin", freigeben: true }, jz);
+          if (na1.ok) {
+            Q.kostenErfassen(s, { mandantId: mandantId, abweichungId: abw1.id, nacharbeitId: na1.nacharbeit.id, auftragId: aufB.id, art: "Nacharbeit", betrag: 3 * 48, herkunft: "Nacharbeit Schweißerei", benutzer: "buero" }, jz);
+            Q.kostenErfassen(s, { mandantId: mandantId, abweichungId: abw1.id, nacharbeitId: na1.nacharbeit.id, auftragId: aufB.id, art: "Material", betrag: 34.5, herkunft: "Ersatzmaterial", benutzer: "buero" }, jz);
+            var np = Q.nachpruefungAnlegen(s, na1.nacharbeit.id, { pruefer: "werkstatt", benutzer: "buero" }, jz);
+            if (np.ok) {
+              Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 1, wert: 1201, pruefer: "werkstatt" }, jz);
+              Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 2, wert: 1002, pruefer: "werkstatt" }, jz);
+              Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 3, wert: "io", pruefer: "werkstatt", fotoRef: "foto-nachpruefung" }, jz);
+              Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 4, wert: "io", pruefer: "werkstatt" }, jz);
+              Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 5, wert: true, pruefer: "buero" }, jz);
+              Q.pruefauftragAbschliessen(s, np.pruefauftrag.id, { pruefer: "buero", rolle: "buero" }, jz);
+            }
+          }
+          Q.massnahmeNeu(s, { mandantId: mandantId, abweichungId: abw1.id, beschreibung: "Wartungsintervall der Schweißvorrichtung von 12 auf 6 Monate verkürzen.", verantwortlicher: "buero", frist: inTagenISO(30), benutzer: "admin" }, jz);
+        }
+      }
+
+      // --- Wareneingangsprüfung mit Teilfreigabe (nutzt den Lagerkern) ---
+      var chQS = (lagerSeed.lagerChargen || []).filter(function (c) { return c.chargennummer === "CH-RR-2026-08"; })[0];
+      var weQS = (lagerSeed.wareneingaenge || []).filter(function (x) { return x.lieferschein === "LS-2026-103"; })[0];
+      if (chQS && weQS) {
+        Q.wareneingangsPruefung(s, lagerState, {
+          mandantId: mandantId, wareneingangId: weQS.id, artikelId: (weQS.positionen[0] || {}).artikelId,
+          chargeId: chQS.id, lieferantId: weQS.lieferantId, gelieferteMenge: 5, freigegebeneMenge: 3, beschaedigteMenge: 1,
+          zertifikatOk: false, schaeden: "1 Stange transportbedingt verkratzt; Zertifikat unvollständig.",
+          lieferantenfehler: true, pruefer: "buero", lagerplatzId: (weQS.positionen[0] || {}).lagerplatzId
+        }, jz);
+        // Lieferantenreklamation inkl. direkter Chargensperre
+        Q.lieferantenReklamationNeu(s, lagerState, {
+          mandantId: mandantId, lieferantId: weQS.lieferantId, wareneingangId: weQS.id, artikelId: (weQS.positionen[0] || {}).artikelId,
+          chargeId: chQS.id, lieferschein: weQS.lieferschein, menge: 2, fehler: "Transportschaden + unvollständiges Zertifikat",
+          zertifikat: "Werkszeugnis 3.1 unvollständig", geforderteMassnahme: "Ersatzlieferung und vollständiges Zertifikat",
+          chargeSperren: true, benutzer: "buero", rolle: "buero"
+        }, jz);
+      }
+
+      // --- Ausschuss + Sonderfreigabe (getrennte Vorgänge) ---
+      var artBlech = (lagerSeed.lagerArtikel || []).filter(function (a) { return a.artikelnummer === "BL-STAHL-2.0"; })[0];
+      var pa3 = Q.pruefauftragNeu(s, { mandantId: mandantId, auftragId: aufA.id, kommission: aufA.kommission, bauteil: "Blechzuschnitt A", pruefplanId: pp2.id, pruefer: "werkstatt", benutzer: "buero" }, jz);
+      if (pa3.ok) {
+        Q.ergebnisErfassen(s, pa3.pruefauftrag.id, { schrittNummer: 1, wert: 496, pruefer: "werkstatt" }, jz);  // außerhalb (−4 > ±1), sperrend
+        Q.ergebnisErfassen(s, pa3.pruefauftrag.id, { schrittNummer: 2, wert: 90.5, pruefer: "werkstatt" }, jz);
+        Q.pruefauftragAbschliessen(s, pa3.pruefauftrag.id, { pruefer: "buero", rolle: "buero" }, jz);
+        var a2 = Q.abweichungNeu(s, { mandantId: mandantId, auftragId: aufA.id, kommission: aufA.kommission, bauteil: "Blechzuschnitt A", arbeitsgang: "zuschnitt", pruefauftragId: pa3.pruefauftrag.id, beschreibung: "Zuschnittlänge 496 mm statt 500 mm.", fehlerart: "Maßabweichung", fehlerklasse: "kritisch", menge: 2, ersteller: "werkstatt", risikostufe: "hoch", rolle: "werkstatt" }, jz);
+        if (a2.ok && artBlech) {
+          Q.ausschussNeu(s, lagerState, { mandantId: mandantId, abweichungId: a2.abweichung.id, auftragId: aufA.id, bauteil: "Blechzuschnitt A", artikelId: artBlech.id, menge: 2, materialkosten: 112, bearbeitungskosten: 36, maschinenkosten: 24, grund: "Zuschnitt zu kurz – nicht nacharbeitbar", freigegebenVon: "admin", entsorgung: "Schrottcontainer Stahl", ersatzfertigung: true, benutzer: "admin", lagerplatzId: artBlech.standardLagerplatzId }, jz);
+        }
+        // Sonderfreigabe an einem separaten Fall (Winkel leicht außerhalb, technisch vertretbar)
+        var a3 = Q.abweichungNeu(s, { mandantId: mandantId, auftragId: aufA.id, kommission: aufA.kommission, bauteil: "Blechkante B", arbeitsgang: "biegen", beschreibung: "Kantwinkel 91,5° statt 90° ±1°.", fehlerart: "Maßabweichung", fehlerklasse: "nebenfehler", menge: 1, ersteller: "werkstatt", risikostufe: "niedrig", rolle: "werkstatt" }, jz);
+        if (a3.ok) {
+          Q.sonderfreigabeNeu(s, { mandantId: mandantId, abweichungId: a3.abweichung.id, beurteilung: "Funktion und Optik nicht beeinträchtigt; Anschluss bauseits toleranzausgleichend.", risikostufe: "niedrig", freigebender: "admin", einschraenkungen: "Nur für dieses Bauteil, nicht auf Serie übertragbar.", kundenbestaetigungErforderlich: true, rolle: "admin" }, jz);
+        }
+      }
+
+      // --- Kundenreklamation (bewusst NICHT bewertet) ---
+      var kunde0 = (kunden || [])[0] || {};
+      Q.reklamationNeu(s, {
+        mandantId: mandantId, kundeId: kunde0.id, kommission: aufA.kommission, auftragId: aufA.id,
+        produkt: "Edelstahlgeländer", lieferdatum: vorTagenISO(14), meldedatum: vorTagenISO(3),
+        ansprechpartner: kunde0.ansprechpartner || kunde0.name || "Kunde", beschreibung: "Kunde meldet Kratzer an zwei Handlaufabschnitten nach Montage.",
+        menge: 2, prioritaet: "hoch", verantwortlicher: "buero", benutzer: "buero", rolle: "buero"
+      }, jz);
+
+      return {
+        qualStammdaten: s.stammdaten, qualPruefplaene: s.pruefplaene, qualPruefauftraege: s.pruefauftraege,
+        qualAbweichungen: s.abweichungen, qualSperren: s.sperren, qualNacharbeiten: s.nacharbeiten,
+        qualAusschuss: s.ausschuss, qualSonderfreigaben: s.sonderfreigaben, qualMassnahmen: s.massnahmen,
+        qualReklamationen: s.reklamationen, qualLieferantenReklamationen: s.lieferantenReklamationen,
+        qualPruefmittel: s.pruefmittel, qualKosten: s.qualitaetskosten, qualAudit: s.audit,
+        qualWareneingangspruefungen: s.wareneingangspruefungen, qualKonflikte: s.konflikte
+      };
+    } catch (e) { return leer; }
+  }
+
   function fresh() {
     var mats = SEED_MATERIAL.map(function (m) {
       return {
@@ -508,8 +676,10 @@
 
     var lagerSeed = beispielLager(lieferanten, auftraegeSeed, null);
     if (!settings.lager) settings.lager = { bewertungsmethode: "gleitend", zaehler: { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 } };
+    var qualSeed = beispielQualitaet(lagerSeed, auftraegeSeed, kunden, lieferanten, null);
+    if (!settings.qualitaet) settings.qualitaet = { stammdaten: qualSeed.qualStammdaten || null, zaehler: { pruefplan: 1, pruefauftrag: 1, abweichung: 1 } };
     return {
-      version: 12,
+      version: 13,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -563,6 +733,22 @@
       bestellungen: lagerSeed.bestellungen,
       lagerKonflikte: lagerSeed.lagerKonflikte,
       lagerInventuren: lagerSeed.lagerInventuren || [],
+      // Qualitätsmanagement-Kern (Phase 16A) – mandantengetrennt
+      qualPruefplaene: qualSeed.qualPruefplaene,
+      qualPruefauftraege: qualSeed.qualPruefauftraege,
+      qualAbweichungen: qualSeed.qualAbweichungen,
+      qualSperren: qualSeed.qualSperren,
+      qualNacharbeiten: qualSeed.qualNacharbeiten,
+      qualAusschuss: qualSeed.qualAusschuss,
+      qualSonderfreigaben: qualSeed.qualSonderfreigaben,
+      qualMassnahmen: qualSeed.qualMassnahmen,
+      qualReklamationen: qualSeed.qualReklamationen,
+      qualLieferantenReklamationen: qualSeed.qualLieferantenReklamationen,
+      qualPruefmittel: qualSeed.qualPruefmittel,
+      qualKosten: qualSeed.qualKosten,
+      qualAudit: qualSeed.qualAudit,
+      qualWareneingangspruefungen: qualSeed.qualWareneingangspruefungen,
+      qualKonflikte: qualSeed.qualKonflikte,
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -755,8 +941,29 @@
     if (!Array.isArray(obj.lagerInventuren)) obj.lagerInventuren = [];
     if (!st.lager || typeof st.lager !== "object") st.lager = { bewertungsmethode: "gleitend", zaehler: { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 } };
     if (!st.lager.zaehler || typeof st.lager.zaehler !== "object") st.lager.zaehler = { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 };
+    // Qualitätsmanagement (Phase 16A) – additiv, mandantengetrennt. Bestehende
+    // Aufträge/Prüfungen bleiben unberührt; neue Arrays werden leer angelegt.
+    if (!Array.isArray(obj.qualPruefplaene)) obj.qualPruefplaene = [];
+    if (!Array.isArray(obj.qualPruefauftraege)) obj.qualPruefauftraege = [];
+    if (!Array.isArray(obj.qualAbweichungen)) obj.qualAbweichungen = [];
+    if (!Array.isArray(obj.qualSperren)) obj.qualSperren = [];
+    if (!Array.isArray(obj.qualNacharbeiten)) obj.qualNacharbeiten = [];
+    if (!Array.isArray(obj.qualAusschuss)) obj.qualAusschuss = [];
+    if (!Array.isArray(obj.qualSonderfreigaben)) obj.qualSonderfreigaben = [];
+    if (!Array.isArray(obj.qualMassnahmen)) obj.qualMassnahmen = [];
+    if (!Array.isArray(obj.qualReklamationen)) obj.qualReklamationen = [];
+    if (!Array.isArray(obj.qualLieferantenReklamationen)) obj.qualLieferantenReklamationen = [];
+    if (!Array.isArray(obj.qualPruefmittel)) obj.qualPruefmittel = [];
+    if (!Array.isArray(obj.qualKosten)) obj.qualKosten = [];
+    if (!Array.isArray(obj.qualAudit)) obj.qualAudit = [];
+    if (!Array.isArray(obj.qualWareneingangspruefungen)) obj.qualWareneingangspruefungen = [];
+    if (!Array.isArray(obj.qualKonflikte)) obj.qualKonflikte = [];
+    if (!st.qualitaet || typeof st.qualitaet !== "object") st.qualitaet = { stammdaten: null, zaehler: { pruefplan: 1, pruefauftrag: 1, abweichung: 1 } };
+    if (!st.qualitaet.zaehler || typeof st.qualitaet.zaehler !== "object") st.qualitaet.zaehler = { pruefplan: 1, pruefauftrag: 1, abweichung: 1 };
+    // Qualitätsstammdaten sind konfigurierbar; Standardvorschlag nur auffüllen.
+    if (!st.qualitaet.stammdaten && w.Preisschmiede && w.Preisschmiede.Qualitaet) st.qualitaet.stammdaten = w.Preisschmiede.Qualitaet.standardStammdaten();
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
-    if (obj.version !== 12) { st.betrieb.letzteMigration = nowISO(); obj.version = 12; }
+    if (obj.version !== 13) { st.betrieb.letzteMigration = nowISO(); obj.version = 13; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();
     return obj;
   }

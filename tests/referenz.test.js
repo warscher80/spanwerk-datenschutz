@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "lager.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js", "sync.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "lager.js", "qualitaet.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js", "sync.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -124,7 +124,7 @@ t("SNAP Revision B hat erhaltenen Vorgänger A", !!(revB && revA && revA.revisio
 // =============================================================
 t("MIG fresh() liefert aktuelle Version + alle Arrays", (function () {
   var f = Store.fresh ? Store.fresh() : null; if (!f) return true; // fresh evtl. nicht exportiert
-  return f.version === 12 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks) && Array.isArray(f.nachtraege) && Array.isArray(f.rechnungen) && Array.isArray(f.lagerArtikel) && Array.isArray(f.lagerBewegungen) && Array.isArray(f.lagerChargen) && Array.isArray(f.wareneingaenge) && Array.isArray(f.bestellungen);
+  return f.version === 13 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks) && Array.isArray(f.nachtraege) && Array.isArray(f.rechnungen) && Array.isArray(f.lagerArtikel) && Array.isArray(f.lagerBewegungen) && Array.isArray(f.lagerChargen) && Array.isArray(f.wareneingaenge) && Array.isArray(f.bestellungen) && Array.isArray(f.qualPruefplaene) && Array.isArray(f.qualPruefauftraege) && Array.isArray(f.qualAbweichungen) && Array.isArray(f.qualPruefmittel) && Array.isArray(f.qualAudit);
 })());
 t("MIG migrate({}) füllt Defaults ohne Crash", (function () {
   try { var m = Store.migrate({}); return m && m.settings && Array.isArray(m.material) && Array.isArray(m.dokumente) && !!m.planung && !!m.settings.planung; } catch (e) { return false; }
@@ -1262,6 +1262,321 @@ var L = P.Lager;
   t("LAGER-UI Rolle werkstatt darf umlagern + inventur zählen", L.darf("werkstatt", "umlagern") && L.darf("werkstatt", "inventurZaehlen"));
   t("LAGER-UI Rolle werkstatt darf NICHT Charge entsperren/Berichte", L.darf("werkstatt", "chargeEntsperren") === false && L.darf("werkstatt", "berichteExportieren") === false);
   t("LAGER-UI Nur admin darf Charge entsperren", L.darf("admin", "chargeEntsperren") && L.darf("buero", "chargeEntsperren") === false);
+})();
+
+// =============================================================
+//  QUALITÄTSMANAGEMENT-KERN  (Phase 16A)
+//  Prüfpläne/Versionierung/Snapshot, zentrale Toleranzprüfung,
+//  Prüfaufträge, Wareneingangsprüfung, Abweichung→Sperre→
+//  Nacharbeit→Nachprüfung, Ausschuss, Sonderfreigabe,
+//  Reklamationen, Qualitätskosten, Prüfmittel, Offline, Rollen.
+// =============================================================
+var Q = P.Qualitaet;
+var QJ = "2026-08-01T08:00:00.000Z";
+function freshQM() {
+  return { stammdaten: Q.standardStammdaten(), pruefplaene: [], pruefauftraege: [], abweichungen: [], sperren: [], nacharbeiten: [], ausschuss: [], sonderfreigaben: [], massnahmen: [], reklamationen: [], lieferantenReklamationen: [], pruefmittel: [], qualitaetskosten: [], audit: [], wareneingangspruefungen: [], konflikte: [] };
+}
+function qmPlan(s, extra) {
+  var pp = Q.pruefplanNeu(s, Object.assign({
+    mandantId: "m1", nummer: "PP-T1", bezeichnung: "Testplan", produktgruppeKey: "gelaender", arbeitsgang: "schweissen",
+    referenz: "Freitext-Referenz",
+    schritte: [
+      { nummer: 1, bezeichnung: "Maß A", merkmalTyp: "mass", sollwert: 100, einheit: "mm", obereToleranz: 1, untereToleranz: 1, pflicht: true, beiFehlerSperren: true },
+      { nummer: 2, bezeichnung: "Sicht", merkmalTyp: "sicht", pflicht: true, beiFehlerSperren: false }
+    ], benutzer: "admin"
+  }, extra || {}), QJ);
+  Q.pruefplanFreigeben(s, pp.id, "admin", "admin", QJ);
+  return pp;
+}
+
+// Prüfplanversionierung + Snapshot-Unveränderbarkeit
+(function () {
+  var s = freshQM();
+  var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf1", pruefplanId: pp.id, benutzer: "buero" }, QJ);
+  t("QM Prüfauftrag mit Prüfplan-Snapshot", pa.ok && pa.pruefauftrag.pruefplanSnapshot.istSnapshot === true && pa.pruefauftrag.pruefplanVersion === 1);
+  var snapVorher = JSON.stringify(pa.pruefauftrag.pruefplanSnapshot);
+  var v2 = Q.pruefplanNeueVersion(s, pp.id, { benutzer: "admin", schritte: [{ nummer: 1, bezeichnung: "Maß A", merkmalTyp: "mass", sollwert: 100, obereToleranz: 0.1, untereToleranz: 0.1, pflicht: true }] }, QJ);
+  t("QM Prüfplan-Versionierung: v2 angelegt, v1 erhalten", v2.ok && v2.pruefplan.version === 2 && v2.vorgaenger.version === 1 && s.pruefplaene.length === 2);
+  t("QM v1 wird inaktiv, bleibt aber unverändert lesbar", v2.vorgaenger.aktiv === false && v2.vorgaenger.schritte[0].obereToleranz === 1);
+  t("QM Snapshot bleibt von Vorlagenänderung UNBERÜHRT", JSON.stringify(pa.pruefauftrag.pruefplanSnapshot) === snapVorher);
+  t("QM Neue Version startet als Entwurf (nicht automatisch freigegeben)", v2.pruefplan.freigabestatus === Q.FREIGABE_STATUS.ENTWURF);
+  t("QM Prüfauftrag aus nicht freigegebenem Plan abgelehnt", Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf9", pruefplanId: v2.pruefplan.id }, QJ).ok === false);
+})();
+
+// Zentrale Toleranzprüfung inkl. Grenzwerte
+(function () {
+  var r1 = Q.pruefeToleranz(100, 100.5, 1, 1);
+  t("QM Maß innerhalb Toleranz", r1.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB && r1.abweichung === 0.5);
+  var rOben = Q.pruefeToleranz(100, 101, 1, 1);
+  var rUnten = Q.pruefeToleranz(100, 99, 1, 1);
+  t("QM Maß exakt auf oberem Grenzwert = innerhalb", rOben.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB && rOben.aufGrenze === true);
+  t("QM Maß exakt auf unterem Grenzwert = innerhalb", rUnten.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB && rUnten.aufGrenze === true);
+  t("QM Maß außerhalb Toleranz", Q.pruefeToleranz(100, 101.01, 1, 1).ergebnis === Q.TOLERANZ_ERGEBNIS.AUSSERHALB);
+  t("QM Asymmetrische Toleranz (+2/-0,5)", Q.pruefeToleranz(100, 101.9, 2, 0.5).ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB && Q.pruefeToleranz(100, 99.4, 2, 0.5).ergebnis === Q.TOLERANZ_ERGEBNIS.AUSSERHALB);
+  t("QM Untere Toleranz auch als negativer Offset akzeptiert", Q.pruefeToleranz(100, 99.5, 1, -1).ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB);
+  t("QM Nicht bewertbar ohne Zahlenwert", Q.pruefeToleranz(100, "abc", 1, 1).ergebnis === Q.TOLERANZ_ERGEBNIS.NICHT_BEWERTBAR);
+  t("QM Nicht bewertbar ohne Toleranz", Q.pruefeToleranz(100, 100, null, null).ergebnis === Q.TOLERANZ_ERGEBNIS.NICHT_BEWERTBAR);
+  t("QM Grenzen korrekt berechnet", (function () { var g = Q.toleranzGrenzen(100, 2, 0.5); return g.unten === 99.5 && g.oben === 102; })());
+})();
+
+// Pflichtprüfung + Abschlusslogik
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf1", pruefplanId: pp.id }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 100, pruefer: "werkstatt" }, QJ);
+  var ab1 = Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  t("QM Abschluss blockiert bei offener Pflichtprüfung", ab1.ok === false && /Pflichtprüfung/.test(ab1.grund));
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  var ab2 = Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  t("QM Prüfauftrag bestanden bei allen Werten in Toleranz", ab2.ok && ab2.status === Q.PA_STATUS.BESTANDEN);
+  t("QM Abschluss ohne Recht abgelehnt", Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "x", rolle: "werkstatt" }, QJ).ok === false);
+})();
+
+// Sperrender Fehler -> Prüfauftrag gesperrt
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf2", pruefplanId: pp.id }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 105, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  var ab = Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  t("QM Sperrender Fehler -> Status gesperrt", ab.ok && ab.status === Q.PA_STATUS.GESPERRT && ab.auswertung.sperrend === 1);
+})();
+
+// Prüfmittel: Kalibrierung, Sperre, betroffene frühere Prüfungen
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var alt = new Date(new Date(QJ).getTime() - 400 * 86400000).toISOString();
+  var pmGut = Q.pruefmittelNeu(s, { mandantId: "m1", nummer: "PM-G", bezeichnung: "Messschieber", kalibrierintervallTage: 365, letzteKalibrierung: new Date(new Date(QJ).getTime() - 30 * 86400000).toISOString() }, QJ);
+  var pmAlt = Q.pruefmittelNeu(s, { mandantId: "m1", nummer: "PM-A", bezeichnung: "Altgerät", kalibrierintervallTage: 365, letzteKalibrierung: alt }, QJ);
+  t("QM Prüfmittel gültig bei aktueller Kalibrierung", Q.pruefmittelGueltig(pmGut, QJ).gueltig === true);
+  t("QM Prüfmittel ungültig bei abgelaufener Kalibrierung", Q.pruefmittelGueltig(pmAlt, QJ).gueltig === false && Q.pruefmittelGueltig(pmAlt, QJ).kalibrierungFaellig === true);
+  Q.pruefmittelStatusAktualisieren(s, QJ);
+  t("QM Fällige Kalibrierung setzt Status", pmAlt.status === Q.PM_STATUS.KALIBRIERUNG_FAELLIG);
+  var pmGesperrt = Q.pruefmittelNeu(s, { mandantId: "m1", nummer: "PM-S", bezeichnung: "Defekt", status: Q.PM_STATUS.GESPERRT, letzteKalibrierung: QJ }, QJ);
+  t("QM Gesperrtes Prüfmittel ist ungültig", Q.pruefmittelGueltig(pmGesperrt, QJ).gueltig === false);
+  // Messung mit ungültigem Prüfmittel -> Nachprüfung, nicht stillschweigend bestanden
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf3", pruefplanId: pp.id }, QJ).pruefauftrag;
+  var e = Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 100, pruefmittelId: pmAlt.id, pruefer: "werkstatt" }, QJ);
+  t("QM Messung mit ungültigem Prüfmittel -> Nachprüfung", e.ok && e.bewertung.ergebnis === Q.TOLERANZ_ERGEBNIS.NACHPRUEFUNG && e.ergebnisEintrag.pruefmittelGueltig === false);
+  var betroffen = Q.betroffenePruefungen(s, pmAlt.id);
+  t("QM Betroffene frühere Prüfungen ermittelbar", betroffen.length === 1 && betroffen[0].pruefauftragId === pa.id);
+})();
+
+// Wareneingangsprüfung: Teilfreigabe über den Lagerkern (keine 2. Bestandslogik)
+(function () {
+  var s = freshQM();
+  var ls = freshLager();
+  LG.wareneingang(ls, { mandantId: "m1", lieferschein: "LS-QS", positionen: [{ artikelId: "a1", gelieferteMenge: 10, lagerplatzId: "p1", chargennummer: "C-QS", einkaufspreis: 7, qs: true }] }, LJ);
+  var vor = LG.bestand(ls, "a1", { mandantId: "m1" });
+  t("QM WE mit QS: physisch vorhanden, aber nicht verfügbar", vor.physisch === 10 && vor.verfuegbar === 0 && vor.qualitaet === 10);
+  var we = ls.wareneingaenge[0];
+  var r = Q.wareneingangsPruefung(s, ls, { mandantId: "m1", wareneingangId: we.id, artikelId: "a1", chargeId: ls.chargen[0].id, gelieferteMenge: 10, freigegebeneMenge: 6, beschaedigteMenge: 1, lieferantenfehler: true, pruefer: "buero" }, QJ);
+  var nach = LG.bestand(ls, "a1", { mandantId: "m1" });
+  t("QM Teilfreigabe: nur freigegebene Menge verfügbar", r.ok && r.ergebnis === "teilweise freigegeben" && nach.verfuegbar === 6 && nach.gesperrt === 4);
+  t("QM Teilfreigabe meldet Reklamationsbedarf", r.reklamationErforderlich === true && r.gesperrteMenge === 4);
+  t("QM Vollständige Freigabe möglich", (function () { var s2 = freshQM(); var l2 = freshLager(); LG.wareneingang(l2, { mandantId: "m1", lieferschein: "LS2", positionen: [{ artikelId: "a1", gelieferteMenge: 5, lagerplatzId: "p1", chargennummer: "C2", einkaufspreis: 7, qs: true }] }, LJ); var rr = Q.wareneingangsPruefung(s2, l2, { mandantId: "m1", wareneingangId: l2.wareneingaenge[0].id, artikelId: "a1", chargeId: l2.chargen[0].id, gelieferteMenge: 5, freigegebeneMenge: 5, pruefer: "buero" }, QJ); return rr.ok && rr.ergebnis === "vollständig freigegeben" && LG.bestand(l2, "a1", { mandantId: "m1" }).verfuegbar === 5; })());
+  t("QM Freigabemenge > Liefermenge abgelehnt", Q.wareneingangsPruefung(s, ls, { mandantId: "m1", artikelId: "a1", gelieferteMenge: 5, freigegebeneMenge: 9 }, QJ).ok === false);
+})();
+
+// Abweichung -> Sperrung -> Nacharbeit -> Nachprüfung
+(function () {
+  var s = freshQM(); var ls = freshLager(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf5", kommission: "K5", pruefplanId: pp.id }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 108, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  var a = Q.abweichungNeu(s, { mandantId: "m1", auftragId: "auf5", kommission: "K5", arbeitsgang: "schweissen", pruefauftragId: pa.id, beschreibung: "Maß zu groß", fehlerart: "Maßabweichung", fehlerklasse: "hauptfehler", menge: 1, ersteller: "werkstatt", rolle: "werkstatt" }, QJ);
+  t("QM Abweichung angelegt + mit Prüfauftrag verknüpft", a.ok && pa.abweichungIds.indexOf(a.abweichung.id) >= 0 && a.abweichung.status === Q.ABW_STATUS.NEU);
+  t("QM Abweichung ohne Recht abgelehnt", Q.abweichungNeu(s, { mandantId: "m1", ersteller: "x", rolle: "gast" }, QJ).ok === false);
+  // Keine doppelte Abweichung (gleicher Idempotenzschlüssel)
+  var a2 = Q.abweichungNeu(s, { mandantId: "m1", idempotenzKey: a.abweichung.idempotenzKey, ersteller: "werkstatt", rolle: "werkstatt" }, QJ);
+  t("QM Keine doppelte Abweichung bei gleichem Schlüssel", a2.ok && a2.neu === false && s.abweichungen.length === 1);
+  // Sperrung
+  var sp = Q.sperreNeu(s, { mandantId: "m1", objektTyp: "Auftragsteil", objektId: "auf5", abweichungId: a.abweichung.id, grund: "Maßabweichung", benutzer: "buero", rolle: "buero" }, QJ);
+  t("QM Sperrung erzeugt + Abweichung auf gesperrt", sp.ok && a.abweichung.status === Q.ABW_STATUS.GESPERRT && Q.istGesperrt(s, "Auftragsteil", "auf5"));
+  t("QM Sperrung ohne Grund abgelehnt", Q.sperreNeu(s, { mandantId: "m1", objektTyp: "Auftragsteil", objektId: "x", benutzer: "b", rolle: "buero" }, QJ).ok === false);
+  t("QM Sperrung ohne Recht abgelehnt", Q.sperreNeu(s, { mandantId: "m1", objektTyp: "Auftragsteil", objektId: "x", grund: "g", benutzer: "b", rolle: "gast" }, QJ).ok === false);
+  var bet = Q.betroffeneVorgaenge(s, ls, sp.sperre);
+  t("QM Betroffene Vorgänge ermittelbar", bet.auftraege.indexOf("auf5") >= 0 && bet.pruefauftraege.indexOf(pa.id) >= 0);
+  // Entsperren nur mit Recht + Grund, mit Audit
+  t("QM Entsperren ohne Recht abgelehnt", Q.sperreAufheben(s, sp.sperre.id, { benutzer: "b", grund: "g", rolle: "buero" }, QJ).ok === false);
+  t("QM Entsperren ohne Grund abgelehnt", Q.sperreAufheben(s, sp.sperre.id, { benutzer: "b", rolle: "admin" }, QJ).ok === false);
+  var auf = Q.sperreAufheben(s, sp.sperre.id, { benutzer: "admin", grund: "Nacharbeit erfolgreich", rolle: "admin" }, QJ);
+  t("QM Entsperren mit Recht+Grund protokolliert", auf.ok && sp.sperre.aktiv === false && sp.sperre.aufgehoben.grund === "Nacharbeit erfolgreich" && s.audit.some(function (x) { return x.aktion === "sperre.aufheben"; }));
+  // Nacharbeit + Nachprüfung
+  var na = Q.nacharbeitNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, taetigkeit: "neu ausrichten", geplanteZeitStd: 2, tatsaechlicheZeitStd: 3, benutzer: "admin", rolle: "admin", freigeben: true }, QJ);
+  t("QM Nacharbeit angelegt, Herkunft standardmäßig ungeklärt", na.ok && na.nacharbeit.herkunft === "ungeklärt" && a.abweichung.status === Q.ABW_STATUS.NACHARBEIT);
+  t("QM Nacharbeitsfreigabe ohne Recht abgelehnt", Q.nacharbeitNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, benutzer: "b", rolle: "buero", freigeben: true }, QJ).ok === false);
+  var np = Q.nachpruefungAnlegen(s, na.nacharbeit.id, { pruefer: "werkstatt", benutzer: "buero" }, QJ);
+  t("QM Nachprüfung nutzt denselben Prüfplan-Snapshot", np.ok && np.pruefauftrag.pruefplanVersion === pa.pruefplanVersion && np.pruefauftrag.nachpruefungVon === pa.id);
+  Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 1, wert: 100, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, np.pruefauftrag.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  var abNp = Q.pruefauftragAbschliessen(s, np.pruefauftrag.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  t("QM Nachprüfung bestanden", abNp.ok && abNp.status === Q.PA_STATUS.BESTANDEN);
+})();
+
+// Ausschuss wirkt über den Lagerkern
+(function () {
+  var s = freshQM(); var ls = freshLager();
+  LG.wareneingang(ls, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var vor = LG.bestand(ls, "a1", { mandantId: "m1" }).physisch;
+  var au = Q.ausschussNeu(s, ls, { mandantId: "m1", auftragId: "auf6", artikelId: "a1", menge: 3, materialkosten: 21, bearbeitungskosten: 12, maschinenkosten: 6, grund: "nicht nacharbeitbar", benutzer: "admin" }, QJ);
+  t("QM Ausschuss senkt physischen Lagerbestand", au.ok && LG.bestand(ls, "a1", { mandantId: "m1" }).physisch === vor - 3);
+  t("QM Ausschuss erzeugt Lagerbewegung im Journal", ls.bewegungen.some(function (b) { return b.typ === LG.BEWEGUNG.AUSSCHUSS && b.menge === 3; }));
+  var k = Q.kostenSumme(s, { auftragId: "auf6" });
+  t("QM Ausschuss erfasst Qualitätskosten getrennt", k.proArt["Material"] === 21 && k.proArt["Arbeitszeit"] === 12 && k.proArt["Maschinenzeit"] === 6 && k.gesamt === 39);
+  t("QM Ausschuss Menge 0 abgelehnt", Q.ausschussNeu(s, ls, { mandantId: "m1", artikelId: "a1", menge: 0 }, QJ).ok === false);
+})();
+
+// Sonderfreigabe – niemals automatisch
+(function () {
+  var s = freshQM();
+  var a = Q.abweichungNeu(s, { mandantId: "m1", auftragId: "auf7", beschreibung: "leichte Abweichung", ersteller: "werkstatt", rolle: "werkstatt" }, QJ);
+  t("QM Sonderfreigabe ohne Beurteilung abgelehnt", Q.sonderfreigabeNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, freigebender: "admin", rolle: "admin" }, QJ).ok === false);
+  t("QM Sonderfreigabe ohne Freigebenden abgelehnt", Q.sonderfreigabeNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, beurteilung: "ok", rolle: "admin" }, QJ).ok === false);
+  t("QM Sonderfreigabe ohne Recht abgelehnt", Q.sonderfreigabeNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, beurteilung: "ok", freigebender: "b", rolle: "buero" }, QJ).ok === false);
+  var sf = Q.sonderfreigabeNeu(s, { mandantId: "m1", abweichungId: a.abweichung.id, beurteilung: "Funktion nicht beeinträchtigt", freigebender: "admin", rolle: "admin", kundenbestaetigungErforderlich: true }, QJ);
+  t("QM Sonderfreigabe nur ausdrücklich mit Beurteilung", sf.ok && a.abweichung.status === Q.ABW_STATUS.SF_ERTEILT && sf.sonderfreigabe.kundenbestaetigungAm === null);
+})();
+
+// Ursachenanalyse: keine automatische Schuldzuweisung
+(function () {
+  var s = freshQM();
+  var a = Q.abweichungNeu(s, { mandantId: "m1", auftragId: "auf8", ersteller: "werkstatt", rolle: "werkstatt" }, QJ).abweichung;
+  t("QM Abweichung startet ohne bestätigte Ursache", a.bestaetigteUrsache === null && a.herkunft === "ungeklärt");
+  var k1 = Q.ursacheKandidatHinzufuegen(s, a.id, { text: "Werkzeugverschleiß", kategorie: "Maschine", benutzer: "werkstatt", fuenfWhy: ["a", "b", "c"] }, QJ);
+  Q.ursacheKandidatHinzufuegen(s, a.id, { text: "Bedienfehler", kategorie: "Mensch", benutzer: "buero" }, QJ);
+  t("QM Mehrere Ursachenkandidaten, alle unbestätigt", a.ursachenKandidaten.length === 2 && a.ursachenKandidaten.every(function (x) { return x.bestaetigt === false && x.sicherheit === "Vermutung"; }) && a.bestaetigteUrsache === null);
+  t("QM 5-Why wird gespeichert", k1.kandidat.fuenfWhy.length === 3);
+  t("QM Ursachenbestätigung ohne Benutzer abgelehnt", Q.ursacheBestaetigen(s, a.id, k1.kandidat.id, {}, QJ).ok === false);
+  var b = Q.ursacheBestaetigen(s, a.id, k1.kandidat.id, { benutzer: "admin", herkunft: "intern" }, QJ);
+  t("QM Bestätigte Ursache getrennt gespeichert", b.ok && a.bestaetigteUrsache.text === "Werkzeugverschleiß" && a.bestaetigteUrsache.bestaetigtVon === "admin" && a.herkunft === "intern");
+  t("QM Nur ein Kandidat gilt als bestätigt", a.ursachenKandidaten.filter(function (x) { return x.bestaetigt; }).length === 1);
+})();
+
+// Korrekturmaßnahmen inkl. Wirksamkeitsprüfung
+(function () {
+  var s = freshQM();
+  var m = Q.massnahmeNeu(s, { mandantId: "m1", beschreibung: "Wartungsintervall verkürzen", verantwortlicher: "buero", benutzer: "admin" }, QJ);
+  t("QM Maßnahme startet als geplant", m.ok && m.massnahme.status === Q.MASSNAHME_STATUS.GEPLANT);
+  t("QM Maßnahmenstatus ohne Benutzer abgelehnt", Q.massnahmeStatus(s, m.massnahme.id, Q.MASSNAHME_STATUS.UMGESETZT, {}, QJ).ok === false);
+  Q.massnahmeStatus(s, m.massnahme.id, Q.MASSNAHME_STATUS.UMGESETZT, { benutzer: "buero" }, QJ);
+  var w = Q.massnahmeStatus(s, m.massnahme.id, Q.MASSNAHME_STATUS.WIRKSAM, { benutzer: "admin", bemerkung: "keine Wiederholung" }, QJ);
+  t("QM Wirksamkeitsprüfung dokumentiert", w.ok && m.massnahme.wirksamkeitspruefung.ergebnis === Q.MASSNAHME_STATUS.WIRKSAM && m.massnahme.historie.length === 3);
+})();
+
+// Kundenreklamation – keine automatische Bewertung
+(function () {
+  var s = freshQM();
+  var rk = Q.reklamationNeu(s, { mandantId: "m1", kundeId: "k1", auftragId: "auf1", beschreibung: "Kratzer", menge: 2, benutzer: "buero", rolle: "buero" }, QJ);
+  t("QM Reklamation startet unbewertet", rk.ok && rk.reklamation.berechtigung === "nicht bewertet" && rk.reklamation.status === Q.REKL_STATUS.NEU);
+  t("QM Reklamationsbewertung ohne Begründung abgelehnt", Q.reklamationBewerten(s, rk.reklamation.id, "berechtigt", { benutzer: "admin" }, QJ).ok === false);
+  var bw = Q.reklamationBewerten(s, rk.reklamation.id, "teilweise berechtigt", { benutzer: "admin", begruendung: "Transportschaden anteilig" }, QJ);
+  t("QM Bewertung nur ausdrücklich mit Begründung", bw.ok && rk.reklamation.berechtigung === "teilweise berechtigt" && rk.reklamation.bewertetVon === "admin");
+  Q.reklamationStatus(s, rk.reklamation.id, Q.REKL_STATUS.NACHARBEIT, { benutzer: "buero", grund: "Nacharbeit vereinbart" }, QJ);
+  t("QM Reklamationsstatus mit Historie", rk.reklamation.status === Q.REKL_STATUS.NACHARBEIT && rk.reklamation.historie.length === 2);
+})();
+
+// Lieferantenreklamation mit direkter Chargensperre
+(function () {
+  var s = freshQM(); var ls = freshLager();
+  LG.wareneingang(ls, { mandantId: "m1", lieferantId: "lief1", lieferschein: "LS-LR", positionen: [{ artikelId: "a1", gelieferteMenge: 12, lagerplatzId: "p1", chargennummer: "C-LR", einkaufspreis: 7 }] }, LJ);
+  var ch = ls.chargen[0];
+  t("QM Charge vor Reklamation verfügbar", LG.bestand(ls, "a1", { mandantId: "m1" }).verfuegbar === 12);
+  var lr = Q.lieferantenReklamationNeu(s, ls, { mandantId: "m1", lieferantId: "lief1", wareneingangId: ls.wareneingaenge[0].id, artikelId: "a1", chargeId: ch.id, menge: 4, fehler: "Materialfehler", chargeSperren: true, benutzer: "buero", rolle: "buero" }, QJ);
+  t("QM Lieferantenreklamation sperrt Charge direkt", lr.ok && lr.lieferantenReklamation.sperrId && ch.gesperrt === true);
+  t("QM Gesperrte Charge nicht mehr verfügbar", LG.bestand(ls, "a1", { mandantId: "m1" }).verfuegbar === 0 && LG.bestand(ls, "a1", { mandantId: "m1" }).gesperrt === 12);
+  t("QM Entnahme aus gesperrter Charge abgelehnt", LG.entnahme(ls, { mandantId: "m1", artikelId: "a1", menge: 1, chargeId: ch.id }, LJ).ok === false);
+  var sp = s.sperren.filter(function (x) { return x.objektTyp === "Materialcharge"; })[0];
+  var bet = Q.betroffeneVorgaenge(s, ls, sp);
+  t("QM Betroffene Vorgänge der Chargensperre ermittelbar", !!sp && Array.isArray(bet.reservierungen) && Array.isArray(bet.entnahmen));
+})();
+
+// Qualitätskosten getrennt + keine automatische Kostenweitergabe
+(function () {
+  var s = freshQM();
+  Q.kostenErfassen(s, { mandantId: "m1", auftragId: "auf1", art: "Nacharbeit", betrag: 144, benutzer: "buero" }, QJ);
+  Q.kostenErfassen(s, { mandantId: "m1", auftragId: "auf1", art: "Fahrt", betrag: 60, benutzer: "buero" }, QJ);
+  Q.kostenErfassen(s, { mandantId: "m1", auftragId: "auf2", art: "Gutschrift", betrag: 200, benutzer: "buero" }, QJ);
+  var alle = Q.kostenSumme(s, {});
+  var eins = Q.kostenSumme(s, { auftragId: "auf1" });
+  t("QM Qualitätskosten je Art getrennt", alle.proArt["Nacharbeit"] === 144 && alle.proArt["Fahrt"] === 60 && alle.proArt["Gutschrift"] === 200 && alle.gesamt === 404);
+  t("QM Qualitätskosten je Auftrag filterbar", eins.gesamt === 204);
+  t("QM Kostenträger wird NICHT automatisch zugewiesen", s.qualitaetskosten.every(function (k) { return k.kostentraeger === "nicht zugewiesen"; }));
+  t("QM Unbekannte Kostenart -> sonstige", Q.kostenErfassen(s, { mandantId: "m1", art: "Phantasie", betrag: 5 }, QJ).art === "sonstige");
+})();
+
+// Offline: Idempotenz, Konflikt, keine automatische Freigabe
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf10", pruefplanId: pp.id }, QJ).pruefauftrag;
+  var daten = { aktion: "pruefergebnis", pruefauftragId: pa.id, schrittNummer: 1, wert: 100.5, pruefer: "werkstatt", idempotenzKey: "qm-off-1", mandantId: "m1" };
+  var r1 = Q.uebernehmeOffline(s, daten, QJ);
+  var r2 = Q.uebernehmeOffline(s, daten, QJ);
+  t("QM Offline-Prüfergebnis übernommen + zentral bewertet", r1.ok && r1.neu === true && r1.bewertung.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB);
+  t("QM Offline-Idempotenz: kein zweites Ergebnis", r2.ok && r2.neu === false && pa.ergebnisse.length === 1);
+  t("QM Offline-Freigabe ist NICHT zulässig", (function () { var r = Q.uebernehmeOffline(s, { aktion: "freigabe", pruefauftragId: pa.id, mandantId: "m1" }, QJ); return r.ok === false && /nicht zulässig/.test(r.grund); })());
+  var kf = Q.uebernehmeOffline(s, { aktion: "pruefergebnis", pruefauftragId: "gibtsnicht", schrittNummer: 1, wert: 1, idempotenzKey: "x", mandantId: "m1" }, QJ);
+  var letzterKonflikt = s.konflikte[s.konflikte.length - 1];
+  t("QM Offline-Konflikt gespeichert (lokale Daten erhalten)", kf.ok === false && letzterKonflikt.daten.wert === 1 && letzterKonflikt.status === "offen" && letzterKonflikt.daten.idempotenzKey === "x");
+  // Veraltete Prüfplanversion -> Konflikt statt stiller Übernahme
+  var kf2 = Q.uebernehmeOffline(s, { aktion: "pruefergebnis", pruefauftragId: pa.id, pruefplanVersion: 99, schrittNummer: 2, wert: "io", idempotenzKey: "y", mandantId: "m1" }, QJ);
+  t("QM Offline-Konflikt bei abweichender Prüfplanversion", kf2.ok === false && /Prüfplanversion/.test(kf2.grund));
+  // Offline-Abweichung doppelt -> nur eine
+  var o1 = Q.uebernehmeOffline(s, { aktion: "abweichung", mandantId: "m1", auftragId: "auf10", ersteller: "werkstatt", rolle: "werkstatt", idempotenzKey: "abw-off-1" }, QJ);
+  var o2 = Q.uebernehmeOffline(s, { aktion: "abweichung", mandantId: "m1", auftragId: "auf10", ersteller: "werkstatt", rolle: "werkstatt", idempotenzKey: "abw-off-1" }, QJ);
+  t("QM Offline erzeugt keine doppelte Abweichung", o1.ok && o2.ok && o2.neu === false && s.abweichungen.length === 1);
+})();
+
+// Rollen + Cross-Tenant
+(function () {
+  t("QM Rolle werkstatt darf prüfen + Abweichung anlegen", Q.darf("werkstatt", "pruefungDurchfuehren") && Q.darf("werkstatt", "abweichungAnlegen"));
+  t("QM Rolle werkstatt darf NICHT freigeben/sperren/entsperren", Q.darf("werkstatt", "pruefungFreigeben") === false && Q.darf("werkstatt", "chargeSperren") === false && Q.darf("werkstatt", "sperrungAufheben") === false);
+  t("QM Rolle buero ohne Sonderfreigabe/Sperraufhebung", Q.darf("buero", "sonderfreigabe") === false && Q.darf("buero", "sperrungAufheben") === false && Q.darf("buero", "nacharbeitFreigeben") === false);
+  t("QM Nur admin darf Prüfplan freigeben", Q.darf("admin", "pruefplanFreigeben") && Q.darf("buero", "pruefplanFreigeben") === false);
+  t("QM Werkstatt sieht keine Qualitätskosten", Q.darf("werkstatt", "qualitaetskostenSehen") === false && Q.darf("buero", "qualitaetskostenSehen"));
+  // Cross-Tenant: Prüfplan eines fremden Mandanten wird nicht gefunden
+  var s = freshQM();
+  qmPlan(s, { mandantId: "m1" });
+  t("QM Cross-Tenant: fremder Mandant findet keinen Prüfplan", Q.passenderPruefplan(s, { mandantId: "m2", produktgruppeKey: "gelaender" }) === null);
+  t("QM Eigener Mandant findet Prüfplan", !!Q.passenderPruefplan(s, { mandantId: "m1", produktgruppeKey: "gelaender" }));
+})();
+
+// Audit + Unveränderbarkeit abgeschlossener Prüfungen
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "auf11", pruefplanId: pp.id, benutzer: "buero" }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 100, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  pa.status = Q.PA_STATUS.ABGESCHLOSSEN;
+  var nach = Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 999, pruefer: "x" }, QJ);
+  t("QM Abgeschlossene Prüfung nicht mehr änderbar", nach.ok === false && /abgeschlossen/.test(nach.grund));
+  t("QM Audit protokolliert Prüfaktionen mit Benutzer/Zeitpunkt", s.audit.length >= 4 && s.audit.every(function (a) { return !!a.zeitpunkt && !!a.aktion; }));
+  t("QM Audit enthält Vorher/Nachher beim Abschluss", s.audit.some(function (a) { return a.aktion === "pruefauftrag.abschluss" && a.nachher === Q.PA_STATUS.BESTANDEN; }));
+})();
+
+// Keine Normen fest hinterlegt / keine Konformitätsaussage
+(function () {
+  var sd = Q.standardStammdaten();
+  t("QM Normreferenzen sind leer und konfigurierbar", Array.isArray(sd.normReferenzen) && sd.normReferenzen.length === 0);
+  t("QM Hinweis: keine Normkonformität behauptet", /keine Normkonformität/i.test(sd.hinweis));
+  var s = freshQM(); var pp = qmPlan(s, { referenz: "Kundenvorgabe XY" });
+  t("QM Prüfplan-Referenz ist reiner Freitext ohne Konformitätsaussage", pp.referenz === "Kundenvorgabe XY" && /keine Konformitätsaussage/i.test(pp.referenzHinweis));
+  t("QM Stammdaten enthalten keine fest codierte Norm-Nummer", JSON.stringify(sd).indexOf("EN 1090") < 0 && JSON.stringify(sd).indexOf("ISO 9001") < 0);
+})();
+
+// Historische Aufträge/Kalkulationen bleiben unverändert
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var auftrag = { id: "auf12", titel: "Alt", kalk: { netto: 1000 }, positionen: [{ kalk: { netto: 1000 } }] };
+  var snapVorher = JSON.stringify(auftrag);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: auftrag.id, pruefplanId: pp.id }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 105, pruefer: "werkstatt" }, QJ);
+  Q.abweichungNeu(s, { mandantId: "m1", auftragId: auftrag.id, ersteller: "werkstatt", rolle: "werkstatt" }, QJ);
+  Q.kostenErfassen(s, { mandantId: "m1", auftragId: auftrag.id, art: "Nacharbeit", betrag: 99 }, QJ);
+  t("QM Historischer Auftrag durch QM-Vorgänge unverändert", JSON.stringify(auftrag) === snapVorher);
 })();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
