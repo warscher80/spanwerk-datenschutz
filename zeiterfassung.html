@@ -104,6 +104,11 @@
   .modal-btns{display:flex;gap:10px}
   .modal-btns .btn{flex:1}
   .btn.primary-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .time-fields{display:flex;gap:10px;margin-bottom:16px}
+  .time-fields label{flex:1;font-size:13px;color:var(--muted)}
+  .time-fields input{width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:8px;font-size:16px;background:#fff;color:var(--ink);-webkit-appearance:none}
+  .act-time.editable{cursor:pointer}
   @media print{.toolbar,.play,.act-sub,.addbar,.chips,.status,#projTools,.modal-overlay{display:none}
     body{background:#fff} .card{box-shadow:none;border-color:#ccc}}
 </style>
@@ -164,6 +169,8 @@
       <input id="newActInput" type="text" placeholder="Eigene Tätigkeit hinzufügen" enterkeyhint="done">
       <button class="btn" id="addActBtn" type="button">Hinzufügen</button>
     </div>
+    <div class="hint">Vergessen zu stoppen? Tippe auf die <b>Zeit</b> (oder „Zeit ändern"), um sie zu
+      korrigieren oder eine Zeit ohne Stoppuhr einzutragen.</div>
   </section>
 
   <!-- NACHKALKULATION -->
@@ -187,6 +194,25 @@
     <div class="modal-btns">
       <button class="btn" id="confirmNo" type="button">Abbrechen</button>
       <button class="btn danger primary-danger" id="confirmYes" type="button">Ja</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zeit-Korrektur-Dialog -->
+<div class="modal-overlay" id="timeOverlay">
+  <div class="modal">
+    <div class="modal-msg" id="timeTitle">Zeit ändern</div>
+    <div class="time-fields">
+      <label>Stunden
+        <input id="timeH" type="number" min="0" step="1" inputmode="numeric">
+      </label>
+      <label>Minuten
+        <input id="timeM" type="number" min="0" max="59" step="1" inputmode="numeric">
+      </label>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" id="timeCancel" type="button">Abbrechen</button>
+      <button class="btn primary" id="timeSave" type="button">Speichern</button>
     </div>
   </div>
 </div>
@@ -252,6 +278,34 @@
     $('confirmNo').onclick=function(){ close(); };
     ov.onclick=function(e){ if(e.target===ov) close(); };
     ov.classList.add('show');
+  }
+
+  /* Zeit einer Tätigkeit korrigieren/eintragen (auf ganze Minuten) */
+  function askTime(title,curSec,onSave){
+    $('timeTitle').textContent=title;
+    $('timeH').value=Math.floor(curSec/3600);
+    $('timeM').value=Math.floor((curSec%3600)/60);
+    var ov=$('timeOverlay');
+    function close(){ ov.classList.remove('show'); $('timeSave').onclick=null; $('timeCancel').onclick=null; }
+    $('timeSave').onclick=function(){
+      var h=parseInt($('timeH').value,10); if(isNaN(h)||h<0) h=0;
+      var m=parseInt($('timeM').value,10); if(isNaN(m)||m<0) m=0;
+      close(); onSave(h*3600+m*60);
+    };
+    $('timeCancel').onclick=function(){ close(); };
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.classList.add('show');
+    setTimeout(function(){ try{$('timeM').focus(); $('timeM').select();}catch(e){} },40);
+  }
+  function editAct(actId){
+    var p=activeProj(); if(!p) return;
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    askTime('Zeit für „'+a.name+'" (Std. / Min.)', elapsed(a), function(sec){
+      a.sec=sec; a.startedAt=null;   // ggf. laufende Uhr anhalten und auf den Wert setzen
+      save(); render();
+    });
   }
 
   /* ---- Aktionen ---- */
@@ -336,11 +390,13 @@
       var row=document.createElement('div'); row.className='act-row'+(run?' running':'');
       var main=document.createElement('div'); main.className='act-main';
       var nm=document.createElement('div'); nm.className='act-name'; nm.textContent=a.name;
-      var tm=document.createElement('div'); tm.className='act-time'; tm.id='t_'+a.id; tm.textContent=fmt(elapsed(a));
+      var tm=document.createElement('div'); tm.className='act-time editable'; tm.id='t_'+a.id;
+      tm.textContent=fmt(elapsed(a)); tm.title='Zeit ändern'; tm.onclick=function(){editAct(a.id);};
       var sub=document.createElement('div'); sub.className='act-sub';
+      var ed=document.createElement('a'); ed.textContent='Zeit ändern'; ed.onclick=function(){editAct(a.id);};
       var rs=document.createElement('a'); rs.textContent='Reset'; rs.onclick=function(){resetAct(a.id);};
       var rm=document.createElement('a'); rm.textContent='Entfernen'; rm.onclick=function(){removeAct(a.id);};
-      sub.appendChild(rs); sub.appendChild(rm);
+      sub.appendChild(ed); sub.appendChild(rs); sub.appendChild(rm);
       main.appendChild(nm); main.appendChild(tm); main.appendChild(sub);
       var btn=document.createElement('button'); btn.className='play'+(run?' pause':'');
       btn.textContent=run?'Pause':'Start'; btn.onclick=function(){startAct(a.id);};
