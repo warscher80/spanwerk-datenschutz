@@ -1698,5 +1698,100 @@ function qmPlan(s, extra) {
   t("QM-UI Offline-Konflikt bei veralteter Prüfplanversion", kf.ok === false && /Prüfplanversion/.test(kf.grund) && s.konflikte.length >= 1);
 })();
 
+// =============================================================
+//  MITARBEITER-STAMMDATEN & PLANUNGSFELDER
+// =============================================================
+// Hintergrund: Das Mitarbeiter-Formular speicherte früher nur Name, Gruppe,
+// Stundensatz und Status. qualifikationen/maschinenberechtigungen/
+// abwesenheiten existierten nur im Seed – die Fertigungsplanung wertet sie
+// aber aus. Folge: jeder über die Oberfläche angelegte Mitarbeiter erzeugte
+// dauerhaft Qualifikationskonflikte, während Maschinen- und Abwesenheits-
+// prüfung still durchwinkten. Diese Tests sichern beides ab.
+(function () {
+  var N = Store.normalisiereMitarbeiter;
+
+  // --- Normalisierung -----------------------------------------
+  var leer = N({ name: "  Neu  " });
+  t("MA Normalisierung trimmt den Namen", leer.name === "Neu");
+  t("MA Planungsfelder existieren immer", Array.isArray(leer.qualifikationen) && Array.isArray(leer.maschinenberechtigungen) && Array.isArray(leer.abwesenheiten));
+  t("MA Vorgabe maxStundenProTag = 8", leer.maxStundenProTag === 8);
+  t("MA Vorgabe aktiv = true", leer.aktiv === true);
+  t("MA Ungültige Stunden fallen auf 8 zurück", N({ name: "x", maxStundenProTag: 0 }).maxStundenProTag === 8 && N({ name: "x", maxStundenProTag: -3 }).maxStundenProTag === 8);
+  t("MA Negativer Stundensatz wird zu 0", N({ name: "x", stundensatz: -5 }).stundensatz === 0);
+
+  var dop = N({ name: "x", qualifikationen: ["Montage", " Montage ", "", "Kran"] });
+  t("MA Qualifikationen ohne Duplikate/Leereinträge", dop.qualifikationen.length === 2 && dop.qualifikationen[0] === "Montage" && dop.qualifikationen[1] === "Kran");
+
+  // Abwesenheiten: ohne Von wertlos, vertauschte Daten drehen, fehlendes Bis = ein Tag
+  var abw = N({ name: "x", abwesenheiten: [
+    { von: "", bis: "2026-05-01", grund: "kaputt" },
+    { von: "2026-08-10", bis: "2026-08-03", grund: " Urlaub " },
+    { von: "2026-03-01" }
+  ] });
+  t("MA Abwesenheit ohne Von wird verworfen", abw.abwesenheiten.length === 2);
+  t("MA Abwesenheiten sind nach Von sortiert", abw.abwesenheiten[0].von === "2026-03-01");
+  t("MA Fehlendes Bis wird zum Ein-Tages-Eintrag", abw.abwesenheiten[0].bis === "2026-03-01");
+  t("MA Vertauschte Daten werden gedreht", abw.abwesenheiten[1].von === "2026-08-03" && abw.abwesenheiten[1].bis === "2026-08-10");
+  t("MA Grund wird getrimmt", abw.abwesenheiten[1].grund === "Urlaub");
+
+  // Der Tausch darf nur bei YYYY-MM-DD greifen. Bei einem Fremdformat aus
+  // einem Import wäre "31.08.2026" < "02.09.2026" als Text falsch – ein
+  // Tausch würde einen korrekten Zeitraum verdrehen.
+  var fremd = N({ name: "x", abwesenheiten: [{ von: "31.08.2026", bis: "02.09.2026" }] });
+  t("MA Fremdes Datumsformat wird nicht getauscht",
+    fremd.abwesenheiten[0].von === "31.08.2026" && fremd.abwesenheiten[0].bis === "02.09.2026");
+
+  // --- Wirkung in der Fertigungsplanung ------------------------
+  var Pl = P.Planung;
+  function konfliktTypen(ma, el) {
+    return Pl.konflikte([el], { mitarbeiter: [ma], settings: { maschinen: [{ id: "m-laser", name: "Laser", maxParallel: 1 }] } })
+      .map(function (k) { return k.typ; });
+  }
+  var basis = { id: "e1", start: iso(2026, 6, 1, 8), ende: iso(2026, 6, 1, 16), mitarbeiterIds: ["ma1"], bezeichnung: "Lasern" };
+
+  var ohne = Object.assign({ id: "ma1" }, N({ name: "Neu" }));
+  var mit = Object.assign({ id: "ma1" }, N({ name: "Profi", qualifikationen: ["Laserschneiden"] }));
+
+  t("MA Fehlende Qualifikation erzeugt Konflikt",
+    konfliktTypen(ohne, Object.assign({}, basis, { qualifikation: "Laserschneiden" })).indexOf("qualifikation") >= 0);
+  t("MA Vorhandene Qualifikation erzeugt keinen Konflikt",
+    konfliktTypen(mit, Object.assign({}, basis, { qualifikation: "Laserschneiden" })).indexOf("qualifikation") < 0);
+  t("MA Ohne geforderte Qualifikation kein Konflikt",
+    konfliktTypen(ohne, Object.assign({}, basis)).indexOf("qualifikation") < 0);
+
+  // Dokumentiert die bewusste Asymmetrie: leere Berechtigungsliste = keine
+  // Einschränkung, während eine gesetzte Liste alles Übrige sperrt.
+  t("MA Leere Maschinenberechtigung = keine Einschränkung",
+    konfliktTypen(ohne, Object.assign({}, basis, { maschineId: "m-laser" })).indexOf("berechtigung") < 0);
+  t("MA Gesetzte Berechtigung sperrt fremde Maschine",
+    konfliktTypen(Object.assign({ id: "ma1" }, N({ name: "x", maschinenberechtigungen: ["m-saege"] })), Object.assign({}, basis, { maschineId: "m-laser" })).indexOf("berechtigung") >= 0);
+  t("MA Passende Berechtigung erzeugt keinen Konflikt",
+    konfliktTypen(Object.assign({ id: "ma1" }, N({ name: "x", maschinenberechtigungen: ["m-laser"] })), Object.assign({}, basis, { maschineId: "m-laser" })).indexOf("berechtigung") < 0);
+
+  t("MA Abwesenheit im Zeitraum erzeugt Konflikt",
+    konfliktTypen(Object.assign({ id: "ma1" }, N({ name: "x", abwesenheiten: [{ von: "2026-05-28", bis: "2026-06-05", grund: "Urlaub" }] })), basis).indexOf("abwesenheit") >= 0);
+  t("MA Abwesenheit außerhalb erzeugt keinen Konflikt",
+    konfliktTypen(Object.assign({ id: "ma1" }, N({ name: "x", abwesenheiten: [{ von: "2026-07-01", bis: "2026-07-10" }] })), basis).indexOf("abwesenheit") < 0);
+  t("MA Ein-Tages-Abwesenheit deckt den ganzen Tag ab",
+    konfliktTypen(Object.assign({ id: "ma1" }, N({ name: "x", abwesenheiten: [{ von: "2026-06-01" }] })), basis).indexOf("abwesenheit") >= 0);
+
+  // app.js ist hier nicht ausführbar (kein DOM). Die folgenden Prüfungen sind
+  // bewusst nur STATISCHE ANKER: sie schlagen an, wenn der Aufruf oder ein
+  // Eingabefeld beim Umbauen verlorengeht. Sie können NICHT beweisen, dass das
+  // Formular tatsächlich über diesen Weg speichert – ein zweiter Speicherpfad
+  // daran vorbei bliebe unentdeckt. Dafür braucht es Browsertests.
+  var appSrc = fs.readFileSync(path.join(DIR, "app.js"), "utf8");
+  t("MA Ergebnis der Normalisierung wird verwendet", /=\s*Store\.normalisiereMitarbeiter\s*\(/.test(appSrc));
+  // Sperren dürfen nicht still zu Freigaben werden: eine leere
+  // Berechtigungsliste bedeutet in planung.js "keine Einschränkung".
+  t("MA Berechtigungen gelöschter Maschinen werden weitergeführt", /gelöschte Maschine/.test(appSrc));
+  [["data-maq", "Qualifikations-Auswahl"], ["ma-qneu", "Freitext für neue Qualifikation"],
+   ["data-mamasch", "Maschinenberechtigungen"], ["ma-abw-liste", "Abwesenheitsliste"],
+   ["ma-team", "Team"], ["ma-standort", "Standort"], ["ma-maxstd", "Max. Stunden/Tag"]
+  ].forEach(function (p) {
+    t("MA Formularfeld vorhanden: " + p[1], appSrc.indexOf(p[0]) >= 0);
+  });
+})();
+
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

@@ -4084,11 +4084,15 @@
     var html = '<div class="btn-row" style="margin-bottom:12px"><button class="btn primary sm" id="btn-add-ma" type="button">+ Mitarbeiter anlegen</button></div>';
     if (!liste.length) { html += '<div class="empty">Noch keine Mitarbeiter angelegt.</div>'; }
     else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Gruppe</th><th class="num">Stundensatz</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Gruppe</th><th class="num">Stundensatz</th><th>Qualifikationen</th><th class="num">Abwesenh.</th><th>Status</th><th class="num">Aktion</th></tr></thead><tbody>';
       liste.forEach(function (m) {
+        var q = (m.qualifikationen || []);
+        var anzAbw = (m.abwesenheiten || []).length;
         html += "<tr><td><strong>" + esc(m.name) + "</strong></td>" +
           "<td>" + esc(gruppeLabel(m.gruppe)) + "</td>" +
           '<td class="num">' + fmtEUR(m.stundensatz) + "/h</td>" +
+          "<td>" + (q.length ? esc(q.join(", ")) : '<span class="muted">— keine hinterlegt</span>') + "</td>" +
+          '<td class="num">' + (anzAbw ? anzAbw : '<span class="muted">—</span>') + "</td>" +
           "<td>" + (m.aktiv === false ? '<span class="muted">inaktiv</span>' : "aktiv") + "</td>" +
           '<td class="num"><button class="btn sm ghost" data-maedit="' + m.id + '" type="button">✏️</button> ' +
             '<button class="btn sm danger" data-madel="' + m.id + '" type="button">🗑️</button></td></tr>';
@@ -4108,22 +4112,130 @@
     var liste = db.mitarbeiter || (db.mitarbeiter = []);
     var m = id ? liste.filter(function (x) { return x.id === id; })[0] : null;
     var grpOpt = GRUPPEN.map(function (g) { return '<option value="' + g[0] + '"' + (m && m.gruppe === g[0] ? " selected" : "") + ">" + esc(g[1]) + "</option>"; }).join("");
+    // Qualifikations-Katalog aus den Einstellungen. Bereits vergebene
+    // Qualifikationen werden ergänzt, damit beim Bearbeiten nichts unsichtbar
+    // verloren geht (z. B. nach einem Import mit fremdem Katalog).
+    var katalog = ((db.settings && db.settings.qualifikationen) || []).slice();
+    ((m && m.qualifikationen) || []).forEach(function (q) { if (katalog.indexOf(q) < 0) katalog.push(q); });
+    var maschinen = (db.settings && db.settings.maschinen) || [];
+    // Arbeitskopie der Abwesenheiten – "Abbrechen" verwirft sie damit wirklich.
+    var abw = ((m && m.abwesenheiten) || []).map(function (a) { return { von: a.von || "", bis: a.bis || "", grund: a.grund || "" }; });
+    var gewaehlt = ((m && m.qualifikationen) || []).slice();
+
+    var qualiHTML = katalog.length
+      ? '<div class="check-grid">' + katalog.map(function (q, i) {
+          return '<label class="check"><input type="checkbox" data-maq="' + i + '" value="' + esc(q) + '"' + (gewaehlt.indexOf(q) >= 0 ? " checked" : "") + "> " + esc(q) + "</label>";
+        }).join("") + "</div>"
+      : '<div class="muted" style="font-size:12px">Noch keine Qualifikationen hinterlegt – unten neue eintragen.</div>';
+
+    // Berechtigungen für zwischenzeitlich gelöschte Maschinen dürfen beim
+    // Speichern nicht still verschwinden: eine leere Berechtigungsliste
+    // bedeutet in planung.js "keine Einschränkung" – aus einer Sperre würde
+    // also unbemerkt eine Freigabe. Solche Einträge werden darum als eigene,
+    // abwählbare Zeile weitergeführt.
+    var maschEintraege = maschinen.map(function (ma) { return { id: ma.id, label: ma.name, weg: false }; });
+    ((m && m.maschinenberechtigungen) || []).forEach(function (mid) {
+      if (!maschEintraege.some(function (e) { return e.id === mid; })) {
+        maschEintraege.push({ id: mid, label: mid + " (gelöschte Maschine)", weg: true });
+      }
+    });
+    var maschHTML = maschEintraege.length
+      ? '<div class="check-grid">' + maschEintraege.map(function (e) {
+          return '<label class="check"' + (e.weg ? ' style="opacity:.7"' : "") + '><input type="checkbox" data-mamasch="' + esc(e.id) + '"' + (((m && m.maschinenberechtigungen) || []).indexOf(e.id) >= 0 ? " checked" : "") + "> " + esc(e.label) + "</label>";
+        }).join("") + "</div>"
+      : '<div class="muted" style="font-size:12px">Keine Maschinen angelegt.</div>';
+
     var body =
       fld2("Name", "ma-mname", m ? m.name : "", "text") +
       '<label class="fld"><span class="lbl">Gruppe (bestimmt den Vorgabe-Stundensatz)</span><select id="ma-grp">' + grpOpt + "</select></label>" +
       '<div class="inline">' +
         fld2("Stundenverrechnungssatz (€/h)", "ma-msatz", m ? m.stundensatz : "", "number") +
         '<label class="fld"><span class="lbl">Status</span><select id="ma-aktiv"><option value="1"' + (!m || m.aktiv !== false ? " selected" : "") + ">aktiv</option><option value=\"0\"" + (m && m.aktiv === false ? " selected" : "") + ">inaktiv</option></select></label>" +
-      "</div>";
-    openModal(m ? "Mitarbeiter bearbeiten" : "Mitarbeiter anlegen", body, function () {
+      "</div>" +
+      '<div class="inline">' +
+        fld2("Team", "ma-team", m ? m.team : "", "text") +
+        fld2("Standort", "ma-standort", m ? m.standort : "", "text") +
+        fld2("Max. Stunden/Tag", "ma-maxstd", m ? m.maxStundenProTag : 8, "number") +
+      "</div>" +
+      // Ehrlich kennzeichnen: das Feld wird gespeichert, aber von keinem Modul
+      // ausgewertet (siehe KNOWN_LIMITATIONS.md). Ohne Hinweis entsteht der
+      // Eindruck, die Planung würde die Tagesgrenze berücksichtigen.
+      '<div class="muted" style="font-size:12px;margin:-4px 0 6px">Max. Stunden/Tag wird gespeichert, aber derzeit von der Fertigungsplanung noch nicht ausgewertet.</div>' +
+      '<h4 style="margin:14px 0 4px">Qualifikationen</h4>' +
+      '<div class="muted" style="font-size:12px;margin-bottom:6px">Die Fertigungsplanung meldet einen Konflikt, wenn ein Arbeitsgang eine Qualifikation verlangt, die hier nicht gesetzt ist. Verlangt ein Arbeitsgang keine Qualifikation, entsteht kein Konflikt.</div>' +
+      qualiHTML +
+      fld2("Neue Qualifikation(en) – mehrere mit Komma trennen", "ma-qneu", "", "text") +
+      '<h4 style="margin:14px 0 4px">Maschinenberechtigungen</h4>' +
+      '<div class="muted" style="font-size:12px;margin-bottom:6px">Keine Auswahl = keine Einschränkung. Sobald mindestens eine Maschine gewählt ist, meldet die Planung alle übrigen Maschinen als fehlende Berechtigung.</div>' +
+      maschHTML +
+      '<h4 style="margin:14px 0 4px">Abwesenheiten</h4>' +
+      '<div class="muted" style="font-size:12px;margin-bottom:6px">Urlaub, Krankenstand, Schulung. Die Planung meldet einen Konflikt, wenn ein Arbeitsgang in diesen Zeitraum fällt.</div>' +
+      '<div id="ma-abw-liste"></div>' +
+      '<div class="btn-row" style="margin-top:6px"><button class="btn sm ghost" id="ma-abw-add" type="button">+ Abwesenheit</button></div>';
+
+    openModalWide(m ? "Mitarbeiter bearbeiten" : "Mitarbeiter anlegen", body, function () {
       var name = $("#ma-mname").value.trim();
       if (!name) { toast("Bitte Namen angeben.", "err"); return false; }
-      var daten = { name: name, gruppe: $("#ma-grp").value, stundensatz: leseZahl0($("#ma-msatz").value), aktiv: $("#ma-aktiv").value === "1" };
+      liesAbwesenheiten();
+      var offen = abw.filter(function (a) { return !a.von; }).length;
+      if (offen) { toast("Bitte bei jeder Abwesenheit ein Von-Datum angeben (oder die Zeile löschen).", "err"); return false; }
+
+      var quali = $all("[data-maq]").filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+      // Freitext-Eingabe erweitert zugleich den Katalog in den Einstellungen –
+      // so wächst er mit dem Betrieb, ohne eigene Verwaltungsseite.
+      var neu = $("#ma-qneu").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (neu.length) {
+        var kat = db.settings.qualifikationen || (db.settings.qualifikationen = []);
+        neu.forEach(function (q) {
+          if (kat.indexOf(q) < 0) kat.push(q);
+          if (quali.indexOf(q) < 0) quali.push(q);
+        });
+      }
+
+      var daten = Store.normalisiereMitarbeiter({
+        name: name,
+        gruppe: $("#ma-grp").value,
+        stundensatz: leseZahl0($("#ma-msatz").value),
+        aktiv: $("#ma-aktiv").value === "1",
+        team: $("#ma-team").value,
+        standort: $("#ma-standort").value,
+        maxStundenProTag: leseZahl0($("#ma-maxstd").value),
+        qualifikationen: quali,
+        maschinenberechtigungen: $all("[data-mamasch]").filter(function (b) { return b.checked; }).map(function (b) { return b.getAttribute("data-mamasch"); }),
+        abwesenheiten: abw
+      });
       if (m) { Object.keys(daten).forEach(function (k) { m[k] = daten[k]; }); }
       else { daten.id = Store.uid(); liste.push(daten); }
       Store.save(); renderMitarbeiter(); toast("Mitarbeiter gespeichert.");
       return true;
     });
+
+    // ---- Abwesenheiten: dynamische Liste im geöffneten Modal --------
+    // Die Felder werden vor jedem Neuzeichnen und vor dem Speichern
+    // zurückgelesen, damit Eingaben nicht verloren gehen.
+    function liesAbwesenheiten() {
+      $all("[data-abwi]").forEach(function (el) {
+        var i = Number(el.getAttribute("data-abwi")), feld = el.getAttribute("data-abwf");
+        if (abw[i]) abw[i][feld] = el.value;
+      });
+    }
+    function zeichneAbwesenheiten() {
+      var host = $("#ma-abw-liste"); if (!host) return;
+      host.innerHTML = abw.length
+        ? abw.map(function (a, i) {
+            return '<div class="inline" style="align-items:flex-end;gap:8px;margin-bottom:6px">' +
+              '<label class="fld"><span class="lbl">Von</span><input type="date" data-abwi="' + i + '" data-abwf="von" value="' + esc(a.von) + '"></label>' +
+              '<label class="fld"><span class="lbl">Bis</span><input type="date" data-abwi="' + i + '" data-abwf="bis" value="' + esc(a.bis) + '"></label>' +
+              '<label class="fld"><span class="lbl">Grund</span><input type="text" data-abwi="' + i + '" data-abwf="grund" value="' + esc(a.grund) + '"></label>' +
+              '<button class="btn sm danger" type="button" data-abwdel="' + i + '">🗑️</button></div>';
+          }).join("")
+        : '<div class="muted" style="font-size:12px">Keine Abwesenheiten erfasst.</div>';
+      $all("[data-abwdel]", host).forEach(function (b) {
+        b.onclick = function () { liesAbwesenheiten(); abw.splice(Number(b.getAttribute("data-abwdel")), 1); zeichneAbwesenheiten(); };
+      });
+    }
+    zeichneAbwesenheiten();
+    $("#ma-abw-add").onclick = function () { liesAbwesenheiten(); abw.push({ von: "", bis: "", grund: "" }); zeichneAbwesenheiten(); };
   }
 
   // ---- Lieferanten-Verwaltung ---------------------------------

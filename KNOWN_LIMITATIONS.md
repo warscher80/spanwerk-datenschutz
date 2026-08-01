@@ -188,6 +188,17 @@ einem gemeinsam genutzten Gerät vertretbar dokumentiert.
   500 Kunden, 10 000 Materialien, 2 000 Angeboten und 1 000 Aufträgen belegt
   bereits 1,4 MB – ohne Dokumenteninhalte. Langjähriger Vollbetrieb mit vielen
   Uploads sprengt dieses Limit.
+- **`maxStundenProTag` ist ohne Wirkung.** Das Feld ist in den
+  Mitarbeiter-Stammdaten erfassbar und wird gespeichert, aber von keinem Modul
+  ausgewertet – die Fertigungsplanung prüft Qualifikation, Abwesenheit und
+  Maschinenberechtigung, nicht die Tagesarbeitszeit. Im Formular ist das
+  ausdrücklich vermerkt.
+- **Maschinenberechtigungen sind eine Positivliste mit Sonderfall:** eine
+  **leere** Liste bedeutet „keine Einschränkung" (alle Maschinen erlaubt),
+  sobald aber **eine** Maschine gewählt ist, gelten alle übrigen als gesperrt.
+  Berechtigungen für zwischenzeitlich gelöschte Maschinen bleiben erhalten und
+  werden im Formular als solche gekennzeichnet, damit aus einer Sperre nicht
+  unbemerkt eine Freigabe wird.
 - **Kein Anmelde-Rate-Limit und keine serverseitige Rechteprüfung**, da es kein
   Backend gibt. Der Rollenschutz ist Anwendungsschutz. `infra.rateLimiter()`
   existiert als getesteter Baustein, ist aber **nicht** an die Anmeldung

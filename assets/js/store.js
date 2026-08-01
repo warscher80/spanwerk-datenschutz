@@ -1162,9 +1162,63 @@
     return _db;
   }
 
+  // ---- Mitarbeiter-Stammdaten normalisieren -------------------
+  // Wandelt die Rohwerte aus dem Stammdaten-Formular in einen vollständigen
+  // Mitarbeiter-Datensatz. Bewusst hier und nicht in der Oberfläche: die
+  // Fertigungsplanung wertet qualifikationen/maschinenberechtigungen/
+  // abwesenheiten aus (planung.js), und ein über die Oberfläche angelegter
+  // Mitarbeiter hatte diese Felder früher gar nicht – die Planung meldete
+  // dadurch dauerhaft "fehlende Qualifikation". Als reine Funktion ist das
+  // Verhalten in tests/referenz.test.js prüfbar.
+  function normalisiereMitarbeiter(roh) {
+    var r = roh || {};
+    function txt(v) { return String(v == null ? "" : v).trim(); }
+    // Liste bereinigen: leere Einträge raus, Duplikate raus, Reihenfolge erhalten.
+    function liste(v) {
+      var out = [];
+      (Array.isArray(v) ? v : []).forEach(function (x) {
+        var s = txt(x);
+        if (s && out.indexOf(s) < 0) out.push(s);
+      });
+      return out;
+    }
+    var std = Number(r.maxStundenProTag);
+    if (!isFinite(std) || std <= 0) std = 8;
+    var satz = Number(r.stundensatz);
+    if (!isFinite(satz) || satz < 0) satz = 0;
+    // Abwesenheiten: ohne "von" wertlos; fehlendes "bis" ist ein Ein-Tages-
+    // Eintrag. Das Formular liefert immer YYYY-MM-DD – nur in diesem Format
+    // ist der Stringvergleich chronologisch korrekt. Bei abweichenden Werten
+    // (z. B. "31.08.2026" aus einem Fremdimport) wird NICHT getauscht, sonst
+    // würde ein korrekter Zeitraum verdreht: "31.08." < "02.09." ist als Text
+    // falsch. Solche Werte bleiben unverändert stehen.
+    var ISO = /^\d{4}-\d{2}-\d{2}$/;
+    var abw = [];
+    (Array.isArray(r.abwesenheiten) ? r.abwesenheiten : []).forEach(function (a) {
+      if (!a || !txt(a.von)) return;
+      var von = txt(a.von), bis = txt(a.bis) || von;
+      if (ISO.test(von) && ISO.test(bis) && bis < von) { var h = von; von = bis; bis = h; }
+      abw.push({ von: von, bis: bis, grund: txt(a.grund) });
+    });
+    abw.sort(function (a, b) { return a.von < b.von ? -1 : a.von > b.von ? 1 : 0; });
+    return {
+      name: txt(r.name),
+      gruppe: r.gruppe || "fertigung",
+      stundensatz: satz,
+      aktiv: r.aktiv !== false,
+      team: txt(r.team),
+      standort: txt(r.standort),
+      maxStundenProTag: std,
+      qualifikationen: liste(r.qualifikationen),
+      maschinenberechtigungen: liste(r.maschinenberechtigungen),
+      abwesenheiten: abw
+    };
+  }
+
   w.Preisschmiede = w.Preisschmiede || {};
   w.Preisschmiede.Store = {
     load: load, save: save, reset: reset, onSave: onSave,
+    normalisiereMitarbeiter: normalisiereMitarbeiter,
     exportJSON: exportJSON, importJSON: importJSON,
     fresh: fresh, migrate: migrate,
     uid: uid, nowISO: nowISO,
