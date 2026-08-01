@@ -4,7 +4,22 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 13B – Rechnungs-UI, PDF, Kundenportal &
+Letzte Aktualisierung: **Phase 14A – PWA- & Offline-Synchronisationskern**
+umgesetzt. Neustartfeste, ereignisbasierte Zeiterfassung mit Exactly-once-
+Synchronisation in die zentrale `Store`-db. Neue Bausteine: reine Sync-Engine
+(`sync.js`: Ereignisse TIMER_STARTED/…/ENTRY_CANCELLED, Dauer aus Ereignissen,
+Idempotenz, Warteschlange mit Reihenfolge/Abhängigkeiten, Backoff-Retry,
+Konfliktprüfung inkl. Cross-Tenant/Zeitdrift, Ein-Timer-Garantie, Offline-
+Datenumfang ohne vertrauliche Felder), dauerhafter Speicher (`offlinedb.js`:
+IndexedDB über http, localStorage-Fallback), Integration (`offline-app.js`),
+Service Worker (`sw.js`) + `manifest.webmanifest` (PWA, App-Shell-Cache,
+Update-Erkennung). Kompakte Diagnose auf der System-Seite. Ein offline
+gestarteter Timer überlebt App-Neustart (rekonstruiert) und wird exakt einmal
+übernommen. Tests **277/277** + Browser-E2E (file://: Reload+exactly-once;
+http://: SW registriert, IndexedDB persistent). Ehrlich: kein echter Server;
+Offline-Daten werden bei der Übernahme erneut validiert. Doku: OFFLINE_SYNC.md.
+
+Vorher: **Phase 13B – Rechnungs-UI, PDF, Kundenportal &
 ERP-Dateiexport** umgesetzt. Vollständige interne Seite „Rechnungen & Nachträge"
 (Nav; admin/buero, werkstatt gesperrt): Nachtragsverwaltung, Rechnungsübersicht
 mit Filtern, 4-Schritt-Rechnungsassistent inkl. Positionseditor (Teilmengen,
@@ -102,6 +117,9 @@ KNOWN_LIMITATIONS.md).
 | Infrastruktur | `assets/js/infra.js` | Env-Validierung, E-Mail-/Zahlungsadapter, Aufgaben-Queue, geplante Jobs, signierte Links, Monitoring-Scrubbing, Rate-Limit |
 | Kundenportal | `assets/js/portal.js` | sichere Zugriffe, kundensichere Ausgabe, Optionen/Alternativen, server-seitige Neuberechnung, digitale Annahme/Ablehnung |
 | Nachträge/Rechnungen | `assets/js/rechnung.js` | Nachtragskalkulation, Belegarten, Summen je Steuersatz, Nummernkreise, Freigabe/Snapshot, Zahlungsstatus, Rollen |
+| Offline-Sync | `assets/js/sync.js` | Ereignismodell, Idempotenz, Warteschlange, Retry, Konflikte, Zeitdrift, Ein-Timer-Garantie |
+| Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
+| PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |

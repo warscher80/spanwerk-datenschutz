@@ -19,6 +19,7 @@
   var Mandant = w.Preisschmiede.Mandant;
   var Infra = w.Preisschmiede.Infra;
   var Rechnung = w.Preisschmiede.Rechnung;
+  var Offline = w.Preisschmiede.Offline;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -1409,7 +1410,11 @@
     // Rechnungswesen – schreibgeschützte Vorschau (Phase 13A)
     html += rechnungVorschauCardHtml(now);
 
+    // Offline-Synchronisation – kompakte Diagnose (Phase 14A)
+    html += offlineDiagnoseCardHtml();
+
     root.innerHTML = html;
+    verdrahteOfflineDiagnose();
     verdrahteMandantenCard(now);
     verdrahteInfraCard(now);
     verdrahtePortalAdminCard();
@@ -2259,6 +2264,39 @@
       '@media print{.noprint{display:none}} @page{margin:16mm}</style></head><body>' + innerHtml +
       '<div class="noprint" style="margin:16px 0"><button onclick="window.print()" style="padding:10px 16px;font-size:14px">🖨️ Drucken / als PDF speichern</button></div></body></html>';
     wnd.document.open(); wnd.document.write(doc); wnd.document.close();
+  }
+
+  // ============================================================
+  //  OFFLINE-SYNCHRONISATION – kompakte Diagnose (Phase 14A)
+  //  Nur Anzeige + ein funktionierender „Jetzt synchronisieren"-
+  //  Knopf. Keine unfertigen Aktions-Schaltflächen.
+  // ============================================================
+  function offlineDiagnoseCardHtml() {
+    if (!Offline) return "";
+    var z;
+    try { z = Offline.zusammenfassung(); } catch (e) { return ""; }
+    var badge = function (ok, t, f) { return '<span class="badge" style="background:' + (ok ? "#2fbf71" : "#888") + ';color:#fff">' + esc(ok ? t : f) + "</span>"; };
+    var at = z.aktiverTimer;
+    var html = '<div class="card" style="margin-top:12px;border-left:4px solid #7a9d5a"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3 style="margin:0">📶 Offline-Synchronisation</h3>' +
+      '<div class="inline" style="flex:0">' + badge(z.online, "online", "offline") + '<button class="btn sm" id="off-sync" type="button"' + (z.online ? "" : " disabled") + ">↻ Jetzt synchronisieren</button></div></div>";
+    html += '<div class="grid cols-4" style="margin-top:10px">' +
+      stat("Aktiver Timer", at ? "läuft" : "keiner", at ? "warn" : "") +
+      stat("Lokale/wartende", z.wartend) + stat("Synchronisiert", z.synchronisiert) + stat("Konflikte", z.konflikte, z.konflikte ? "warn" : "green") + "</div>";
+    html += '<div class="table-wrap" style="margin-top:8px"><table><tbody>' +
+      dokZeile("Speicher-Treiber", esc(z.treiber) + " · DB v" + z.dbVersion) +
+      dokZeile("Gerät", esc(z.geraet || "—")) +
+      dokZeile("Letzte Synchronisation", z.letzteSync ? fmtDateTime(z.letzteSync) : "—") +
+      dokZeile("App-Version", esc((buildInfo() || {}).version || "—")) +
+      (at ? dokZeile("Timer seit", fmtDateTime(at.seit) + (at.aufPause ? " (pausiert)" : "") + " · Auftrag " + esc(at.auftragId || "—")) : "") +
+      "</tbody></table></div>";
+    var kfl = Offline.konflikte();
+    if (kfl.length) html += '<h4 style="margin:10px 0 4px">Konflikte (lokale Daten bleiben erhalten)</h4>' + kfl.slice(0, 10).map(function (r) { return '<div class="insight"><span class="ico">🔴</span><span>' + esc(r.typ) + "/" + esc(r.event || "") + " – " + esc(r.fehler || "") + '</span></div>'; }).join("");
+    html += '<p class="hint">Offline erfasste Ereignisse werden dauerhaft gespeichert (IndexedDB/localStorage) und exakt einmal in die aktive Mandanten-db übernommen. Offline-Daten gelten bei der Übernahme als nicht vertrauenswürdig und werden erneut geprüft. Keine vertraulichen Kosten/Margen werden offline gehalten.</p></div>';
+    return html;
+  }
+  function verdrahteOfflineDiagnose() {
+    if (!Offline) return;
+    if ($("#off-sync")) $("#off-sync").onclick = function () { var r = Offline.synchronisiere(); if (r.ok) { db = Store.load(); toast("Synchronisiert: " + r.verarbeitet + " übernommen" + (r.konflikte ? ", " + r.konflikte + " Konflikt(e)" : "") + "."); } else toast("Synchronisation: " + r.grund, "err"); renderSystem(); };
   }
 
   function systemBackup() {

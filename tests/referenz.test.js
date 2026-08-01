@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js", "sync.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -854,6 +854,123 @@ t("RECH positionRest = Gesamt - bisher - aktuell", eq(R.positionRest({ gesamtmen
   var b3 = freigebe(s, "Teilrechnung", [{ bezeichnung: "Neu", menge: 1, einzelpreis: 50 }], { kundeId: "kA" });
   var exp3 = R.erpExport([b3], lookup, R.standardMappingProfil(), iso(2026, 8, 3));
   t("RECH neuer Beleg NICHT als doppelt erkannt", R.erpDoppelt(log, exp3).doppelt === false);
+})();
+
+// =============================================================
+//  OFFLINE-SYNCHRONISATIONSKERN  (Phase 14A)
+// =============================================================
+var SY = P.Sync;
+function ev(timerId, event, isoStr, extra) { return SY.timerEreignis(Object.assign({ timerId: timerId, benutzer: "u1", mandantId: "mA", auftragId: "auf1", schritt: "schweissen", geraetezeit: isoStr }, extra || {}), event, isoStr); }
+function isod(y, mo, d2, h, mi) { return new Date(y, mo - 1, d2, h || 8, mi || 0, 0).toISOString(); }
+
+// 1 Dauer aus Ereignissen (mit Pause)
+(function () {
+  var evs = [ev("t1", "TIMER_STARTED", isod(2026, 8, 1, 8, 0)), ev("t1", "BREAK_STARTED", isod(2026, 8, 1, 9, 0)), ev("t1", "BREAK_ENDED", isod(2026, 8, 1, 9, 30)), ev("t1", "TIMER_STOPPED", isod(2026, 8, 1, 11, 0))];
+  var d1 = SY.dauerAusEreignissen(evs);
+  t("SYNC Dauer = 2,5 h (3h - 0,5h Pause)", d1.sekunden === 9000 && d1.aktiv === false);
+})();
+// 2 laufender Timer aktiv + Rekonstruktion
+(function () {
+  var evs = [ev("t2", "TIMER_STARTED", isod(2026, 8, 1, 8, 0))];
+  var d2 = SY.dauerAusEreignissen(evs, isod(2026, 8, 1, 9, 0));
+  t("SYNC laufender Timer aktiv, 1h", d2.aktiv === true && d2.sekunden === 3600);
+  var at = SY.aktiverTimer(evs, "u1", isod(2026, 8, 1, 9, 0));
+  t("SYNC aktiver Timer rekonstruiert", !!at && at.timerId === "t2" && at.auftragId === "auf1");
+})();
+// 3 ENTRY_CANCELLED / CORRECTED
+(function () {
+  var c = SY.dauerAusEreignissen([ev("t3", "TIMER_STARTED", isod(2026, 8, 1, 8)), ev("t3", "ENTRY_CANCELLED", isod(2026, 8, 1, 8, 30))]);
+  t("SYNC storniertes Ereignis -> 0 h", c.sekunden === 0 && c.abgebrochen === true);
+  var k = SY.dauerAusEreignissen([ev("t3b", "TIMER_STARTED", isod(2026, 8, 1, 8)), ev("t3b", "TIMER_STOPPED", isod(2026, 8, 1, 12)), ev("t3b", "ENTRY_CORRECTED", isod(2026, 8, 1, 12, 1), { payload: { dauerSekunden: 3600 } })]);
+  t("SYNC Korrektur überschreibt Dauer (1h)", k.sekunden === 3600 && k.korrigiert === true);
+})();
+// 4/6 Ein-Timer-Garantie + Guards
+(function () {
+  var evs = [ev("t4", "TIMER_STARTED", isod(2026, 8, 1, 8))];
+  t("SYNC zweiter Timer verhindert", SY.guardStart(evs, { benutzer: "u1", mandantId: "mA", timerId: "t5" }, isod(2026, 8, 1, 8, 30)).ok === false);
+  t("SYNC doppeltes Tippen (gleicher Timer) verhindert", SY.guardStart(evs, { benutzer: "u1", mandantId: "mA", timerId: "t4" }, isod(2026, 8, 1, 8, 1)).grund === "doppeltes Tippen");
+  t("SYNC Timer in anderem Mandant verhindert", SY.guardStart(evs, { benutzer: "u1", mandantId: "mB", timerId: "t6" }, isod(2026, 8, 1, 8, 1)).grund === "Timer in anderem Mandanten aktiv");
+  t("SYNC Stop ohne Start abgelehnt", SY.guardStop([], "tX", isod(2026, 8, 1, 8)).grund === "Stop ohne Start");
+  t("SYNC anderer Benutzer darf starten", SY.guardStart(evs, { benutzer: "u2", mandantId: "mA", timerId: "t7" }, isod(2026, 8, 1, 8, 1)).ok === true);
+  var mitPause = [ev("t8", "TIMER_STARTED", isod(2026, 8, 1, 8)), ev("t8", "BREAK_STARTED", isod(2026, 8, 1, 8, 30))];
+  t("SYNC Pause während Pause verhindert", SY.guardPause(mitPause, "t8", true, isod(2026, 8, 1, 8, 40)).grund === "bereits pausiert");
+})();
+// 5 Idempotentes Einreihen (exactly-once beim Enqueue)
+(function () {
+  var q = []; var r = ev("t9", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  var e1 = SY.enqueue(q, r); var e2 = SY.enqueue(q, ev("t9", "TIMER_STOPPED", isod(2026, 8, 1, 9)));
+  t("SYNC identisches Ereignis nur einmal eingereiht", e1.neu === true && e2.neu === false && q.length === 1);
+})();
+// 7 Warteschlangen-Reihenfolge + Abhängigkeit
+(function () {
+  var q = [];
+  var mat = SY.recordNeu({ typ: "materialverbrauch", benutzer: "u1", mandantId: "mA", geraetezeit: isod(2026, 8, 1, 8) }, isod(2026, 8, 1, 8));
+  var tim = SY.recordNeu({ typ: "timer", event: "TIMER_STOPPED", timerId: "t10", benutzer: "u1", mandantId: "mA", geraetezeit: isod(2026, 8, 1, 8) }, isod(2026, 8, 1, 8));
+  SY.enqueue(q, mat); SY.enqueue(q, tim);
+  var reihe = SY.faellig(q, isod(2026, 8, 1, 10)).map(function (r) { return r.typ; });
+  t("SYNC Reihenfolge: timer vor materialverbrauch", reihe[0] === "timer" && reihe[1] === "materialverbrauch");
+  var dep = SY.recordNeu({ typ: "stueckzahl", benutzer: "u1", mandantId: "mA", dependsOn: tim.id, geraetezeit: isod(2026, 8, 1, 8) }, isod(2026, 8, 1, 8));
+  SY.enqueue(q, dep);
+  t("SYNC abhängiger Eintrag erst nach Voraussetzung fällig", SY.faellig(q, isod(2026, 8, 1, 10)).indexOf(dep) < 0);
+})();
+// 8 Exactly-once-Verarbeitung + Serverbezug
+(function () {
+  var r = ev("t11", "TIMER_STOPPED", isod(2026, 8, 1, 9)); SY.enqueue([], r);
+  var calls = 0; var apply = function () { calls++; return { ok: true, serverRef: "srv-1" }; };
+  var a1 = SY.verarbeite(r, apply, isod(2026, 8, 1, 10));
+  var a2 = SY.verarbeite(r, apply, isod(2026, 8, 1, 10)); // erneuter Versuch
+  t("SYNC exactly-once: applyFn nur einmal, gleicher Serverbezug", calls === 1 && a1.serverRef === "srv-1" && a2.schon === true && a2.serverRef === "srv-1");
+})();
+// 9 Wiederholung mit Backoff + max Versuche -> Konflikt
+(function () {
+  t("SYNC Backoff steigt", SY.backoffMs(0) < SY.backoffMs(1) && SY.backoffMs(1) < SY.backoffMs(2));
+  var r = ev("t12", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  var res, i; for (i = 0; i < SY.MAX_VERSUCHE; i++) res = SY.verarbeite(r, function () { return { fehler: "netz", temporaer: true }; }, isod(2026, 8, 1, 10));
+  t("SYNC nach max. Versuchen -> Konflikt/Prüfpunkt", r.status === SY.STATUS.CONFLICT);
+  var r2 = ev("t12b", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  SY.verarbeite(r2, function () { return { fehler: "netz", temporaer: true }; }, isod(2026, 8, 1, 10));
+  t("SYNC temporärer Fehler -> RETRY mit nächstem Versuch", r2.status === SY.STATUS.RETRY && !!r2.naechsterVersuch);
+  t("SYNC RETRY vor Fälligkeit nicht sofort erneut", SY.faellig([r2], isod(2026, 8, 1, 10)).length === 0);
+})();
+// 9b permanenter Validierungsfehler -> Konflikt
+(function () {
+  var r = ev("t13", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  SY.verarbeite(r, function () { return { fehler: "ungültig", temporaer: false }; }, isod(2026, 8, 1, 10));
+  t("SYNC permanenter Fehler -> Konflikt (kein endloser Retry)", r.status === SY.STATUS.CONFLICT);
+})();
+// 10 Konflikte
+(function () {
+  var r = ev("t14", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  t("SYNC Konflikt: Auftrag abgeschlossen", SY.pruefeKonflikt(r, { auftragAbgeschlossen: true }).grund === "Auftrag bereits abgeschlossen");
+  t("SYNC Konflikt: Cross-Tenant", SY.pruefeKonflikt(r, { aktiverMandantId: "mB" }).grund.indexOf("Cross-Tenant") >= 0);
+  t("SYNC Konflikt: Sitzung abgelaufen", SY.pruefeKonflikt(r, { sitzungGueltig: false }).grund === "Sitzung abgelaufen");
+  t("SYNC Konflikt: Benutzer deaktiviert", SY.pruefeKonflikt(r, { benutzerAktiv: false }).grund.indexOf("Benutzer") >= 0);
+  t("SYNC Konflikt: Maschine belegt", SY.pruefeKonflikt(r, { maschineBelegt: true }).grund === "Maschine bereits belegt");
+  t("SYNC Konflikt: fremder Timer aktiv", SY.pruefeKonflikt(r, { fremderTimerAktiv: true }).grund.indexOf("anderem Gerät") >= 0);
+  t("SYNC Konflikt: Serverdatensatz geändert", SY.pruefeKonflikt(r, { serverVersion: 2 }).grund === "Serverdatensatz geändert");
+  t("SYNC kein Konflikt bei gültigem Kontext", SY.pruefeKonflikt(r, { aktiverMandantId: "mA" }).konflikt === false);
+})();
+// 5-Zeit unplausible Gerätezeit
+(function () {
+  t("SYNC Zeit plausibel bei kleinem Drift", SY.zeitPlausibel(isod(2026, 8, 1, 8, 0), isod(2026, 8, 1, 8, 2), 5 * 60000) === true);
+  t("SYNC Zeit unplausibel bei großem Drift", SY.zeitPlausibel(isod(2026, 8, 1, 8, 0), isod(2026, 8, 1, 10, 0), 5 * 60000) === false);
+  var r = ev("t15", "TIMER_STOPPED", isod(2026, 8, 1, 9));
+  t("SYNC Konflikt bei unplausibler Gerätezeit", SY.pruefeKonflikt(r, { zeitPlausibel: false }).grund.indexOf("unplausibel") >= 0);
+})();
+// 11 Offline-Datenumfang: keine vertraulichen Felder
+(function () {
+  var a = { id: "auf1", kommission: "K", titel: "T", kundeId: "k", status: "Beauftragt", positionen: [{ produktKey: "gelaender", kalk: { zeiten: { schweissen: 2 }, netto: 5000, selbstkosten: 3000, gewinn: 700, einkaufspreis: 100 } }] };
+  var off = SY.auftragOffline(a);
+  t("SYNC Offline-Auftrag ohne Gewinn/Selbstkosten/Einkauf", SY.offlineDatensatzRein(off) === true);
+  t("SYNC Vollauftrag enthält vertrauliche Felder (Gegenprobe)", SY.offlineDatensatzRein(a) === false);
+})();
+// 24 lokale Daten bleiben bei Konflikt erhalten
+(function () {
+  var r = ev("t16", "TIMER_STOPPED", isod(2026, 8, 1, 9)); r.payload = { wichtig: "erhalten" };
+  SY.verarbeite(r, function () { return { konflikt: true, grund: "Konflikt" }; }, isod(2026, 8, 1, 10));
+  t("SYNC Konflikt löscht lokale Daten NICHT", r.status === SY.STATUS.CONFLICT && r.payload.wichtig === "erhalten");
+  SY.manuellWiederholen(r);
+  t("SYNC manueller erneuter Versuch stellt QUEUED wieder her", r.status === SY.STATUS.QUEUED);
 })();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");

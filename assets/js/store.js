@@ -440,6 +440,8 @@
       nachtraege: nachtraege,
       rechnungen: rechnungen,
       erpExporte: [],
+      // Ziel der Offline-Synchronisation (Phase 14A)
+      offlineBuchungen: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -611,6 +613,9 @@
     }
     if (st.nachtragZaehler == null) st.nachtragZaehler = (obj.nachtraege.length || 0) + 1;
     if (!Array.isArray(obj.erpExporte)) obj.erpExporte = [];
+    // Ziel der Offline-Synchronisation (Phase 14A) – zentrale Buchungen aus
+    // Offline-Ereignissen; idempotent (je idempotenzKey höchstens einmal).
+    if (!Array.isArray(obj.offlineBuchungen)) obj.offlineBuchungen = [];
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
     if (obj.version !== 11) { st.betrieb.letzteMigration = nowISO(); obj.version = 11; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();

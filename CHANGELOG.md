@@ -3,6 +3,46 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 14A – PWA- & Offline-Synchronisationskern  (Schema v11)
+
+### Hinzugefügt
+- **Sync-Engine `sync.js`** (rein/testbar): unveränderbare Zeiterfassungs-
+  Ereignisse (TIMER_STARTED/BREAK_STARTED/BREAK_ENDED/TIMER_STOPPED/
+  ENTRY_CORRECTED/ENTRY_CANCELLED), **Dauer aus Ereignissen**, Timer-
+  Rekonstruktion, Ein-Timer-Garantie (Doppel-Tap/zwei Timer/Cross-Mandant/
+  Pause/Stop-ohne-Start), **Synchronisationswarteschlange** (LOCAL_ONLY/QUEUED/
+  SYNCING/SYNCED/RETRY/CONFLICT/CANCELLED) mit Reihenfolge + Abhängigkeiten,
+  **Exactly-once** (stabiler Idempotenzschlüssel), kontrollierter Backoff-Retry
+  + max. Versuche, **Konfliktprüfung** (Cross-Tenant, Auftrag abgeschlossen/
+  fehlt, Maschine belegt, Material archiviert, Serverversion, fremder Timer,
+  Sitzung/Benutzer/Gerät, unplausible Gerätezeit), **Zeitdrift**, Offline-
+  Datenumfang ohne vertrauliche Felder.
+- **Dauerhafter Offline-Speicher `offlinedb.js`**: versionierte **IndexedDB**
+  (http/s) mit **localStorage-Fallback** (u. a. `file://`), Migration.
+- **Integration `offline-app.js`**: Service-Worker-Registrierung + Update-
+  Erkennung (kein erzwungenes Update bei laufendem Timer), Geräte-ID, Geräte-/
+  Serverzeit, Ereigniserfassung, **exakt-einmalige Synchronisation** in
+  `db.offlineBuchungen`.
+- **PWA:** `sw.js` (App-Shell-Cache, Cache-Versionierung, Offline-Start,
+  Navigation network-first→Cache; cacht **keine** Nutzerdaten) +
+  `manifest.webmanifest` (Name/Icons/maskable/Standalone) + Meta/Apple-Tags.
+- **Kompakte Diagnose** auf der System-Seite (online/offline, aktiver Timer,
+  lokale/wartende/synchronisierte/Konflikte, letzte Sync, Treiber/DB-/App-
+  Version) + funktionierender „Jetzt synchronisieren"-Knopf.
+- Datenmodell: `db.offlineBuchungen[]` (Ziel der Synchronisation).
+
+### Tests
+- `tests/referenz.test.js` **277/277** (35 neue Sync-Tests). Browser-E2E:
+  `file://` Timer offline → App-Neustart → rekonstruiert → stop → 2× Sync =
+  genau eine Buchung (exactly-once), Doppel-Tap verhindert; `http://` Service
+  Worker registriert+steuert, Manifest ladbar, IndexedDB überlebt Reload.
+
+### Ehrlich / Grenzen
+- Kein echter Server – Ziel ist die zentrale `Store`-db; Offline-Daten werden
+  bei der Übernahme erneut validiert. Gerätetests nur in headless Chromium
+  (iOS/Android nur simuliert). Service Worker nur im sicheren Kontext
+  (https/localhost), nicht unter `file://` (dort localStorage-Fallback).
+
 ## Phase 13B – Rechnungs-UI, PDF, Kundenportal & ERP-Dateiexport  (Schema v11)
 
 ### Hinzugefügt
