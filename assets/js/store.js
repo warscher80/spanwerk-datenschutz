@@ -237,6 +237,103 @@
     return [a, b, s];
   }
 
+  // Beispiel-Lagerdaten (nur Testumgebung, Phase 15A). Baut über die reine
+  // Lager-Engine einen konsistenten Materialfluss auf: Struktur, Artikel,
+  // Bestellung, (Teil-)Wareneingang mit Charge/Zertifikat, Reservierung +
+  // Teilreservierung, Entnahme + Rückgabe, Reststück (Langgut), gesperrte Charge.
+  function beispielLager(lieferanten, auftraege, mandantId) {
+    var L = w.Preisschmiede && w.Preisschmiede.Lager;
+    var leer = { lagerStandorte: [], lager: [], lagerBereiche: [], lagerRegale: [], lagerplaetze: [], lagerArtikel: [], lagerBewegungen: [], lagerChargen: [], lagerReservierungen: [], lagerReststuecke: [], wareneingaenge: [], bestellungen: [], lagerKonflikte: [] };
+    if (!L) return leer;
+    try {
+      var jetzt = nowISO();
+      var liefFrank = (lieferanten.filter(function (x) { return /frank/i.test(x.name); })[0] || lieferanten[0] || {}).id || null;
+      var liefProfi = (lieferanten.filter(function (x) { return /profi|metall/i.test(x.name); })[0] || lieferanten[0] || {}).id || null;
+      var aufBeauftragt = (auftraege || []).filter(function (a) { return a.status === "Beauftragt"; })[0] || (auftraege || [])[0] || {};
+
+      var stand = { id: uid(), mandantId: mandantId, code: "ST-01", name: "Betrieb Musterstadt", adresse: "Werkstraße 1", aktiv: true };
+      var lHaupt = { id: uid(), mandantId: mandantId, standortId: stand.id, code: "L-HAUPT", name: "Hauptlager", aktiv: true };
+      var lAussen = { id: uid(), mandantId: mandantId, standortId: stand.id, code: "L-AUSSEN", name: "Außenlager (Langgut)", aktiv: true };
+      var bStahl = { id: uid(), mandantId: mandantId, lagerId: lHaupt.id, code: "B-STAHL", name: "Bereich Stahl" };
+      var bBlech = { id: uid(), mandantId: mandantId, lagerId: lHaupt.id, code: "B-BLECH", name: "Bereich Blech" };
+      var bLang = { id: uid(), mandantId: mandantId, lagerId: lAussen.id, code: "B-LANG", name: "Bereich Langgut" };
+      var rStahl = { id: uid(), mandantId: mandantId, bereichId: bStahl.id, code: "R-01", name: "Regal 1" };
+      var rLang = { id: uid(), mandantId: mandantId, bereichId: bLang.id, code: "R-KRAG", name: "Kragarmregal" };
+      function platz(regalId, code, name, gruppen, gesperrt) { return { id: uid(), mandantId: mandantId, regalId: regalId, lagerId: regalId === rLang.id ? lAussen.id : lHaupt.id, code: code, bezeichnung: name, status: L.PLATZ_STATUS.AKTIV, erlaubteMaterialgruppen: gruppen || [], gesperrt: !!gesperrt, sperrgrund: gesperrt ? "Wartung" : null, notiz: null }; }
+      var pStahl = platz(rStahl.id, "A-01-01", "Stahl Fachboden A", ["Stahl"]);
+      var pEdel = platz(rStahl.id, "A-01-02", "Edelstahl Fachboden B", ["Edelstahl"]);
+      var pBlech = platz(rStahl.id, "A-02-01", "Blechlager", ["Stahl", "Aluminium"]);
+      var pLang1 = platz(rLang.id, "K-01", "Kragarm 1", ["Stahl", "Edelstahl"]);
+      var pLangGesperrt = platz(rLang.id, "K-09", "Kragarm 9 (Wartung)", ["Stahl"], true);
+
+      function artikel(daten) {
+        return Object.assign({
+          id: uid(), mandantId: mandantId, artikelnummer: daten.artikelnummer, materialId: daten.materialId || null,
+          werkstoff: daten.werkstoff, abmessung: daten.abmessung || null, basiseinheit: daten.basiseinheit,
+          gewicht: daten.gewicht != null ? daten.gewicht : null, standardLaenge: daten.standardLaenge || null, standardFormat: daten.standardFormat || null,
+          mindestbestand: daten.mindestbestand || 0, meldebestand: daten.meldebestand || 0, zielbestand: daten.zielbestand || 0,
+          bevorzugterLieferantId: daten.bevorzugterLieferantId || null, standardLagerplatzId: daten.standardLagerplatzId || null,
+          chargenpflicht: !!daten.chargenpflicht, zertifikatspflicht: !!daten.zertifikatspflicht, reststueckverwaltung: !!daten.reststueckverwaltung,
+          negativerBestandErlaubt: !!daten.negativerBestandErlaubt, verpackungseinheit: daten.verpackungseinheit || 1,
+          mindestbestellmenge: daten.mindestbestellmenge || 0, lieferzeitTage: daten.lieferzeitTage || 7,
+          bewertungsmethode: daten.bewertungsmethode || L.METHODE.GLEITEND, letzterEinkaufspreis: daten.letzterEinkaufspreis || 0, erstellt: jetzt
+        });
+      }
+      var aVk = artikel({ artikelnummer: "VK-STAHL-40x40x2", werkstoff: "Stahl", abmessung: "40×40×2 mm", basiseinheit: "m", gewicht: 2.3, standardLaenge: 6, mindestbestand: 12, meldebestand: 24, zielbestand: 60, bevorzugterLieferantId: liefFrank, standardLagerplatzId: pLang1.id, chargenpflicht: true, zertifikatspflicht: true, reststueckverwaltung: true, verpackungseinheit: 6, mindestbestellmenge: 12, lieferzeitTage: 5 });
+      var aRr = artikel({ artikelnummer: "RR-V2A-42x2", werkstoff: "Edelstahl", abmessung: "Ø42,4×2 mm", basiseinheit: "m", gewicht: 2.0, standardLaenge: 6, mindestbestand: 6, meldebestand: 12, zielbestand: 36, bevorzugterLieferantId: liefFrank, standardLagerplatzId: pLang1.id, chargenpflicht: true, zertifikatspflicht: true, reststueckverwaltung: true, verpackungseinheit: 6, mindestbestellmenge: 6, lieferzeitTage: 8, bewertungsmethode: L.METHODE.CHARGE });
+      var aBlS = artikel({ artikelnummer: "BL-STAHL-2.0", werkstoff: "Stahl", abmessung: "2,0 mm", basiseinheit: "m²", standardFormat: "2000×1000", mindestbestand: 4, meldebestand: 8, zielbestand: 20, bevorzugterLieferantId: liefFrank, standardLagerplatzId: pBlech.id, chargenpflicht: true, verpackungseinheit: 1, mindestbestellmenge: 2, lieferzeitTage: 6 });
+      var aBlA = artikel({ artikelnummer: "BL-ALU-2.0", werkstoff: "Aluminium", abmessung: "2,0 mm", basiseinheit: "m²", standardFormat: "2000×1000", mindestbestand: 2, meldebestand: 5, zielbestand: 12, bevorzugterLieferantId: liefProfi, standardLagerplatzId: pBlech.id, verpackungseinheit: 1, mindestbestellmenge: 1, lieferzeitTage: 10, bewertungsmethode: L.METHODE.LETZTER });
+
+      var state = { artikel: [aVk, aRr, aBlS, aBlA], bewegungen: [], chargen: [], reservierungen: [], reststuecke: [], wareneingaenge: [], bestellungen: [], plaetze: [pStahl, pEdel, pBlech, pLang1, pLangGesperrt], konflikte: [] };
+
+      // Offene Bestellung: Vierkantrohr 60 m bestellt, davon 36 m teilgeliefert (Teillieferung).
+      var boVk = { id: uid(), mandantId: mandantId, lieferantId: liefFrank, status: "offen", lieferzeitTage: 5, erstellt: jetzt, positionen: [{ artikelId: aVk.id, bestellt: 60, geliefert: 0, status: "offen" }] };
+      // Bestellung Edelstahl vollständig
+      var boRr = { id: uid(), mandantId: mandantId, lieferantId: liefFrank, status: "offen", lieferzeitTage: 8, erstellt: jetzt, positionen: [{ artikelId: aRr.id, bestellt: 24, geliefert: 0, status: "offen" }] };
+      state.bestellungen.push(boVk, boRr);
+
+      // Teil-Wareneingang Vierkantrohr: 36 von 60, Charge + Zertifikat.
+      L.wareneingang(state, { mandantId: mandantId, bestellungId: boVk.id, lieferantId: liefFrank, lieferschein: "LS-2026-101", datum: jetzt, benutzer: "buero",
+        positionen: [{ artikelId: aVk.id, gelieferteMenge: 36, beschaedigteMenge: 0, lagerplatzId: pLang1.id, chargennummer: "CH-VK-2026-01", schmelznummer: "SM-778812", herstellerName: "Stahlwerk Ost", zertifikate: ["Werkszeugnis 3.1"], einkaufspreis: 7.10, qs: false }] }, jetzt);
+
+      // Wareneingang Edelstahl: 24 m, ZWEI Chargen (eine QS/gesperrt), Zertifikate.
+      L.wareneingang(state, { mandantId: mandantId, bestellungId: boRr.id, lieferantId: liefFrank, lieferschein: "LS-2026-102", datum: jetzt, benutzer: "buero",
+        positionen: [{ artikelId: aRr.id, gelieferteMenge: 18, beschaedigteMenge: 0, lagerplatzId: pLang1.id, chargennummer: "CH-RR-2026-07", schmelznummer: "SM-551200", herstellerName: "INOX AG", zertifikate: ["Werkszeugnis 3.1", "EN 10204/3.1"], einkaufspreis: 21.80, qs: false }] }, jetzt);
+      L.wareneingang(state, { mandantId: mandantId, lieferantId: liefFrank, lieferschein: "LS-2026-103", datum: jetzt, benutzer: "buero",
+        positionen: [{ artikelId: aRr.id, gelieferteMenge: 6, beschaedigteMenge: 1, lagerplatzId: pLang1.id, chargennummer: "CH-RR-2026-08", schmelznummer: "SM-551333", herstellerName: "INOX AG", zertifikate: ["Werkszeugnis 3.1"], einkaufspreis: 22.40, qs: true }] }, jetzt);
+
+      // Blech Stahl + Alu einlagern
+      L.wareneingang(state, { mandantId: mandantId, lieferantId: liefFrank, lieferschein: "LS-2026-110", datum: jetzt, benutzer: "buero",
+        positionen: [{ artikelId: aBlS.id, gelieferteMenge: 10, beschaedigteMenge: 0, lagerplatzId: pBlech.id, chargennummer: "CH-BLS-2026-02", zertifikate: ["Werkszeugnis 2.2"], einkaufspreis: 56.0 }] }, jetzt);
+      L.wareneingang(state, { mandantId: mandantId, lieferantId: liefProfi, lieferschein: "LS-2026-111", datum: jetzt, benutzer: "buero",
+        positionen: [{ artikelId: aBlA.id, gelieferteMenge: 3, beschaedigteMenge: 0, lagerplatzId: pBlech.id, einkaufspreis: 82.0 }] }, jetzt);
+
+      // Reservierung (voll) + Teilreservierung (Fehlmenge) für Vierkantrohr aus einem Auftrag.
+      var chVk = (state.chargen.filter(function (c) { return c.chargennummer === "CH-VK-2026-01"; })[0] || {}).id;
+      L.reserviere(state, { mandantId: mandantId, artikelId: aVk.id, auftragId: aufBeauftragt.id || null, kommission: aufBeauftragt.kommission || "GST Nord", menge: 12, chargeId: chVk, lagerplatzId: pLang1.id, benoetigtBis: jetzt, prioritaet: 2 }, jetzt);
+      var teil = L.reserviere(state, { mandantId: mandantId, artikelId: aVk.id, auftragId: aufBeauftragt.id || null, kommission: aufBeauftragt.kommission || "GST Nord", menge: 40, lagerplatzId: pLang1.id, benoetigtBis: jetzt, prioritaet: 3 }, jetzt);
+
+      // Entnahme gegen die volle Reservierung + Teilrückgabe.
+      var vollRes = state.reservierungen[0];
+      var ent = L.entnahme(state, { mandantId: mandantId, artikelId: aVk.id, menge: 10, reservierungId: vollRes.id, chargeId: vollRes.chargeId, lagerplatzId: pLang1.id, auftragId: vollRes.auftragId, kommission: vollRes.kommission, arbeitsgang: "zuschnitt", benutzer: "werkstatt" }, jetzt);
+      if (ent.ok && ent.bewegung) L.rueckgabe(state, { entnahmeId: ent.bewegung.id, menge: 2, benutzer: "werkstatt", grund: "Rest nicht benötigt" }, jetzt);
+
+      // Reststück (Langgut) aus Verschnitt anlegen.
+      L.reststueckAnlegen(state, { mandantId: mandantId, artikelnummer: aVk.artikelnummer, artikelId: aVk.id, materialId: null, werkstoff: "Stahl", chargeId: (state.chargen[0] || {}).id, laenge: 1.8, gewicht: 4.14, ursprungAuftragId: vollRes.auftragId, kommission: vollRes.kommission, lagerplatzId: pLang1.id, qrRef: "QR-RST-0001" }, jetzt);
+
+      // Charge sperren (gesperrte Charge – darf nicht entnommen werden).
+      var chGesperrt = state.chargen.filter(function (c) { return c.chargennummer === "CH-RR-2026-08"; })[0];
+      if (chGesperrt) L.chargeSperren(state, chGesperrt.id, "Zertifikat unklar", jetzt);
+
+      return {
+        lagerStandorte: [stand], lager: [lHaupt, lAussen], lagerBereiche: [bStahl, bBlech, bLang], lagerRegale: [rStahl, rLang],
+        lagerplaetze: state.plaetze, lagerArtikel: state.artikel, lagerBewegungen: state.bewegungen, lagerChargen: state.chargen,
+        lagerReservierungen: state.reservierungen, lagerReststuecke: state.reststuecke, wareneingaenge: state.wareneingaenge,
+        bestellungen: state.bestellungen, lagerKonflikte: state.konflikte
+      };
+    } catch (e) { return leer; }
+  }
+
   function fresh() {
     var mats = SEED_MATERIAL.map(function (m) {
       return {
@@ -402,8 +499,10 @@
       }
     } catch (e) { nachtraege = []; rechnungen = []; }
 
+    var lagerSeed = beispielLager(lieferanten, auftraegeSeed, null);
+    if (!settings.lager) settings.lager = { bewertungsmethode: "gleitend", zaehler: { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 } };
     return {
-      version: 11,
+      version: 12,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -442,6 +541,20 @@
       erpExporte: [],
       // Ziel der Offline-Synchronisation (Phase 14A)
       offlineBuchungen: [],
+      // Lagerkern (Phase 15A) – mandantengetrennt, Journal ist Quelle der Wahrheit
+      lagerStandorte: lagerSeed.lagerStandorte,
+      lager: lagerSeed.lager,
+      lagerBereiche: lagerSeed.lagerBereiche,
+      lagerRegale: lagerSeed.lagerRegale,
+      lagerplaetze: lagerSeed.lagerplaetze,
+      lagerArtikel: lagerSeed.lagerArtikel,
+      lagerBewegungen: lagerSeed.lagerBewegungen,
+      lagerChargen: lagerSeed.lagerChargen,
+      lagerReservierungen: lagerSeed.lagerReservierungen,
+      lagerReststuecke: lagerSeed.lagerReststuecke,
+      wareneingaenge: lagerSeed.wareneingaenge,
+      bestellungen: lagerSeed.bestellungen,
+      lagerKonflikte: lagerSeed.lagerKonflikte,
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -616,8 +729,25 @@
     // Ziel der Offline-Synchronisation (Phase 14A) – zentrale Buchungen aus
     // Offline-Ereignissen; idempotent (je idempotenzKey höchstens einmal).
     if (!Array.isArray(obj.offlineBuchungen)) obj.offlineBuchungen = [];
+    // Lagerkern (Phase 15A) – additiv, mandantengetrennt. Bestehende Bestände
+    // bleiben unberührt; neue Arrays werden leer angelegt (kein Datenverlust).
+    if (!Array.isArray(obj.lagerStandorte)) obj.lagerStandorte = [];
+    if (!Array.isArray(obj.lager)) obj.lager = [];
+    if (!Array.isArray(obj.lagerBereiche)) obj.lagerBereiche = [];
+    if (!Array.isArray(obj.lagerRegale)) obj.lagerRegale = [];
+    if (!Array.isArray(obj.lagerplaetze)) obj.lagerplaetze = [];
+    if (!Array.isArray(obj.lagerArtikel)) obj.lagerArtikel = [];
+    if (!Array.isArray(obj.lagerBewegungen)) obj.lagerBewegungen = [];
+    if (!Array.isArray(obj.lagerChargen)) obj.lagerChargen = [];
+    if (!Array.isArray(obj.lagerReservierungen)) obj.lagerReservierungen = [];
+    if (!Array.isArray(obj.lagerReststuecke)) obj.lagerReststuecke = [];
+    if (!Array.isArray(obj.wareneingaenge)) obj.wareneingaenge = [];
+    if (!Array.isArray(obj.bestellungen)) obj.bestellungen = [];
+    if (!Array.isArray(obj.lagerKonflikte)) obj.lagerKonflikte = [];
+    if (!st.lager || typeof st.lager !== "object") st.lager = { bewertungsmethode: "gleitend", zaehler: { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 } };
+    if (!st.lager.zaehler || typeof st.lager.zaehler !== "object") st.lager.zaehler = { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 };
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
-    if (obj.version !== 11) { st.betrieb.letzteMigration = nowISO(); obj.version = 11; }
+    if (obj.version !== 12) { st.betrieb.letzteMigration = nowISO(); obj.version = 12; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();
     return obj;
   }

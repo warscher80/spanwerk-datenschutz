@@ -4,7 +4,31 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 14B – mobile Werkstatt- & Montageoberfläche**
+Letzte Aktualisierung: **Phase 15A – Lagerkern, Bestandsbuchungen &
+Reservierungen** umgesetzt. Reiner, testbarer Lagerkern (`assets/js/lager.js`,
+`window.Preisschmiede.Lager`) **ohne UI**: Lagerstruktur (Standort/Lager/
+Bereich/Regal/Lagerplatz), Lagerartikel, zentrale Bestandsberechnung
+(`verfügbar = physisch − reserviert − gesperrt`; bestellte Ware ist kein
+physischer Bestand; QS separat), **unveränderbares Bewegungsjournal** (14
+Bewegungsarten; Korrektur nur per Storno/Gegenbuchung – nie gelöscht),
+Wareneingang mit Teil-/Mehr-/Minderlieferung + Charge/Zertifikat/Preis-Snapshot,
+Chargen + **Rückverfolgung** (Lieferant→WE→Charge→Lagerplatz→Auftrag→Kommission),
+Reservierungen (voll/teilweise, **keine stille Überreservierung**, Fehlmenge),
+Entnahme/Rückgabe (Rückgabe referenziert Entnahme; Verbrauch = Entnahmen −
+Rückgaben), Reststücke inkl. **Langgut-Restlänge** (Ausgangslänge − verwendet −
+Schnittverlust), Mindestbestand + **Bestellvorschlag** (Ziel + Fehlbedarf −
+verfügbar − bestellt, Verpackungseinheit/Mindestbestellmenge), technische
+**Bestandsbewertung** (letzter EK / gleitender Durchschnitt / Charge),
+**Idempotenz** + Offline-Neuvalidierung (Konflikt statt stillem Fehler/negativer
+Menge), Mandantentrennung + Rechtematrix (Cross-Tenant abgelehnt; Werkstatt ohne
+Einkaufspreise). Schema **v12** (additive Lager-Arrays, Migration ohne
+Datenverlust), Beispieldaten nur in Testumgebung (2 Lager, Langgut/Bleche,
+2 Chargen, Teillieferung, Teilreservierung, gesperrte Charge, Reststück).
+Tests **323/323** (46 neue Lagertests) + Materialfluss-Durchlauf. Ehrlich: keine
+UI, keine steuerrechtliche Lagerbewertung, keine Live-Bestellung/ERP-Anbindung,
+keine gelöschten Bewegungen. Doku: WAREHOUSE.md.
+
+Vorher: **Phase 14B – mobile Werkstatt- & Montageoberfläche**
 umgesetzt. Eigenständige, installierbare PWA-Oberfläche (`mobil.html`,
 `assets/css/mobil.css`, `assets/js/mobil-app.js`) für Werkstatt/Montage, die
 **denselben Phase-14A-Offline-Kern** nutzt (Sync/OfflineDB/Offline) – keine
@@ -148,6 +172,7 @@ KNOWN_LIMITATIONS.md).
 | Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
 | PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
 | Mobile Werkstatt/Montage | `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js` | Touch-Oberfläche über dem Offline-Kern: Timer/Maschine/Material/Stückzahl/Montage/Fotos, Sync-/Konfliktansicht, Terminalmodus, keine Preisdaten |
+| Lagerkern | `assets/js/lager.js` | Lagerstruktur, Artikel, Bewegungsjournal (unveränderbar), Bestand (verfügbar/reserviert/gesperrt/QS/bestellt), Wareneingang, Chargen + Rückverfolgung, Reservierung, Entnahme/Rückgabe, Reststücke, Bestellvorschlag, Bewertung, Idempotenz, Rechte |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |

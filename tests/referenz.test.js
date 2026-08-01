@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js", "sync.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "lager.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js", "sync.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -124,7 +124,7 @@ t("SNAP Revision B hat erhaltenen Vorgänger A", !!(revB && revA && revA.revisio
 // =============================================================
 t("MIG fresh() liefert aktuelle Version + alle Arrays", (function () {
   var f = Store.fresh ? Store.fresh() : null; if (!f) return true; // fresh evtl. nicht exportiert
-  return f.version === 11 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks) && Array.isArray(f.nachtraege) && Array.isArray(f.rechnungen);
+  return f.version === 12 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks) && Array.isArray(f.nachtraege) && Array.isArray(f.rechnungen) && Array.isArray(f.lagerArtikel) && Array.isArray(f.lagerBewegungen) && Array.isArray(f.lagerChargen) && Array.isArray(f.wareneingaenge) && Array.isArray(f.bestellungen);
 })());
 t("MIG migrate({}) füllt Defaults ohne Crash", (function () {
   try { var m = Store.migrate({}); return m && m.settings && Array.isArray(m.material) && Array.isArray(m.dokumente) && !!m.planung && !!m.settings.planung; } catch (e) { return false; }
@@ -971,6 +971,221 @@ function isod(y, mo, d2, h, mi) { return new Date(y, mo - 1, d2, h || 8, mi || 0
   t("SYNC Konflikt löscht lokale Daten NICHT", r.status === SY.STATUS.CONFLICT && r.payload.wichtig === "erhalten");
   SY.manuellWiederholen(r);
   t("SYNC manueller erneuter Versuch stellt QUEUED wieder her", r.status === SY.STATUS.QUEUED);
+})();
+
+// =============================================================
+//  LAGERKERN  (Phase 15A) – Bewegungen, Bestand, Reservierung,
+//  Chargen, Reststücke, Bestellvorschlag, Bewertung, Idempotenz,
+//  Offline-Konflikt, Rollen, Cross-Tenant, Rückverfolgung.
+// =============================================================
+var LG = P.Lager;
+var LJ = "2026-08-01T08:00:00.000Z";
+function freshLager() {
+  var art = {
+    id: "a1", mandantId: "m1", artikelnummer: "VK-40", werkstoff: "Stahl", basiseinheit: "m",
+    mindestbestand: 12, meldebestand: 24, zielbestand: 60, bevorzugterLieferantId: "lief1",
+    standardLagerplatzId: "p1", chargenpflicht: true, zertifikatspflicht: true, reststueckverwaltung: true,
+    negativerBestandErlaubt: false, verpackungseinheit: 6, mindestbestellmenge: 12, lieferzeitTage: 5,
+    bewertungsmethode: LG.METHODE.GLEITEND, standardLaenge: 6
+  };
+  var artB = { id: "a2", mandantId: "m1", artikelnummer: "BL-2", werkstoff: "Aluminium", basiseinheit: "m2", zielbestand: 10, standardLagerplatzId: "p2", verpackungseinheit: 1, mindestbestellmenge: 1 };
+  var artFremd = { id: "aX", mandantId: "m2", artikelnummer: "X", werkstoff: "Stahl", basiseinheit: "m", negativerBestandErlaubt: false };
+  var p1 = { id: "p1", mandantId: "m1", code: "P1", status: LG.PLATZ_STATUS.AKTIV, gesperrt: false };
+  var p2 = { id: "p2", mandantId: "m1", code: "P2", status: LG.PLATZ_STATUS.AKTIV, gesperrt: false };
+  return { artikel: [art, artB, artFremd], plaetze: [p1, p2], chargen: [], bewegungen: [], reservierungen: [], reststuecke: [], wareneingaenge: [], bestellungen: [], konflikte: [] };
+}
+
+// Wareneingang + Teillieferung + Mehrlieferungswarnung
+(function () {
+  var s = freshLager();
+  s.bestellungen.push({ id: "bo1", mandantId: "m1", lieferantId: "lief1", status: "offen", positionen: [{ artikelId: "a1", bestellt: 60, geliefert: 0, status: "offen" }] });
+  var we1 = LG.wareneingang(s, { mandantId: "m1", bestellungId: "bo1", lieferschein: "LS1", positionen: [{ artikelId: "a1", gelieferteMenge: 36, lagerplatzId: "p1", chargennummer: "C1", zertifikate: ["3.1"], einkaufspreis: 7 }] }, LJ);
+  t("LAGER Wareneingang bucht physischen Bestand", LG.bestand(s, "a1", { mandantId: "m1" }).physisch === 36);
+  t("LAGER Teillieferung: Restmenge korrekt", we1.positionen[0].restMenge === 24);
+  t("LAGER Teillieferung: Bestellung teilgeliefert", s.bestellungen[0].status === "teilgeliefert");
+  var we2 = LG.wareneingang(s, { mandantId: "m1", bestellungId: "bo1", lieferschein: "LS2", positionen: [{ artikelId: "a1", gelieferteMenge: 30, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  t("LAGER Mehrlieferung erkannt (36+30 > 60)", we2.positionen[0].mehrlieferung === 6 && we2.hinweise.some(function (h) { return /Mehrlieferung/.test(h); }));
+  t("LAGER Charge sammelt akzeptierte Menge", LG.chargeById(s, LG.artikelById(s, "a1") && s.chargen[0].id).menge === 66);
+})();
+
+// Bestandsberechnung: verfügbar = physisch - reserviert - gesperrt; QS separat
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", lieferschein: "LSq", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "Cq", einkaufspreis: 7, qs: true }] }, LJ);
+  var b = LG.bestand(s, "a1", { mandantId: "m1" });
+  t("LAGER QS-Ware physisch vorhanden", b.physisch === 20);
+  t("LAGER QS-Ware nicht verfügbar (gesperrt)", b.verfuegbar === 0 && b.qualitaet === 20);
+})();
+
+// Reservierung + Teilreservierung + Überreservierung verhindern
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 30, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var r1 = LG.reserviere(s, { mandantId: "m1", artikelId: "a1", auftragId: "auf1", menge: 12 }, LJ);
+  t("LAGER Reservierung reduziert verfügbaren Bestand", LG.bestand(s, "a1", { mandantId: "m1" }).verfuegbar === 18 && r1.reservierung.status === LG.RES_STATUS.RESERVIERT);
+  var r2 = LG.reserviere(s, { mandantId: "m1", artikelId: "a1", auftragId: "auf2", menge: 30 }, LJ);
+  t("LAGER Teilreservierung: nur verfügbare 18 reserviert", r2.reservierung.reserviert === 18 && r2.fehlmenge === 12 && r2.teilweise === true);
+  t("LAGER Keine Überreservierung: reserviert nie > physisch", LG.bestand(s, "a1", { mandantId: "m1" }).reserviert === 30 && LG.bestand(s, "a1", { mandantId: "m1" }).verfuegbar === 0);
+})();
+
+// Entnahme + Entnahme gegen Reservierung + Rückgabe + tatsächlicher Verbrauch
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 30, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var chId = s.chargen[0].id;
+  var res = LG.reserviere(s, { mandantId: "m1", artikelId: "a1", auftragId: "auf1", menge: 12, chargeId: chId }, LJ);
+  var e1 = LG.entnahme(s, { mandantId: "m1", artikelId: "a1", menge: 10, reservierungId: res.reservierung.id, chargeId: chId, auftragId: "auf1", benutzer: "werkstatt" }, LJ);
+  t("LAGER Entnahme reduziert physisch", LG.bestand(s, "a1", { mandantId: "m1" }).physisch === 20);
+  t("LAGER Entnahme gegen Reservierung reduziert reserviert", LG.bestand(s, "a1", { mandantId: "m1" }).reserviert === 2 && s.reservierungen[0].entnommen === 10);
+  var rg = LG.rueckgabe(s, { entnahmeId: e1.bewegung.id, menge: 2, benutzer: "werkstatt" }, LJ);
+  t("LAGER Rückgabe referenziert Entnahme + erhöht physisch", rg.ok && rg.bewegung.entnahmeRef === e1.bewegung.id && LG.bestand(s, "a1", { mandantId: "m1" }).physisch === 22);
+  var v = LG.verbrauch(s, { artikelId: "a1", auftragId: "auf1" });
+  t("LAGER tatsächlicher Verbrauch = Entnahmen - Rückgaben = 8", v.verbrauch === 8);
+  var zuviel = LG.rueckgabe(s, { entnahmeId: e1.bewegung.id, menge: 100 }, LJ);
+  t("LAGER Rückgabe > Entnahme abgelehnt", zuviel.ok === false);
+})();
+
+// Umlagerung (je Lagerplatz)
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var u = LG.umlagerung(s, { mandantId: "m1", artikelId: "a1", menge: 8, quelleLagerplatzId: "p1", zielLagerplatzId: "p2" }, LJ);
+  t("LAGER Umlagerung ändert Gesamtbestand nicht", u.ok && LG.bestand(s, "a1", { mandantId: "m1" }).physisch === 20);
+  t("LAGER Umlagerung verschiebt je Lagerplatz", LG.bestandProPlatz(s.bewegungen, "a1", "p1", { mandantId: "m1" }) === 12 && LG.bestandProPlatz(s.bewegungen, "a1", "p2", { mandantId: "m1" }) === 8);
+  var uZuviel = LG.umlagerung(s, { mandantId: "m1", artikelId: "a1", menge: 999, quelleLagerplatzId: "p1", zielLagerplatzId: "p2" }, LJ);
+  t("LAGER Umlagerung ohne genügend Quellbestand abgelehnt", uZuviel.ok === false);
+})();
+
+// Storno und Gegenbuchung (nichts wird gelöscht)
+(function () {
+  var s = freshLager();
+  var we = LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var bewId = we.positionen[0].bewegungId;
+  var vorher = s.bewegungen.length;
+  var st = LG.storniere(s, bewId, "Fehlbuchung", LJ);
+  t("LAGER Storno erzeugt Gegenbuchung (Original bleibt)", st.ok && s.bewegungen.length === vorher + 1 && st.original.storniert === true);
+  t("LAGER Storno neutralisiert Bestand", LG.bestand(s, "a1", { mandantId: "m1" }).physisch === 0);
+  t("LAGER Storno zweimal nicht möglich", LG.storniere(s, bewId, "nochmal", LJ).ok === false);
+})();
+
+// Charge sperren + gesperrte Charge nicht entnehmen
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "Cs", einkaufspreis: 7 }] }, LJ);
+  var chId = s.chargen[0].id;
+  var sp = LG.chargeSperren(s, chId, "Zertifikat fehlt", LJ);
+  t("LAGER Charge sperren senkt verfügbaren Bestand", sp.ok && LG.bestand(s, "a1", { mandantId: "m1" }).gesperrt === 20 && LG.bestand(s, "a1", { mandantId: "m1" }).verfuegbar === 0);
+  var e = LG.entnahme(s, { mandantId: "m1", artikelId: "a1", menge: 5, chargeId: chId }, LJ);
+  t("LAGER gesperrte Charge nicht entnehmbar", e.ok === false && /gesperrt/.test(e.grund));
+  var en = LG.chargeEntsperren(s, chId, LJ);
+  t("LAGER Entsperren stellt Verfügbarkeit wieder her", en.ok && LG.bestand(s, "a1", { mandantId: "m1" }).verfuegbar === 20);
+})();
+
+// Reststück anlegen + Langgut-Restlänge + reservieren
+(function () {
+  var s = freshLager();
+  var rs = LG.reststueckAnlegen(s, { mandantId: "m1", artikelId: "a1", werkstoff: "Stahl", laenge: 6, gewicht: 13.8, ursprungAuftragId: "auf1", lagerplatzId: "p1" }, LJ);
+  t("LAGER Reststück angelegt (verfügbar)", rs.status === LG.REST_STATUS.VERFUEGBAR && rs.ausgangslaenge === 6);
+  var v = LG.reststueckVerbrauch(s, rs.id, { verwendeteLaenge: 2, schnittverlust: 0.2, auftragId: "auf2" }, LJ);
+  t("LAGER Langgut-Restlänge = 6 - 2 - 0,2 = 3,8", v.ok && v.restlaenge === 3.8 && rs.status === LG.REST_STATUS.TEILWEISE);
+  var rr = LG.reststueckReservieren(s, rs.id, { auftragId: "auf3" }, LJ);
+  t("LAGER Reststück reservieren", rr.ok && rs.status === LG.REST_STATUS.RESERVIERT);
+  var vAll = LG.reststueckVerbrauch(s, rs.id, { verwendeteLaenge: 3.8 }, LJ);
+  t("LAGER Reststück vollständig verbraucht", vAll.ok && rs.status === LG.REST_STATUS.VERBRAUCHT);
+})();
+
+// Mindestbestand + Bestellvorschlag + Verpackungseinheit
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 10, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var b = LG.bestand(s, "a1", { mandantId: "m1" });
+  t("LAGER Mindestbestand unterschritten erkannt", b.verfuegbar < LG.artikelById(s, "a1").mindestbestand);
+  var v = LG.bestellvorschlag(s, "a1");
+  // Ziel 60 + Fehlbedarf 0 - verfügbar 10 - bestellt 0 = 50 -> aufrunden auf VPE 6 -> 54
+  t("LAGER Bestellvorschlag rundet auf Verpackungseinheit (54)", v.bestellen && v.menge === 54);
+  // offene Bestellung reduziert Vorschlag
+  s.bestellungen.push({ id: "bo9", mandantId: "m1", status: "offen", positionen: [{ artikelId: "a1", bestellt: 60, geliefert: 0 }] });
+  t("LAGER Bestellvorschlag berücksichtigt offene Bestellung (kein Bedarf)", LG.bestellvorschlag(s, "a1").bestellen === false);
+})();
+
+// Reservierter Fehlbedarf erhöht den Bestellvorschlag
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 60, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  LG.reserviere(s, { mandantId: "m1", artikelId: "a1", auftragId: "auf1", menge: 100 }, LJ); // Fehlmenge 40
+  var v = LG.bestellvorschlag(s, "a1");
+  // Ziel 60 + Fehlbedarf 40 - verfügbar 0 - bestellt 0 = 100 -> VPE 6 -> 102
+  t("LAGER Bestellvorschlag mit reserviertem Fehlbedarf", v.bestellen && v.menge === 102);
+})();
+
+// Gleitender Durchschnittspreis
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 10, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 6 }] }, LJ);
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 30, lagerplatzId: "p1", chargennummer: "C2", einkaufspreis: 8 }] }, LJ);
+  var bw = LG.bewertung(s, "a1", LG.METHODE.GLEITEND);
+  // (10*6 + 30*8)/40 = 300/40 = 7,50 ; letzter = 8
+  t("LAGER gleitender Durchschnitt = 7,50", bw.gleitend === 7.5 && bw.letzter === 8);
+})();
+
+// Idempotenz: doppelte Bewegung erzeugt keine zweite Buchung
+(function () {
+  var s = freshLager();
+  var daten = { mandantId: "m1", typ: LG.BEWEGUNG.ENTNAHME, artikelId: "a1", menge: 5, idempotenzKey: "fix-key-1", zeitpunkt: LJ };
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var r1 = LG.uebernehmeOffline(s, daten, LJ);
+  var r2 = LG.uebernehmeOffline(s, daten, LJ);
+  t("LAGER Idempotenz: zweite Übertragung erzeugt keine zweite Bewegung", r1.ok && r2.ok && r2.neu === false && s.bewegungen.filter(function (b) { return b.idempotenzKey === "fix-key-1"; }).length === 1);
+})();
+
+// Offline-Konflikt: nicht valide Bewegung wird als Konflikt gespeichert (nichts gelöscht)
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 3, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var r = LG.uebernehmeOffline(s, { mandantId: "m1", typ: LG.BEWEGUNG.ENTNAHME, artikelId: "a1", menge: 50, idempotenzKey: "off-1", zeitpunkt: LJ }, LJ);
+  t("LAGER Offline-Konflikt statt negativer Bestand", r.ok === false && s.konflikte.length === 1 && s.konflikte[0].status === "offen");
+  t("LAGER Offline-Konflikt erzeugt keine Bewegung", s.bewegungen.filter(function (b) { return b.typ === LG.BEWEGUNG.ENTNAHME; }).length === 0);
+})();
+
+// Rollen (Rechtematrix)
+(function () {
+  t("LAGER Rolle werkstatt darf entnehmen, aber keine Einkaufspreise", LG.darf("werkstatt", "entnehmen") && LG.darfEinkaufspreise("werkstatt") === false);
+  t("LAGER Rolle werkstatt darf NICHT korrigieren/wareneingang", LG.darf("werkstatt", "korrigieren") === false && LG.darf("werkstatt", "wareneingang") === false);
+  t("LAGER Rolle buero darf Einkaufspreise + Wareneingang", LG.darfEinkaufspreise("buero") && LG.darf("buero", "wareneingang"));
+  t("LAGER Nur admin darf Inventur freigeben/Bestellung freigeben", LG.darf("admin", "inventurFreigeben") && LG.darf("buero", "inventurFreigeben") === false && LG.darf("buero", "bestellungFreigeben") === false);
+})();
+
+// Cross-Tenant-Schutz
+(function () {
+  var s = freshLager();
+  var r = LG.reserviere(s, { mandantId: "m1", artikelId: "aX", menge: 1 }, LJ); // aX gehört m2
+  t("LAGER Cross-Tenant Reservierung abgelehnt", r.ok === false && /Cross-Tenant|fremder/.test(r.grund));
+  var pr = LG.pruefeBewegung(s, { mandantId: "m1", typ: LG.BEWEGUNG.ENTNAHME, artikelId: "aX", menge: 1 });
+  t("LAGER Cross-Tenant Bewegung abgelehnt", pr.ok === false);
+})();
+
+// Vollständige Rückverfolgung: Lieferant → WE → Charge → Lagerplatz → Auftrag → Kommission
+(function () {
+  var s = freshLager();
+  LG.wareneingang(s, { mandantId: "m1", lieferantId: "lief1", lieferschein: "LS-RV", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C-RV", schmelznummer: "SM1", zertifikate: ["3.1"], einkaufspreis: 7 }] }, LJ);
+  var chId = s.chargen[0].id;
+  LG.entnahme(s, { mandantId: "m1", artikelId: "a1", menge: 4, chargeId: chId, auftragId: "auf1", kommission: "GST Nord", arbeitsgang: "zuschnitt" }, LJ);
+  var rv = LG.rueckverfolgung(s, chId);
+  t("LAGER Rückverfolgung Lieferant→WE→Charge", rv && rv.lieferantId === "lief1" && rv.lieferschein === "LS-RV" && rv.charge.schmelznummer === "SM1");
+  t("LAGER Rückverfolgung Lagerplatz + Verwendung→Auftrag/Kommission", rv.lagerplaetze.indexOf("p1") >= 0 && rv.verwendungen.length === 1 && rv.verwendungen[0].auftragId === "auf1" && rv.verwendungen[0].kommission === "GST Nord");
+})();
+
+// Historische Kalkulation bleibt unverändert (Preis-Snapshot bleibt erhalten)
+(function () {
+  var s = freshLager();
+  var histKalk = { id: "k1", netto: 1000, material: [{ einkaufspreis: 6, menge: 10 }] };
+  var snap = JSON.stringify(histKalk);
+  LG.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 10, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 9 }] }, LJ);
+  LG.bewertung(s, "a1", LG.METHODE.GLEITEND);
+  t("LAGER historische Kalkulation unverändert durch neue EK-Preise", JSON.stringify(histKalk) === snap);
+  // Bewegung trägt eigenen Preis-Snapshot (spätere Preisänderung ändert Buchung nicht)
+  var bew = s.bewegungen.filter(function (b) { return b.typ === LG.BEWEGUNG.WARENEINGANG; })[0];
+  t("LAGER Bewegung hält eigenen Preis-Snapshot", bew.preisSnapshot === 9);
 })();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");

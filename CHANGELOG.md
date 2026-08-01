@@ -3,6 +3,49 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 15A – Lagerkern, Bestandsbuchungen & Reservierungen  (Schema v12)
+
+### Hinzugefügt
+- **Lager-Engine `assets/js/lager.js`** (rein/testbar, keine UI): Lagerstruktur
+  (Standort/Lager/Bereich/Regal/Lagerplatz), Lagerartikel, zentrale
+  Bestandsberechnung (`verfügbar = physisch − reserviert − gesperrt`; bestellte
+  Ware kein physischer Bestand; Qualitätsprüfbestand separat), **unveränderbares
+  Bewegungsjournal** mit 14 Bewegungsarten (WARENEINGANG…LIEFERANTENRETOURE,
+  STORNO) inkl. Idempotenzschlüssel und Preis-Snapshot.
+- **Wareneingang** mit Teil-/Mehr-/Minderlieferung, beschädigter/akzeptierter
+  Menge, Charge + Zertifikaten + Lagerplatz; Bestellfortschritt (teilgeliefert/
+  abgeschlossen).
+- **Chargen** mit Rückverfolgung Lieferant→Wareneingang→Charge→Lagerplatz→
+  Auftrag→Kommission; Charge sperren/entsperren (gesperrte Charge nicht
+  entnehmbar).
+- **Reservierungen** (voll/teilweise, keine stille Überreservierung, Fehlmenge,
+  Priorität, benötigt-bis); **Entnahme/Rückgabe** (Rückgabe referenziert
+  Entnahme; tatsächlicher Verbrauch = Entnahmen − Rückgaben).
+- **Reststücke** inkl. Langgut-Restlänge (Ausgangslänge − verwendet −
+  Schnittverlust), Status verfügbar…verschrottet.
+- **Mindestbestand + Bestellvorschlag** (Ziel + reservierter Fehlbedarf −
+  verfügbar − bestellt; Verpackungseinheit/Mindestbestellmenge; keine negativen
+  Vorschläge), **Umlagerung/Korrektur/Inventurdifferenz/Storno**.
+- **Bestandsbewertung** technisch (letzter EK / gleitender Durchschnitt /
+  Charge); **Offline-Übernahme** mit Neuvalidierung + Konfliktspeicherung
+  (nichts still löschen, keine unbemerkte negative Menge).
+- **Rechtematrix** Lager (Cross-Tenant abgelehnt; Werkstatt ohne Einkaufspreise/
+  Wareneingang/Korrektur).
+- **Schema v12**: additive Lager-Arrays in `store.js` (`fresh`/`migrate`, ohne
+  Datenverlust) + `settings.lager`; Beispieldaten nur in Testumgebung.
+  `lager.js` in `index.html`, `sw.js`-SHELL (v3) und Testharness eingebunden.
+
+### Tests / Prüfungen
+- `tests/referenz.test.js` **323/323** (46 neue Lagertests) + Materialfluss-
+  Durchlauf über die Beispieldaten; `node --check` alle JS, Secret-Scan,
+  Produktions-Build grün.
+
+### Ehrlich / Grenzen
+- Noch **keine** Lageroberfläche (nur Kern). Keine Bewegung wird gelöscht;
+  Korrektur nur per Storno/Gegenbuchung. Keine steuerrechtlich verbindliche
+  Lagerbewertung, keine Live-Bestellung, keine ERP-Lageranbindung. Kein
+  Nesting/keine Verschnittoptimierung vorgetäuscht.
+
 ## Phase 14B – mobile Werkstatt- & Montageoberfläche  (Schema v11)
 
 ### Hinzugefügt
