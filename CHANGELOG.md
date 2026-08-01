@@ -3,6 +3,55 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Final Audit – End-to-End-Systemcheck & Fehlerbehebung  (2026-08-01, Schema v13)
+
+Keine neuen Fachmodule, keine neuen Phasen – ausschließlich Prüfung,
+Fehlerbehebung und ehrliche Dokumentation des bestehenden Produkts.
+
+### Behoben
+- **Sicherheit (hoch): CSV-Formula-Injection.** Der Lager-, Qualitäts- und
+  ERP-/Rechnungsexport neutralisierte führende `=`, `+`, `-`, `@`, Tab und CR
+  **nicht** – Werte wie `=HYPERLINK("http://evil","klick")` wurden von Excel/
+  LibreOffice als Formel ausgeführt. `app.js` schützte bereits korrekt; die
+  später entstandenen Module wichen davon ab. Einheitlicher Schutz ergänzt in
+  `assets/js/lager.js` (`csvEscape`), `assets/js/qualitaet.js` (`csvEscape`)
+  und `assets/js/rechnung.js` (`csvFeld`), jeweils mit anschließendem
+  RFC-4180-Quoting. Mit Angriffswerten verifiziert.
+- **Sicherheit (niedrig, Dokumentation): falsche Rate-Limit-Aussage.**
+  `SECURITY.md` führte einen aktiven Fehlanmeldungs-Limiter auf.
+  `infra.rateLimiter()` existiert und ist getestet, wird aber von **keinem**
+  Anmeldepfad aufgerufen. Aussage korrigiert – es gibt **kein** wirksames
+  Anmelde-Rate-Limit.
+
+### Geprüft (keine Änderung nötig)
+- 16 Navigationspunkte ↔ 16 Seiten ↔ 16 Renderer deckungsgleich; keine
+  Hauptfunktion nur über eine System-/Testseite erreichbar.
+- **224 sichtbare Schaltflächen**, alle mit Funktion – keine Platzhalter, keine
+  toten Buttons.
+- Durchgehender End-to-End-Ablauf über die echte Oberfläche (**31/31**), ohne
+  Laufzeitfehler.
+- Kalkulation unabhängig in reiner Arithmetik nachgerechnet (**35/35**):
+  keine doppelten Aufschläge, USt-Basis = Netto nach Rabatt, keine Division
+  durch null, Decimal-Rundung korrekt.
+- Rollen- und Mandantentrennung auch bei **identischen IDs und Nummern**
+  (9/9), XSS, Responsive (6 Größen), PDFs, Offline-PWA über HTTP(S).
+
+### Dokumentation
+- **Neu:** `FINAL_AUDIT.md`, `TEST_REPORT.md`, `RELEASE_CHECKLIST.md`.
+- **Aktualisiert:** `PROJECT_STATUS.md`, `KNOWN_LIMITATIONS.md`, `SECURITY.md`,
+  `DEPLOYMENT.md`, `PILOT_CHECKLIST.md`, `README.md`.
+- Ehrlich ergänzt: nur **drei** Rollen (keine feinere Rollenteilung), kein
+  eigenes Nachkalkulationsbericht-PDF, Lernfunktion ist eine reine Anzeige ohne
+  Schaltflächen, Mandantenverwaltung nur über die Systemseite,
+  `localStorage`-Grenze ~5–10 MB pro Mandant, echte iOS-/Android-Gerätetests
+  stehen aus, `file://` ist **keine** Produktions-PWA.
+
+### Reifegrad
+**Pilotbetrieb** (begleiteter Echteinsatz in einem Betrieb) – **nicht**
+produktionsbereit. Begründung siehe `FINAL_AUDIT.md` Abschnitt 15.
+Es wird **keine** Sicherheitszertifizierung und **keine** steuerliche oder
+rechtliche Konformität behauptet.
+
 ## Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen, Berichte & Dashboard  (Schema v13)
 
 ### Hinzugefügt

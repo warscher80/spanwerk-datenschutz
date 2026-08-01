@@ -347,8 +347,11 @@
       };
     });
   }
+  // CSV-Zelle: Formula-Injection verhindern (führendes =,+,-,@ wird durch
+  // einen Apostroph neutralisiert), danach nach RFC-4180-Art quoten.
   function csvFeld(v, trenner) {
     var s = v == null ? "" : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     if (s.indexOf('"') >= 0 || s.indexOf(trenner) >= 0 || s.indexOf("\n") >= 0 || s.indexOf("\r") >= 0) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }

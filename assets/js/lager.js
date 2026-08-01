@@ -808,7 +808,9 @@
   // ============================================================
   //  BERICHTE / CSV  (Werte nur mit Recht; keine Live-ERP-Verbindung)
   // ============================================================
-  function csvEscape(v) { var s = String(v == null ? "" : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  // CSV-Zelle: Formula-Injection verhindern (führendes =,+,-,@ wird
+  // durch einen Apostroph neutralisiert), danach normal quoten.
+  function csvEscape(v) { var s = String(v == null ? "" : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function zuCSV(headers, rows) { return [headers.join(";")].concat(rows.map(function (r) { return r.map(csvEscape).join(";"); })).join("\n"); }
   function berichtBestand(state, mandantId, mitWert) {
     var rows = (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; }).map(function (a) {

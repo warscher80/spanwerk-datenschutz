@@ -4,7 +4,39 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen,
+Letzte Aktualisierung: **FINAL AUDIT (2026-08-01)** – vollständiger
+End-to-End-Systemcheck des bestehenden Produkts. **Keine neue Phase, kein neues
+Fachmodul.** Geprüft wurde, ob die App als *zusammenhängendes Produkt*
+bedienbar ist und nicht nur aus einzeln getesteten Engines besteht.
+
+**Ergebnis:** 16 Navigationspunkte ↔ 16 Seiten ↔ 16 Renderer deckungsgleich;
+**224/224 sichtbare Schaltflächen funktionieren**; der durchgehende Hauptablauf
+(Kunde → Kalkulation → Angebot → Portal → Auftrag → Lager → Zeiterfassung →
+Qualität → Rechnung → Nachkalkulation) läuft **31/31** über die echte
+Oberfläche ohne Laufzeitfehler; die Kalkulation ist unabhängig in reiner
+Arithmetik nachgerechnet (**35/35**); Rollen- und Mandantentrennung halten auch
+bei **identischen IDs und Nummern** (9/9). **Summe: 729 automatisierte
+Prüfungen, 0 fehlgeschlagen.**
+
+**Behoben:** ein **hoher** Sicherheitsfehler – **CSV-Formula-Injection** im
+Lager-, Qualitäts- und ERP-/Rechnungsexport (`lager.js`, `qualitaet.js`,
+`rechnung.js` neutralisierten führende `= + - @` nicht, `app.js` schon) – sowie
+eine **falsche Sicherheitsaussage** in `SECURITY.md` (angeblich aktiver
+Anmelde-Limiter; `infra.rateLimiter()` ist an keinen Anmeldepfad angebunden).
+
+**Ehrlich offengelegt:** nur **drei** Rollen (`admin`/`buero`/`werkstatt`),
+kein eigenes Nachkalkulationsbericht-PDF, Lernfunktion ist eine reine Anzeige
+ohne Schaltflächen, Mandantenverwaltung nur über die Systemseite,
+`localStorage`-Grenze ~5–10 MB pro Mandant, **echte iOS-/Android-Gerätetests
+stehen aus**, `file://` ist **keine** Produktions-PWA, kein Backend (damit kein
+Anmelde-Rate-Limit, keine serverseitige Rechteprüfung, kein Virenscan).
+
+**Reifegrad: begleiteter Pilotbetrieb – nicht produktionsbereit.** Es wird
+**keine** Sicherheitszertifizierung und **keine** steuerliche oder rechtliche
+Konformität behauptet. Doku: `FINAL_AUDIT.md`, `TEST_REPORT.md`,
+`RELEASE_CHECKLIST.md`.
+
+Vorher: **Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen,
 Berichte & Qualitätsdashboard** umgesetzt. Vollständige QM-Oberfläche
 (`assets/js/qualitaet-ui.js`, neue Seite „Qualität", 15 Register) auf
 **demselben Phase-16A-Kern** – keine zweite Prüf-, Toleranz-, Sperr- oder
@@ -802,7 +834,63 @@ Isolationstests) + Playwright-Browser-Smoke (System-Seite, Test-Firmen,
 Isolation im echten `localStorage`, keine Laufzeitfehler). Node `--check` +
 `copyweb`-Build grün.
 
+## FINAL AUDIT – End-to-End-Systemcheck – ERLEDIGT ✅ (2026-08-01)
+
+**Auftrag:** prüfen, ob die App als zusammenhängendes Produkt vollständig
+bedienbar ist – **keine neue Phase, kein neues Fachmodul**. Engines ohne
+benutzbare Oberfläche werden ausdrücklich **nicht** als fertige Benutzerfunktion
+gewertet.
+
+**Funktionsinventur (31 Module):** 26 **vollständig über die normale Navigation
+bedienbar**, 2 **teilweise** (Lernfunktion – Seite ohne Schaltflächen;
+Mandantenverwaltung – nur über die Systemseite), 2 bewusst **administrative
+Systemansichten** (Betrieb/Monitoring, Infrastruktur), 1 reiner **technischer
+Kern** (Offline-Sync – mit bedienbarer mobiler Oberfläche darüber).
+**Keine** fehlerhaften, nicht umgesetzten oder unangebundenen Module.
+**Keine** Hauptfunktion nur über eine versteckte Test-/Systemseite erreichbar.
+
+**Prüfumfang und Ergebnisse:** Referenztests 481/481 · Kalkulations-
+Kontrollrechnung 35/35 · Rollen/Mandanten/Export/Migration/Performance 32/32 ·
+XSS/Responsive/PDF/PWA 20/20 · End-to-End über die echte UI 31/31 ·
+Schaltflächen 224/224 · Mobile-/Desktop-E2E der Phasen 14B/15B/16B unverändert
+grün · `node --check`, Secret-Scan, `check-env`, Produktions-Build sauber.
+**729 automatisierte Prüfungen, 0 fehlgeschlagen** – kein fehlgeschlagener
+Test wurde ignoriert.
+
+**Behobene Fehler:** A-1 **hoch** – CSV-Formula-Injection in `lager.js`,
+`qualitaet.js`, `rechnung.js` (einheitlicher Apostroph-Schutz + RFC-4180-Quoting
+ergänzt, mit Angriffswerten verifiziert). A-2 **niedrig** – falsche
+Rate-Limit-Aussage in `SECURITY.md` korrigiert.
+
+**Ehrliche Korrektur eigener Prüfmethoden:** vier zunächst rot gemeldete Punkte
+(Migrations-Idempotenz, ERP-CSV, Zeiterfassung-E2E, Rechnungs-PDF-E2E) waren
+**Fehler im Auditskript**, nicht im Produkt; sie sind in `TEST_REPORT.md`
+Abschnitt 8 offengelegt statt stillschweigend entfernt.
+
+**Nicht geprüft / nur simuliert:** echte iOS-/Android-Geräte, E-Mail-Versand,
+Zahlungs-/Bankanbindung, ERP-Livekopplung, Lieferanten-Live-APIs,
+Virenprüfung, Mehrbenutzerbetrieb über einen Server, steuerliche/rechtliche
+Konformität, Norm-/Sicherheitszertifizierung, Langzeit-Dauerlast.
+`file://` wird **nicht** als Produktionslösung bewertet.
+
+**Empfehlung: begleiteter Pilotbetrieb** in **einem** Betrieb mit **einem**
+Mandanten, täglichem Backup, Doppelführung der Rechnungen im bestehenden
+System und nachzuholenden Gerätetests. **Nicht** produktionsbereit, weil ohne
+Backend keine serverseitige Rechteprüfung, kein Anmelde-Rate-Limit und kein
+Virenscan existieren, der Speicher begrenzt ist und die rechtliche
+Außenwirkung (Rechnungen, Protokolle) ungeprüft ist. Begründung im Volltext:
+`FINAL_AUDIT.md` Abschnitt 15.
+
+**Kein öffentliches Deployment, kein Merge in den Hauptbranch.**
+
 ## Nächster Schritt
+
+**Zuerst: Pilotfreigabe und Gerätetests.** Vor jeder weiteren Entwicklung die
+offenen Punkte aus `RELEASE_CHECKLIST.md` Abschnitt 6/7 klären (schriftliche
+Freigabe, Pilotauflagen) und die mobilen Prüfungen auf echter Hardware
+nachholen (`PILOT_CHECKLIST.md` Abschnitt H).
+
+**Danach fachlich offen:**
 
 **Phase 7B – Materialpreisimporte, Lieferantenschnittstellen & ERP-
 Vorbereitung:** CSV-/XLSX-Importzentrale mit Spaltenzuordnung, Validierung,

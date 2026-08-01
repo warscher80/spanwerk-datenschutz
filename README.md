@@ -61,7 +61,10 @@ Dokumente:
 | Thema | Datei |
 |---|---|
 | Projektstand & Reifegrad | `PROJECT_STATUS.md` |
-| Prüf-/Abschlussbericht + Pilotentscheidung | `AUDIT_REPORT.md` |
+| **Abschluss-Audit (Systemcheck, Reifegrad, Empfehlung)** | **`FINAL_AUDIT.md`** |
+| **Vollständiger Testbericht** | **`TEST_REPORT.md`** |
+| **Release-Checkliste** | **`RELEASE_CHECKLIST.md`** |
+| Früherer Prüf-/Abschlussbericht (Phase 8) | `AUDIT_REPORT.md` |
 | Kalkulationsformeln | `CALCULATION_RULES.md` |
 | Architektur | `ARCHITECTURE.md` |
 | Sicherheit | `SECURITY.md` |
@@ -78,7 +81,16 @@ Dokumente:
 Invarianten, Migrationen, Betriebs-/Sicherheitschecks). Syntaxprüfung:
 `node --check assets/js/*.js`.
 
-**Reifegrad:** bereit für internen Test-/**Pilotbetrieb** (mit den in
-`KNOWN_LIMITATIONS.md` genannten Auflagen); voller Produktivbetrieb
-(Mehrbenutzer/Server/ERP-Live) noch nicht. Kein öffentliches Deployment und
-keine Übernahme echter Firmendaten ohne ausdrückliche Freigabe.
+**Reifegrad (Stand Abschluss-Audit 2026-08-01): begleiteter Pilotbetrieb.**
+Alle Hauptabläufe sind durchgängig über die normale Oberfläche bedienbar;
+729 automatisierte Prüfungen laufen fehlerfrei (`TEST_REPORT.md`).
+**Nicht produktionsbereit:** es gibt kein Backend (damit keine serverseitige
+Rechteprüfung, kein Anmelde-Rate-Limit, keine Virenprüfung für Uploads), der
+Speicher ist auf ~5–10 MB pro Mandant begrenzt, und echte iOS-/Android-
+Gerätetests stehen aus. Es wird **keine** Sicherheitszertifizierung und
+**keine** steuerliche oder rechtliche Konformität behauptet. Kein öffentliches
+Deployment und keine Übernahme echter Firmendaten ohne ausdrückliche Freigabe.
+
+**Für den mobilen Betrieb:** die App muss über **HTTP(S)** ausgeliefert werden
+(Server oder `localhost`). Ein Aufruf per `file://` funktioniert als Notbehelf,
+ist aber **keine** vollwertige PWA (kein Service Worker, keine IndexedDB).

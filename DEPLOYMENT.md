@@ -20,7 +20,18 @@ python3 -m http.server 8080
 ```
 
 Danach `index.html` öffnen. Erst-PIN aller Beispielbenutzer: **1234** (nach
-erstem Login unter Stammdaten → Benutzer ändern).
+erstem Login unter Stammdaten → Benutzer ändern). Die Demo-PIN existiert nur
+in der Releasestufe „Entwicklung/Test"; ab **Pilot** erzwingt der Erstlogin
+einen PIN-Wechsel.
+
+### Wichtig: HTTP(S) ist Pflicht für den mobilen/Offline-Betrieb
+
+Die mobile PWA (`mobil.html`) benötigt **Service Worker und IndexedDB**. Beide
+sind unter `file://` nicht verfügbar. Die App fällt dort auf `localStorage`
+zurück – das ist ein **Notbehelf und keine Produktionslösung**. Für Werkstatt-,
+Montage-, Lager- und Prüfnutzung muss die App über einen Server oder über
+`http://localhost` ausgeliefert werden (in der Android-App übernimmt das
+Capacitor).
 
 ## Tests
 
@@ -67,7 +78,15 @@ node scripts/secret-scan.mjs                             # Secret-Scan
 node scripts/copyweb.mjs                                 # Produktions-Build
 ```
 Es gibt **kein** automatisches Produktions-Deployment – nur kontrolliert und mit
-ausdrücklicher Freigabe (siehe `RELEASE_PROCESS.md`).
+ausdrücklicher Freigabe (siehe `RELEASE_PROCESS.md` und `RELEASE_CHECKLIST.md`).
+
+Zusätzlich zu den CI-Gates laufen Browser-Prüfungen (End-to-End, Schaltflächen,
+XSS, Responsive, PDF, PWA) über Playwright gegen einen lokalen HTTP-Server;
+Umfang und Ergebnisse stehen in `TEST_REPORT.md`.
+
+**Stand 2026-08-01:** Es wurde **kein** öffentliches Deployment durchgeführt.
+Freigegebener Reifegrad ist **Pilotbetrieb**, nicht Produktivbetrieb – die
+Voraussetzungen und Auflagen stehen in `RELEASE_CHECKLIST.md`.
 
 ## Freigabestufen (Phase 9)
 

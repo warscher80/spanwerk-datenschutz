@@ -31,8 +31,13 @@
   geprüft.
 - **XSS:** Benutzereingaben werden vor der HTML-Ausgabe mit `esc()`
   maskiert (`&<>"`).
-- **CSV-Formula-Injection:** Exporte maskieren Zellen, die mit `= + - @`
-  beginnen (`csvZelle` in `app.js`).
+- **CSV-Formula-Injection:** **Alle** Exporte maskieren Zellen, die mit
+  `= + - @`, Tabulator oder CR beginnen, mit einem vorangestellten Apostroph
+  und quoten danach nach RFC 4180: `csvZelle` (`app.js`), `csvEscape`
+  (`lager.js`, `qualitaet.js`) und `csvFeld` (`rechnung.js`, inkl.
+  ERP-Dateiexport). *Historie: Die drei zuletzt genannten Module hatten diesen
+  Schutz zunächst nicht – der Fehler wurde im Abschluss-Audit (2026-08-01)
+  gefunden und behoben, siehe `FINAL_AUDIT.md` Abschnitt 12.*
 - **Datei-Uploads (Phase 7D):** Endungs-/Größenprüfung, Ablehnung
   ausführbarer Dateien, Dublettenerkennung per Prüfsumme; es werden **keine**
   Makros/Formeln/Skripte ausgeführt (nur konservative Textextraktion).
@@ -104,15 +109,20 @@
 - **Zahlungs-Webhooks:** Signaturprüfung + idempotente Verarbeitung; **keine**
   Tarifänderung durch Browserparameter; **keine** Kartendaten.
 - **Monitoring:** `scrubbe` entfernt PII/Secrets vor jeder externen Übertragung.
-- **Rate-Limit:** Fehlanmeldungs-Limiter (`rateLimiter`).
+- **Rate-Limit:** `infra.rateLimiter()` existiert als geprüfter Baustein, ist
+  aber **nicht** an die Anmeldung angebunden. **Es gibt derzeit kein
+  wirksames Anmelde-Rate-Limit.** (Im Abschluss-Audit 2026-08-01 korrigierte
+  Aussage – vorher stand hier missverständlich „Fehlanmeldungs-Limiter".)
 
 ## Sicherheitsbefunde (Kurzregister)
 
 | Schwere | Befund | Status |
 |---|---|---|
 | Hoch | Angebots-Snapshot hielt Referenzen auf Firma/Kunde (spätere Stammdatenänderung hätte altes Angebot verändert) | **behoben** (tiefe Kopie in `kundenAusgabe`) |
+| Hoch | **CSV-Formula-Injection** in Lager-, Qualitäts- und ERP-Export (`=`/`+`/`-`/`@` ungeschützt exportiert, von Excel/LibreOffice als Formel ausgeführt) | **behoben** 2026-08-01 (`lager.js`, `qualitaet.js`, `rechnung.js`) |
+| Niedrig | SECURITY.md behauptete einen aktiven Anmelde-Limiter, der nicht angebunden ist | **behoben** 2026-08-01 (Aussage korrigiert) |
 | Mittel | `localStorage` unverschlüsselt | offen (Geräteschutz, dokumentiert) |
-| Niedrig | Kein Anmelde-Rate-Limit | offen (lokale App) |
+| Niedrig | Kein Anmelde-Rate-Limit | offen (lokale App, kein Backend) |
 
 **Von Fachleuten prüfen lassen:** rechtliche DSGVO-Konformität, betriebliche
 Datenschutz-/Aufbewahrungsregeln, ggf. Backend-Sicherheit bei späterer
