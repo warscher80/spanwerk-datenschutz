@@ -16,6 +16,7 @@
   var Plan = w.Preisschmiede.Planung;
   var Dok = w.Preisschmiede.Dokumente;
   var Betrieb = w.Preisschmiede.Betrieb;
+  var Mandant = w.Preisschmiede.Mandant;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -1393,7 +1394,11 @@
       fl.map(function (f) { return "<tr><td><code>" + esc(f.id) + "</code></td><td>" + fmtDateTime(f.zeitpunkt) + "</td><td>" + esc(f.modul || "—") + "</td><td>" + esc((f.nachricht || "").slice(0, 80)) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Keine Fehler protokolliert.</div>';
     html += '<p class="hint">Protokoll enthält keine Passwörter, Tokens oder vollständigen Personendaten. Bei einem Problem die Fehler-ID dem Administrator nennen.</p></div>';
 
+    // Mandanten (Firmen) – Wechsel, Verwaltung, Tarif/Lizenz/Nutzung
+    html += mandantenCardHtml(now);
+
     root.innerHTML = html;
+    verdrahteMandantenCard(now);
     // Verdrahtung
     $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); markierePilotFunktionen(); renderSystem(); toast("Freigabestufe gesetzt."); };
     $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
@@ -1404,6 +1409,196 @@
     $("#sys-support").onclick = function () { supportPaketDialog(); };
     $("#sys-log-clear").onclick = function () { if (confirm("Fehlerprotokoll leeren?")) { db.fehlerlog = []; Store.save(); renderSystem(); } };
     $all("[data-fbstatus]").forEach(function (s) { s.onchange = function () { var f = (db.feedback || []).filter(function (x) { return x.id === s.dataset.fbstatus; })[0]; if (f) { f.status = this.value; f.bearbeiter = (Auth.current() || {}).benutzername || ""; Store.save(); } }; });
+  }
+
+  // ============================================================
+  //  MANDANTENVERWALTUNG (Phase 10) – nur Administration
+  //  Isolation durch getrennte Speicher-Namespaces (Datenbank-pro-
+  //  Mandant). Aktiver Mandant kommt aus Registry/Sitzung, nie aus
+  //  URL/Formular. Firmenwechsel setzt Sitzung zurück (Re-Login).
+  // ============================================================
+  function tarifName(reg, key) { var t = (reg.tarife || []).filter(function (x) { return x.key === key; })[0]; return t ? t.name : (key || "—"); }
+  function mandantStatusBadge(status) {
+    var rot = ["gesperrt", "archiviert"], gelb = ["Zahlung ausstehend", "eingeschränkt", "gekündigt", "Einrichtung", "Testbetrieb"];
+    var f = rot.indexOf(status) >= 0 ? "#e06666" : gelb.indexOf(status) >= 0 ? "#e0a000" : "#2fbf71";
+    return '<span class="badge" style="background:' + f + ';color:#fff">' + esc(status) + "</span>";
+  }
+  function mandantenCardHtml(now) {
+    if (!Mandant) return "";
+    var reg = Store.ladeRegistry();
+    var aktiv = Store.aktiverMandant() || {};
+    var liz = Mandant.lizenz(aktiv);
+    var nz = Mandant.nutzung(aktiv, db);
+    var testmodus = ["test", "entwicklung"].indexOf((db.settings.betrieb && db.settings.betrieb.releaseStufe) || "test") >= 0;
+
+    // Aktiver Mandant + Lizenz + Nutzung
+    function warnFarbe(stufe) { return stufe >= 100 ? "#e06666" : stufe >= 90 ? "#e0a000" : stufe >= 80 ? "#e0a000" : "#2fbf71"; }
+    var html = '<div class="card" style="margin-top:12px;border-left:4px solid #3d7bd6"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+      '<h3 style="margin:0">🏢 Mandanten (Firmen)</h3>' +
+      '<div class="inline" style="flex:0"><button class="btn sm" id="mt-neu" type="button">+ Neue Firma</button>' +
+      (testmodus ? '<button class="btn sm ghost" id="mt-beispiel" type="button">🧪 2 Test-Firmen anlegen</button>' : "") +
+      '<button class="btn sm ghost" id="mt-export" type="button">⬇️ Mandant exportieren</button></div></div>';
+
+    html += '<div class="grid cols-3" style="margin-top:10px;align-items:start">';
+    html += '<div class="card"><div class="muted" style="font-size:11px">Aktive Firma</div><strong style="font-size:15px">' + esc(aktiv.name || "—") + "</strong> " + mandantStatusBadge(aktiv.status || "aktiv") +
+      '<div class="muted" style="font-size:11px;margin-top:4px">Tarif: <strong>' + esc(tarifName(reg, aktiv.tarif)) + "</strong></div>" +
+      (liz.hinweis ? '<div class="insight" style="margin-top:6px"><span class="ico">⚠️</span><span>' + esc(liz.hinweis) + "</span></div>" : '<div class="muted" style="font-size:11px;margin-top:4px">Schreibzugriff: aktiv</div>') + "</div>";
+    html += '<div class="card"><div class="muted" style="font-size:11px">Benutzer</div><strong style="font-size:15px;color:' + warnFarbe(nz.benutzerWarn) + '">' + nz.benutzer + " / " + (nz.maxBenutzer || "∞") + "</strong>" +
+      (nz.benutzerWarn ? '<div class="muted" style="font-size:11px">Auslastung ≥ ' + nz.benutzerWarn + " %</div>" : "") + "</div>";
+    html += '<div class="card"><div class="muted" style="font-size:11px">Speicher (Mandant)</div><strong style="font-size:15px;color:' + warnFarbe(nz.speicherWarn) + '">' + nz.speicherMB + " / " + (nz.maxSpeicherMB || "∞") + " MB</strong>" +
+      (nz.speicherWarn ? '<div class="muted" style="font-size:11px">Auslastung ≥ ' + nz.speicherWarn + " %</div>" : "") + "</div>";
+    html += "</div>";
+
+    // Feature-Verfügbarkeit für den aktiven Tarif
+    html += '<div class="muted" style="font-size:11px;margin:10px 0 4px">Freigeschaltete Funktionen im Tarif „' + esc(tarifName(reg, aktiv.tarif)) + "“:</div><div class=\"inline\" style=\"flex-wrap:wrap;gap:6px\">";
+    (reg.featureFlags || []).forEach(function (f) {
+      var ok = Mandant.darfFeature(reg, aktiv, f.key);
+      html += '<span class="tag" style="background:' + (ok ? "#e8f5ec" : "#f3f3f3") + ";color:" + (ok ? "#1f7a3d" : "#999") + '">' + (ok ? "✓ " : "· ") + esc(f.name) + (f.aktiv === false ? " (aus)" : f.beta ? " (Beta)" : "") + "</span>";
+    });
+    html += "</div>";
+
+    // Mandantenliste
+    html += '<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Firma</th><th>Tarif</th><th>Status</th><th>Benutzer</th><th></th></tr></thead><tbody>';
+    (reg.liste || []).forEach(function (m) {
+      var isAktiv = m.id === reg.aktiv;
+      var anzahlU = (reg.zuordnungen || []).filter(function (z) { return z.mandantId === m.id && z.status !== "entzogen"; }).length;
+      html += "<tr" + (isAktiv ? ' style="background:var(--panel-2)"' : "") + "><td><strong>" + esc(m.name) + "</strong>" + (isAktiv ? ' <span class="tag" style="background:#3d7bd6;color:#fff">aktiv</span>' : "") + "</td>" +
+        "<td>" + esc(tarifName(reg, m.tarif)) + "</td><td>" + mandantStatusBadge(m.status) + "</td><td>" + anzahlU + "</td>" +
+        '<td class="num"><div class="inline" style="flex:0;justify-content:flex-end">' +
+        (isAktiv ? '<span class="muted" style="font-size:11px">aktuelle Firma</span>' : '<button class="btn sm" data-mt-wechsel="' + esc(m.id) + '" type="button">Wechseln</button>') +
+        '<button class="btn sm ghost" data-mt-edit="' + esc(m.id) + '" type="button">Bearbeiten</button></div></td></tr>';
+    });
+    html += "</tbody></table></div>";
+    html += '<p class="hint">Firmendaten sind durch getrennte Speicherbereiche isoliert (Datenbank-pro-Mandant); gleiche Nummern in verschiedenen Firmen kollidieren nicht. Der aktive Mandant wird aus der Sitzung bestimmt. Ein Firmenwechsel setzt die Anmeldung zurück (Re-Login). Serverseitige Erzwingung erfordert ein Backend – siehe MULTITENANCY.md / SECURITY.md.</p>';
+    return html;
+  }
+  function verdrahteMandantenCard(now) {
+    if (!Mandant) return;
+    if ($("#mt-neu")) $("#mt-neu").onclick = function () { mandantEditModal(null); };
+    if ($("#mt-beispiel")) $("#mt-beispiel").onclick = function () { erstelleBeispielMandanten(); };
+    if ($("#mt-export")) $("#mt-export").onclick = function () { mandantExportieren(); };
+    $all("[data-mt-wechsel]").forEach(function (b) { b.onclick = function () { mandantWechselFlow(b.getAttribute("data-mt-wechsel")); }; });
+    $all("[data-mt-edit]").forEach(function (b) { b.onclick = function () { mandantEditModal(b.getAttribute("data-mt-edit")); }; });
+  }
+
+  // Firmenwechsel: Timer-Wächter -> Sitzung zurücksetzen -> Namespace wechseln
+  // -> Cache leeren -> Re-Login im Zielmandanten.
+  function mandantWechselFlow(zielId) {
+    var ziel = Store.mandantById(zielId); if (!ziel) { toast("Firma nicht gefunden.", "err"); return; }
+    // Timer-Wächter: laufende Zeiterfassung darf nicht über Firmen hinweg verloren gehen
+    if (db.aktiverTimer) {
+      openModal("Firmenwechsel nicht möglich",
+        '<div class="fehler-box">Es läuft eine Zeiterfassung (Timer). Bitte zuerst im aktuellen Auftrag stoppen und buchen, dann die Firma wechseln.</div>',
+        null, "Verstanden");
+      return;
+    }
+    var body = '<p>Zur Firma <strong>' + esc(ziel.name) + '</strong> wechseln?</p>' +
+      '<p class="muted" style="font-size:12px">Aus Sicherheitsgründen wird die aktuelle Anmeldung beendet. Danach ist eine erneute Anmeldung mit einem Benutzer der Zielfirma nötig. Es werden ausschließlich die Daten der Zielfirma geladen.</p>';
+    openModal("Firma wechseln", body, function () {
+      // 1) Sitzung beenden (kein Benutzer wandert zwischen Firmen)
+      try { Auth.logout(); } catch (e) {}
+      // 2) Aktiven Mandanten umsetzen (Cache wird in Store geleert)
+      if (!Store.wechsleMandant(zielId)) { toast("Wechsel fehlgeschlagen.", "err"); return true; }
+      // 3) App-db neu aus dem Ziel-Namespace laden
+      db = Store.load();
+      // 4) Anzeigen aktualisieren + Re-Login der Zielfirma erzwingen
+      aktualisiereMandantAnzeige();
+      aktualisiereReleaseBanner();
+      markierePilotFunktionen();
+      zeigeLogin();
+      toast("Firma gewechselt – bitte neu anmelden.");
+      return true;
+    }, "Wechseln & abmelden");
+  }
+
+  function mandantEditModal(id) {
+    var reg = Store.ladeRegistry();
+    var m = id ? Store.mandantById(id) : null;
+    var neu = !m;
+    var tarifOpt = (reg.tarife || []).map(function (t) { return '<option value="' + t.key + '"' + ((m && m.tarif === t.key) || (!m && t.key === "professional") ? " selected" : "") + ">" + esc(t.name) + " (max " + t.maxBenutzer + " Benutzer)</option>"; }).join("");
+    var statusOpt = Store.MANDANT_STATUS.map(function (s) { return '<option value="' + s + '"' + ((m && m.status === s) || (!m && s === "aktiv") ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("");
+    var body = '<label class="fld"><span class="lbl">Firmenname</span><input id="mt-name" value="' + esc(m ? m.name : "") + '"></label>' +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Tarif</span><select id="mt-tarif">' + tarifOpt + "</select></label>" +
+      '<label class="fld"><span class="lbl">Lizenzstatus</span><select id="mt-status">' + statusOpt + "</select></label></div>" +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Max. Benutzer</span><input id="mt-maxu" type="number" min="1" value="' + esc(m ? m.maxBenutzer : 10) + '"></label>' +
+      '<label class="fld"><span class="lbl">Max. Speicher (MB)</span><input id="mt-maxmb" type="number" min="1" value="' + esc(m ? m.maxSpeicherMB : 25) + '"></label></div>' +
+      (neu ? '<p class="hint">Neue Firma startet mit einer leeren, getrennten Datenbank (keine Beispieldaten, keine Datenvermischung).</p>'
+           : '<p class="hint">Änderungen betreffen nur Tarif/Lizenz/Limits dieser Firma. Firmendaten werden nicht verändert.</p>');
+    openModal(neu ? "Neue Firma anlegen" : "Firma bearbeiten", body, function () {
+      var name = ($("#mt-name").value || "").trim();
+      if (!name) { toast("Firmenname erforderlich.", "err"); return false; }
+      var daten = { name: name, kurzname: name.slice(0, 14), tarif: $("#mt-tarif").value, status: $("#mt-status").value, maxBenutzer: parseInt($("#mt-maxu").value, 10) || 1, maxSpeicherMB: parseInt($("#mt-maxmb").value, 10) || 1 };
+      if (neu) {
+        Store.neuerMandant(daten, false);
+        toast("Firma „" + name + "“ angelegt.");
+      } else {
+        // Nur Registry-Felder ändern; Firmendaten (Namespace) bleiben unberührt
+        Object.keys(daten).forEach(function (k) { m[k] = daten[k]; });
+        Store.speichereRegistry();
+        toast("Firma aktualisiert.");
+      }
+      renderSystem();
+      return true;
+    }, neu ? "Anlegen" : "Speichern");
+  }
+
+  // Zwei Testfirmen mit ABSICHTLICH gleichen Nummern – nur im Testmodus.
+  function erstelleBeispielMandanten() {
+    var body = '<p>Legt zwei getrennte Testfirmen mit <strong>absichtlich gleichen</strong> Kunden-/Angebotsnummern an, um die Isolation zu prüfen.</p>' +
+      '<p class="muted" style="font-size:12px">Nur im Test-/Entwicklungsmodus. Bestehende Firmen bleiben unverändert. Es werden keine echten Firmendaten überschrieben.</p>';
+    openModal("Test-Firmen anlegen", body, function () {
+      var reg = Store.ladeRegistry();
+      var vorher = (reg.liste || []).length;
+      var a = Store.neuerMandant({ name: "Testfirma Alpha", kurzname: "Alpha", tarif: "professional", status: "Testbetrieb" }, false);
+      var b = Store.neuerMandant({ name: "Testfirma Beta", kurzname: "Beta", tarif: "basis", status: "Testbetrieb" }, false);
+      // Namespace A befüllen
+      var aktivVorher = Store.aktiverMandant().id;
+      Store.wechsleMandant(a.id);
+      var dbA = Store.load();
+      dbA.kunden.push({ id: Store.uid(), nummer: "KUN-0001", name: "Alpha Kunde 1", erstellt: Store.nowISO() });
+      dbA.angebote.push({ id: Store.uid(), nummer: "ANG-2026-0001", kommission: "Geländer", betragNetto: 1111, positionen: [], erstellt: Store.nowISO() });
+      dbA.settings.firma.name = "Testfirma Alpha";
+      Store.save();
+      // Namespace B – gleiche Nummern
+      Store.wechsleMandant(b.id);
+      var dbB = Store.load();
+      dbB.kunden.push({ id: Store.uid(), nummer: "KUN-0001", name: "Beta Kunde 1", erstellt: Store.nowISO() });
+      dbB.angebote.push({ id: Store.uid(), nummer: "ANG-2026-0001", kommission: "Geländer", betragNetto: 2222, positionen: [], erstellt: Store.nowISO() });
+      dbB.settings.firma.name = "Testfirma Beta";
+      Store.save();
+      // Zurück auf die ursprünglich aktive Firma – ohne Sitzung zu wechseln
+      Store.wechsleMandant(aktivVorher);
+      db = Store.load();
+      toast("Zwei Testfirmen mit gleichen Nummern angelegt (" + (vorher) + " → " + ((reg.liste || []).length) + ").");
+      renderSystem();
+      return true;
+    }, "Test-Firmen anlegen");
+  }
+
+  function mandantExportieren() {
+    if (!Mandant) return;
+    var aktiv = Store.aktiverMandant() || {};
+    try {
+      var paket = Mandant.mandantExport(aktiv, db, Store.nowISO());
+      var json = JSON.stringify(paket, null, 2);
+      var blob = new Blob([json], { type: "application/json" });
+      var url = w.URL.createObjectURL(blob);
+      var a = el("a"); a.href = url; a.download = "mandant-" + (aktiv.kurzname || "export") + ".json"; d.body.appendChild(a); a.click(); d.body.removeChild(a); w.URL.revokeObjectURL(url);
+      toast("Mandantendaten exportiert (nur eigene Firma).");
+    } catch (e) { toast("Export fehlgeschlagen (ID " + protokolliereFehler(e, "mandant-export") + ").", "err"); }
+  }
+
+  // Aktive Firma in der Seitenleiste anzeigen (nur bei mehreren Mandanten)
+  function aktualisiereMandantAnzeige() {
+    var box = $("#brand-mandant"); if (!box || !Mandant) return;
+    try {
+      var reg = Store.ladeRegistry();
+      var aktiv = Store.aktiverMandant();
+      if (aktiv && (reg.liste || []).length > 1) {
+        box.textContent = "🏢 " + aktiv.name;
+        box.hidden = false;
+      } else { box.hidden = true; }
+    } catch (e) { box.hidden = true; }
   }
 
   function systemBackup() {
@@ -4842,6 +5037,7 @@
   function starteNachLogin() {
     verbergeLogin();
     aktualisiereUserBox();
+    aktualisiereMandantAnzeige();
     wendeRollenNavAn();
     initFeedbackButton();
     aktualisiereReleaseBanner();

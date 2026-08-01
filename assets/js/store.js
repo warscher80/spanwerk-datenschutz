@@ -479,11 +479,122 @@
     return obj;
   }
 
+  // ============================================================
+  //  MANDANTEN-REGISTRY (Phase 10) – Datenbank-pro-Mandant
+  //  Isolation durch getrennte Speicher-Namespaces:
+  //    preisschmiede.mandanten.v1     -> Registry (global)
+  //    preisschmiede.tenant.<id>      -> vollständige db je Mandant
+  // ============================================================
+  var REGKEY = "preisschmiede.mandanten.v1";
+  var _reg = null;
+  var MANDANT_STATUS = ["Einrichtung", "Testbetrieb", "aktiv", "Zahlung ausstehend", "eingeschränkt", "gesperrt", "gekündigt", "archiviert"];
+
+  function standardTarife() {
+    return [
+      { key: "basis", name: "Basis", beschreibung: "Kunden, Material, Maschinen, Kalkulation, Angebote", maxBenutzer: 3, maxSpeicherMB: 10, aktiv: true },
+      { key: "professional", name: "Professional", beschreibung: "+ Aufträge, Zeiterfassung, Nachkalkulation, Dashboard, Importe, Planung", maxBenutzer: 10, maxSpeicherMB: 25, aktiv: true },
+      { key: "intelligent", name: "Intelligent", beschreibung: "+ Lernfunktion, Zeichnungsanalyse, erweiterte Auswertungen, Schnittstellen", maxBenutzer: 25, maxSpeicherMB: 60, aktiv: true }
+    ];
+  }
+  // Feature -> ab welchem Tarif verfügbar (Hierarchie basis<professional<intelligent)
+  function standardFeatureFlags() {
+    return [
+      { key: "kalkulation", name: "Kalkulation", tarif: "basis", aktiv: true, pilot: false, beta: false },
+      { key: "angebote", name: "Angebote/PDF", tarif: "basis", aktiv: true, pilot: false, beta: false },
+      { key: "auftraege", name: "Aufträge", tarif: "professional", aktiv: true, pilot: false, beta: false },
+      { key: "zeiterfassung", name: "Mobile Zeiterfassung", tarif: "professional", aktiv: true, pilot: false, beta: false },
+      { key: "nachkalkulation", name: "Nachkalkulation", tarif: "professional", aktiv: true, pilot: false, beta: false },
+      { key: "dashboard", name: "Dashboard", tarif: "professional", aktiv: true, pilot: false, beta: false },
+      { key: "importe", name: "Importe/Export", tarif: "professional", aktiv: true, pilot: false, beta: false },
+      { key: "planung", name: "Fertigungsplanung", tarif: "professional", aktiv: true, pilot: true, beta: false },
+      { key: "lernen", name: "Lernfunktion", tarif: "intelligent", aktiv: true, pilot: true, beta: true },
+      { key: "dokumente", name: "Zeichnungs-/Stücklistenanalyse", tarif: "intelligent", aktiv: true, pilot: true, beta: false },
+      { key: "schnittstellen", name: "Schnittstellen (Frankstahl/KingBill)", tarif: "intelligent", aktiv: false, pilot: false, beta: true }
+    ];
+  }
+  function neuerMandantObj(daten) {
+    return Object.assign({
+      id: uid(), name: "", kurzname: "", logo: "", anschrift: "", land: "AT",
+      sprache: "de", zeitzone: "Europe/Vienna", waehrung: "EUR", ust: 20,
+      status: "aktiv", tarif: "professional", erstellt: nowISO(),
+      testBis: null, lizenzBeginn: null, lizenzEnde: null,
+      maxBenutzer: 10, maxSpeicherMB: 25, aktiv: true, sperrgrund: "",
+      kuendigung: null, aufbewahrungTage: 365
+    }, daten || {});
+  }
+  function frischeRegistry() {
+    return {
+      schemaVersion: 1, aktiv: null, liste: [], zuordnungen: [], einladungen: [],
+      tarife: standardTarife(), featureFlags: standardFeatureFlags(),
+      systemAdmins: [], supportZugriffe: [], hintergrundaufgaben: [],
+      zahlung: { anbieter: null, konfiguriert: false, status: "nicht eingerichtet" }
+    };
+  }
+  function ergaenzeRegistry(r) {
+    if (!Array.isArray(r.liste)) r.liste = [];
+    if (!Array.isArray(r.zuordnungen)) r.zuordnungen = [];
+    if (!Array.isArray(r.einladungen)) r.einladungen = [];
+    if (!Array.isArray(r.tarife) || !r.tarife.length) r.tarife = standardTarife();
+    if (!Array.isArray(r.featureFlags) || !r.featureFlags.length) r.featureFlags = standardFeatureFlags();
+    if (!Array.isArray(r.systemAdmins)) r.systemAdmins = [];
+    if (!Array.isArray(r.supportZugriffe)) r.supportZugriffe = [];
+    if (!Array.isArray(r.hintergrundaufgaben)) r.hintergrundaufgaben = [];
+    if (!r.zahlung || typeof r.zahlung !== "object") r.zahlung = { anbieter: null, konfiguriert: false, status: "nicht eingerichtet" };
+    if (!r.aktiv && r.liste[0]) r.aktiv = r.liste[0].id;
+    return r;
+  }
+  function tenantKeyFor(id) { return "preisschmiede.tenant." + id; }
+  function aktuellerTenantKey() { var r = ladeRegistry(); return tenantKeyFor(r.aktiv); }
+
+  function ladeRegistry() {
+    if (_reg) return _reg;
+    try { var raw = w.localStorage.getItem(REGKEY); if (raw) { _reg = ergaenzeRegistry(JSON.parse(raw)); return _reg; } } catch (e) {}
+    // Erstinitialisierung: bestehende Einzelinstallation verlustfrei zu Mandant 1
+    _reg = frischeRegistry();
+    var legacyRaw = null; try { legacyRaw = w.localStorage.getItem(KEY); } catch (e) {}
+    var db1;
+    if (legacyRaw) { try { db1 = migrate(JSON.parse(legacyRaw)); } catch (e) { db1 = fresh(); } }
+    else db1 = fresh();
+    var fname = (db1.settings && db1.settings.firma && db1.settings.firma.name) || "Mein Betrieb";
+    var m = neuerMandantObj({ name: fname, kurzname: fname.slice(0, 14), ust: (db1.settings && db1.settings.mwst) || 20, status: "aktiv" });
+    _reg.liste.push(m); _reg.aktiv = m.id;
+    (db1.users || []).forEach(function (u) { _reg.zuordnungen.push({ userId: u.id, benutzername: u.benutzername, mandantId: m.id, rolle: u.rolle, status: "aktiv", eingeladenVon: "", einladungsdatum: null, beitrittsdatum: nowISO(), letzterZugriff: null }); });
+    try { w.localStorage.setItem(tenantKeyFor(m.id), JSON.stringify(db1)); } catch (e) {}
+    // Legacy-Schlüssel NICHT löschen (Backup); Registry sichern
+    try { w.localStorage.setItem(REGKEY, JSON.stringify(_reg)); } catch (e) {}
+    return _reg;
+  }
+  function speichereRegistry() { if (_reg) { try { w.localStorage.setItem(REGKEY, JSON.stringify(_reg)); } catch (e) {} } }
+
+  function mandanten() { return ladeRegistry().liste; }
+  function aktiverMandant() { var r = ladeRegistry(); return r.liste.filter(function (m) { return m.id === r.aktiv; })[0] || null; }
+  function mandantById(id) { return ladeRegistry().liste.filter(function (m) { return m.id === id; })[0] || null; }
+  function neuerMandant(daten, mitBeispiel) {
+    var r = ladeRegistry();
+    var m = neuerMandantObj(daten || {});
+    r.liste.push(m);
+    var db2 = mitBeispiel ? fresh() : leereDb();
+    if (db2.settings) { db2.settings.firma = db2.settings.firma || {}; db2.settings.firma.name = m.name; db2.settings.mwst = m.ust; }
+    try { w.localStorage.setItem(tenantKeyFor(m.id), JSON.stringify(db2)); } catch (e) {}
+    speichereRegistry();
+    return m;
+  }
+  // Leere, aber schema-vollständige db (ohne Beispieldaten) via migrate({})
+  function leereDb() { var d = migrate({}); return d; }
+  function wechsleMandant(id) {
+    var r = ladeRegistry();
+    if (!r.liste.some(function (m) { return m.id === id; })) return false;
+    r.aktiv = id; speichereRegistry();
+    _db = null; // Cache leeren -> nächste load() liest den Zielmandanten
+    return true;
+  }
+
   function load() {
     if (_db) return _db;
+    var KEYX = aktuellerTenantKey();
     var raw = null;
     try {
-      raw = w.localStorage.getItem(KEY);
+      raw = w.localStorage.getItem(KEYX);
       if (raw) {
         var m = migrate(JSON.parse(raw));
         if (!m) throw new Error("Datenformat ungültig");
@@ -493,7 +604,7 @@
     } catch (e) {
       // Beschädigte Daten nicht verwerfen, sondern die erste Rettungskopie sichern
       console.warn("Daten beschädigt – starte mit leerer Datenbank:", e);
-      try { if (raw && !w.localStorage.getItem(KEY + ".backup")) w.localStorage.setItem(KEY + ".backup", raw); } catch (_) {}
+      try { if (raw && !w.localStorage.getItem(KEYX + ".backup")) w.localStorage.setItem(KEYX + ".backup", raw); } catch (_) {}
     }
     _db = fresh();
     save();
@@ -504,7 +615,7 @@
   function onSave(cb) { _onSave = cb; }
   function save() {
     var ok = true;
-    try { w.localStorage.setItem(KEY, JSON.stringify(_db)); }
+    try { w.localStorage.setItem(aktuellerTenantKey(), JSON.stringify(_db)); }
     catch (e) {
       ok = false;
       console.warn("Speichern fehlgeschlagen:", e);
@@ -516,8 +627,8 @@
   }
 
   function reset() {
-    // aktuellen Stand vor dem Löschen sichern
-    try { w.localStorage.setItem(KEY + ".prev", JSON.stringify(_db)); } catch (_) {}
+    // aktuellen Stand vor dem Löschen sichern (mandantenbezogen)
+    try { w.localStorage.setItem(aktuellerTenantKey() + ".prev", JSON.stringify(_db)); } catch (_) {}
     _db = fresh();
     save();
     return _db;
@@ -531,8 +642,8 @@
     if (!obj.settings && !obj.material && !obj.auftraege) throw new Error("Keine Preisschmiede-Daten erkannt");
     var migrated = migrate(obj);
     if (!migrated) throw new Error("Ungültige Datei");
-    // aktuellen Stand vor dem Überschreiben sichern
-    try { w.localStorage.setItem(KEY + ".prev", JSON.stringify(_db)); } catch (_) {}
+    // aktuellen Stand vor dem Überschreiben sichern (mandantenbezogen)
+    try { w.localStorage.setItem(aktuellerTenantKey() + ".prev", JSON.stringify(_db)); } catch (_) {}
     _db = migrated;
     save();
     return _db;
@@ -545,6 +656,12 @@
     fresh: fresh, migrate: migrate,
     uid: uid, nowISO: nowISO,
     hashPin: hashPin, makeSalt: makeSalt,
-    DEFAULT_SETTINGS: DEFAULT_SETTINGS
+    DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    // Mandanten-Registry (Phase 10)
+    MANDANT_STATUS: MANDANT_STATUS,
+    ladeRegistry: ladeRegistry, speichereRegistry: speichereRegistry,
+    mandanten: mandanten, aktiverMandant: aktiverMandant, mandantById: mandantById,
+    neuerMandant: neuerMandant, wechsleMandant: wechsleMandant, tenantKeyFor: tenantKeyFor,
+    neuerMandantObj: neuerMandantObj
   };
 })(window);

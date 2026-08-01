@@ -4,21 +4,31 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 9 – Pilotbetrieb & Betriebsüberwachung**
-umgesetzt. Neue Betriebs-Engine (`betrieb.js`) + Admin-**System-Seite**
-(Status, Healthchecks, Backup-Überwachung, Betriebswarnungen, Pilot-Kennzahlen,
-Feedback, Fehlerprotokoll, Support-Paket, Freigabestufen). First-Login-PIN-
-Pflicht ab Pilotstufe. **Ersteinrichtungs-Assistent** (überspringbar/
-fortsetzbar). Datenschema **v9** (`feedback`, `fehlerlog`,
-`settings.betrieb`).
-Doku: `AUDIT_REPORT.md`, `CALCULATION_RULES.md`, `SECURITY.md`,
-`BACKUP_RESTORE.md`, `KNOWN_LIMITATIONS.md`, `DEPLOYMENT.md`,
+Letzte Aktualisierung: **Phase 10 – Mandantenfähigkeit, Firmenkonten &
+Lizenzvorbereitung** umgesetzt. **Datenbank-pro-Mandant** (getrennte
+`localStorage`-Namespaces): globale Registry `preisschmiede.mandanten.v1` +
+je Firma `preisschmiede.tenant.<id>`. Neue Mandanten-Engine (`mandant.js`):
+Tarife (basis<professional<intelligent), Feature-Flags, Lizenzstatus/
+Schreibrechte, Nutzungslimits mit Warnstufen (80/90/100 %), sichere
+Einladungen (Token einmalig/befristet/gehasht, nie im Klartext), kontrollierter
+Supportzugriff, Mandantenexport. Mandanten-Verwaltung auf der **System-Seite**
+(aktive Firma, Tarif/Lizenz/Auslastung, Feature-Matrix, Firmenliste, Anlegen/
+Bearbeiten, **Firmenwechsel mit Timer-Wächter + Re-Login**). Bestandsdaten
+verlustfrei zu „Mandant 1" migriert (Legacy-Schlüssel bleibt als Backup).
+Aktiver Mandant kommt aus Registry/Sitzung, **nie** aus URL/Formular.
+Datenschema unverändert **v9**.
+
+Vorher: **Phase 9 – Pilotbetrieb & Betriebsüberwachung** (Betriebs-Engine
+`betrieb.js`, Admin-System-Seite, First-Login-PIN, Ersteinrichtungs-Assistent).
+Doku: `MULTITENANCY.md`, `AUDIT_REPORT.md`, `CALCULATION_RULES.md`,
+`SECURITY.md`, `BACKUP_RESTORE.md`, `KNOWN_LIMITATIONS.md`, `DEPLOYMENT.md`,
 `ARCHITECTURE.md`, `PILOT_PLAN.md`, `PILOT_CHECKLIST.md`, `OPERATIONS_GUIDE.md`,
 `INCIDENT_RESPONSE.md`, `RELEASE_PROCESS.md`, `SUPPORT_GUIDE.md`,
-`PILOT_RESULTS_TEMPLATE.md`. Tests: `tests/referenz.test.js` (43/43).
-**Reifegrad:** **Pilot kann mit Einschränkungen starten** (siehe
-AUDIT_REPORT → Pilot-Startentscheidung); voller Produktivbetrieb
-(Mehrbenutzer/Server/ERP-Live) noch nicht.
+`PILOT_RESULTS_TEMPLATE.md`. Tests: `tests/referenz.test.js` (**102/102**).
+**Reifegrad:** **Pilot kann mit Einschränkungen starten**; Mandantentrennung
+ist offline-clientseitig (kein Backend) – voller Mehrfirmen-/Server-/ERP-Live-
+Betrieb erfordert weiterhin ein Backend (siehe MULTITENANCY.md /
+KNOWN_LIMITATIONS.md).
 
 ---
 
@@ -26,7 +36,8 @@ AUDIT_REPORT → Pilot-Startentscheidung); voller Produktivbetrieb
 
 | Schicht | Datei | Aufgabe |
 |---|---|---|
-| Datenhaltung | `assets/js/store.js` | localStorage, Migration, Beispieldaten, PIN-Hash |
+| Datenhaltung | `assets/js/store.js` | localStorage, Migration, Beispieldaten, PIN-Hash, **Mandanten-Registry + Namespace-Routing** |
+| Mandantenfähigkeit | `assets/js/mandant.js` | Tarife, Feature-Flags, Lizenz, Nutzung, Einladungen, Support, Export |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |
 | Produkte | `assets/js/products.js` | Produkt-/Zeitmodelle (Basis) |
@@ -510,6 +521,46 @@ OCR-/KI-Dienste, keine vorgetäuschte CAD-Erkennung.
   DWG/STEP/IFC/XLSX-Parsing und echte OCR erfordern Bibliotheken/Serverdienste
   und sind bewusst nicht als funktionsfähig ausgegeben. Dateien liegen lokal
   (Größenlimit) – produktiv gehört dies serverseitig.
+
+## Phase 10 – Mandantenfähigkeit, Firmenkonten & Lizenzvorbereitung – ERLEDIGT ✅
+
+**Strategie:** Datenbank-pro-Mandant (Namespace-Isolation). Registry
+`preisschmiede.mandanten.v1` (Firmenliste, Zuordnungen, Einladungen, Tarife,
+Feature-Flags, Systemadmins, Supportzugriffe, Zahlungsabstraktion, aktiver
+Mandant) + je Firma `preisschmiede.tenant.<id>` mit der vollständigen db.
+`Store.load()/save()` routen auf den aktiven Namespace; der aktive Mandant
+kommt aus Registry/Sitzung, **nie** aus URL/Formular.
+
+**Isolation durch Konstruktion:** kein gemeinsames Array zwischen Firmen; kein
+Codepfad mischt Fremd-Namespaces in die aktive db. Gleiche Nummern
+(`ANG-2026-0001`, `KUN-0001`, Kommissionen) in verschiedenen Firmen sind
+zulässig und kollidieren nicht.
+
+**Migration (verlustfrei):** Bestandsinstallation wird beim ersten Start zu
+„Mandant 1" **kopiert**; Legacy-Schlüssel bleibt als Backup, Zuordnungen aus
+`db.users`. Keine Bestandsdaten gelöscht/überschrieben.
+
+**Engine `mandant.js`:** Tarife (basis<professional<intelligent), Feature-Flags
+(Tarif + Aktivierung + Lizenz), Lizenzstatus/Schreibrechte (Daten bleiben stets
+les-/exportierbar), Nutzungslimits mit Warnstufen 80/90/100 % (Kulanz),
+sichere Einladungen (Token einmalig/befristet/**gehasht, nie im Klartext/Log**),
+kontrollierter, befristeter, widerrufbarer Supportzugriff, Mandantenexport.
+
+**UI (System-Seite, Administration):** aktive Firma + Tarif + Lizenzhinweis +
+Benutzer-/Speicherauslastung, Feature-Matrix, Firmenliste, Anlegen/Bearbeiten,
+**Firmenwechsel mit Timer-Wächter + erzwungenem Re-Login** im Zielmandanten,
+Mandantenexport, aktive-Firma-Anzeige in der Seitenleiste. Testmodus: „2
+Test-Firmen mit gleichen Nummern anlegen" zur Isolationsprüfung.
+
+**Ehrlich:** reine Offline-App ohne Server → keine serverseitige Erzwingung
+möglich; Zahlung „nicht eingerichtet" (keine Abbuchung/Kreditkartendaten),
+E-Mail-Einladung manuell, keine öffentliche Registrierung/endgültige
+Kontolöschung aktiv.
+
+**Tests:** `tests/referenz.test.js` **102/102** (45 neue Mandanten-/
+Isolationstests) + Playwright-Browser-Smoke (System-Seite, Test-Firmen,
+Isolation im echten `localStorage`, keine Laufzeitfehler). Node `--check` +
+`copyweb`-Build grün.
 
 ## Nächster Schritt
 

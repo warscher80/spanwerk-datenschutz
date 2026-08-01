@@ -64,6 +64,25 @@ einem gemeinsam genutzten Gerät vertretbar dokumentiert.
 - **Freigabestufen** sind ein organisatorischer Schalter in der App, kein
   technisch getrennter Deploy je Stufe.
 
+## Mandantenfähigkeit (Phase 10)
+
+- **Isolation ist offline-clientseitig** (getrennte `localStorage`-Namespaces,
+  Datenbank-pro-Mandant). Es gibt **keine serverseitige Erzwingung** – ein
+  lokaler Nutzer mit Entwicklerwerkzeugen kann prinzipiell alle Namespaces auf
+  seinem Gerät einsehen. Für echte, serverseitig durchgesetzte Trennung ist ein
+  Backend nötig.
+- **Keine echte Zahlung:** nur modulare Abstraktion, Status „nicht
+  eingerichtet"; keine Abbuchung, keine Kreditkartendaten.
+- **Keine E-Mail-Einladungen:** kein E-Mail-Dienst konfiguriert →
+  **manueller, sicherer** Token-Ablauf (einmalig, befristet, gehasht). Der
+  Versand erfolgt außerhalb der App.
+- **Keine öffentliche Selbstregistrierung** und **keine endgültige
+  Kontolöschung** aktiviert (bewusst; verhindert versehentlichen Datenverlust).
+- **Firmenwechsel erfordert Re-Login** (Sitzung wird zurückgesetzt); ein
+  laufender Zeiterfassungs-Timer blockiert den Wechsel, bis gebucht wurde.
+- **Nutzungslimits** (Benutzer/Speicher) sind **Kulanz-Warnungen** (80/90/100 %)
+  und brechen laufende Prozesse nicht hart ab.
+
 ## Zeitzonen
 
 - Zeitstempel werden als ISO/UTC gespeichert und in österreichischer

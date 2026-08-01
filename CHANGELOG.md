@@ -3,6 +3,56 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 10 – Mandantenfähigkeit, Firmenkonten & Lizenzvorbereitung  (Schema v9)
+
+### Architektur
+- **Datenbank-pro-Mandant** (Namespace-Isolation): globale Registry
+  `preisschmiede.mandanten.v1` + je Firma ein eigener Namespace
+  `preisschmiede.tenant.<id>`. Kein gemeinsames Array zwischen Firmen →
+  **Isolation durch Konstruktion**; gleiche Nummern (z. B. `ANG-2026-0001`,
+  `KUN-0001`) in verschiedenen Firmen kollidieren nicht.
+- **Verlustfreie Migration**: bestehende Einzelinstallation wird beim ersten
+  Start zu „Mandant 1" **kopiert** (Legacy-Schlüssel bleibt als Backup, wird
+  nicht gelöscht); Benutzer-Zuordnungen aus `db.users` erzeugt.
+- **Aktiver Mandant** kommt aus Registry/Sitzung – **nie** aus URL/Formular/
+  Browser-Parameter. `Store.load()/save()` routen auf den aktiven Namespace.
+
+### Hinzugefügt
+- Mandanten-Engine `mandant.js`: Tarife (basis < professional < intelligent),
+  Feature-Flags (Tarif + Aktivierung + Lizenz), Lizenzstatus/Schreibrechte,
+  Nutzung/Limits mit Warnstufen 80/90/100 % (Kulanz, kein harter Abbruch),
+  **sichere Einladungen** (Token einmalig, zeitlich begrenzt, **gesalzen
+  gehasht, nie im Klartext gespeichert/geloggt**), kontrollierter, zeitlich
+  begrenzter, widerrufbarer Supportzugriff, Mandantenexport (nur eigene Daten).
+- Mandanten-Verwaltung auf der **System-Seite** (nur Administration): aktive
+  Firma + Tarif + Lizenzhinweis + Benutzer-/Speicherauslastung, Feature-Matrix,
+  Firmenliste, Anlegen/Bearbeiten, **Firmenwechsel mit Timer-Wächter** und
+  erzwungenem **Re-Login** im Zielmandanten, Mandantenexport.
+- Aktive-Firma-Anzeige in der Seitenleiste (bei mehreren Mandanten).
+- **Testmodus**: „2 Test-Firmen anlegen" (absichtlich gleiche Nummern) zur
+  Isolationsprüfung – nur in Test-/Entwicklungsstufe, ohne Bestandsdatenverlust.
+- Registry-Datenmodell: Tarife, Feature-Flags, Zuordnungen, Einladungen,
+  Systemadmins, Supportzugriffe, Zahlungsabstraktion (Status **„nicht
+  eingerichtet"**, keine echte Abbuchung, keine Kreditkartendaten).
+- Doku: `MULTITENANCY.md` (Architekturprüfung, Strategie, Migrationsplan),
+  Ergänzungen in `SECURITY.md`, `KNOWN_LIMITATIONS.md`.
+
+### Ehrlichkeit / Grenzen
+- Reine Offline-App ohne Server: eine **serverseitig erzwungene** Trennung ist
+  ohne Backend nicht möglich; ein lokaler Nutzer mit Entwicklerwerkzeugen kann
+  den `localStorage` einsehen. Gewählt: stärkste offline mögliche Isolation
+  (getrennte Namespaces). Keine echten Zahlungen/E-Mails/öffentlichen
+  Registrierungen/endgültigen Kontolöschungen aktiviert.
+
+### Tests
+- `tests/referenz.test.js` auf **102/102** erweitert (45 neue Mandanten-/
+  Isolationstests: gleiche Nummern getrennt, kein Fremdzugriff, Namespaces ohne
+  Fremd-Geheimnisse, Tarif-/Feature-/Lizenzlogik, Nutzungs-Warnstufen, Token-
+  Hashing/Einmaligkeit/Ablauf, Support-Lebenszyklus, Zuordnungen, Export).
+- Browser-Smoke (Playwright): System-Seite rendert, Test-Firmen mit gleichen
+  Nummern angelegt, Isolation im echten `localStorage` bestätigt, keine
+  Laufzeitfehler.
+
 ## Phase 9 – Pilotbetrieb & Betriebsüberwachung  (Schema v9)
 ### Nachtrag (Restlücken geschlossen)
 - **Ersteinrichtungs-Assistent** (geführte Grundeinrichtung: Firma,

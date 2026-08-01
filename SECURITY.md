@@ -52,6 +52,39 @@
   Browser geladen (QR-Bibliotheken sind offline eingebettet). Build-Tooling
   (Capacitor/Electron) sollte regelmäßig per `npm audit` geprüft werden.
 
+## Mandantentrennung (Phase 10)
+
+- **Modell:** Datenbank-pro-Mandant. Globale Registry
+  (`preisschmiede.mandanten.v1`) verwaltet Firmenliste, Zuordnungen,
+  Tarife/Feature-Flags, Supportzugriffe; jede Firma hat einen **eigenen**
+  Speicher-Namespace `preisschmiede.tenant.<id>` mit der vollständigen db.
+- **Isolation durch Konstruktion:** Es gibt kein gemeinsames Array zwischen
+  Firmen. Kein Codepfad mischt Daten eines fremden Namespaces in die aktive db.
+  Gleiche Nummern (Kunden/Angebote/Aufträge/Kommissionen) in verschiedenen
+  Firmen sind zulässig und kollidieren nicht.
+- **Aktiver Mandant:** wird aus der Registry/Sitzung bestimmt – **nie** aus
+  URL, Formular oder Browser-Parameter. `Store.load()/save()` routen
+  ausschließlich auf den aktiven Namespace.
+- **Firmenwechsel:** Timer-Wächter (laufende Zeiterfassung blockiert den
+  Wechsel), danach Sitzung beenden → Namespace umsetzen → db-Cache leeren →
+  **Re-Login** mit einem Benutzer der Zielfirma. Kein Benutzer wandert zwischen
+  Firmen.
+- **Einladungen:** manueller, sicherer Ablauf (kein E-Mail-Dienst). Token ist
+  **einmalig, zeitlich begrenzt, gesalzen gehasht** und wird **nie im Klartext
+  gespeichert oder protokolliert** (nur `tokenHash` + `tokenSalt`).
+- **Lizenzstatus** steuert Schreibrechte; **Daten bleiben stets lesbar und
+  exportierbar** (auch bei „gesperrt"/„gekündigt") – Daten werden nie entzogen.
+- **Supportzugriff:** nur mit ausdrücklicher Freigabe des Firmenadministrators,
+  mit Grund, zeitlich begrenzt, protokolliert und widerrufbar.
+- **Zahlung:** nur Abstraktion, Status **„nicht eingerichtet"**; keine echte
+  Abbuchung, **keine Kreditkartendaten** gespeichert.
+- **Ehrliche Grenze:** In einer reinen Offline-App **ohne Server** ist eine
+  *serverseitig erzwungene* Mandantentrennung nicht möglich – ein lokaler
+  Nutzer mit Entwicklerwerkzeugen kann den `localStorage` einsehen. Für echte
+  Mehrfirmen-Server-Trennung (serverseitige Query-Erzwingung, signierte
+  Downloads, echte Auth/Zahlung/E-Mail) ist ein Backend nötig. Siehe
+  `MULTITENANCY.md` und `KNOWN_LIMITATIONS.md`.
+
 ## Sicherheitsbefunde (Kurzregister)
 
 | Schwere | Befund | Status |

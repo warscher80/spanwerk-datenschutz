@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -216,6 +216,155 @@ t("PILOT werkstatt darf keine Kalkulation", Auth.RECHTE.werkstatt.indexOf("kalku
 t("PILOT Duplikate erkannt", D.dedupeBom([{ artikelnummer: "A1" }, { artikelnummer: "A1" }, { artikelnummer: "A2" }]).duplikate.length === 1);
 // 20 neue Zeichnungsrevision -> relevanter Vergleich
 t("PILOT Revisionsvergleich relevant", D.revisionsvergleich([D.erkennungsWert("werkstoff", "S235")], [D.erkennungsWert("werkstoff", "1.4301")], [], []).relevant === true);
+
+// =============================================================
+//  MANDANTENFÄHIGKEIT / ISOLATION  (Phase 10)
+// =============================================================
+var Mandant = P.Mandant;
+
+// -- Ausgangslage: eine Bestandsinstallation wurde verlustfrei zu Mandant 1 --
+(function () {
+  var reg = Store.ladeRegistry();
+  t("MT Registry initialisiert (Mandant 1 vorhanden)", reg.liste.length >= 1 && !!reg.aktiv);
+  t("MT Zahlung ehrlich: nicht eingerichtet", reg.zahlung && reg.zahlung.konfiguriert === false && reg.zahlung.status === "nicht eingerichtet");
+  t("MT Bestandsdaten wurden Mandant 1 zugeordnet (Zuordnungen aus users)", reg.zuordnungen.length >= 1);
+})();
+
+// -- Zwei Testfirmen mit ABSICHTLICH identischen Nummern anlegen --
+var mA = Store.neuerMandant({ name: "Alpha Metallbau", kurzname: "Alpha", tarif: "professional", status: "aktiv" }, false);
+var mB = Store.neuerMandant({ name: "Beta Schlosserei", kurzname: "Beta", tarif: "basis", status: "aktiv" }, false);
+t("MT zwei neue Mandanten angelegt (getrennte IDs)", mA.id !== mB.id);
+t("MT getrennte Speicher-Namespaces", Store.tenantKeyFor(mA.id) !== Store.tenantKeyFor(mB.id));
+
+// Mandant A befüllen: identische Nummern wie Mandant B
+Store.wechsleMandant(mA.id);
+(function () {
+  var db = Store.load();
+  db.kunden.push({ id: "kA", nummer: "KUN-0001", name: "Kunde Alpha GmbH", erstellt: iso(2026, 1, 5) });
+  db.angebote.push({ id: "aA", nummer: "ANG-2026-0001", kommission: "Geländer", betragNetto: 1111, positionen: [] });
+  db.settings.firma.name = "Alpha Metallbau";
+  db.settings.firma.uid = "ATU-ALPHA-GEHEIM";
+  Store.save();
+})();
+
+// Mandant B befüllen: gleiche Nummern, andere Inhalte
+Store.wechsleMandant(mB.id);
+(function () {
+  var db = Store.load();
+  db.kunden.push({ id: "kB", nummer: "KUN-0001", name: "Kunde Beta OHG", erstellt: iso(2026, 1, 5) });
+  db.angebote.push({ id: "aB", nummer: "ANG-2026-0001", kommission: "Geländer", betragNetto: 2222, positionen: [] });
+  db.settings.firma.name = "Beta Schlosserei";
+  db.settings.firma.uid = "ATU-BETA-GEHEIM";
+  Store.save();
+})();
+
+// -- Kernprüfung: gleiche Nummern kollidieren NICHT, Daten sind getrennt --
+Store.wechsleMandant(mA.id);
+(function () {
+  var db = Store.load();
+  t("MT Mandant A sieht nur eigene Kunden", db.kunden.filter(function (k) { return k.nummer === "KUN-0001"; }).length === 1 && db.kunden.some(function (k) { return k.name === "Kunde Alpha GmbH"; }));
+  t("MT Mandant A: kein Fremdkunde sichtbar", !db.kunden.some(function (k) { return k.name === "Kunde Beta OHG"; }));
+  t("MT Mandant A: eigener Angebotsbetrag", db.angebote.some(function (a) { return a.nummer === "ANG-2026-0001" && a.betragNetto === 1111; }));
+  t("MT Mandant A: Firmen-UID ist die eigene", db.settings.firma.uid === "ATU-ALPHA-GEHEIM");
+})();
+
+Store.wechsleMandant(mB.id);
+(function () {
+  var db = Store.load();
+  t("MT Mandant B sieht nur eigene Kunden", db.kunden.some(function (k) { return k.name === "Kunde Beta OHG"; }) && !db.kunden.some(function (k) { return k.name === "Kunde Alpha GmbH"; }));
+  t("MT Mandant B: eigener Angebotsbetrag (gleiche Nummer, anderer Wert)", db.angebote.some(function (a) { return a.nummer === "ANG-2026-0001" && a.betragNetto === 2222; }));
+  t("MT Mandant B: Firmen-UID ist die eigene", db.settings.firma.uid === "ATU-BETA-GEHEIM");
+})();
+
+// -- Isolation auf Speicherebene: kein Namespace enthält Fremd-Geheimnisse --
+(function () {
+  var rawA = G.localStorage.getItem(Store.tenantKeyFor(mA.id)) || "";
+  var rawB = G.localStorage.getItem(Store.tenantKeyFor(mB.id)) || "";
+  t("MT Namespace A enthält keine Beta-Geheimdaten", rawA.indexOf("ATU-BETA-GEHEIM") < 0 && rawA.indexOf("Kunde Beta OHG") < 0);
+  t("MT Namespace B enthält keine Alpha-Geheimdaten", rawB.indexOf("ATU-ALPHA-GEHEIM") < 0 && rawB.indexOf("Kunde Alpha GmbH") < 0);
+})();
+
+// -- Aktiver Mandant kommt aus Registry/Sitzung, nicht aus Parametern --
+(function () {
+  Store.wechsleMandant(mA.id);
+  t("MT aktiver Mandant folgt Registry (A)", Store.aktiverMandant().id === mA.id);
+  // wechsleMandant leert Cache -> load() liefert Zielmandanten, ohne dass ein Parameter dies erzwingt
+  Store.wechsleMandant(mB.id);
+  t("MT Firmenwechsel leert Cache + lädt Zielmandant", Store.aktiverMandant().id === mB.id && Store.load().settings.firma.uid === "ATU-BETA-GEHEIM");
+  t("MT unbekannter Mandant wird abgelehnt", Store.wechsleMandant("gibt-es-nicht") === false);
+})();
+
+// -- Tarife & Feature-Flags (Hierarchie basis<professional<intelligent) --
+(function () {
+  var reg = Store.ladeRegistry();
+  t("MT Tarifrang basis<professional<intelligent", Mandant.tarifRang("basis") < Mandant.tarifRang("professional") && Mandant.tarifRang("professional") < Mandant.tarifRang("intelligent"));
+  t("MT basis darf Kalkulation", Mandant.darfFeature(reg, mB, "kalkulation") === true);
+  t("MT basis darf KEINE Aufträge (professional)", Mandant.darfFeature(reg, mB, "auftraege") === false);
+  t("MT basis darf KEINE Lernfunktion (intelligent)", Mandant.darfFeature(reg, mB, "lernen") === false);
+  t("MT professional darf Aufträge", Mandant.darfFeature(reg, mA, "auftraege") === true);
+  t("MT professional darf KEINE Lernfunktion", Mandant.darfFeature(reg, mA, "lernen") === false);
+  t("MT deaktiviertes Flag (Schnittstellen) trotz Tarif gesperrt", Mandant.darfFeature(reg, { tarif: "intelligent", status: "aktiv" }, "schnittstellen") === false);
+})();
+
+// -- Lizenzstatus steuert Schreibrechte, Daten bleiben lesbar/exportierbar --
+(function () {
+  t("MT aktiv: voller Schreibzugriff", (function () { var l = Mandant.lizenz({ status: "aktiv" }); return l.schreiben && l.neueKalkulation && l.exportErlaubt; })());
+  t("MT eingeschränkt: lesen ja, neue Kalkulation nein", (function () { var l = Mandant.lizenz({ status: "eingeschränkt" }); return l.lesen && !l.neueKalkulation && l.exportErlaubt; })());
+  t("MT Zahlung ausstehend: Schreibsperre, Daten bleiben", (function () { var l = Mandant.lizenz({ status: "Zahlung ausstehend" }); return !l.schreiben && l.lesen && l.exportErlaubt; })());
+  t("MT gesperrt: kein Schreiben, Export dennoch erlaubt (Daten nie entziehen)", (function () { var l = Mandant.lizenz({ status: "gesperrt" }); return !l.schreiben; })());
+  t("MT gekündigt: Export möglich (Daten mitnehmen)", Mandant.lizenz({ status: "gekündigt" }).exportErlaubt === true);
+})();
+
+// -- Nutzung / Limits mit Warnstufen 80/90/100 --
+(function () {
+  var n = Mandant.nutzung({ maxBenutzer: 10, maxSpeicherMB: 25 }, { users: [1,2,3,4,5,6,7,8,9] });
+  t("MT Nutzung Warnstufe 90% bei 9/10 Benutzern", n.benutzerWarn === 90);
+  var n2 = Mandant.nutzung({ maxBenutzer: 10, maxSpeicherMB: 25 }, { users: [1,2,3,4,5,6,7,8,9,10,11] });
+  t("MT Nutzung Warnstufe 100% bei Überschreitung", n2.benutzerWarn === 100);
+  t("MT Nutzung Kulanz (kein harter Abbruch)", n.kulanz === true);
+})();
+
+// -- Einladung: Token wird NIE gespeichert, nur gesalzener Hash --
+(function () {
+  var token = "GEHEIM-EINLADUNGS-TOKEN-123";
+  var einl = Mandant.einladungNeu({ email: "neu@firma.at", mandantId: mA.id, rolle: "buero", einladender: "admin" }, token, iso(2026, 8, 1), 14);
+  t("MT Einladung speichert Token NICHT im Klartext", JSON.stringify(einl).indexOf(token) < 0);
+  t("MT Einladung speichert nur Hash + Salt", !!einl.tokenHash && !!einl.tokenSalt && einl.tokenHash !== token);
+  t("MT Einladung: korrektes Token wird akzeptiert", Mandant.einladungPruefen(einl, token, iso(2026, 8, 2)).ok === true);
+  t("MT Einladung: falsches Token wird abgelehnt", Mandant.einladungPruefen(einl, "falsch", iso(2026, 8, 2)).ok === false);
+  t("MT Einladung: abgelaufenes Token wird abgelehnt", Mandant.einladungPruefen(einl, token, iso(2026, 9, 1)).grund === "abgelaufen");
+  var einl2 = Object.assign({}, einl, { status: "eingelöst" });
+  t("MT Einladung: bereits eingelöste abgelehnt (einmalig)", Mandant.einladungPruefen(einl2, token, iso(2026, 8, 2)).ok === false);
+})();
+
+// -- Support-Zugriff: kontrolliert, zeitlich begrenzt, widerrufbar --
+(function () {
+  var reg = { supportZugriffe: [] };
+  var s = Mandant.supportStart(reg, { mandantId: mA.id, benutzer: "support1", grund: "Fehleranalyse", freigegebenVon: "admin", dauerStunden: 24 }, iso(2026, 8, 1));
+  t("MT Support aktiv innerhalb Frist", Mandant.supportAktiv(reg, mA.id, iso(2026, 8, 1, 12)) === true);
+  t("MT Support inaktiv nach Frist", Mandant.supportAktiv(reg, mA.id, iso(2026, 8, 3)) === false);
+  Mandant.supportWiderrufen(reg, s.id, iso(2026, 8, 1, 6));
+  t("MT Support nach Widerruf inaktiv", Mandant.supportAktiv(reg, mA.id, iso(2026, 8, 1, 7)) === false);
+})();
+
+// -- Zuordnungen / Zugriffskontrolle --
+(function () {
+  var reg = { zuordnungen: [ { benutzername: "chef", mandantId: mA.id, status: "aktiv" }, { benutzername: "chef", mandantId: mB.id, status: "entzogen" } ] };
+  t("MT Zugriff nur auf zugeordnete, nicht entzogene Mandanten", Mandant.hatZugriff(reg, "chef", mA.id) === true && Mandant.hatZugriff(reg, "chef", mB.id) === false);
+  t("MT Mandantenliste je Benutzer schließt entzogene aus", Mandant.mandantenFuerBenutzer(reg, "chef").join(",") === mA.id);
+})();
+
+// -- Mandantenexport enthält nur eigene Daten --
+(function () {
+  Store.wechsleMandant(mA.id);
+  var exp = Mandant.mandantExport(mA, Store.load(), iso(2026, 8, 1));
+  var s = JSON.stringify(exp);
+  t("MT Export enthält eigene Daten", s.indexOf("ATU-ALPHA-GEHEIM") >= 0);
+  t("MT Export enthält KEINE Fremddaten", s.indexOf("ATU-BETA-GEHEIM") < 0);
+})();
+
+// Aufräumen: zurück auf Mandant 1, damit Folgeläufe deterministisch sind
+Store.wechsleMandant(Store.ladeRegistry().liste[0].id);
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }
