@@ -1,0 +1,16 @@
+{
+  "name": "Preisschmiede – Metallbau-Kalkulation",
+  "short_name": "Preisschmiede",
+  "description": "Kalkulation, Angebote, Aufträge, Zeiterfassung – offline nutzbar.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12181f",
+  "theme_color": "#12181f",
+  "lang": "de",
+  "icons": [
+    { "src": "brand/icon-only.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "brand/icon-foreground.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
+  ]
+}

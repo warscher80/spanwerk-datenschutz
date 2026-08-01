@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preisschmiede – Kalkulation für Metallbau</title>
+<meta name="description" content="Intelligente Kalkulations-App für Metallbaubetriebe. Funktioniert vollständig offline, alle Daten bleiben lokal.">
+<meta name="theme-color" content="#12181f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Preisschmiede">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="brand/icon-only.png">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Mobile-Topbar (nur am Handy sichtbar) -->
+  <div class="topbar-mobile">
+    <div class="logo">P</div>
+    <strong>Preisschmiede</strong>
+    <span id="user-mobile" class="user-mobile"></span>
+    <span class="app-version"></span>
+    <button class="btn ghost sm" id="btn-logout-mobile" type="button" hidden>Abmelden</button>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>
+        <h1>Preisschmiede</h1>
+        <small>Kalkulation für Metallbau</small>
+        <div id="brand-mandant" class="brand-mandant" hidden></div>
+      </div>
+    </div>
+    <ul class="nav">
+      <li data-page="dashboard" class="active"><span class="ico">📊</span> <span class="nav-txt">Dashboard</span></li>
+      <li data-page="kalkulation"><span class="ico">⚡</span> <span class="nav-txt">Schnellkalk.</span></li>
+      <li data-page="konfigurator"><span class="ico">📋</span> <span class="nav-txt">Konfigurator</span></li>
+      <li data-page="kalkulationen"><span class="ico">🧮</span> <span class="nav-txt">Kalkulation</span></li>
+      <li data-page="angebote"><span class="ico">📄</span> <span class="nav-txt">Angebote</span></li>
+      <li data-page="auftraege"><span class="ico">📁</span> <span class="nav-txt">Aufträge</span></li>
+      <li data-page="rechnungen"><span class="ico">🧾</span> <span class="nav-txt">Rechnungen</span></li>
+      <li data-page="planung"><span class="ico">🗓️</span> <span class="nav-txt">Planung</span></li>
+      <li data-page="dokumente"><span class="ico">📎</span> <span class="nav-txt">Dokumente</span></li>
+      <li data-page="kundenprojekte"><span class="ico">👥</span> <span class="nav-txt">Kunden & Projekte</span></li>
+      <li data-page="material"><span class="ico">🧱</span> <span class="nav-txt">Material</span></li>
+      <li data-page="lager"><span class="ico">📦</span> <span class="nav-txt">Lager</span></li>
+      <li data-page="qualitaet"><span class="ico">🔬</span> <span class="nav-txt">Qualität</span></li>
+      <li data-page="lernen"><span class="ico">🧠</span> <span class="nav-txt">Lernen</span></li>
+      <li data-page="stammdaten"><span class="ico">⚙️</span> <span class="nav-txt">Stammdaten</span></li>
+      <li data-page="system"><span class="ico">🩺</span> <span class="nav-txt">System</span></li>
+    </ul>
+    <div class="sidebar-foot">
+      <div id="user-box" class="user-box"></div>
+      <div id="app-version" class="app-version"></div>
+      Alle Daten bleiben lokal auf diesem Gerät.
+      <a href="datenschutz.html">Datenschutzerklärung</a>
+      <a href="portal.html" target="_blank" rel="noopener">🔗 Kundenportal</a>
+      <a href="mobil.html" target="_blank" rel="noopener">📱 Werkstatt &amp; Montage (mobil)</a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <section id="page-dashboard" class="page active">
+      <div class="page-head">
+        <div><h2>Dashboard</h2><p>Überblick über Angebote, Aufträge, Auslastung und Kennzahlen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-kalkulation" class="page">
+      <div class="page-head">
+        <div><h2>Kalkulation</h2><p>Produkt wählen, Eckdaten eingeben – die App berechnet Zeiten, Material und Verkaufspreis.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-auftraege" class="page">
+      <div class="page-head">
+        <div><h2>Aufträge & Nachkalkulation</h2><p>Ist-Zeiten erfassen, Soll/Ist vergleichen – die App lernt daraus.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-konfigurator" class="page">
+      <div class="page-head">
+        <div><h2>Produktkonfigurator</h2><p>Produktart wählen, relevante Fragen beantworten, Konfiguration speichern.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-kalkulationen" class="page">
+      <div class="page-head">
+        <div><h2>Kalkulation</h2><p>Vollständige Kalkulation aus einer Produktkonfiguration – Material, Arbeit, Maschine, Rüsten, Gemeinkosten, Gewinn.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-angebote" class="page">
+      <div class="page-head">
+        <div><h2>Angebote</h2><p>Aus freigegebenen Kalkulationen professionelle Kundenangebote erstellen (PDF).</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-planung" class="page">
+      <div class="page-head">
+        <div><h2>Fertigungsplanung</h2><p>Arbeitsgänge, Maschinen, Teams und Montage konfliktgeprüft einplanen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-dokumente" class="page">
+      <div class="page-head">
+        <div><h2>Dokumente &amp; Zeichnungen</h2><p>Zeichnungen und Stücklisten hochladen, prüfen und kontrolliert übernehmen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-kundenprojekte" class="page">
+      <div class="page-head">
+        <div><h2>Kunden &amp; Projekte</h2><p>Kunden, Projekte und Kommissionen verwalten.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-material" class="page">
+      <div class="page-head">
+        <div><h2>Materialdatenbank</h2><p>Preise, Lieferanten und Preishistorie pflegen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-lager" class="page">
+      <div class="page-head">
+        <div><h2>Lager</h2><p>Bestand, Wareneingang, Reservierung, Entnahme, Chargen, Inventur und Bestellungen – auf Basis des Phase-15A-Lagerkerns.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-qualitaet" class="page">
+      <div class="page-head">
+        <div><h2>Qualität</h2><p>Prüfpläne, Prüfaufträge, Abweichungen, Sperren, Nacharbeit, Reklamationen, Prüfmittel, Abnahmen und Qualitätsberichte – auf Basis des Phase-16A-Qualitätskerns. Es wird keine Normkonformität behauptet.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-lernen" class="page">
+      <div class="page-head">
+        <div><h2>Lernfunktion (KI)</h2><p>Erkannte Muster und automatische Korrekturfaktoren aus abgeschlossenen Aufträgen.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-system" class="page">
+      <div class="page-head">
+        <div><h2>System &amp; Betrieb</h2><p>Status, Healthchecks, Backup-Überwachung, Betriebswarnungen und Support (nur Administration).</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-rechnungen" class="page">
+      <div class="page-head">
+        <div><h2>Rechnungen &amp; Nachträge</h2><p>Nachträge, Rechnungsbelege, Zahlungen und ERP-Dateiexport. Keine steuerliche/rechtliche Konformität, kein Versand, keine Live-ERP-Übertragung.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+    <section id="page-stammdaten" class="page">
+      <div class="page-head">
+        <div><h2>Stammdaten</h2><p>Stundensätze, Zuschläge, Gewinn und Datensicherung.</p></div>
+      </div>
+      <div class="content"></div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modal-bg" class="modal-bg"></div>
+
+<!-- Anmelde-Overlay (wird von app.js gesteuert) -->
+<div id="login-overlay" class="login-overlay" hidden>
+  <div class="login-card">
+    <div class="login-brand"><div class="logo">P</div><div><h1>Preisschmiede</h1><small>Anmeldung</small></div></div>
+    <label class="fld"><span class="lbl">Benutzer</span><select id="login-user"></select></label>
+    <label class="fld"><span class="lbl">PIN</span><input type="password" id="login-pin" inputmode="numeric" autocomplete="off" placeholder="••••"></label>
+    <div id="login-fehler" class="login-fehler" hidden>Benutzer oder PIN falsch.</div>
+    <button class="btn primary" id="login-btn" type="button">Anmelden</button>
+    <p class="hint">Erst-PIN für alle Benutzer: <strong>1234</strong> – bitte nach dem ersten Login unter Stammdaten → Benutzer ändern.</p>
+  </div>
+</div>
+
+<!-- Versionsinfo (im Build erzeugt; fehlt in der reinen Web-Vorschau) -->
+<script src="assets/build-info.js"></script>
+<!-- QR-Bibliotheken für den Geräte-Sync (offline eingebettet) -->
+<script src="assets/vendor/qrcode.js"></script>
+<script src="assets/vendor/jsQR.js"></script>
+<script src="assets/js/konfigurator.js"></script>
+<script src="assets/js/vorlagen.js"></script>
+<script src="assets/js/kalkulation.js"></script>
+<script src="assets/js/angebot.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/products.js"></script>
+<script src="assets/js/calc.js"></script>
+<script src="assets/js/datanorm.js"></script>
+<script src="assets/js/sortiment.js"></script>
+<script src="assets/js/auswertung.js"></script>
+<script src="assets/js/planung.js"></script>
+<script src="assets/js/dokumente.js"></script>
+<script src="assets/js/betrieb.js"></script>
+<script src="assets/js/mandant.js"></script>
+<script src="assets/js/infra.js"></script>
+<script src="assets/js/portal.js"></script>
+<script src="assets/js/rechnung.js"></script>
+<script src="assets/js/lager.js"></script>
+<script src="assets/js/qualitaet.js"></script>
+<script src="assets/js/qualitaet-ui.js"></script>
+<script src="assets/js/lager-ui.js"></script>
+<script src="assets/js/sync.js"></script>
+<script src="assets/js/offlinedb.js"></script>
+<script src="assets/js/offline-app.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
