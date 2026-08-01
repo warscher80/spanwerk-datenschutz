@@ -295,6 +295,48 @@
         settings.angebotZaehler = angebote.length + 1;
       } catch (e) { angebote = []; }
     }
+
+    // ---- Kundenportal-Beispieldaten (Phase 12) ----------------------
+    // Reichert das freigegebene Beispielangebot um eine Alternativgruppe an
+    // und legt Portalzugang (Konto + Link-Hash), Dokumentfreigabe und eine
+    // Kundenfrage an – alles klar als Beispiel markiert.
+    var portalUsers = [], portalLinks = [], portalNachrichten = [], dokumentFreigaben = [];
+    var freig = (angebote || []).filter(function (a) { return a.status === "freigegeben"; })[0];
+    if (freig) {
+      freig.gueltigBisISO = new Date(Date.now() + 30 * 86400000).toISOString();
+      freig.ansprechpartner = (kunden[0] && kunden[0].ansprechpartner) || "Herr Huber";
+      var maxNr = (freig.positionen || []).reduce(function (m, p) { return Math.max(m, parseInt(p.nummer, 10) || 0); }, 0);
+      // Alternativgruppe "Montage" (genau eine wählbar) – nicht vorselektiert
+      freig.positionen.push({ nummer: String(maxNr + 1), typ: "alternativ", gruppe: "montage", kurz: "Montage durch uns (Standard)", beschreibung: "Lieferung und Montage vor Ort, Standardanfahrt", menge: 1, einheit: "Pausch.", einzelpreis: 380, mwstProz: 20, aktiv: true, aktiviert: false });
+      freig.positionen.push({ nummer: String(maxNr + 2), typ: "alternativ", gruppe: "montage", kurz: "Montage Premium (inkl. Einweisung)", beschreibung: "Montage mit ausführlicher Einweisung und Feinjustierung", menge: 1, einheit: "Pausch.", einzelpreis: 620, mwstProz: 20, aktiv: true, aktiviert: false });
+
+      var kundeP = kunden[0] || { id: "k0", name: "Kunde", email: "kunde@example.at", ansprechpartner: "Herr Huber" };
+      var puSalt = makeSalt();
+      portalUsers.push({
+        id: uid(), kundeId: kundeP.id, ansprechpartnerId: null,
+        name: kundeP.ansprechpartner || "Herr Huber", email: (kundeP.email || "office@musterbau.at").toLowerCase(),
+        telefon: kundeP.tel || "", rolle: "kundenadmin", status: "aktiv",
+        einladungsdatum: nowISO(), letzterLogin: null, emailBestaetigt: true,
+        erlaubteProjekte: [], erlaubteAktionen: [],
+        passwortSalt: puSalt, passwortHash: hashPin("portal1234", puSalt), beispiel: true
+      });
+      // Sicherer Demo-Angebotslink: nur Hash des festen Demo-Tokens gespeichert.
+      var lkSalt = makeSalt();
+      portalLinks.push({
+        id: uid(), mandantId: null, angebotId: freig.id, kundeId: kundeP.id,
+        ansprechpartner: kundeP.ansprechpartner || "", email: (kundeP.email || "").toLowerCase(),
+        tokenSalt: lkSalt, tokenHash: hashPin("DEMO-ANGEBOTSLINK", lkSalt),
+        ablauf: new Date(Date.now() + 30 * 86400000).toISOString(),
+        einmalig: false, verwendet: false, widerrufen: null,
+        emailBestaetigungNoetig: false, emailBestaetigt: true, erstellt: nowISO(), beispiel: true
+      });
+      portalNachrichten.push({
+        id: uid(), angebotId: freig.id, positionNr: null, mandantId: null, kundeId: kundeP.id,
+        absender: kundeP.ansprechpartner || "Kunde", empfaenger: "Vertrieb", text: "Ist eine Montage am Wochenende möglich?",
+        zeitpunkt: nowISO(), status: "offen", kundeSichtbar: true, intern: false, anhaenge: [], beispiel: true
+      });
+    }
+
     return {
       version: 10,
       settings: settings,
@@ -320,12 +362,12 @@
       // Betrieb/Pilot (Phase 9): Feedback- und Fehlerprotokoll
       feedback: [],
       fehlerlog: [],
-      // Kundenportal (Phase 12) – mandantengetrennt, standardmäßig leer
-      portalUsers: [],
-      portalLinks: [],
-      portalNachrichten: [],
+      // Kundenportal (Phase 12) – mandantengetrennt; Beispielzugang vorbereitet
+      portalUsers: portalUsers,
+      portalLinks: portalLinks,
+      portalNachrichten: portalNachrichten,
       portalProtokolle: [],
-      dokumentFreigaben: [],
+      dokumentFreigaben: dokumentFreigaben,
       zeichnungsFreigaben: [],
       kundenUploads: [],
       portalEreignisse: [],

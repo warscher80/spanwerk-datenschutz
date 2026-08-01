@@ -3,6 +3,43 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 12 – Sicheres Kundenportal & digitale Angebotsannahme  (Schema v10)
+
+### Hinzugefügt
+- **Kundenportal-Engine `portal.js`** (Sicherheitskern, rein/testbar):
+  Portalrollen, sichere Zugriffe (Konto + gehashter, befristeter, widerrufbarer,
+  optional einmaliger, scoped Angebotslink), server-seitige Neuberechnung aus
+  der freigegebenen Version (Client-Preise nie verbindlich), optionale/
+  Alternativpositionen, manipulationsgeschütztes Annahmeprotokoll (Siegel/
+  Prüfsumme, Guards gegen Doppelannahme/Ablauf/ersetzte Version/Berechtigung),
+  Ablehnung, Bestätigungsdokument, getrennte Nachrichten, Dokumentfreigabe,
+  Status-Mapping, Branding.
+- **Kundenportal-Oberfläche** `portal.html` + `assets/js/portal-app.js` +
+  `assets/css/portal.css`: mobil-first, eigenes Branding je Mandant, Login
+  (Konto/Link), Dashboard, Angebotsansicht, Optionen/Alternativen mit
+  Live-Neuberechnung, Angebots-PDF, Fragen, Annahme-Dialog, Bestätigungsansicht
+  + Bestätigungs-PDF, Ablehnung. Kein interner Datenleak (Whitelist +
+  Leak-Detektor).
+- **Datenmodell v10** (additiv): `portalUsers`, `portalLinks`,
+  `portalNachrichten`, `portalProtokolle`, `dokumentFreigaben`,
+  `zeichnungsFreigaben`, `kundenUploads`, `portalEreignisse`.
+- **Beispieldaten:** freigegebenes Angebot mit optionaler + Alternativgruppe,
+  Portal-Konto (Demo-Passwort) + Demo-Angebotslink, Kundenfrage; zweiter
+  Beispiel-Mandant mit eigenem Branding (Cross-Tenant-Demo).
+- Link „🔗 Kundenportal" in der internen App; `PORTAL.md`.
+
+### Tests
+- `tests/referenz.test.js` auf **180/180** erweitert (46 Portal-/Sicherheits-
+  tests) + End-to-End-Browsertests: Konto- und Link-Zugang, Optionen/
+  Alternativen + server-seitige Neuberechnung, Annahme + Bestätigungs-PDF,
+  Cross-Tenant-Branding, mobil/Tablet/Desktop, kein interner Datenleak,
+  kein horizontaler Überlauf.
+
+### Rechtlich / Grenzen (ehrlich)
+- Digitale Zustimmung, **keine** qualifizierte E-Signatur; Annahmetext
+  konfigurierbar, rechtliche Prüfung empfohlen. Kein echter E-Mail-Versand;
+  Trennung client-/namespaceseitig (kein Backend).
+
 ## Phase 11 – Hosting, Domain, E-Mail, Monitoring & Produktionsinfrastruktur  (Schema v9)
 
 ### Ehrliche Einordnung

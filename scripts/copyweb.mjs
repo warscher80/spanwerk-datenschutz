@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const www = join(root, "www");
 
-const ITEMS = ["index.html", "datenschutz.html", "assets"];
+const ITEMS = ["index.html", "portal.html", "datenschutz.html", "assets"];
 
 await rm(www, { recursive: true, force: true });
 await mkdir(www, { recursive: true });

@@ -4,7 +4,19 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 11 – Hosting, Domain, E-Mail, Monitoring &
+Letzte Aktualisierung: **Phase 12 – Sicheres Kundenportal & digitale
+Angebotsannahme** umgesetzt. Kundenportal-Engine (`portal.js`) + eigene mobil-
+first Oberfläche (`portal.html`, `portal-app.js`, `portal.css`): sichere
+Zugriffe (Konto + gehashter/befristeter/widerrufbarer/scoped Angebotslink),
+kundensichere Angebotsansicht (nie interne Kosten/Margen), optionale/
+Alternativpositionen mit **server-seitiger Neuberechnung** aus der freigegebenen
+Version, digitale Annahme mit manipulationsgeschütztem Protokoll +
+Bestätigungs-PDF, Ablehnung, Nachrichten, Branding je Mandant. Datenschema
+**v10** (portalUsers/Links/Nachrichten/Protokolle/Freigaben/Uploads). Getestet:
+180/180 + Browser-E2E (zwei Mandanten, mobil/Desktop, Cross-Tenant, kein Leak).
+Digitale Zustimmung, keine qualifizierte E-Signatur; kein echter E-Mail-Versand.
+
+Vorher: **Phase 11 – Hosting, Domain, E-Mail, Monitoring &
 Produktionsinfrastruktur** umgesetzt. Neue Infrastruktur-Engine (`infra.js`):
 Env-Validierung (ohne Secret-Ausgabe), modularer E-Mail-Adapter + Vorlagen
 (Vorschaumodus, kein vorgetäuschter Versand, Header-Injection-/Doppelversand-
@@ -54,6 +66,8 @@ KNOWN_LIMITATIONS.md).
 | Datenhaltung | `assets/js/store.js` | localStorage, Migration, Beispieldaten, PIN-Hash, **Mandanten-Registry + Namespace-Routing** |
 | Mandantenfähigkeit | `assets/js/mandant.js` | Tarife, Feature-Flags, Lizenz, Nutzung, Einladungen, Support, Export |
 | Infrastruktur | `assets/js/infra.js` | Env-Validierung, E-Mail-/Zahlungsadapter, Aufgaben-Queue, geplante Jobs, signierte Links, Monitoring-Scrubbing, Rate-Limit |
+| Kundenportal | `assets/js/portal.js` | sichere Zugriffe, kundensichere Ausgabe, Optionen/Alternativen, server-seitige Neuberechnung, digitale Annahme/Ablehnung |
+| Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |
 | Produkte | `assets/js/products.js` | Produkt-/Zeitmodelle (Basis) |
