@@ -134,6 +134,36 @@ void main() {
     });
   });
 
+  // Die Rundenabrufe eines Turniers liefen streng nacheinander, mit Pausen
+  // dazwischen. Am Handy summierte sich das auf mehrere Sekunden, bevor das
+  // erste Spiel sichtbar war.
+  group('inWellen', () {
+    test('Führt höchstens so viele Aufgaben gleichzeitig aus wie erlaubt', () async {
+      var laufend = 0, hoechstwert = 0;
+      Future<int> Function() aufgabe(int i) => () async {
+            laufend++;
+            if (laufend > hoechstwert) hoechstwert = laufend;
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+            laufend--;
+            return i;
+          };
+      final aufgaben = List.generate(11, aufgabe);
+      final erg = await Api.inWellen(aufgaben, grenze: 3);
+      expect(hoechstwert, lessThanOrEqualTo(3));
+      expect(hoechstwert, greaterThan(1), reason: 'sonst liefe es weiter nacheinander');
+      expect(erg, List.generate(11, (i) => i), reason: 'Reihenfolge bleibt erhalten');
+    });
+
+    test('Leere Liste ergibt leeres Ergebnis', () async {
+      expect(await Api.inWellen<int>(const []), isEmpty);
+    });
+
+    test('Weniger Aufgaben als die Grenze läuft trotzdem', () async {
+      final erg = await Api.inWellen<int>([() async => 1, () async => 2], grenze: 5);
+      expect(erg, [1, 2]);
+    });
+  });
+
   // Die Titelchancen simulieren ab der ersten K.o.-Runde. Wird die falsch
   // bestimmt, rechnet die Simulation nur über ein einziges Spiel.
   group('ersteKoRunde', () {

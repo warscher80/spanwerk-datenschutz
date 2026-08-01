@@ -520,6 +520,29 @@ class Api {
     return m;
   }
 
+  /// Führt [aufgaben] in Wellen zu je [grenze] Stück aus.
+  ///
+  /// Vorher liefen die Runden-Abrufe eines Turniers streng nacheinander, mit
+  /// 150 ms Pause dazwischen. Gemessen am PC: 11 Anfragen, zusammen 1,0 s
+  /// Netzzeit – aber 2,7 s bis zur letzten Antwort, davon 1,7 s reine
+  /// Wartepausen. Am Handy, wo eine Anfrage eher 400–600 ms braucht, wurden
+  /// daraus über sieben Sekunden, bevor das erste Spiel sichtbar war.
+  ///
+  /// Die Gesamtzahl der Anfragen bleibt gleich, nur ihre zeitliche Verteilung
+  /// ändert sich. Die Grenze ist bewusst klein: der Gratis-Key ist geteilt,
+  /// und ein Schwall gleichzeitiger Anfragen provoziert eine Drosselung.
+  static Future<List<T>> inWellen<T>(
+    List<Future<T> Function()> aufgaben, {
+    int grenze = 3,
+  }) async {
+    final out = <T>[];
+    for (var i = 0; i < aufgaben.length; i += grenze) {
+      final welle = aufgaben.skip(i).take(grenze).map((f) => f()).toList();
+      out.addAll(await Future.wait(welle));
+    }
+    return out;
+  }
+
   /// Welche Runde ist die **erste** K.o.-Runde?
   ///
   /// Früher galt „höchste Rundennummer". Das stimmt nur für die Konvention
@@ -552,16 +575,22 @@ class Api {
   /// und nimmt jede Runde mit Spielen. Robust – ohne separate Erkennungsstufe.
   static Future<List<FootyMatch>> allCupMatches(
       String leagueId, String season, List<int> candidates) async {
+    final ergebnisse = await inWellen<List<FootyMatch>>(
+      candidates
+          .map((c) => () async {
+                try {
+                  return await round(leagueId, season, c);
+                } catch (_) {
+                  return const <FootyMatch>[]; // einzelne Runde übersprungen
+                }
+              })
+          .toList(),
+    );
     final byId = <int, FootyMatch>{};
-    for (final c in candidates) {
-      try {
-        for (final m in await round(leagueId, season, c)) {
-          byId[m.id] = m;
-        }
-      } catch (_) {
-        // einzelne Runde übersprungen
+    for (final liste in ergebnisse) {
+      for (final m in liste) {
+        byId[m.id] = m;
       }
-      await Future.delayed(const Duration(milliseconds: 150));
     }
     final list = byId.values.toList()
       ..sort((a, b) {
