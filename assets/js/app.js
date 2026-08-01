@@ -1404,6 +1404,9 @@
     // Kundenportal – interne Prüf-/Verwaltungsansicht (Phase 12B)
     html += portalAdminCardHtml(now);
 
+    // Rechnungswesen – schreibgeschützte Vorschau (Phase 13A)
+    html += rechnungVorschauCardHtml(now);
+
     root.innerHTML = html;
     verdrahteMandantenCard(now);
     verdrahteInfraCard(now);
@@ -1606,6 +1609,37 @@
     $all("[data-up-ok]").forEach(function (b) { b.onclick = function () { var u = (db.kundenUploads || []).filter(function (x) { return x.id === b.getAttribute("data-up-ok"); })[0]; if (u) { u.pruefStatus = "freigegeben"; u.technischFreigegeben = true; u.geprueftVon = (Auth.current() || {}).benutzername || ""; Store.save(); renderSystem(); toast("Upload freigegeben."); } }; });
     $all("[data-up-no]").forEach(function (b) { b.onclick = function () { var u = (db.kundenUploads || []).filter(function (x) { return x.id === b.getAttribute("data-up-no"); })[0]; if (u) { u.pruefStatus = "abgelehnt"; u.technischFreigegeben = false; u.geprueftVon = (Auth.current() || {}).benutzername || ""; Store.save(); renderSystem(); toast("Upload abgelehnt."); } }; });
     $all("[data-zf-tog]").forEach(function (b) { b.onclick = function () { var z = (db.zeichnungsFreigaben || []).filter(function (x) { return x.id === b.getAttribute("data-zf-tog"); })[0]; if (z && z.status !== "ersetzt") { z.sichtbar = !z.sichtbar; Store.save(); renderSystem(); toast(z.sichtbar ? "Zeichnung im Portal sichtbar." : "Zeichnung verborgen."); } }; });
+  }
+
+  // ============================================================
+  //  RECHNUNGSWESEN – schreibgeschützte Vorschau (Phase 13A)
+  //  Nur Anzeige der Engine-Ergebnisse zur technischen Prüfung;
+  //  bewusst KEINE Aktions-Schaltflächen (Rechnungs-UI folgt später).
+  // ============================================================
+  function rechnungVorschauCardHtml(now) {
+    var R = w.Preisschmiede.Rechnung; if (!R) return "";
+    var nts = db.nachtraege || [], belege = db.rechnungen || [];
+    if (!nts.length && !belege.length) return "";
+    var html = '<div class="card" style="margin-top:12px;border-left:4px solid #9d7a5a"><h3>🧾 Rechnungswesen – Vorschau (Phase 13A)</h3>' +
+      '<p class="hint">Schreibgeschützte Vorschau der Belegdaten und Berechnungen. Keine steuerliche/rechtliche Wertung, kein Versand, keine ERP-Übertragung. Prüfung durch Steuer-/Rechtsberatung erforderlich.</p>';
+    // Nachträge
+    html += '<h4 style="margin:8px 0 4px">Nachträge (' + nts.length + ")</h4>";
+    html += nts.length ? '<div class="table-wrap"><table><thead><tr><th>Nummer</th><th>Bezeichnung</th><th>Kommission</th><th>Status</th><th class="num">Netto</th></tr></thead><tbody>' +
+      nts.map(function (n) { return "<tr><td>" + esc(n.nummer || "(Entwurf)") + "</td><td>" + esc(n.bezeichnung || "") + "</td><td>" + esc(n.kommission || "") + "</td><td>" + esc(n.status) + '</td><td class="num">' + fmtEUR(n.sollSnapshot ? n.sollSnapshot.netto : 0) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Keine Nachträge.</div>';
+    // Auftragswert inkl. Nachtrag (Beispielauftrag der Nachträge)
+    if (nts.length && nts[0].auftragId) {
+      var auf = (db.auftraege || []).filter(function (a) { return a.id === nts[0].auftragId; })[0];
+      if (auf && auf.kalk) {
+        var st = R.abrechnungsstand(auf.kalk.netto, nts.filter(function (n) { return n.auftragId === auf.id; }), belege.filter(function (b) { return b.auftragId === auf.id; }));
+        html += '<div class="grid cols-4" style="margin-top:8px">' + stat("Ursprung netto", fmtEUR(st.ursprungNetto)) + stat("Nachträge netto", fmtEUR(st.nachtragNetto)) + stat("Aktuell netto", fmtEUR(st.gesamtNetto)) + stat("Offen netto", fmtEUR(st.offenNetto), st.offenNetto > 0.005 ? "warn" : "green") + "</div>";
+      }
+    }
+    // Belege
+    html += '<h4 style="margin:12px 0 4px">Belege (' + belege.length + ")</h4>";
+    html += belege.length ? '<div class="table-wrap"><table><thead><tr><th>Nummer</th><th>Art</th><th>Datum</th><th>Fällig</th><th class="num">Netto</th><th class="num">USt</th><th class="num">Brutto</th><th>Zahlung</th></tr></thead><tbody>' +
+      belege.map(function (b) { var s = R.belegSummen(b); return "<tr><td>" + esc(b.nummer || "(Entwurf)") + "</td><td>" + esc(b.art) + "</td><td>" + fmtDate(b.rechnungsdatum) + "</td><td>" + (b.faelligkeit ? fmtDate(b.faelligkeit) : "—") + '</td><td class="num">' + fmtEUR(s.netto) + '</td><td class="num">' + fmtEUR(s.mwst) + '</td><td class="num">' + fmtEUR(s.brutto) + "</td><td>" + esc(b.zahlungstatus) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Keine Belege.</div>';
+    html += "</div>";
+    return html;
   }
   // E-Mail-Vorschau: baut eine echte Nachricht aus den Vorlagen, zeigt sie an
   // und macht transparent, dass OHNE Dienst NICHTS versendet wird.

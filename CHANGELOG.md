@@ -3,6 +3,46 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 13A – Nachträge & Rechnungskern  (Schema v11)
+
+### Hinzugefügt
+- **Engine `rechnung.js`** (rein/testbar, Decimal, nutzt `Kalkulation.*`):
+  - **Nachträge:** Zuordnung zu Auftrag/Projekt/Kommission, Status (erkannt→…→
+    abgerechnet), Kalkulation (Material/Arbeit/Maschine inkl. Rüst/Montage/Fremd)
+    mit eigenem Soll-Snapshot + Änderungsverlauf, Übernahme von Zusatzleistungen;
+    **ursprünglicher Auftragswert bleibt unverändert**, angenommene Nachträge
+    getrennt addiert.
+  - **Rechnungskern:** Rechnungsentwurf/Akonto/Abschlag/Teil/Schluss/Gutschrift/
+    Storno; Belegsummen je Umsatzsteuersatz (Decimal, Rabatte, Abzüge,
+    Anrechnungen), Teilmengen, mehrere Teilrechnungen, Anzahlungen/vorherige
+    Rechnungen abziehen, **keine Doppelverrechnung**, **Überrechnung erkennen**,
+    mehrere Steuersätze, **Reverse Charge nur manuell bestätigt** (keine
+    automatische steuerliche Beurteilung).
+  - **Nummernkreise** pro Mandant, transaktionssicher (Zähler sofort erhöht,
+    keine Wiederverwendung), identische Nummern in verschiedenen Mandanten
+    erlaubt; Entwürfe ohne endgültige Nummer.
+  - **Unveränderbarkeit** nach Freigabe (Snapshot + Prüfsumme; Korrektur nur via
+    Gutschrift/Storno; Stammdatenänderungen ändern den Beleg nicht).
+  - **Zahlungsstatus** (offen/teilweise/bezahlt/überfällig/…); Fälligkeit/Skonto.
+    Keine Bankanbindung, kein Einzug.
+  - **Rollen:** admin/buero mit Finanzrechten, werkstatt ohne Rechnungsrechte.
+- **Datenschema v11** (additiv): `nachtraege[]`, `rechnungen[]`,
+  `settings.rechnung.kreise`.
+- **Beispieldaten** (Testumgebung): Auftrag mit angenommenem Nachtrag,
+  Akontorechnung (Teilzahlung), zwei Teilrechnungen, Schlussrechnung, Gutschrift,
+  Stornobeleg.
+- **Schreibgeschützte Vorschau** auf der System-Seite (keine Aktions-
+  Schaltflächen); Doku `BILLING.md`.
+
+### Tests
+- `tests/referenz.test.js` auf **234/234** erweitert (38 neue Rechnungs-/
+  Nachtragstests) + Browser-Smoke der Vorschau.
+
+### Ehrlich / offen
+- Keine steuerliche/rechtliche Konformität behauptet; keine ERP-/E-Mail-/
+  Zahlungsanbindung; kein Rechnungsversand. Prüfung durch Steuer-/Rechtsberatung
+  erforderlich (siehe BILLING.md).
+
 ## Phase 12B – Kundenuploads & Zeichnungsfreigabe  (Schema v10)
 
 ### Hinzugefügt

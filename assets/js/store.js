@@ -367,8 +367,41 @@
       });
     }
 
+    // ---- Nachträge & Rechnungen (Phase 13A, nur Testumgebung) -------
+    var nachtraege = [], rechnungen = [];
+    try {
+      var R = w.Preisschmiede.Rechnung;
+      if (R && auftraegeSeed && auftraegeSeed.length) {
+        var auf = auftraegeSeed.filter(function (a) { return a.status === "Beauftragt"; })[0] || auftraegeSeed[0];
+        var kId = auf.kundeId, kom = auf.kommission, jahr = new Date().getFullYear();
+        var kundeR = kunden.filter(function (k) { return k.id === kId; })[0] || {};
+        // Angenommener Nachtrag mit eigenem Soll-Snapshot
+        var nt = R.nachtragNeu({ mandantId: null, auftragId: auf.id, kommission: kom, kundeId: kId, bezeichnung: "Zusätzliches Handlaufsegment", ursache: "Kundenwunsch", mwstProz: 20,
+          kalk: { material: { menge: 40, einkaufspreis: 6, verschnittProz: 5, frachtanteil: 10, materialaufschlagProz: 15 }, arbeit: { ruestzeit: 0.5, bearbeitungProStk: 6, stueckzahl: 1, anzahlMitarbeiter: 1, internerSatz: 40, verkaufSatz: 70 } }, beispiel: true }, nowISO());
+        R.nachtragKalkulieren(nt, nowISO()); R.nachtragStatus(nt, "freigegeben", nowISO()); R.nachtragStatus(nt, "angenommen", nowISO());
+        nt.nummer = "NT-" + jahr + "-0001"; nachtraege.push(nt);
+        var belegBsp = function (art, positionen, extra) {
+          var b = R.belegNeu(Object.assign({ mandantId: null, kundeId: kId, kommission: kom, auftragId: auf.id, art: art, mwstProz: 20, positionen: positionen, beispiel: true, ersteller: "admin" }, extra || {}), nowISO());
+          R.belegFreigeben(b, settings, { benutzer: "admin", firma: settings.firma, kunde: kundeR }, nowISO());
+          return b;
+        };
+        var akonto = belegBsp("Akontorechnung", [{ bezeichnung: "Akontozahlung 30 %", menge: 1, einheit: "Pausch.", einzelpreis: 1830, mwstProz: 20 }]);
+        R.zahlungErfassen(akonto, { betrag: 1000, art: "Überweisung", referenz: "AZ-1", erfasstVon: "admin" }, nowISO()); // Teilzahlung
+        var teil1 = belegBsp("Teilrechnung", [{ bezeichnung: "Fertigung Geländer – Abschnitt 1", menge: 1, einheit: "Pausch.", einzelpreis: 2000, mwstProz: 20, gesamtmenge: 2, bereitsAbgerechnet: 0 }]);
+        var teil2 = belegBsp("Teilrechnung", [{ bezeichnung: "Fertigung Geländer – Abschnitt 2", menge: 1, einheit: "Pausch.", einzelpreis: 1200, mwstProz: 20, gesamtmenge: 2, bereitsAbgerechnet: 1 }]);
+        var restNetto = R.schlussVorschlagNetto(auf.kalk.netto, nachtraege, [akonto, teil1, teil2]);
+        function anr(b) { var s = R.belegSummen(b); return { belegId: b.id, bezeichnung: b.nummer, netto: s.netto, mwst: s.mwst, brutto: s.brutto }; }
+        var schluss = belegBsp("Schlussrechnung", [{ bezeichnung: "Schlussrechnung Restleistung inkl. Nachtrag", menge: 1, einheit: "Pausch.", einzelpreis: restNetto, mwstProz: 20 }], { anrechnungen: [anr(akonto), anr(teil1), anr(teil2)] });
+        var gut = R.gutschriftZu(teil1, { positionen: [{ bezeichnung: "Teilgutschrift zu " + teil1.nummer, menge: 1, einheit: "Pausch.", einzelpreis: 200, mwstProz: 20 }], grund: "Nachlass nach Rücksprache", ersteller: "admin" }, nowISO());
+        R.belegFreigeben(gut, settings, { benutzer: "admin", firma: settings.firma, kunde: kundeR }, nowISO());
+        var storno = R.stornoZu(teil2, { grund: "fehlerhafte Position – Neuausstellung", ersteller: "admin" }, nowISO());
+        R.belegFreigeben(storno, settings, { benutzer: "admin", firma: settings.firma, kunde: kundeR }, nowISO());
+        rechnungen.push(akonto, teil1, teil2, schluss, gut, storno);
+      }
+    } catch (e) { nachtraege = []; rechnungen = []; }
+
     return {
-      version: 10,
+      version: 11,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -401,6 +434,9 @@
       zeichnungsFreigaben: zeichnungsFreigaben,
       kundenUploads: kundenUploads,
       portalEreignisse: [],
+      // Nachträge & Rechnungen (Phase 13A, nur Testumgebung)
+      nachtraege: nachtraege,
+      rechnungen: rechnungen,
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -563,8 +599,16 @@
     if (!Array.isArray(obj.zeichnungsFreigaben)) obj.zeichnungsFreigaben = [];
     if (!Array.isArray(obj.kundenUploads)) obj.kundenUploads = [];
     if (!Array.isArray(obj.portalEreignisse)) obj.portalEreignisse = [];
+    // Nachträge & Rechnungskern (Phase 13A) – additiv, mandantengetrennt
+    if (!Array.isArray(obj.nachtraege)) obj.nachtraege = [];
+    if (!Array.isArray(obj.rechnungen)) obj.rechnungen = [];
+    if (!st.rechnung || typeof st.rechnung !== "object") st.rechnung = {};
+    if (!st.rechnung.kreise || typeof st.rechnung.kreise !== "object") {
+      st.rechnung.kreise = (w.Preisschmiede.Rechnung ? w.Preisschmiede.Rechnung.standardKreise() : { Rechnung: { praefix: "RE", jahr: null, laufend: 1, mindestlaenge: 4 }, Gutschrift: { praefix: "GU", jahr: null, laufend: 1, mindestlaenge: 4 }, Stornobeleg: { praefix: "ST", jahr: null, laufend: 1, mindestlaenge: 4 } });
+    }
+    if (st.nachtragZaehler == null) st.nachtragZaehler = (obj.nachtraege.length || 0) + 1;
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
-    if (obj.version !== 10) { st.betrieb.letzteMigration = nowISO(); obj.version = 10; }
+    if (obj.version !== 11) { st.betrieb.letzteMigration = nowISO(); obj.version = 11; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();
     return obj;
   }

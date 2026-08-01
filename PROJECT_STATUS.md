@@ -4,7 +4,20 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 12B – Kundenuploads & Zeichnungsfreigabe**
+Letzte Aktualisierung: **Phase 13A – Nachträge & Rechnungskern** umgesetzt.
+Neue Engine `rechnung.js` (Decimal, nutzt Kalkulationslogik): Nachträge mit
+eigenem Soll-Snapshot (Auftragswert bleibt unverändert; angenommene Nachträge
+getrennt addiert); Rechnungskern (Entwurf/Akonto/Abschlag/Teil/Schluss/
+Gutschrift/Storno) mit Belegsummen je Steuersatz, Teilmengen, keine
+Doppelverrechnung, Überrechnungsprüfung, Reverse Charge nur manuell bestätigt;
+transaktionssichere Nummernkreise pro Mandant; Unveränderbarkeit nach Freigabe
+(Snapshot+Prüfsumme, Korrektur nur via Gutschrift/Storno); Zahlungsstatus/
+Fälligkeit; Rollen (werkstatt ohne Rechnungsrechte). Datenschema **v11**
+(`nachtraege`, `rechnungen`, `settings.rechnung`). Nur schreibgeschützte
+Vorschau (keine Rechnungs-UI). Tests **234/234**. Ehrlich: keine steuerliche/
+rechtliche Konformität, keine ERP-/E-Mail-/Zahlungsanbindung (siehe BILLING.md).
+
+Vorher: **Phase 12B – Kundenuploads & Zeichnungsfreigabe**
 umgesetzt. Kunden können Dateien hochladen (serverseitig-äquivalente Prüfung:
 Typ/MIME/Größe/gefährliche Endungen; intern „ungeprüft", nie automatisch
 freigegeben) und ausdrücklich freigegebene Zeichnungen prüfen und
@@ -75,6 +88,7 @@ KNOWN_LIMITATIONS.md).
 | Mandantenfähigkeit | `assets/js/mandant.js` | Tarife, Feature-Flags, Lizenz, Nutzung, Einladungen, Support, Export |
 | Infrastruktur | `assets/js/infra.js` | Env-Validierung, E-Mail-/Zahlungsadapter, Aufgaben-Queue, geplante Jobs, signierte Links, Monitoring-Scrubbing, Rate-Limit |
 | Kundenportal | `assets/js/portal.js` | sichere Zugriffe, kundensichere Ausgabe, Optionen/Alternativen, server-seitige Neuberechnung, digitale Annahme/Ablehnung |
+| Nachträge/Rechnungen | `assets/js/rechnung.js` | Nachtragskalkulation, Belegarten, Summen je Steuersatz, Nummernkreise, Freigabe/Snapshot, Zahlungsstatus, Rollen |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |

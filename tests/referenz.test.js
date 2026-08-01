@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js", "rechnung.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -124,7 +124,7 @@ t("SNAP Revision B hat erhaltenen Vorgänger A", !!(revB && revA && revA.revisio
 // =============================================================
 t("MIG fresh() liefert aktuelle Version + alle Arrays", (function () {
   var f = Store.fresh ? Store.fresh() : null; if (!f) return true; // fresh evtl. nicht exportiert
-  return f.version === 10 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks);
+  return f.version === 11 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks) && Array.isArray(f.nachtraege) && Array.isArray(f.rechnungen);
 })());
 t("MIG migrate({}) füllt Defaults ohne Crash", (function () {
   try { var m = Store.migrate({}); return m && m.settings && Array.isArray(m.material) && Array.isArray(m.dokumente) && !!m.planung && !!m.settings.planung; } catch (e) { return false; }
@@ -672,6 +672,165 @@ var pctx = { firma: { name: "Alpha Metallbau" }, kunde: { name: "Kunde 1" }, dat
 (function () {
   t("PORTAL interner Status wird auf Kundenstatus abgebildet", Portal.kundenStatus("In Fertigung") === "in Fertigung" && Portal.kundenStatus("Beauftragt") === "Auftrag bestätigt");
   t("PORTAL unbekannter interner Status neutral abgebildet", Portal.kundenStatus("Maschinenproblem") === "in Bearbeitung");
+})();
+
+// =============================================================
+//  NACHTRÄGE & RECHNUNGSKERN  (Phase 13A)
+// =============================================================
+var R = P.Rechnung;
+
+// 1/2/3 Nachtragskalkulation + Auftragswert unverändert + aktueller Wert
+(function () {
+  var nt = R.nachtragNeu({ mandantId: "mA", auftragId: "auf1", kommission: "K1", mwstProz: 20, kalk: { arbeit: { ruestzeit: 0, bearbeitungProStk: 10, stueckzahl: 1, anzahlMitarbeiter: 1, internerSatz: 40, verkaufSatz: 70 } } }, iso(2026, 8, 1));
+  R.nachtragKalkulieren(nt, iso(2026, 8, 1));
+  t("RECH Nachtragskalkulation Netto = 700", eq(nt.sollSnapshot.netto, 700));
+  t("RECH Nachtrag Soll-Snapshot + Version", nt.sollVersion === 1 && nt.status === "kalkuliert");
+  R.nachtragStatus(nt, "angenommen", iso(2026, 8, 1));
+  var aw = R.auftragswert(5000, [nt]);
+  t("RECH ursprünglicher Auftragswert unverändert = 5000", eq(aw.ursprungNetto, 5000));
+  t("RECH aktueller Auftragswert inkl. Nachtrag = 5700", eq(aw.aktuellNetto, 5700) && eq(aw.nachtragNetto, 700));
+  // nicht angenommener Nachtrag zählt nicht
+  var nt2 = R.nachtragNeu({ kalk: { arbeit: { bearbeitungProStk: 5, stueckzahl: 1, anzahlMitarbeiter: 1, internerSatz: 40, verkaufSatz: 70 } } }, iso(2026, 8, 1));
+  R.nachtragKalkulieren(nt2, iso(2026, 8, 1));
+  t("RECH nicht angenommener Nachtrag zählt nicht", eq(R.auftragswert(5000, [nt2]).aktuellNetto, 5000));
+})();
+
+// helper: Beleg + Freigabe mit lokalem settings
+function mkSettings() { return { firma: { name: "Testfirma" }, rechnung: {} }; }
+function freigebe(settings, art, positionen, extra) {
+  var b = R.belegNeu(Object.assign({ mandantId: "mA", kundeId: "k1", kommission: "K1", auftragId: "auf1", art: art, mwstProz: 20, positionen: positionen }, extra || {}), iso(2026, 8, 1));
+  R.belegFreigeben(b, settings, { benutzer: "admin", firma: settings.firma, kunde: { name: "Kunde" } }, iso(2026, 8, 1));
+  return b;
+}
+
+// 4 Akontorechnung
+(function () {
+  var s = mkSettings();
+  var ak = freigebe(s, "Akontorechnung", [{ bezeichnung: "Akonto 30 %", menge: 1, einzelpreis: 1500, mwstProz: 20 }]);
+  var su = R.belegSummen(ak);
+  t("RECH Akontorechnung Netto/USt/Brutto", eq(su.netto, 1500) && eq(su.mwst, 300) && eq(su.brutto, 1800));
+})();
+
+// 5 Teilrechnung mit Teilmenge
+(function () {
+  var s = mkSettings();
+  var tr = freigebe(s, "Teilrechnung", [{ bezeichnung: "Segmente", menge: 3, einheit: "Stk", einzelpreis: 100, mwstProz: 20, gesamtmenge: 10, bereitsAbgerechnet: 2 }]);
+  var su = R.belegSummen(tr);
+  var p = tr.positionen[0];
+  t("RECH Teilrechnung Teilmenge Netto = 300", eq(su.netto, 300));
+  t("RECH Teilmenge Rest = 5 (10-2-3)", eq((p.gesamtmenge - p.bereitsAbgerechnet - p.menge), 5));
+})();
+
+// 6/8 mehrere Teilrechnungen + keine Doppelverrechnung
+(function () {
+  var s = mkSettings();
+  var ak = freigebe(s, "Akontorechnung", [{ bezeichnung: "Akonto", menge: 1, einzelpreis: 1830, mwstProz: 20 }]);
+  var t1 = freigebe(s, "Teilrechnung", [{ bezeichnung: "T1", menge: 1, einzelpreis: 2000, mwstProz: 20 }]);
+  var t2 = freigebe(s, "Teilrechnung", [{ bezeichnung: "T2", menge: 1, einzelpreis: 1200, mwstProz: 20 }]);
+  t("RECH verrechnet (ohne Schluss) = 5030", eq(R.verrechnetNetto([ak, t1, t2], { ohneSchluss: true }), 5030));
+  var rest = R.schlussVorschlagNetto(5000, [], [ak, t1, t2]); // gesamt 5000 -> rest -30 (überrechnet Beispiel)
+  var restPos = R.schlussVorschlagNetto(6100, [], [ak, t1, t2]); // gesamt 6100 -> rest 1070
+  t("RECH Schlussvorschlag Rest = 1070 bei Auftrag 6100", eq(restPos, 1070));
+  var schluss = freigebe(s, "Schlussrechnung", [{ bezeichnung: "Rest", menge: 1, einzelpreis: restPos, mwstProz: 20 }]);
+  t("RECH keine Doppelverrechnung: Akonto+Teil+Schluss = 6100", eq(R.verrechnetNetto([ak, t1, t2, schluss]), 6100));
+  void rest;
+})();
+
+// 9 Überrechnung erkennen
+(function () {
+  var u = R.pruefeUeberrechnung(6100, 5030, 2000, false);
+  t("RECH Überrechnung erkannt (5030+2000 > 6100)", u.ueberrechnet === true && eq(u.ueberschussNetto, 930) && u.zulaessig === false);
+  t("RECH Überrechnung mit Begründung zulässig", R.pruefeUeberrechnung(6100, 5030, 2000, true).zulaessig === true);
+  t("RECH keine Überrechnung bei Restbetrag", R.pruefeUeberrechnung(6100, 5030, 1070, false).ueberrechnet === false);
+})();
+
+// 10 mehrere Steuersätze
+(function () {
+  var s = mkSettings();
+  var b = freigebe(s, "Rechnungsentwurf", [{ bezeichnung: "Leistung 20%", menge: 1, einzelpreis: 1000, mwstProz: 20 }, { bezeichnung: "Position 10%", menge: 1, einzelpreis: 500, mwstProz: 10 }]);
+  var su = R.belegSummen(b);
+  t("RECH mehrere Steuersätze: 2 Steuerzeilen", su.steuerZeilen.length === 2);
+  t("RECH USt 20% auf 1000 = 200, 10% auf 500 = 50", eq(su.mwst, 250) && eq(su.netto, 1500) && eq(su.brutto, 1750));
+})();
+
+// 11 Reverse-Charge-Hinweis (manuell, nur bestätigt gültig)
+(function () {
+  var b = R.belegNeu({ mandantId: "mA", art: "Rechnungsentwurf", mwstProz: 20, reverseCharge: true, positionen: [{ bezeichnung: "RC-Leistung", menge: 1, einzelpreis: 1000, mwstProz: 20 }] }, iso(2026, 8, 1));
+  var su = R.belegSummen(b);
+  t("RECH Reverse Charge: USt = 0", eq(su.mwst, 0) && eq(su.brutto, 1000));
+  t("RECH RC nicht bestätigt -> Warnung, nicht anwendbar", R.reverseChargePruefung(b).anwendbar === false);
+  b.reverseChargeBestaetigt = true; b.reverseChargeHinweis = "Steuerschuldnerschaft des Leistungsempfängers.";
+  t("RECH RC bestätigt -> Hinweis anwendbar", R.reverseChargePruefung(b).anwendbar === true);
+  t("RECH RC-Freigabe ohne Bestätigung gesperrt", R.belegFreigeben(R.belegNeu({ art: "Rechnungsentwurf", reverseCharge: true, positionen: [{ bezeichnung: "x", menge: 1, einzelpreis: 100 }] }, iso(2026, 8, 1)), mkSettings(), {}, iso(2026, 8, 1)).grund === "Reverse Charge nicht bestätigt");
+})();
+
+// 12 Rundung (Decimal)
+(function () {
+  var s = mkSettings();
+  var b = freigebe(s, "Rechnungsentwurf", [{ bezeichnung: "krumm", menge: 3, einzelpreis: 33.335, mwstProz: 20 }]);
+  var su = R.belegSummen(b);
+  t("RECH Decimal-Rundung Netto = 100.01", eq(su.netto, 100.01));
+  t("RECH Decimal-Rundung Brutto = 120.01", eq(su.brutto, 120.01));
+})();
+
+// 13 freigegebener Beleg unveränderbar
+(function () {
+  var s = mkSettings();
+  var b = freigebe(s, "Teilrechnung", [{ bezeichnung: "x", menge: 1, einzelpreis: 500, mwstProz: 20 }]);
+  t("RECH freigegebener Beleg nicht bearbeitbar", R.belegBearbeitbar(b) === false && b.freigegeben === true && !!b.snapshot && !!b.nummer);
+  t("RECH doppelte Freigabe abgelehnt", R.belegFreigeben(b, s, {}, iso(2026, 8, 1)).grund === "bereits freigegeben");
+  t("RECH Snapshot mit Prüfsumme eingefroren", !!b.snapshot.pruefsumme && b.snapshot.summen.netto === 500);
+})();
+
+// 14/15 Gutschrift + Storno (negativ)
+(function () {
+  var s = mkSettings();
+  var orig = freigebe(s, "Teilrechnung", [{ bezeichnung: "Leistung", menge: 1, einzelpreis: 1000, mwstProz: 20 }]);
+  var gut = R.gutschriftZu(orig, { positionen: [{ bezeichnung: "Teilgutschrift", menge: 1, einzelpreis: 200, mwstProz: 20 }] }, iso(2026, 8, 2));
+  R.belegFreigeben(gut, s, {}, iso(2026, 8, 2));
+  var sg = R.belegSummen(gut);
+  t("RECH Gutschrift negativ (-200/-240)", eq(sg.netto, -200) && eq(sg.brutto, -240) && gut.zahlungstatus === "gutgeschrieben");
+  t("RECH Gutschrift referenziert Original", gut.referenzBelegId === orig.id && /^GU-/.test(gut.nummer));
+  var storno = R.stornoZu(orig, {}, iso(2026, 8, 2));
+  R.belegFreigeben(storno, s, {}, iso(2026, 8, 2));
+  var ss = R.belegSummen(storno);
+  t("RECH Storno kehrt Betrag um (-1000/-1200)", eq(ss.netto, -1000) && eq(ss.brutto, -1200) && /^ST-/.test(storno.nummer));
+  // Gutschrift+Storno reduzieren verrechnet
+  t("RECH verrechnet nach Gutschrift/Storno reduziert", eq(R.verrechnetNetto([orig, gut, storno]), -200));
+})();
+
+// 16/17 Teilzahlung + Fälligkeit
+(function () {
+  var s = mkSettings();
+  var b = freigebe(s, "Teilrechnung", [{ bezeichnung: "x", menge: 1, einzelpreis: 1000, mwstProz: 20 }], { rechnungsdatum: iso(2026, 8, 1), zahlungszielTage: 14 });
+  R.zahlungErfassen(b, { betrag: 500 }, iso(2026, 8, 2));
+  t("RECH Teilzahlung -> teilweise bezahlt, offen 700", b.zahlungstatus === "teilweise bezahlt" && eq(R.offenerBetrag(b), 700));
+  R.zahlungErfassen(b, { betrag: 700 }, iso(2026, 8, 3));
+  t("RECH Vollzahlung -> bezahlt, offen 0", b.zahlungstatus === "bezahlt" && eq(R.offenerBetrag(b), 0));
+  var f = R.faelligkeit(iso(2026, 8, 1), 14);
+  t("RECH Fälligkeit = Datum + 14 Tage", new Date(f.faellig).getDate() === 15);
+})();
+
+// 18/19 transaktionssichere Nummern + Mandantentrennung
+(function () {
+  var s = mkSettings();
+  var b1 = freigebe(s, "Teilrechnung", [{ bezeichnung: "x", menge: 1, einzelpreis: 100 }]);
+  var b2 = freigebe(s, "Teilrechnung", [{ bezeichnung: "y", menge: 1, einzelpreis: 100 }]);
+  t("RECH fortlaufende, eindeutige Nummern", b1.nummer !== b2.nummer && /RE-\d+-0001/.test(b1.nummer) && /RE-\d+-0002/.test(b2.nummer));
+  // freigegebene Nummer wird nicht wiederverwendet (Zähler bereits erhöht)
+  var jahr = new Date().getFullYear();
+  t("RECH freigegebene Nummer nicht wiederverwendet", R.naechsteNummer(s, "Rechnung", jahr) !== b2.nummer);
+  // andere Mandanten: eigener settings -> identische erste Nummer erlaubt
+  var s2 = mkSettings();
+  var c1 = freigebe(s2, "Teilrechnung", [{ bezeichnung: "z", menge: 1, einzelpreis: 100 }]);
+  t("RECH identische Nummer in anderem Mandant erlaubt", /RE-\d+-0001/.test(c1.nummer));
+})();
+
+// 20 Rollen & Berechtigungen
+(function () {
+  t("RECH admin darf freigeben", R.darfBeleg("admin", "freigeben") === true);
+  t("RECH buero darf Zahlung erfassen", R.darfBeleg("buero", "zahlung") === true);
+  t("RECH werkstatt hat KEINE Rechnungsrechte", R.darfBeleg("werkstatt", "entwurf") === false && R.RECHNUNG_RECHTE.werkstatt.length === 0);
 })();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
