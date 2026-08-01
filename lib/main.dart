@@ -96,10 +96,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Immer am neuesten Stand, aber ohne den geteilten Gratis-Key zu erschöpfen.
     _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoRefresh());
     _boot();
-    // Im Hintergrund auf eine neuere App-Version prüfen.
-    checkForUpdate().then((u) {
-      if (mounted && u != null) setState(() => _update = u);
-    });
+    _pruefeUpdate();
   }
 
   @override
@@ -114,6 +111,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Beim Zurückkehren in die App aktualisieren und neue Ergebnisse nachlernen.
     if (state == AppLifecycleState.resumed) {
+      _pruefeUpdate();
       _loadDay(silent: true);
       _startLearning();
     }
@@ -218,6 +216,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_currentMode) return Api.currentMatches(kLeagues, DateTime.now());
     if (_isCup) return Api.allCupMatches(_league.id, _season, _league.cupCandidates);
     return Api.round(_league.id, _season, _day);
+  }
+
+  DateTime? _letzteUpdatePruefung;
+
+  /// Im Hintergrund auf eine neuere App-Version prüfen.
+  ///
+  /// Nicht nur beim Start, sondern auch beim Zurückkehren in die App: eine
+  /// sideload-installierte App wird oft tagelang nicht neu gestartet und
+  /// bekäme sonst nie mit, dass es eine neuere Fassung gibt. Höchstens
+  /// einmal pro Stunde, das reicht für eine App ohne Store-Anbindung.
+  void _pruefeUpdate() {
+    if (_update != null) return; // Hinweis steht schon
+    final last = _letzteUpdatePruefung;
+    if (last != null && DateTime.now().difference(last) < const Duration(hours: 1)) {
+      return;
+    }
+    _letzteUpdatePruefung = DateTime.now();
+    checkForUpdate().then((u) {
+      if (mounted && u != null) setState(() => _update = u);
+    });
   }
 
   /// Mindestabstand zwischen zwei automatischen Aktualisierungen.
