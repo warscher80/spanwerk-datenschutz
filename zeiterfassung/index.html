@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a2330">
+<meta name="color-scheme" content="light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Zeiterfassung">
+<title>Zeiterfassung – Nachkalkulation</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --ink:#1a2330; --muted:#667; --line:#e2e7ee;
+    --accent:#1f6feb; --accent-soft:#e8f0fe; --good:#0f8a4f; --good-soft:#e6f5ec;
+    --warn:#b8860b; --warn-bg:#fff7e6; --run:#0f8a4f; --run-soft:#e6f5ec;
+    --danger:#c1352b;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);
+    margin:0;padding:0 0 calc(40px + env(safe-area-inset-bottom));line-height:1.5;color:var(--ink);
+    -webkit-tap-highlight-color:rgba(31,111,235,.15)}
+  header{max-width:760px;margin:0 auto;
+    padding:calc(22px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 6px
+            calc(18px + env(safe-area-inset-left))}
+  h1{font-size:23px;margin:0 0 4px}
+  small{color:var(--muted)}
+  main{max-width:760px;margin:0 auto;
+    padding:0 calc(18px + env(safe-area-inset-right)) 0 calc(18px + env(safe-area-inset-left))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin:14px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .card h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+    margin:0 0 12px;font-weight:600}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .field{flex:1 1 160px;min-width:0}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);
+    border-radius:8px;font-size:16px;background:#fff;color:var(--ink);min-height:46px}
+  .field textarea{min-height:62px;resize:vertical;line-height:1.4;
+    font-family:inherit;-webkit-appearance:none}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft)}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:11px 14px;font-size:15px;cursor:pointer;color:var(--ink);min-height:46px;
+    -webkit-appearance:none}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{color:#fff;opacity:.92}
+  .btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+  .btn.sm{min-height:0;padding:6px 10px;font-size:13px;border-radius:7px}
+
+  /* Status / laufende Tätigkeit */
+  .status{background:var(--ink);color:#fff;border:0}
+  .status h2{color:#aebdd4}
+  .status.live{background:linear-gradient(135deg,#0f8a4f,#0c6e40)}
+  .status .lbl{font-size:14px;color:#cfe6da;margin-bottom:2px}
+  .status.idle .lbl{color:#aebdd4}
+  .status .big{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .status .act{font-size:17px;font-weight:600;margin-top:2px}
+
+  /* Tätigkeiten-Liste */
+  .acts{display:flex;flex-direction:column;gap:8px}
+  .act-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;background:#fff}
+  .act-row.running{border-color:var(--run);background:var(--run-soft)}
+  .act-main{flex:1;min-width:0}
+  .act-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act-time{font-size:20px;font-variant-numeric:tabular-nums;margin-top:1px}
+  .act-row.running .act-time{color:var(--run)}
+  .act-sub{margin-top:4px;display:flex;gap:14px}
+  .act-sub a{font-size:12px;color:var(--muted);cursor:pointer;text-decoration:none;border-bottom:1px dotted var(--muted)}
+  .act-sub a:hover{color:var(--danger);border-color:var(--danger)}
+  .play{flex:0 0 auto;width:64px;height:46px;border-radius:9px;border:0;cursor:pointer;
+    font-size:14px;font-weight:600;color:#fff;background:var(--accent);-webkit-appearance:none}
+  .play.pause{background:var(--warn)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .chip{border:1px dashed var(--line);background:#fbfcfe;border-radius:18px;padding:7px 12px;
+    font-size:13px;cursor:pointer;color:var(--accent);-webkit-appearance:none}
+  .chip:hover{border-color:var(--accent);border-style:solid}
+  .addbar{display:flex;gap:8px;margin-top:12px}
+  .addbar input{flex:1}
+
+  /* Zusammenfassung */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  table.bd td,table.bd th{padding:7px 0;border-bottom:1px solid var(--line);text-align:left}
+  table.bd th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600}
+  table.bd td.num,table.bd th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.bd tr:last-child td{border-bottom:0}
+  table.bd .tot td{font-weight:700;border-top:2px solid var(--line);padding-top:9px}
+  .empty{color:var(--muted);font-size:14px;padding:6px 0}
+  .sumhead{font-size:14px;color:var(--muted);margin:-2px 0 10px}
+  .sumhead b{color:var(--ink)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
+  .toolbar .btn{flex:1}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,22,35,.5);
+    z-index:50;align-items:center;justify-content:center;padding:24px}
+  .modal-overlay.show{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:360px;width:100%;padding:20px;
+    box-shadow:0 12px 40px rgba(10,18,35,.3)}
+  .modal-msg{font-size:15px;line-height:1.45;margin-bottom:18px;color:var(--ink)}
+  .modal-btns{display:flex;gap:10px}
+  .modal-btns .btn{flex:1}
+  .btn.primary-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .time-fields{display:flex;gap:10px;margin-bottom:16px}
+  .time-fields label{flex:1;font-size:13px;color:var(--muted)}
+  .time-fields input{width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:8px;font-size:16px;background:#fff;color:var(--ink);-webkit-appearance:none}
+  .act-time.editable{cursor:pointer}
+  @media print{.toolbar,.play,.act-sub,.addbar,.chips,.status,#projTools,.modal-overlay{display:none}
+    body{background:#fff} .card{box-shadow:none;border-color:#ccc}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Zeiterfassung</h1>
+  <small>für die Nachkalkulation · läuft offline · alles nur lokal gespeichert</small>
+</header>
+
+<main>
+  <!-- AUFTRAG -->
+  <section class="card">
+    <h2>Auftrag</h2>
+    <div class="field" id="projSelField">
+      <label for="projSel" id="projSelLabel">Auftrag wählen</label>
+      <select id="projSel"></select>
+    </div>
+    <div class="field">
+      <label for="projName">Bezeichnung</label>
+      <input id="projName" type="text" placeholder="z. B. Treppe Müller" enterkeyhint="done">
+    </div>
+    <div class="row">
+      <div class="field" style="flex:2 1 200px">
+        <label for="projClient">Auftraggeber</label>
+        <input id="projClient" type="text" placeholder="z. B. Familie Müller / Baustelle XY" enterkeyhint="done">
+      </div>
+      <div class="field" style="flex:1 1 120px">
+        <label for="projRate">Stundensatz (€/h)</label>
+        <input id="projRate" type="number" min="0" step="any" inputmode="decimal" placeholder="z. B. 65">
+      </div>
+    </div>
+    <div class="field">
+      <label for="projNote">Notiz</label>
+      <textarea id="projNote" rows="2" placeholder="z. B. Maße, Material, Besonderheiten, Liefertermin …"></textarea>
+    </div>
+    <div class="toolbar" id="projTools">
+      <button class="btn primary" id="newProjBtn" type="button">+ Neuer Auftrag</button>
+      <button class="btn danger" id="delProjBtn" type="button">Auftrag löschen</button>
+    </div>
+    <div class="hint">Bezeichnung und Auftraggeber kannst du direkt in den Feldern ändern. Der Stundensatz
+      (z. B. aus dem Maschinenstundensatz-Rechner) rechnet die erfasste Zeit automatisch in Kosten um.</div>
+  </section>
+
+  <!-- STATUS -->
+  <section class="card status idle" id="statusCard">
+    <div class="lbl" id="statusLbl">Keine Tätigkeit läuft</div>
+    <div class="big" id="statusTime">00:00:00</div>
+    <div class="act" id="statusAct"></div>
+  </section>
+
+  <!-- TÄTIGKEITEN -->
+  <section class="card">
+    <h2>Tätigkeiten</h2>
+    <div class="acts" id="acts"></div>
+    <div class="chips" id="chips"></div>
+    <div class="addbar">
+      <input id="newActInput" type="text" placeholder="Eigene Tätigkeit hinzufügen" enterkeyhint="done">
+      <button class="btn" id="addActBtn" type="button">Hinzufügen</button>
+    </div>
+    <div class="hint">Vergessen zu stoppen? Tippe auf die <b>Zeit</b> (oder „Zeit ändern"), um sie zu
+      korrigieren oder eine Zeit ohne Stoppuhr einzutragen.</div>
+  </section>
+
+  <!-- NACHKALKULATION -->
+  <section class="card">
+    <h2>Nachkalkulation</h2>
+    <div id="sumHead" class="sumhead"></div>
+    <table class="bd" id="summary"></table>
+  </section>
+
+  <div class="toolbar">
+    <button class="btn" id="copyBtn" type="button">Kopieren</button>
+    <button class="btn" id="csvBtn" type="button">CSV exportieren</button>
+    <button class="btn" id="printBtn" type="button">Drucken / PDF</button>
+  </div>
+</main>
+
+<!-- Eigener Bestätigungs-Dialog (funktioniert auch in der App-WebView) -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal">
+    <div class="modal-msg" id="confirmMsg"></div>
+    <div class="modal-btns">
+      <button class="btn" id="confirmNo" type="button">Abbrechen</button>
+      <button class="btn danger primary-danger" id="confirmYes" type="button">Ja</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zeit-Korrektur-Dialog -->
+<div class="modal-overlay" id="timeOverlay">
+  <div class="modal">
+    <div class="modal-msg" id="timeTitle">Zeit ändern</div>
+    <div class="time-fields">
+      <label>Stunden
+        <input id="timeH" type="number" min="0" step="1" inputmode="numeric">
+      </label>
+      <label>Minuten
+        <input id="timeM" type="number" min="0" max="59" step="1" inputmode="numeric">
+      </label>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" id="timeCancel" type="button">Abbrechen</button>
+      <button class="btn primary" id="timeSave" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY='zeiterfassung-v1';
+  var CATALOG=['CAD','Materialbeschaffung','Zuschnitt','Entgraten','Bohren','Fräsen',
+    'Schweißnahtvorbereitung','Schweißen','Schleifen','Putzen','Richten','Montage',
+    'Lackieren / Beschichten','Qualitätskontrolle','Verpacken','Lieferung'];
+  var DEFAULTS=['CAD','Materialbeschaffung','Zuschnitt','Entgraten','Bohren','Fräsen',
+    'Schweißnahtvorbereitung','Schleifen','Putzen'];
+
+  var state={activeId:null,projects:[]};
+  var ticker=null;
+
+  function $(id){return document.getElementById(id);}
+  function genId(){return 'id'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);}
+  function pad(n){return (n<10?'0':'')+n;}
+  function now(){return Date.now();}
+
+  function fmt(sec){
+    sec=Math.max(0,Math.floor(sec));
+    var h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+    return pad(h)+':'+pad(m)+':'+pad(s);
+  }
+  function decH(sec){return (sec/3600);}
+  function eur(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+  function hrs(sec){return decH(sec).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' h';}
+
+  function elapsed(a){return a.sec+(a.startedAt?Math.floor((now()-a.startedAt)/1000):0);}
+
+  function activeProj(){
+    for(var i=0;i<state.projects.length;i++) if(state.projects[i].id===state.activeId) return state.projects[i];
+    return null;
+  }
+  function findRunning(){
+    for(var i=0;i<state.projects.length;i++){
+      var p=state.projects[i];
+      for(var j=0;j<p.activities.length;j++) if(p.activities[j].startedAt) return {proj:p,act:p.activities[j]};
+    }
+    return null;
+  }
+  function stopRunning(){
+    var r=findRunning();
+    if(r){ r.act.sec=elapsed(r.act); r.act.startedAt=null; }
+  }
+
+  function newProject(name){
+    var p={id:genId(),name:name,client:'',note:'',rate:'',createdAt:now(),
+      activities:DEFAULTS.map(function(n){return {id:genId(),name:n,sec:0,startedAt:null};})};
+    state.projects.push(p);
+    state.activeId=p.id;
+    return p;
+  }
+
+  /* Eigener Bestätigungs-Dialog (prompt/confirm sind in der App-WebView aus) */
+  function askConfirm(msg,onYes){
+    $('confirmMsg').textContent=msg;
+    var ov=$('confirmOverlay');
+    function close(){ ov.classList.remove('show'); $('confirmYes').onclick=null; $('confirmNo').onclick=null; }
+    $('confirmYes').onclick=function(){ close(); onYes(); };
+    $('confirmNo').onclick=function(){ close(); };
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.classList.add('show');
+  }
+
+  /* Zeit einer Tätigkeit korrigieren/eintragen (auf ganze Minuten) */
+  function askTime(title,curSec,onSave){
+    $('timeTitle').textContent=title;
+    $('timeH').value=Math.floor(curSec/3600);
+    $('timeM').value=Math.floor((curSec%3600)/60);
+    var ov=$('timeOverlay');
+    function close(){ ov.classList.remove('show'); $('timeSave').onclick=null; $('timeCancel').onclick=null; }
+    $('timeSave').onclick=function(){
+      var h=parseInt($('timeH').value,10); if(isNaN(h)||h<0) h=0;
+      var m=parseInt($('timeM').value,10); if(isNaN(m)||m<0) m=0;
+      close(); onSave(h*3600+m*60);
+    };
+    $('timeCancel').onclick=function(){ close(); };
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.classList.add('show');
+    setTimeout(function(){ try{$('timeM').focus(); $('timeM').select();}catch(e){} },40);
+  }
+  function editAct(actId){
+    var p=activeProj(); if(!p) return;
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    askTime('Zeit für „'+a.name+'" (Std. / Min.)', elapsed(a), function(sec){
+      a.sec=sec; a.startedAt=null;   // ggf. laufende Uhr anhalten und auf den Wert setzen
+      save(); render();
+    });
+  }
+
+  /* ---- Aktionen ---- */
+  function startAct(actId){
+    var p=activeProj(); if(!p) return;
+    var target=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) target=p.activities[i];
+    if(!target) return;
+    if(target.startedAt){ // läuft -> pausieren
+      target.sec=elapsed(target); target.startedAt=null;
+    } else {
+      stopRunning();          // nur eine Tätigkeit gleichzeitig
+      target.startedAt=now();
+    }
+    save(); render();
+  }
+  function resetAct(actId){
+    var p=activeProj(); if(!p) return;
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    var apply=function(){ a.sec=0; a.startedAt=null; save(); render(); };
+    if(elapsed(a)>0) askConfirm('Zeit für „'+a.name+'" auf 0 setzen?',apply); else apply();
+  }
+  function removeAct(actId){
+    var p=activeProj(); if(!p) return;
+    var a=null;
+    for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
+    if(!a) return;
+    var apply=function(){
+      p.activities=p.activities.filter(function(x){return x.id!==actId;});
+      save(); render();
+    };
+    if(elapsed(a)>0) askConfirm('„'+a.name+'" inkl. erfasster Zeit entfernen?',apply); else apply();
+  }
+  function addAct(name){
+    var p=activeProj(); if(!p) return;
+    name=(name||'').trim(); if(!name) return;
+    for(var i=0;i<p.activities.length;i++)
+      if(p.activities[i].name.toLowerCase()===name.toLowerCase()){ render(); return; }
+    p.activities.push({id:genId(),name:name,sec:0,startedAt:null});
+    save(); render();
+  }
+
+  /* ---- Rendering ---- */
+  function render(){
+    // Auftrags-Dropdown
+    var sel=$('projSel'); sel.innerHTML='';
+    if(state.projects.length===0){
+      var o=document.createElement('option'); o.value=''; o.textContent='— noch kein Auftrag —'; sel.appendChild(o);
+    }
+    state.projects.forEach(function(p){
+      var o=document.createElement('option'); o.value=p.id; o.textContent=p.name;
+      if(p.id===state.activeId) o.selected=true; sel.appendChild(o);
+    });
+    var p=activeProj();
+    $('projName').value=p?p.name:'';
+    $('projClient').value=p?(p.client||''):'';
+    $('projNote').value=p?(p.note||''):'';
+    $('projRate').value=p?p.rate:'';
+    $('projName').disabled=!p; $('projClient').disabled=!p; $('projNote').disabled=!p; $('projRate').disabled=!p;
+    $('delProjBtn').disabled=!p;
+    var n=state.projects.length, idx=0;
+    for(var k=0;k<n;k++) if(state.projects[k].id===state.activeId) idx=k;
+    $('projSelLabel').textContent = n>0 ? ('Auftrag '+(idx+1)+' von '+n) : 'Auftrag wählen';
+
+    renderActs();
+    renderStatus();
+    renderSummary();
+    ensureTicker();
+  }
+
+  function renderActs(){
+    var box=$('acts'), chips=$('chips'); box.innerHTML=''; chips.innerHTML='';
+    var p=activeProj();
+    if(!p){ box.innerHTML='<div class="empty">Lege oben einen Auftrag an, um Zeiten zu erfassen.</div>';
+      $('newActInput').disabled=true; $('addActBtn').disabled=true; return; }
+    $('newActInput').disabled=false; $('addActBtn').disabled=false;
+
+    p.activities.forEach(function(a){
+      var run=!!a.startedAt;
+      var row=document.createElement('div'); row.className='act-row'+(run?' running':'');
+      var main=document.createElement('div'); main.className='act-main';
+      var nm=document.createElement('div'); nm.className='act-name'; nm.textContent=a.name;
+      var tm=document.createElement('div'); tm.className='act-time editable'; tm.id='t_'+a.id;
+      tm.textContent=fmt(elapsed(a)); tm.title='Zeit ändern'; tm.onclick=function(){editAct(a.id);};
+      var sub=document.createElement('div'); sub.className='act-sub';
+      var ed=document.createElement('a'); ed.textContent='Zeit ändern'; ed.onclick=function(){editAct(a.id);};
+      var rs=document.createElement('a'); rs.textContent='Reset'; rs.onclick=function(){resetAct(a.id);};
+      var rm=document.createElement('a'); rm.textContent='Entfernen'; rm.onclick=function(){removeAct(a.id);};
+      sub.appendChild(ed); sub.appendChild(rs); sub.appendChild(rm);
+      main.appendChild(nm); main.appendChild(tm); main.appendChild(sub);
+      var btn=document.createElement('button'); btn.className='play'+(run?' pause':'');
+      btn.textContent=run?'Pause':'Start'; btn.onclick=function(){startAct(a.id);};
+      row.appendChild(main); row.appendChild(btn); box.appendChild(row);
+    });
+
+    // Schnell-Hinzufügen-Chips für Katalog-Tätigkeiten, die noch fehlen
+    var have={}; p.activities.forEach(function(a){have[a.name.toLowerCase()]=1;});
+    CATALOG.forEach(function(n){
+      if(have[n.toLowerCase()]) return;
+      var c=document.createElement('button'); c.className='chip'; c.textContent='+ '+n;
+      c.onclick=function(){addAct(n);}; chips.appendChild(c);
+    });
+  }
+
+  function renderStatus(){
+    var card=$('statusCard'), r=findRunning();
+    if(r && activeProj() && r.proj.id===state.activeId){
+      card.className='card status live';
+      $('statusLbl').textContent='Läuft – '+r.proj.name;
+      $('statusTime').textContent=fmt(elapsed(r.act));
+      $('statusAct').textContent=r.act.name;
+    } else if(r){
+      card.className='card status live';
+      $('statusLbl').textContent='Läuft in anderem Auftrag: '+r.proj.name;
+      $('statusTime').textContent=fmt(elapsed(r.act));
+      $('statusAct').textContent=r.act.name;
+    } else {
+      card.className='card status idle';
+      $('statusLbl').textContent='Keine Tätigkeit läuft';
+      $('statusTime').textContent='00:00:00';
+      $('statusAct').textContent='';
+    }
+  }
+
+  function renderSummary(){
+    var t=$('summary'), head=$('sumHead'), p=activeProj();
+    if(!p){ t.innerHTML='<tr><td class="empty">—</td></tr>'; head.innerHTML=''; return; }
+    head.innerHTML='Auftrag: <b>'+esc(p.name||'—')+'</b>'+
+      (p.client?(' · Auftraggeber: <b>'+esc(p.client)+'</b>'):'');
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)||rate<0) rate=0;
+    var withCost=rate>0;
+    var html='<tr><th>Tätigkeit</th><th class="num">Zeit</th><th class="num">Stunden</th>'+
+      (withCost?'<th class="num">Kosten</th>':'')+'</tr>';
+    var totSec=0, rows=0;
+    p.activities.forEach(function(a){
+      var s=elapsed(a); if(s<=0) return; rows++; totSec+=s;
+      html+='<tr><td>'+esc(a.name)+'</td><td class="num">'+fmt(s)+'</td><td class="num">'+hrs(s)+'</td>'+
+        (withCost?'<td class="num">'+eur(decH(s)*rate)+'</td>':'')+'</tr>';
+    });
+    if(rows===0){
+      t.innerHTML='<tr><td class="empty">Noch keine Zeit erfasst. Tippe oben bei einer Tätigkeit auf „Start".</td></tr>';
+      return;
+    }
+    html+='<tr class="tot"><td>Gesamt</td><td class="num">'+fmt(totSec)+'</td><td class="num">'+hrs(totSec)+'</td>'+
+      (withCost?'<td class="num">'+eur(decH(totSec)*rate)+'</td>':'')+'</tr>';
+    t.innerHTML=html;
+  }
+
+  function esc(s){return (''+s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+  /* nur die Zeitfelder ticken lassen (ohne Re-Render -> Eingabe-Fokus bleibt) */
+  function tick(){
+    var r=findRunning();
+    if(r){
+      var el=document.getElementById('t_'+r.act.id);
+      if(el) el.textContent=fmt(elapsed(r.act));
+      if(activeProj() && r.proj.id===state.activeId) $('statusTime').textContent=fmt(elapsed(r.act));
+    }
+  }
+  function ensureTicker(){
+    if(ticker) return;
+    ticker=setInterval(function(){ if(findRunning()) tick(); },1000);
+  }
+
+  /* ---- Persistenz ---- */
+  function save(){ try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){} }
+  function load(){
+    var d; try{d=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+    if(d && d.projects) state=d;
+  }
+
+  /* ---- Export ---- */
+  function summaryRows(){
+    var p=activeProj(); if(!p) return [];
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var out=[]; p.activities.forEach(function(a){
+      var s=elapsed(a); if(s<=0) return;
+      out.push({name:a.name,sec:s,h:decH(s),cost:rate>0?decH(s)*rate:null});
+    });
+    return out;
+  }
+  function buildCSV(){
+    var p=activeProj(); if(!p) return '';
+    var rows=summaryRows();
+    var head=['Auftrag','Auftraggeber','Taetigkeit','Zeit (hh:mm:ss)','Stunden','Stundensatz (EUR/h)','Kosten (EUR)','Notiz'];
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var cl=p.client||'', nt=p.note||'';
+    var lines=[head.join(';')]; var totSec=0,totCost=0;
+    rows.forEach(function(r){
+      totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
+      lines.push([q(p.name),q(cl),q(r.name),fmt(r.sec),deci(r.h),rate>0?deci(rate):'',r.cost!=null?deci(r.cost):'',q(nt)].join(';'));
+    });
+    lines.push([q(p.name),q(cl),'GESAMT',fmt(totSec),deci(decH(totSec)),'',rate>0?deci(totCost):'',q(nt)].join(';'));
+    return lines.join('\r\n');
+  }
+  function deci(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});}
+  function q(s){return '"'+(''+s).replace(/"/g,'""')+'"';}
+  function buildText(){
+    var p=activeProj(); if(!p) return 'Kein Auftrag.';
+    var rate=parseFloat((''+p.rate).replace(',','.')); if(isNaN(rate)) rate=0;
+    var rows=summaryRows();
+    var lines=['Nachkalkulation – '+p.name];
+    if(p.client) lines.push('Auftraggeber: '+p.client);
+    if(p.note) lines.push('Notiz: '+p.note);
+    lines.push('');
+    var totSec=0,totCost=0;
+    rows.forEach(function(r){ totSec+=r.sec; if(r.cost!=null) totCost+=r.cost;
+      lines.push(r.name+': '+fmt(r.sec)+' ('+hrs(r.sec)+')'+(r.cost!=null?' = '+eur(r.cost):'')); });
+    lines.push('');
+    lines.push('Gesamt: '+fmt(totSec)+' ('+hrs(totSec)+')'+(rate>0?' = '+eur(totCost):''));
+    return lines.join('\n');
+  }
+  function download(name,text){
+    try{
+      var blob=new Blob([text],{type:'text/csv;charset=utf-8'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a'); a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    }catch(e){ alert('Export wird hier nicht unterstützt. Nutze „Kopieren".'); }
+  }
+  function copyText(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){flash('Kopiert!');},function(){legacyCopy(text);});
+    } else legacyCopy(text);
+  }
+  function legacyCopy(text){
+    var ta=document.createElement('textarea'); ta.value=text;
+    ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy'); flash('Kopiert!');}catch(e){alert(text);}
+    document.body.removeChild(ta);
+  }
+  function flash(msg){
+    var b=$('copyBtn'), old=b.textContent; b.textContent=msg;
+    setTimeout(function(){b.textContent=old;},1200);
+  }
+
+  /* ---- Events ---- */
+  $('projSel').addEventListener('change',function(){ state.activeId=this.value||null; save(); render(); });
+  $('projName').addEventListener('input',function(){
+    var p=activeProj(); if(!p) return;
+    p.name=this.value;
+    var sel=$('projSel');                       // Auswahl-Eintrag live mitführen
+    for(var i=0;i<sel.options.length;i++) if(sel.options[i].value===p.id) sel.options[i].textContent=p.name||'(ohne Name)';
+    save(); renderSummary(); renderStatus();
+  });
+  $('projClient').addEventListener('input',function(){ var p=activeProj(); if(p){p.client=this.value; save(); renderSummary();} });
+  $('projNote').addEventListener('input',function(){ var p=activeProj(); if(p){p.note=this.value; save();} });
+  $('projRate').addEventListener('input',function(){ var p=activeProj(); if(p){p.rate=this.value; save(); renderSummary();} });
+  $('newProjBtn').addEventListener('click',function(){
+    newProject('Neuer Auftrag'); save(); render();
+    var f=$('projName'); f.focus(); try{f.select();}catch(e){}
+  });
+  $('delProjBtn').addEventListener('click',function(){
+    var p=activeProj(); if(!p) return;
+    askConfirm('Auftrag „'+(p.name||'ohne Name')+'" mit allen erfassten Zeiten löschen?',function(){
+      state.projects=state.projects.filter(function(x){return x.id!==p.id;});
+      state.activeId=state.projects.length?state.projects[0].id:null;
+      save(); render();
+    });
+  });
+  $('addActBtn').addEventListener('click',function(){ addAct($('newActInput').value); $('newActInput').value=''; });
+  $('newActInput').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ addAct(this.value); this.value=''; }
+  });
+  $('copyBtn').addEventListener('click',function(){ if(activeProj()) copyText(buildText()); });
+  $('csvBtn').addEventListener('click',function(){
+    var p=activeProj(); if(!p) return;
+    var safe=p.name.replace(/[^\wäöüÄÖÜß \-]+/g,'').trim().replace(/\s+/g,'_')||'auftrag';
+    download('Zeiterfassung_'+safe+'.csv','﻿'+buildCSV());
+  });
+  $('printBtn').addEventListener('click',function(){ window.print(); });
+
+  // beim Verlassen/Pausieren der App Zustand sichern (Timer läuft über Zeitstempel weiter)
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) save(); });
+  window.addEventListener('beforeunload',save);
+
+  /* ---- Start ---- */
+  load();
+  if(state.projects.length===0){ newProject('Treppe (Beispiel)'); save(); }
+  if(!activeProj() && state.projects.length) state.activeId=state.projects[0].id;
+  render();
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+</script>
+</body>
+</html>
