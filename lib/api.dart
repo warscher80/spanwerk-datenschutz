@@ -120,6 +120,11 @@ class FootyMatch {
   final int? homeGoals;
   final int? awayGoals;
 
+  /// Ist die Anstoßzeit echt bekannt oder nur aus dem Datum abgeleitet?
+  /// Für abgeleitete Zeiten darf keine Erinnerung geplant werden – sie wäre
+  /// schlicht geraten.
+  final bool kickoffExact;
+
   // Anzeige-Name der Liga/des Wettbewerbs (z. B. "🇦🇹 2. Liga"),
   // wird nach dem Laden gesetzt, damit man in der Ansicht "Aktuell" sieht,
   // zu welcher Liga ein Spiel gehört.
@@ -135,6 +140,7 @@ class FootyMatch {
     required this.homeGoals,
     required this.awayGoals,
     this.competition,
+    this.kickoffExact = true,
   });
 
   bool get hasResult => homeGoals != null && awayGoals != null;
@@ -202,9 +208,31 @@ class FootyMatch {
       // Zeitstempel ist UTC ohne Offset -> als UTC interpretieren, dann lokal.
       kickoff = DateTime.tryParse(ts.endsWith('Z') ? ts : '${ts}Z')?.toLocal();
     }
+    // Rückfall ohne strTimestamp. Vorher wurde hier nur das Datum geparst –
+    // also lokale Mitternacht. Damit lag der „Anstoß" schon am Vormittag
+    // Stunden in der Vergangenheit, und currentMatches (Fenster ab vor 4 h)
+    // warf das Spiel aus der Liste. Es verschwand lautlos.
+    var zeitGenau = kickoff != null;
     kickoff ??= () {
-      final d = j['dateEvent'] as String?;
-      return d == null ? null : DateTime.tryParse(d);
+      final d = (j['dateEvent'] as String?)?.trim();
+      if (d == null || d.isEmpty) return null;
+      // TheSportsDB liefert die Uhrzeit getrennt mit – ebenfalls UTC.
+      final t = (j['strTime'] as String?)?.trim();
+      if (t != null && t.isNotEmpty && t != '00:00:00') {
+        final k = DateTime.tryParse('${d}T${t}Z');
+        if (k != null) {
+          zeitGenau = true;
+          return k.toLocal();
+        }
+      }
+      // Nur das Datum bekannt: bewusst das Tagesende statt Mitternacht, damit
+      // das Spiel den ganzen Tag über als anstehend sichtbar bleibt, statt
+      // sofort aus der Ansicht zu fallen. Die Uhrzeit ist eine Annahme –
+      // deshalb wird für solche Spiele keine Erinnerung geplant.
+      final tag = DateTime.tryParse(d);
+      return tag == null
+          ? null
+          : DateTime(tag.year, tag.month, tag.day, 23, 59);
     }();
 
     final status = (j['strStatus'] ?? '').toString();
@@ -225,6 +253,7 @@ class FootyMatch {
       finished: finished,
       homeGoals: hg,
       awayGoals: ag,
+      kickoffExact: zeitGenau,
     );
   }
 }
@@ -338,11 +367,17 @@ class Api {
     }
   }
 
-  static Future<List<FootyMatch>> _events(String path) async {
+  /// Spiele zu einem Pfad laden. **null bedeutet Fehlschlag**, eine leere
+  /// Liste bedeutet „es gibt dort keine Spiele".
+  ///
+  /// Früher lieferten beide Fälle `const []`. Der Aufrufer konnte eine
+  /// Drosselung nicht von einem leeren Spieltag unterscheiden – deshalb wurde
+  /// dieselbe Störung viermal nur im Symptom repariert (v1.9.2 bis v1.10.1).
+  static Future<List<FootyMatch>?> _events(String path) async {
     try {
       return _parseEvents(await _getJson(path, retries: 2));
     } catch (_) {
-      return const [];
+      return null;
     }
   }
 
@@ -352,6 +387,7 @@ class Api {
   static Future<List<FootyMatch>> currentMatches(
       List<League> leagues, DateTime now) async {
     final byId = <int, FootyMatch>{};
+    var erfolge = 0;
     for (final l in leagues) {
       final pool = <FootyMatch>[];
 
@@ -359,7 +395,12 @@ class Api {
       // Anfragen und liefert genau die noch offenen Partien).
       if (l.isCup) {
         final ko = l.cupCandidates.where((c) => c > 3).toList();
-        pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko));
+        try {
+          pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko));
+          erfolge++;
+        } catch (_) {
+          // Turnier übersprungen – zählt nicht als Erfolg.
+        }
         for (final m in pool) {
           m.competition = l.label;
           byId[m.id] = m;
@@ -371,7 +412,8 @@ class Api {
       // Nächste Spiele dieser Liga (liefert auch die aktuelle Runden-Nummer).
       final next = await _events('eventsnextleague.php?id=${l.id}');
       await Future.delayed(const Duration(milliseconds: 200));
-      if (next.isNotEmpty) {
+      if (next != null) erfolge++;
+      if (next != null && next.isNotEmpty) {
         pool.addAll(next);
         // kompletten aktuellen Spieltag nachladen (sonst nur 1–2 Spiele)
         var r = 0;
@@ -390,6 +432,13 @@ class Api {
         m.competition = l.label;
         byId[m.id] = m;
       }
+    }
+
+    // Hat KEIN einziger Wettbewerb geantwortet, ist das eine Störung und kein
+    // leerer Spielplan. Der Unterschied ist entscheidend: der Aufrufer darf
+    // eine bestehende Liste dann nicht durch eine leere ersetzen.
+    if (leagues.isNotEmpty && erfolge == 0) {
+      throw Exception('Keine Antwort vom Server');
     }
 
     // Nur noch nicht gespielte (anstehende/laufende) Partien der nächsten ~2 Wochen.
@@ -469,6 +518,34 @@ class Api {
     final m = _parseEvents(await _getJson('eventsround.php?id=$leagueId&r=$round&s=$season'));
     if (m.isNotEmpty && m.every((x) => x.finished)) _finishedCache[key] = m;
     return m;
+  }
+
+  /// Welche Runde ist die **erste** K.o.-Runde?
+  ///
+  /// Früher galt „höchste Rundennummer". Das stimmt nur für die Konvention
+  /// „Round of N" (32 = Sechzehntel, 16 = Achtel, 8 = Viertel, 4 = Halbfinale).
+  /// TheSportsDB verwendet daneben 125/150/160/200 für Viertelfinale,
+  /// Halbfinale, Spiel um Platz 3 und Finale – dort ist die höchste Nummer das
+  /// **Finale**. Die Titelchancen wurden dann über ein einziges Spiel
+  /// simuliert.
+  ///
+  /// Unabhängig von der Nummerierung gilt: die erste K.o.-Runde hat die
+  /// meisten Spiele. Bei Gleichstand entscheidet die höhere Nummer, damit sich
+  /// für die bisherige Konvention nichts ändert.
+  static int? ersteKoRunde(Iterable<FootyMatch> ko) {
+    if (ko.isEmpty) return null;
+    final anzahl = <int, int>{};
+    for (final m in ko) {
+      anzahl[m.round] = (anzahl[m.round] ?? 0) + 1;
+    }
+    var besterCode = anzahl.keys.first;
+    for (final e in anzahl.entries) {
+      final best = anzahl[besterCode]!;
+      if (e.value > best || (e.value == best && e.key > besterCode)) {
+        besterCode = e.key;
+      }
+    }
+    return besterCode;
   }
 
   /// Alle Spiele eines Turniers: probiert direkt alle möglichen Runden-Codes

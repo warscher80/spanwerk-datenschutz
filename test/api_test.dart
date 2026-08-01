@@ -134,6 +134,43 @@ void main() {
     });
   });
 
+  // Die Titelchancen simulieren ab der ersten K.o.-Runde. Wird die falsch
+  // bestimmt, rechnet die Simulation nur über ein einziges Spiel.
+  group('ersteKoRunde', () {
+    List<FootyMatch> spiele(Map<int, int> rundeZuAnzahl) {
+      final out = <FootyMatch>[];
+      var id = 1;
+      rundeZuAnzahl.forEach((runde, anzahl) {
+        for (var i = 0; i < anzahl; i++) {
+          out.add(FootyMatch.fromJson(ev(id: '${id++}', round: '$runde')));
+        }
+      });
+      return out;
+    }
+
+    test('Konvention "Round of N": 32 vor 16 vor 8 vor 4', () {
+      expect(Api.ersteKoRunde(spiele({32: 16, 16: 8, 8: 4, 4: 2})), 32);
+    });
+
+    test('Konvention 125/150/160/200: Viertelfinale, nicht Finale', () {
+      // Hier ist die HÖCHSTE Nummer das Finale - die alte Regel hätte 200
+      // gewählt und nur ein Spiel simuliert.
+      expect(Api.ersteKoRunde(spiele({125: 4, 150: 2, 160: 1, 200: 1})), 125);
+    });
+
+    test('Gemischte Nummerierung wählt die Runde mit den meisten Spielen', () {
+      expect(Api.ersteKoRunde(spiele({16: 8, 150: 2, 200: 1})), 16);
+    });
+
+    test('Bei gleicher Spielzahl entscheidet die höhere Nummer', () {
+      expect(Api.ersteKoRunde(spiele({160: 1, 200: 1})), 200);
+    });
+
+    test('Ohne Spiele null', () {
+      expect(Api.ersteKoRunde(const <FootyMatch>[]), isNull);
+    });
+  });
+
   group('FootyMatch.fromJson', () {
     test('Beendetes Spiel wird korrekt gelesen', () {
       final m = FootyMatch.fromJson(ev());
@@ -153,6 +190,37 @@ void main() {
     test('Zeitstempel ohne Zonenangabe wird als UTC gelesen', () {
       final m = FootyMatch.fromJson(ev(ts: '2026-05-01T18:30:00'));
       expect(m.kickoff, DateTime.utc(2026, 5, 1, 18, 30).toLocal());
+    });
+
+    test('Ohne Zeitstempel wird strTime genutzt', () {
+      final j = ev(ts: null)
+        ..['dateEvent'] = '2026-05-01'
+        ..['strTime'] = '18:30:00';
+      final m = FootyMatch.fromJson(j);
+      expect(m.kickoff, DateTime.utc(2026, 5, 1, 18, 30).toLocal());
+      expect(m.kickoffExact, isTrue);
+    });
+
+    test('Nur ein Datum ergibt Tagesende, nicht Mitternacht', () {
+      // Mitternacht liess das Spiel schon am Vormittag aus der Ansicht
+      // "Aktuell" fallen (Fenster ab vor 4 Stunden).
+      final j = ev(ts: null)..['dateEvent'] = '2026-05-01';
+      final m = FootyMatch.fromJson(j);
+      expect(m.kickoff, DateTime(2026, 5, 1, 23, 59));
+      expect(m.kickoffExact, isFalse, reason: 'Zeit ist geraten, keine Erinnerung planen');
+    });
+
+    test('Echter Zeitstempel gilt als genau', () {
+      expect(FootyMatch.fromJson(ev()).kickoffExact, isTrue);
+    });
+
+    test('strTime 00:00:00 gilt als "keine Zeit"', () {
+      final j = ev(ts: null)
+        ..['dateEvent'] = '2026-05-01'
+        ..['strTime'] = '00:00:00';
+      final m = FootyMatch.fromJson(j);
+      expect(m.kickoffExact, isFalse);
+      expect(m.kickoff, DateTime(2026, 5, 1, 23, 59));
     });
 
     test('tryFromJson liefert null statt zu werfen', () {

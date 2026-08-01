@@ -59,6 +59,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _loading = true;
   bool _loadInFlight = false;
   DateTime? _lastAutoLoad;
+  // Zählt jeden gestarteten Abruf. Wechselt der Nutzer die Liga, während noch
+  // eine Antwort unterwegs ist, darf die alte Antwort die neue Ansicht nicht
+  // mehr überschreiben.
+  int _ladeGeneration = 0;
   String? _error;
   DateTime? _updatedAt;
   String? _learnStatus; // z.B. "lernt … 60 %"
@@ -149,8 +153,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _scheduleReminders(List<FootyMatch> matches) {
     if (_currentMode || !_store.remindersEnabled) return;
     final now = DateTime.now();
+    // Nur Spiele mit echter Anstoßzeit: bei aus dem Datum abgeleiteten Zeiten
+    // wäre die Erinnerung geraten und käme zur falschen Stunde.
     final upcoming = matches
-        .where((x) => x.kickoff != null && x.kickoff!.isAfter(now))
+        .where((x) => x.kickoffExact && x.kickoff != null && x.kickoff!.isAfter(now))
         .toList();
     final id = ((_league.id.hashCode ^ (_isCup ? _roundCode : _day)) & 0x7fffffff) % 100000;
     if (upcoming.isEmpty) {
@@ -236,12 +242,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
     _loadInFlight = true;
+    final gen = ++_ladeGeneration;
+    // Ist inzwischen ein neuerer Abruf gestartet, gehört diese Antwort zu
+    // einer Ansicht, die der Nutzer schon verlassen hat.
+    bool veraltet() => gen != _ladeGeneration;
     try {
       var m = await _fetchMatches();
+      if (veraltet()) return;
       // Leerer Erstabruf ist meist nur Drosselung -> einmal nachfassen.
       if (m.isEmpty && !silent) {
         await Future.delayed(const Duration(milliseconds: 1200));
         m = await _fetchMatches();
+        if (veraltet()) return;
       }
       if (!_currentMode && !_isCup) await _store.setLastRound(_league.id, _day);
       // In den Einzel-Liga-Ansichten den Liga-Namen an jede Partie hängen
@@ -257,7 +269,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (ingestMatch(_store, _elo, x, neutral: _isCup)) learned = true;
       }
       if (learned) await _store.saveLearning();
-      if (!mounted) return;
+      if (!mounted || veraltet()) return;
       // Leeres Ergebnis (meist kurze Drosselung) darf eine bestehende Liste
       // nicht löschen – nur den Zeitstempel aktualisieren.
       if (m.isEmpty && _matches.isNotEmpty) {
@@ -271,7 +283,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _goalAlert(g);
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || veraltet()) return;
       setState(() { if (!silent) _error = _msg(e); _loading = false; });
     } finally {
       _loadInFlight = false;
@@ -374,7 +386,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ));
       return;
     }
-    final firstNo = ko.map((m) => m.round).reduce((a, b) => a > b ? a : b);
+    final firstNo = Api.ersteKoRunde(ko)!;
     final games = ko.where((m) => m.round == firstNo).map((m) {
       String? w;
       if (m.finished && m.hasResult && m.homeGoals != m.awayGoals) {
