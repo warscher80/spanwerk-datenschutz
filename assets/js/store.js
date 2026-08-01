@@ -296,7 +296,7 @@
       } catch (e) { angebote = []; }
     }
     return {
-      version: 9,
+      version: 10,
       settings: settings,
       kalkulationen: kalkulationen,
       angebote: angebote,
@@ -320,6 +320,15 @@
       // Betrieb/Pilot (Phase 9): Feedback- und Fehlerprotokoll
       feedback: [],
       fehlerlog: [],
+      // Kundenportal (Phase 12) – mandantengetrennt, standardmäßig leer
+      portalUsers: [],
+      portalLinks: [],
+      portalNachrichten: [],
+      portalProtokolle: [],
+      dokumentFreigaben: [],
+      zeichnungsFreigaben: [],
+      kundenUploads: [],
+      portalEreignisse: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -473,8 +482,17 @@
     if (!Array.isArray(obj.feedback)) obj.feedback = [];
     if (!Array.isArray(obj.fehlerlog)) obj.fehlerlog = [];
     (obj.users || []).forEach(function (u) { if (u && typeof u.pinGeaendert !== "boolean") u.pinGeaendert = false; });
+    // Kundenportal (Phase 12) – additiv, mandantengetrennt
+    if (!Array.isArray(obj.portalUsers)) obj.portalUsers = [];
+    if (!Array.isArray(obj.portalLinks)) obj.portalLinks = [];
+    if (!Array.isArray(obj.portalNachrichten)) obj.portalNachrichten = [];
+    if (!Array.isArray(obj.portalProtokolle)) obj.portalProtokolle = [];   // Annahmen/Ablehnungen
+    if (!Array.isArray(obj.dokumentFreigaben)) obj.dokumentFreigaben = [];
+    if (!Array.isArray(obj.zeichnungsFreigaben)) obj.zeichnungsFreigaben = [];
+    if (!Array.isArray(obj.kundenUploads)) obj.kundenUploads = [];
+    if (!Array.isArray(obj.portalEreignisse)) obj.portalEreignisse = [];
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
-    if (obj.version !== 9) { st.betrieb.letzteMigration = nowISO(); obj.version = 9; }
+    if (obj.version !== 10) { st.betrieb.letzteMigration = nowISO(); obj.version = 10; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();
     return obj;
   }

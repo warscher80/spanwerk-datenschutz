@@ -14,7 +14,7 @@ var G = {
 };
 G.window = G; G.self = G; global.window = G; global.self = G; global.localStorage = G.localStorage;
 function load(f) { var c = fs.readFileSync(path.join(DIR, f), "utf8"); new Function("window", "self", "globalThis", "localStorage", "console", c + "\n//# sourceURL=" + f)(G, G, G, G.localStorage, console); }
-["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js"].forEach(load);
+["products.js", "konfigurator.js", "vorlagen.js", "kalkulation.js", "angebot.js", "calc.js", "store.js", "auth.js", "auswertung.js", "planung.js", "dokumente.js", "betrieb.js", "mandant.js", "infra.js", "portal.js"].forEach(load);
 var P = G.Preisschmiede, Kalk = P.Kalkulation, Store = P.Store;
 
 var pass = 0, fail = 0, fails = [];
@@ -124,7 +124,7 @@ t("SNAP Revision B hat erhaltenen Vorgänger A", !!(revB && revA && revA.revisio
 // =============================================================
 t("MIG fresh() liefert aktuelle Version + alle Arrays", (function () {
   var f = Store.fresh ? Store.fresh() : null; if (!f) return true; // fresh evtl. nicht exportiert
-  return f.version === 9 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog);
+  return f.version === 10 && Array.isArray(f.dokumente) && Array.isArray(f.auftraege) && !!f.planung && Array.isArray(f.kalkulationen) && Array.isArray(f.angebote) && Array.isArray(f.feedback) && Array.isArray(f.fehlerlog) && Array.isArray(f.portalUsers) && Array.isArray(f.portalLinks);
 })());
 t("MIG migrate({}) füllt Defaults ohne Crash", (function () {
   try { var m = Store.migrate({}); return m && m.settings && Array.isArray(m.material) && Array.isArray(m.dokumente) && !!m.planung && !!m.settings.planung; } catch (e) { return false; }
@@ -503,6 +503,141 @@ t("INFRA Speicher-Healthcheck (localStorage vorhanden)", typeof G.localStorage.s
   var r;
   for (var i = 0; i < 6; i++) r = Infra.rateLimiter(zst, "login:user", 5, 600000, iso(2026, 8, 1, 8));
   t("INFRA Rate-Limit greift nach Überschreitung", r.erlaubt === false && !!r.gesperrtBis);
+})();
+
+// =============================================================
+//  KUNDENPORTAL / DIGITALE ANGEBOTSANNAHME  (Phase 12)
+// =============================================================
+var Portal = P.Portal, Ang = P.Angebot;
+
+function testAngebot(over) {
+  return Object.assign({
+    id: "ang-P1", nummer: "ANG-2026-0777", version: 2, status: "freigegeben", kundeId: "kunde-1",
+    mwstProz: 20, rabattProz: 0, kommission: "BV Portal", betreff: "Geländer", gueltigBisISO: iso(2027, 1, 1),
+    // enthält absichtlich INTERNE Felder, die niemals nach außen dürfen:
+    internenotiz: "Marge knapp – nachverhandeln", positionen: [
+      { nummer: "1", typ: "normal", kurz: "Geländer", menge: 1, einheit: "Stk", einzelpreis: 1000, mwstProz: 20, aktiv: true, einkaufspreis: 620, deckungsbeitrag: 300 },
+      { nummer: "2", typ: "optional", kurz: "Wartung", menge: 1, einheit: "Pausch", einzelpreis: 200, mwstProz: 20, aktiv: true, aktiviert: false, einkaufspreis: 40 },
+      { nummer: "3", typ: "alternativ", gruppe: "montage", kurz: "Montage Standard", menge: 1, einheit: "Pausch", einzelpreis: 300, mwstProz: 20, aktiv: true, aktiviert: false },
+      { nummer: "4", typ: "alternativ", gruppe: "montage", kurz: "Montage Premium", menge: 1, einheit: "Pausch", einzelpreis: 500, mwstProz: 20, aktiv: true, aktiviert: false }
+    ]
+  }, over || {});
+}
+var pctx = { firma: { name: "Alpha Metallbau" }, kunde: { name: "Kunde 1" }, datum: "2026-08-01", gueltigBis: "2027-01-01", jetztISO: iso(2026, 8, 1) };
+
+// 8/9 nur freigegebene Version sichtbar + KEINE internen Daten
+(function () {
+  var a = testAngebot();
+  var out = Portal.kundenAngebot(a, pctx);
+  t("PORTAL freigegebenes Angebot sichtbar", !!out && !out.fehler);
+  t("PORTAL keine internen Felder in Ausgabe", Ang.enthaeltInterne(out).length === 0);
+  t("PORTAL Ausgabe enthält keinen Einkaufspreis/Notiz im JSON", JSON.stringify(out).indexOf("620") < 0 && JSON.stringify(out).indexOf("nachverhandeln") < 0);
+  t("PORTAL Entwurf NICHT sichtbar", Portal.kundenAngebot(testAngebot({ status: "Entwurf" }), pctx) === null);
+})();
+
+// 2/3/4/5/6/7 sicherer Angebotslink
+(function () {
+  var tok = "PORTAL-LINK-TOKEN-XYZ";
+  var link = Portal.linkNeu({ mandantId: "mA", angebotId: "ang-P1", kundeId: "kunde-1", einmalig: true }, tok, iso(2026, 8, 1), 30);
+  t("PORTAL Link speichert Token nicht im Klartext", JSON.stringify(link).indexOf(tok) < 0 && !!link.tokenHash);
+  t("PORTAL Link korrektes Token akzeptiert", Portal.linkPruefen(link, tok, { mandantId: "mA", angebotId: "ang-P1" }, iso(2026, 8, 2)).ok === true);
+  t("PORTAL Link falsches Token abgelehnt", Portal.linkPruefen(link, "falsch", { mandantId: "mA", angebotId: "ang-P1" }, iso(2026, 8, 2)).ok === false);
+  t("PORTAL Link Cross-Tenant abgelehnt", Portal.linkPruefen(link, tok, { mandantId: "mB", angebotId: "ang-P1" }, iso(2026, 8, 2)).grund === "fremder Mandant");
+  t("PORTAL Link fremdes Angebot abgelehnt", Portal.linkPruefen(link, tok, { mandantId: "mA", angebotId: "ang-XX" }, iso(2026, 8, 2)).grund === "fremdes Angebot");
+  t("PORTAL Link abgelaufen abgelehnt", Portal.linkPruefen(link, tok, { mandantId: "mA", angebotId: "ang-P1" }, iso(2026, 10, 1)).grund === "abgelaufen");
+  Portal.linkVerwenden(link, iso(2026, 8, 2));
+  t("PORTAL Einmal-Link nach Nutzung abgelehnt", Portal.linkPruefen(link, tok, { mandantId: "mA", angebotId: "ang-P1" }, iso(2026, 8, 3)).grund === "bereits verwendet");
+  var link2 = Portal.linkNeu({ mandantId: "mA", angebotId: "ang-P1", kundeId: "kunde-1" }, tok, iso(2026, 8, 1), 30);
+  Portal.linkWiderrufen(link2, iso(2026, 8, 2));
+  t("PORTAL widerrufener Link abgelehnt", Portal.linkPruefen(link2, tok, { mandantId: "mA", angebotId: "ang-P1" }, iso(2026, 8, 3)).grund === "widerrufen");
+})();
+
+// 10/11/12/13/14 optionale/Alternativpositionen + server-seitige Neuberechnung
+(function () {
+  var a = testAngebot();
+  t("PORTAL Grundsumme ohne Optionen = 1000", eq(Portal.neuberechnung(a, {}).netto, 1000));
+  t("PORTAL Option nicht vorselektiert", a.positionen[1].aktiviert === false);
+  t("PORTAL mit Option = 1200", eq(Portal.neuberechnung(a, { optionen: ["2"] }).netto, 1200));
+  t("PORTAL Alternative Standard = 1300", eq(Portal.neuberechnung(a, { alternativen: { montage: "3" } }).netto, 1300));
+  t("PORTAL Alternative Premium = 1500", eq(Portal.neuberechnung(a, { alternativen: { montage: "4" } }).netto, 1500));
+  t("PORTAL Option + Alternative = 1700", eq(Portal.neuberechnung(a, { optionen: ["2"], alternativen: { montage: "4" } }).netto, 1700));
+  t("PORTAL ungültige Kombination erkannt (fremde Position)", Portal.auswahlGueltig(a, { alternativen: { montage: "99" } }) === false);
+  t("PORTAL gültige Kombination akzeptiert", Portal.auswahlGueltig(a, { optionen: ["2"], alternativen: { montage: "3" } }) === true);
+  // 15 Umsatzsteuer/Brutto konsistent
+  var s = Portal.neuberechnung(a, { optionen: ["2"] });
+  t("PORTAL USt 20% auf 1200 = 240, Brutto 1440", eq(s.mwst, 240) && eq(s.brutto, 1440));
+  // manipulierter Client-Preis wirkt NICHT (nur Auswahl-IDs zählen)
+  var manip = JSON.parse(JSON.stringify(a)); manip.positionen[0].einzelpreis = 1;
+  t("PORTAL Neuberechnung nutzt Angebotspreise, nicht Client (Kopie unabhängig)", eq(Portal.neuberechnung(a, {}).netto, 1000));
+  void manip;
+})();
+
+// 16/17/18/19/20/21 digitale Annahme + Schutz
+(function () {
+  var a = testAngebot();
+  var ctx = { mandantId: "mA", name: "Frau Muster", email: "muster@kunde.at", zeitzone: "Europe/Vienna", portalUser: { id: "pu1", rolle: "entscheider" }, funktion: "GF", firma: pctx.firma, kunde: pctx.kunde, datum: "2026-08-01", gueltigBis: "2027-01-01" };
+  var res = Portal.annahmeProtokoll(a, ctx, { optionen: ["2"] }, "Ich nehme das Angebot verbindlich an.", iso(2026, 8, 1));
+  t("PORTAL Annahme erzeugt Protokoll", res.ok === true && !!res.protokoll.siegel);
+  t("PORTAL Annahmeprotokoll Version+Summe korrekt", res.protokoll.angebotVersion === 2 && eq(res.protokoll.brutto, 1440));
+  t("PORTAL Annahmeprotokoll Siegel gültig", Portal.siegelPruefen(res.protokoll) === true);
+  var manip = JSON.parse(JSON.stringify(res.protokoll)); manip.brutto = 1;
+  t("PORTAL manipuliertes Protokoll erkannt", Portal.siegelPruefen(manip) === false);
+  t("PORTAL Doppelannahme verhindert", Portal.annahmePruefen(testAngebot({ status: "angenommen" }), ctx.portalUser, {}, iso(2026, 8, 1)).grund === "bereits angenommen");
+  t("PORTAL abgelaufenes Angebot nicht annehmbar", Portal.annahmePruefen(testAngebot({ gueltigBisISO: iso(2026, 1, 1) }), ctx.portalUser, {}, iso(2026, 8, 1)).grund === "abgelaufen");
+  t("PORTAL ersetzte Version nicht annehmbar", Portal.annahmePruefen(testAngebot({ ersetztDurch: "ang-neu" }), ctx.portalUser, {}, iso(2026, 8, 1)).grund === "ersetzt");
+  t("PORTAL Rolle 'leser' darf nicht annehmen", Portal.annahmePruefen(a, { rolle: "leser" }, {}, iso(2026, 8, 1)).grund === "keine berechtigung");
+  // Bestätigungsdokument
+  var best = Portal.bestaetigungsDokument(res.protokoll, { name: "Alpha Metallbau" }, iso(2026, 8, 1));
+  t("PORTAL Bestätigungsdokument unveränderlich + Kennung", best.unveraenderlich === true && /^BEST-/.test(best.dokumentkennung));
+})();
+
+// 22 Ablehnung (Grund optional)
+(function () {
+  var a = testAngebot();
+  t("PORTAL Ablehnung ohne Grund möglich", Portal.ablehnung(a, { mandantId: "mA", name: "X" }, null, "", iso(2026, 8, 1)).ok === true);
+  t("PORTAL Ablehnung mit Grund gespeichert", Portal.ablehnung(a, { mandantId: "mA", name: "X" }, "Preis", "zu teuer", iso(2026, 8, 1)).protokoll.grund === "Preis");
+})();
+
+// 23/24 Nachrichten – interne Notiz bleibt unsichtbar
+(function () {
+  var msgs = [
+    Portal.nachrichtNeu({ angebotId: "ang-P1", kundeId: "kunde-1", text: "Kundenfrage", kundeSichtbar: true }, iso(2026, 8, 1)),
+    Portal.nachrichtNeu({ angebotId: "ang-P1", kundeId: "kunde-1", text: "INTERN: Marge", intern: true, kundeSichtbar: false }, iso(2026, 8, 1)),
+    Portal.nachrichtNeu({ angebotId: "ang-P1", kundeId: "kunde-2", text: "Fremdkunde", kundeSichtbar: true }, iso(2026, 8, 1))
+  ];
+  var sicht = Portal.nachrichtenFuerKunde(msgs, "ang-P1", "kunde-1");
+  t("PORTAL Kunde sieht nur eigene sichtbare Nachricht", sicht.length === 1 && sicht[0].text === "Kundenfrage");
+  t("PORTAL interne Notiz bleibt unsichtbar", !sicht.some(function (m) { return m.intern; }));
+})();
+
+// 25/26 Dokumentfreigabe – internes Dokument bleibt unsichtbar
+(function () {
+  t("PORTAL freigegebenes Dokument sichtbar", Portal.dokumentSichtbar({ sichtbar: true }, null, iso(2026, 8, 1)) === true);
+  t("PORTAL internes Dokument unsichtbar", Portal.dokumentSichtbar({ sichtbar: false }, null, iso(2026, 8, 1)) === false);
+  t("PORTAL Dokument außerhalb Sichtbarkeitsfenster unsichtbar", Portal.dokumentSichtbar({ sichtbar: true, sichtbarBis: iso(2026, 7, 1) }, null, iso(2026, 8, 1)) === false);
+  t("PORTAL Dokument nur für erlaubte Ansprechpartner", Portal.dokumentSichtbar({ sichtbar: true, erlaubteAnsprechpartner: ["ap1"] }, "ap2", iso(2026, 8, 1)) === false);
+})();
+
+// 27 Kundenupload nicht automatisch technisch freigegeben
+(function () {
+  var up = Portal.uploadNeu({ mandantId: "mA", kundeId: "kunde-1", dateiname: "plan.pdf" }, iso(2026, 8, 1));
+  t("PORTAL Kundenupload ungeprüft + nicht technisch freigegeben", up.pruefStatus === "ungeprüft" && up.technischFreigegeben === false);
+})();
+
+// 31 Kundenkonto-Passwort + Rollen
+(function () {
+  var u = Portal.portalUserNeu({ kundeId: "kunde-1", name: "Chef", email: "Chef@Kunde.AT", rolle: "kundenadmin" }, iso(2026, 8, 1));
+  Portal.passwortSetzen(u, "sicher123");
+  t("PORTAL E-Mail normalisiert (lowercase)", u.email === "chef@kunde.at");
+  t("PORTAL Passwort korrekt akzeptiert", Portal.passwortPruefen(u, "sicher123") === true);
+  t("PORTAL Passwort falsch abgelehnt", Portal.passwortPruefen(u, "falsch") === false);
+  t("PORTAL Kundenadmin darf annehmen, leser nicht", Portal.darfAnnehmen("kundenadmin") === true && Portal.darfAnnehmen("leser") === false);
+})();
+
+// 17-intern Auftragsstatus-Mapping verbirgt interne Details
+(function () {
+  t("PORTAL interner Status wird auf Kundenstatus abgebildet", Portal.kundenStatus("In Fertigung") === "in Fertigung" && Portal.kundenStatus("Beauftragt") === "Auftrag bestätigt");
+  t("PORTAL unbekannter interner Status neutral abgebildet", Portal.kundenStatus("Maschinenproblem") === "in Bearbeitung");
 })();
 
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
