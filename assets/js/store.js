@@ -300,7 +300,8 @@
     // Reichert das freigegebene Beispielangebot um eine Alternativgruppe an
     // und legt Portalzugang (Konto + Link-Hash), Dokumentfreigabe und eine
     // Kundenfrage an – alles klar als Beispiel markiert.
-    var portalUsers = [], portalLinks = [], portalNachrichten = [], dokumentFreigaben = [];
+    var portalUsers = [], portalLinks = [], portalNachrichten = [], dokumentFreigaben = [], zeichnungsFreigaben = [], kundenUploads = [];
+    var dokumenteSeed = []; try { dokumenteSeed = beispielDokumente(kunden, auftraegeSeed); } catch (e) { dokumenteSeed = []; }
     var freig = (angebote || []).filter(function (a) { return a.status === "freigegeben"; })[0];
     if (freig) {
       freig.gueltigBisISO = new Date(Date.now() + 30 * 86400000).toISOString();
@@ -335,6 +336,35 @@
         absender: kundeP.ansprechpartner || "Kunde", empfaenger: "Vertrieb", text: "Ist eine Montage am Wochenende möglich?",
         zeitpunkt: nowISO(), status: "offen", kundeSichtbar: true, intern: false, anhaenge: [], beispiel: true
       });
+
+      // Zeichnungsfreigabe (Phase 12B): aktuelle Revision B sichtbar „zur Prüfung",
+      // ältere Revision A eindeutig als „ersetzt" markiert (nicht mehr freigebbar).
+      var zRevB = dokumenteSeed.filter(function (dk) { return dk.zeichnungsnummer === "1045" && dk.revision === "B"; })[0];
+      var zRevA = dokumenteSeed.filter(function (dk) { return dk.zeichnungsnummer === "1045" && dk.revision === "A"; })[0];
+      if (zRevB) {
+        zeichnungsFreigaben.push({
+          id: uid(), mandantId: null, kundeId: kundeP.id, dokumentId: zRevB.id,
+          zeichnungsnummer: "1045", revision: "B", titel: zRevB.beschreibung || "Geländerpfosten", datum: nowISO(),
+          sichtbar: true, sichtbarAb: null, sichtbarBis: null, erlaubteAnsprechpartner: [],
+          status: "zur Prüfung", aktuell: true, vorgaengerId: zRevA ? zRevA.id : null, entscheidungen: [], erstellt: nowISO(), beispiel: true
+        });
+      }
+      if (zRevA) {
+        zeichnungsFreigaben.push({
+          id: uid(), mandantId: null, kundeId: kundeP.id, dokumentId: zRevA.id,
+          zeichnungsnummer: "1045", revision: "A", titel: (zRevA.beschreibung || "Geländerpfosten") + " (alt)", datum: nowISO(),
+          sichtbar: true, sichtbarAb: null, sichtbarBis: null, erlaubteAnsprechpartner: [],
+          status: "ersetzt", aktuell: false, vorgaengerId: null, entscheidungen: [], erstellt: nowISO(), beispiel: true
+        });
+      }
+      // Beispiel-Kundenupload (intern „ungeprüft", nie automatisch freigegeben).
+      kundenUploads.push({
+        id: uid(), mandantId: null, kundeId: kundeP.id, angebotId: freig.id,
+        dateiname: "Baustellenfoto_Eingang.jpg", typ: "Foto", mime: "image/jpeg", beschreibung: "Aktuelle Einbausituation vor Ort",
+        projekt: freig.bezeichnung || "", kommission: freig.kommission || "", version: 1,
+        groesse: 240000, inhalt: null, pruefStatus: "ungeprüft", technischFreigegeben: false, sichtbarIntern: true,
+        hochgeladen: nowISO(), beispiel: true
+      });
     }
 
     return {
@@ -358,7 +388,7 @@
       // Fertigungsplanung (Phase 7C)
       planung: beispielPlanung(auftraegeSeed, settings, mitarbeiter),
       // Dokumente/Zeichnungen/Stücklisten (Phase 7D)
-      dokumente: beispielDokumente(kunden, auftraegeSeed),
+      dokumente: dokumenteSeed,
       // Betrieb/Pilot (Phase 9): Feedback- und Fehlerprotokoll
       feedback: [],
       fehlerlog: [],
@@ -368,8 +398,8 @@
       portalNachrichten: portalNachrichten,
       portalProtokolle: [],
       dokumentFreigaben: dokumentFreigaben,
-      zeichnungsFreigaben: [],
-      kundenUploads: [],
+      zeichnungsFreigaben: zeichnungsFreigaben,
+      kundenUploads: kundenUploads,
       portalEreignisse: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }

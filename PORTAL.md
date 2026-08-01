@@ -49,6 +49,33 @@ Engines und deren Sicherheitslogik nutzt (`assets/js/portal.js`, `angebot.js`,
   kennung).
 - **Ablehnung:** optionaler Grund + Kommentar (Grund nicht erzwungen).
 
+## Kundenuploads (Phase 12B)
+
+- Kunde lädt Dateien hoch, ordnet Kommission/Projekt zu, wählt Dokumenttyp und
+  Beschreibung; Upload-Status wird angezeigt.
+- **Serverseitig-äquivalente Prüfung** vor Anlage: Dateiendung (Whitelist),
+  MIME-Typ, Dateigröße (max 15 MB), Schutz vor **gefährlichen/aktiven Formaten**
+  (u. a. `.exe/.bat/.js/.html/.svg/.php`, auch bei Doppelendungen wie
+  `plan.pdf.exe`), ungültige Dateinamen.
+- Upload wird intern als **„ungeprüft"** gekennzeichnet und gilt **nie**
+  automatisch als technisch freigegeben. Mandantengetrennte Speicherung.
+- **Interne Prüfansicht** (System-Seite): Uploads freigeben/ablehnen.
+
+## Zeichnungsfreigabe (Phase 12B)
+
+- Kunde sieht **ausschließlich ausdrücklich freigegebene** Zeichnungen
+  (Zeichnungsnummer, Revision, Datum, Status).
+- Öffnen/Herunterladen der hinterlegten Datei.
+- Entscheidung **„freigeben"** oder **„Änderung erforderlich"** (Kommentar bei
+  Änderungswunsch **erforderlich**). Jede Entscheidung wird mit Kunde, Person,
+  Revision und Zeitpunkt protokolliert.
+- **Ersetzte/alte Revisionen** werden eindeutig als „ersetzt" gekennzeichnet und
+  können **nicht** mehr freigegeben werden; keine Doppelfreigabe.
+- Interne Benutzer werden über die Entscheidung benachrichtigt (Portal-Ereignis)
+  und verwalten Sichtbarkeit in der internen Ansicht.
+- Ausdrücklicher Hinweis: **keine qualifizierte elektronische Signatur** und
+  **kein Ersatz** für eine technische/statische Prüfung durch den Kunden.
+
 ## Was NIE im Portal erscheint
 
 Einkaufspreise, Materialaufschläge, interne Stundensätze, Maschinen-/Rüstkosten,
@@ -90,8 +117,10 @@ Rechtsberatung geprüft werden.
 - **Kein echter E-Mail-Versand** (Einladung/Benachrichtigung nur Vorschau/
   „nicht gesendet – Dienst nicht konfiguriert").
 - PDF entsteht über die Druckfunktion des Browsers (kein Server-PDF-Dienst).
-- Kundenuploads/Zeichnungsfreigabe sind im Datenmodell vorbereitet; die
-  Oberfläche dieser Nebenfunktionen ist noch nicht ausgebaut.
+- Kundenuploads/Zeichnungsfreigabe sind vollständig umgesetzt (Phase 12B). Die
+  Datei-Sicherheitsprüfung ist client-/regelbasiert (Typ/MIME/Größe/Endung);
+  ein echter serverseitiger Virenscan erfordert ein Backend und ist bewusst
+  nicht vorgetäuscht.
 
 ## Nächster Schritt
 

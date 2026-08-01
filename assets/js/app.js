@@ -1401,9 +1401,13 @@
     // Infrastruktur & Produktion (Adapter, Alarme, geplante Jobs) – Phase 11
     html += infraCardHtml(now);
 
+    // Kundenportal – interne Prüf-/Verwaltungsansicht (Phase 12B)
+    html += portalAdminCardHtml(now);
+
     root.innerHTML = html;
     verdrahteMandantenCard(now);
     verdrahteInfraCard(now);
+    verdrahtePortalAdminCard();
     // Verdrahtung
     $("#sys-stufe-set").onclick = function () { db.settings.betrieb.releaseStufe = $("#sys-stufe").value; Store.save(); aktualisiereReleaseBanner(); markierePilotFunktionen(); renderSystem(); toast("Freigabestufe gesetzt."); };
     $("#sys-wartung").onclick = function () { db.settings.betrieb.wartungsmodus = !db.settings.betrieb.wartungsmodus; Store.save(); aktualisiereReleaseBanner(); renderSystem(); };
@@ -1555,6 +1559,53 @@
   function verdrahteInfraCard(now) {
     if (!Infra) return;
     if ($("#infra-mailvorschau")) $("#infra-mailvorschau").onclick = function () { infraMailVorschau(); };
+  }
+
+  // ============================================================
+  //  KUNDENPORTAL – interne Prüf-/Verwaltungsansicht (Phase 12B)
+  //  Arbeitet auf der aktiven Mandanten-db. Kundenuploads prüfen,
+  //  Zeichnungsfreigaben verwalten, Portal-Ereignisse sehen.
+  // ============================================================
+  function kundenName(id) { var k = (db.kunden || []).filter(function (x) { return x.id === id; })[0]; return k ? k.name : (id || "—"); }
+  function portalAdminCardHtml(now) {
+    if (!w.Preisschmiede.Portal) return "";
+    var ups = (db.kundenUploads || []).slice().reverse();
+    var zfs = (db.zeichnungsFreigaben || []).slice();
+    var evs = (db.portalEreignisse || []).slice().reverse().slice(0, 8);
+    var offeneUp = ups.filter(function (u) { return u.pruefStatus === "ungeprüft"; }).length;
+
+    var html = '<div class="card" style="margin-top:12px;border-left:4px solid #5a9d7a"><h3>📨 Kundenportal – Uploads &amp; Zeichnungsfreigaben</h3>';
+    // Kundenuploads
+    html += '<h4 style="margin:8px 0 4px">Kundenuploads (' + offeneUp + ' ungeprüft)</h4>';
+    html += ups.length ? '<div class="table-wrap"><table><thead><tr><th>Datei</th><th>Typ</th><th>Kunde</th><th>Kommission</th><th>Größe</th><th>Status</th><th></th></tr></thead><tbody>' +
+      ups.slice(0, 20).map(function (u) {
+        var tag = u.technischFreigegeben ? '<span class="tag" style="background:#2fbf71;color:#fff">freigegeben</span>' : u.pruefStatus === "abgelehnt" ? '<span class="tag" style="background:#e06666;color:#fff">abgelehnt</span>' : '<span class="tag" style="background:#e0a000;color:#fff">' + esc(u.pruefStatus) + "</span>";
+        var akt = u.pruefStatus === "ungeprüft" ? '<button class="btn sm" data-up-ok="' + esc(u.id) + '" type="button">Freigeben</button> <button class="btn sm ghost" data-up-no="' + esc(u.id) + '" type="button">Ablehnen</button>' : "—";
+        return "<tr><td>" + esc(u.dateiname) + "</td><td>" + esc(u.typ || "") + "</td><td>" + esc(kundenName(u.kundeId)) + "</td><td>" + esc(u.kommission || "") + "</td><td>" + Math.round((u.groesse || 0) / 1024) + " kB</td><td>" + tag + "</td><td>" + akt + "</td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Noch keine Kundenuploads.</div>';
+    html += '<p class="hint">Kundenuploads gelten nie automatisch als technisch freigegeben. Ausführbare/aktive Dateitypen werden bereits beim Upload abgelehnt.</p>';
+
+    // Zeichnungsfreigaben
+    html += '<h4 style="margin:12px 0 4px">Zeichnungsfreigaben</h4>';
+    html += zfs.length ? '<div class="table-wrap"><table><thead><tr><th>Zeichnung</th><th>Rev.</th><th>Kunde</th><th>Sichtbar</th><th>Status</th><th>Kundenentscheidung</th><th></th></tr></thead><tbody>' +
+      zfs.map(function (z) {
+        var letzte = (z.entscheidungen || [])[z.entscheidungen.length - 1];
+        var ent = letzte ? esc(letzte.entscheidung) + (letzte.kommentar ? " – " + esc(letzte.kommentar) : "") + " (" + esc(letzte.person || "") + ")" : "—";
+        var tog = z.status === "ersetzt" ? "—" : '<button class="btn sm ghost" data-zf-tog="' + esc(z.id) + '" type="button">' + (z.sichtbar ? "Verbergen" : "Sichtbar") + "</button>";
+        return "<tr><td>" + esc(z.zeichnungsnummer) + " " + esc(z.titel || "") + "</td><td>" + esc(z.revision) + "</td><td>" + esc(kundenName(z.kundeId)) + "</td><td>" + (z.sichtbar ? "ja" : "nein") + "</td><td>" + esc(z.status) + "</td><td>" + ent + "</td><td>" + tog + "</td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px">Keine Zeichnungsfreigaben angelegt. (Zeichnungen werden auf der Dokumentenseite freigegeben.)</div>';
+    html += '<p class="hint">Kundenentscheidungen sind dokumentierte Zustimmungen, keine qualifizierte E-Signatur und ersetzen keine technische Prüfung. Ersetzte Revisionen können nicht mehr freigegeben werden.</p>';
+
+    // Ereignisse
+    html += '<h4 style="margin:12px 0 4px">Portal-Ereignisse</h4>';
+    html += evs.length ? evs.map(function (e) { return '<div class="zeile"><span>' + esc(e.text || e.typ) + '</span><span class="muted" style="font-size:11px">' + fmtDateTime(e.zeitpunkt) + "</span></div>"; }).join("") : '<div class="muted" style="font-size:12px">Keine Ereignisse.</div>';
+    html += "</div>";
+    return html;
+  }
+  function verdrahtePortalAdminCard() {
+    $all("[data-up-ok]").forEach(function (b) { b.onclick = function () { var u = (db.kundenUploads || []).filter(function (x) { return x.id === b.getAttribute("data-up-ok"); })[0]; if (u) { u.pruefStatus = "freigegeben"; u.technischFreigegeben = true; u.geprueftVon = (Auth.current() || {}).benutzername || ""; Store.save(); renderSystem(); toast("Upload freigegeben."); } }; });
+    $all("[data-up-no]").forEach(function (b) { b.onclick = function () { var u = (db.kundenUploads || []).filter(function (x) { return x.id === b.getAttribute("data-up-no"); })[0]; if (u) { u.pruefStatus = "abgelehnt"; u.technischFreigegeben = false; u.geprueftVon = (Auth.current() || {}).benutzername || ""; Store.save(); renderSystem(); toast("Upload abgelehnt."); } }; });
+    $all("[data-zf-tog]").forEach(function (b) { b.onclick = function () { var z = (db.zeichnungsFreigaben || []).filter(function (x) { return x.id === b.getAttribute("data-zf-tog"); })[0]; if (z && z.status !== "ersetzt") { z.sichtbar = !z.sichtbar; Store.save(); renderSystem(); toast(z.sichtbar ? "Zeichnung im Portal sichtbar." : "Zeichnung verborgen."); } }; });
   }
   // E-Mail-Vorschau: baut eine echte Nachricht aus den Vorlagen, zeigt sie an
   // und macht transparent, dass OHNE Dienst NICHTS versendet wird.

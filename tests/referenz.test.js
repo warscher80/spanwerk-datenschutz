@@ -620,8 +620,42 @@ var pctx = { firma: { name: "Alpha Metallbau" }, kunde: { name: "Kunde 1" }, dat
 
 // 27 Kundenupload nicht automatisch technisch freigegeben
 (function () {
-  var up = Portal.uploadNeu({ mandantId: "mA", kundeId: "kunde-1", dateiname: "plan.pdf" }, iso(2026, 8, 1));
-  t("PORTAL Kundenupload ungeprüft + nicht technisch freigegeben", up.pruefStatus === "ungeprüft" && up.technischFreigegeben === false);
+  var r = Portal.uploadNeu({ mandantId: "mA", kundeId: "kunde-1", dateiname: "plan.pdf", mime: "application/pdf", groesse: 2048 }, iso(2026, 8, 1));
+  t("PORTAL Kundenupload ungeprüft + nicht technisch freigegeben", r.ok && r.upload.pruefStatus === "ungeprüft" && r.upload.technischFreigegeben === false);
+})();
+
+// 27b Upload-Validierung: Typ/MIME/Größe/gefährlich (Phase 12B)
+(function () {
+  t("PORTAL Upload gültige PDF akzeptiert", Portal.uploadPruefen({ dateiname: "plan.pdf", mime: "application/pdf", groesse: 1024 }).ok === true);
+  t("PORTAL Upload unzulässiger Dateityp (.exe) abgelehnt", Portal.uploadPruefen({ dateiname: "virus.exe", mime: "application/octet-stream", groesse: 100 }).ok === false);
+  t("PORTAL Upload Doppelendung (.pdf.exe) abgelehnt", Portal.uploadPruefen({ dateiname: "plan.pdf.exe", groesse: 100 }).ok === false);
+  t("PORTAL Upload aktives Format (.svg/.html) abgelehnt", Portal.uploadPruefen({ dateiname: "x.svg", groesse: 100 }).ok === false && Portal.uploadPruefen({ dateiname: "x.html", groesse: 100 }).ok === false);
+  t("PORTAL Upload falscher MIME abgelehnt", Portal.uploadPruefen({ dateiname: "bild.png", mime: "application/x-msdownload", groesse: 100 }).ok === false);
+  t("PORTAL Upload zu große Datei abgelehnt", Portal.uploadPruefen({ dateiname: "gross.pdf", mime: "application/pdf", groesse: 20 * 1024 * 1024 }).ok === false);
+  t("PORTAL Upload leere Datei abgelehnt", Portal.uploadPruefen({ dateiname: "leer.pdf", groesse: 0 }).ok === false);
+  t("PORTAL uploadNeu lehnt gefährliche Datei ab", Portal.uploadNeu({ mandantId: "mA", kundeId: "k", dateiname: "run.bat", groesse: 10 }).ok === false);
+})();
+
+// 28 Zeichnungsfreigabe (Phase 12B): freigeben / Änderung / ersetzte Revision
+(function () {
+  var f = Portal.zeichnungFreigabeNeu({ mandantId: "mA", kundeId: "kunde-1", dokumentId: "dok-1", zeichnungsnummer: "1045", revision: "B", titel: "Geländerpfosten", sichtbar: true, aktuell: true }, iso(2026, 8, 1));
+  t("PORTAL Zeichnung sichtbar für Kunden", Portal.zeichnungSichtbar(f, null, iso(2026, 8, 1)) === true);
+  // fremder Kunde / fremder Mandant
+  t("PORTAL Zeichnung: fremder Kunde abgelehnt", Portal.zeichnungEntscheidung(f, "freigegeben", { mandantId: "mA", kundeId: "kunde-2", name: "X" }, "", iso(2026, 8, 1)).grund === "fremder Kunde");
+  t("PORTAL Zeichnung: fremder Mandant abgelehnt", Portal.zeichnungEntscheidung(f, "freigegeben", { mandantId: "mB", kundeId: "kunde-1", name: "X" }, "", iso(2026, 8, 1)).grund === "fremder Mandant");
+  // Änderung ohne Kommentar -> abgelehnt
+  t("PORTAL Zeichnung: Änderung ohne Kommentar abgelehnt", Portal.zeichnungEntscheidung(f, "Änderung verlangt", { mandantId: "mA", kundeId: "kunde-1", name: "X" }, "", iso(2026, 8, 1)).grund === "kommentar erforderlich");
+  // Änderung mit Kommentar -> protokolliert
+  var r1 = Portal.zeichnungEntscheidung(f, "Änderung verlangt", { mandantId: "mA", kundeId: "kunde-1", name: "Frau Muster" }, "Bitte Handlauf höher.", iso(2026, 8, 1));
+  t("PORTAL Zeichnung: Änderung protokolliert", r1.ok === true && f.status === "Änderung verlangt" && f.entscheidungen.length === 1 && f.entscheidungen[0].person === "Frau Muster");
+  // neue Revision -> alte ersetzen -> ersetzte darf nicht mehr freigegeben werden
+  Portal.zeichnungErsetzen(f);
+  t("PORTAL Zeichnung: ersetzte Revision gesperrt", f.status === "ersetzt" && Portal.zeichnungEntscheidung(f, "freigegeben", { mandantId: "mA", kundeId: "kunde-1", name: "X" }, "", iso(2026, 8, 2)).grund === "ersetzte Revision");
+  // aktuelle Revision freigeben + keine Doppelfreigabe
+  var g = Portal.zeichnungFreigabeNeu({ mandantId: "mA", kundeId: "kunde-1", zeichnungsnummer: "1045", revision: "C", sichtbar: true }, iso(2026, 8, 2));
+  var r2 = Portal.zeichnungEntscheidung(g, "freigegeben", { mandantId: "mA", kundeId: "kunde-1", name: "Frau Muster" }, "", iso(2026, 8, 2));
+  t("PORTAL Zeichnung: aktuelle Revision freigegeben", r2.ok === true && g.status === "freigegeben");
+  t("PORTAL Zeichnung: keine Doppelfreigabe", Portal.zeichnungEntscheidung(g, "freigegeben", { mandantId: "mA", kundeId: "kunde-1", name: "X" }, "", iso(2026, 8, 2)).grund === "bereits freigegeben");
 })();
 
 // 31 Kundenkonto-Passwort + Rollen

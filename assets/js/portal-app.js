@@ -212,10 +212,12 @@
       (gruppen.abgelehnt.length ? '<h3 style="margin-top:12px">Abgelehnt</h3>' + liste(gruppen.abgelehnt, "") : "") +
       (gruppen.abgelaufen.length ? '<h3 style="margin-top:12px">Abgelaufen</h3>' + liste(gruppen.abgelaufen, "") : "") +
       '</div>' +
-      '<div class="pp-card"><h2>Freigegebene Dokumente</h2>' + (freigDok.length ? freigDok.map(function (f) { return '<div class="pp-list-item"><div class="pp-li-main"><div class="pp-li-titel">' + esc(f.name || f.dateiname || "Dokument") + '</div><div class="pp-li-sub">Rev. ' + esc(f.revision || "-") + '</div></div><span class="pp-tag ok">freigegeben</span></div>'; }).join("") : '<div class="pp-muted">Aktuell sind keine Dokumente für Sie freigegeben.</div>') + '</div>' +
+      '<div class="pp-card"><div class="pp-btnrow" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Zeichnungen &amp; Dokumente</h2><button class="pp-btn brand" id="pp-open-dok" type="button">Öffnen ›</button></div>' +
+      '<div class="pp-muted" style="margin-top:6px">' + meineZeichnungen().length + ' freigegebene Zeichnung(en) · ' + meineUploads().length + ' eigene(r) Upload(s)</div></div>' +
       '<div class="pp-footer">' + esc(b.name || "") + ' · ' + esc(b.kontakt || "") + ' · <a href="' + esc(b.datenschutz || "datenschutz.html") + '">Datenschutz</a></div></div>';
     root().innerHTML = html; wireHeader();
     Array.prototype.forEach.call(root().querySelectorAll("[data-ang]"), function (li) { li.onclick = function () { openAngebot(li.getAttribute("data-ang")); }; });
+    if (d.getElementById("pp-open-dok")) d.getElementById("pp-open-dok").onclick = function () { renderDokumente("dashboard"); };
   }
 
   // ================================================================
@@ -294,7 +296,8 @@
     // Aktionen
     html += '<div class="pp-card pp-noprint"><div class="pp-btnrow">' +
       '<button class="pp-btn" id="pp-pdf">📄 Angebot als PDF</button>' +
-      '<button class="pp-btn" id="pp-frage">✉️ Frage stellen</button></div>' +
+      '<button class="pp-btn" id="pp-frage">✉️ Frage stellen</button>' +
+      '<button class="pp-btn" id="pp-dok">📁 Zeichnungen &amp; Uploads</button></div>' +
       (angenommen || ersetzt ? "" : '<div class="pp-btnrow" style="margin-top:10px"><button class="pp-btn danger" id="pp-ablehnen">Ablehnen</button><button class="pp-btn brand lg" id="pp-annehmen"' + (abgelaufen ? " disabled" : "") + '>Angebot annehmen</button></div>') +
       '</div>';
 
@@ -312,6 +315,7 @@
     Array.prototype.forEach.call(root().querySelectorAll("[data-altnone]"), function (rb) { rb.onchange = function () { if (rb.checked) setzeAlternative(rb.getAttribute("data-altnone"), null); }; });
     if (d.getElementById("pp-pdf")) d.getElementById("pp-pdf").onclick = angebotPdf;
     if (d.getElementById("pp-frage")) d.getElementById("pp-frage").onclick = frageStellen;
+    if (d.getElementById("pp-dok")) d.getElementById("pp-dok").onclick = function () { renderDokumente("angebot"); };
     if (d.getElementById("pp-annehmen")) d.getElementById("pp-annehmen").onclick = annahmeDialog;
     if (d.getElementById("pp-ablehnen")) d.getElementById("pp-ablehnen").onclick = ablehnenDialog;
   }
@@ -465,6 +469,140 @@
       "</tbody></table>" +
       '<p>' + esc(protokoll.erklaerung) + "</p>";
     pdfWindow("Bestätigung " + protokoll.angebotNr, S.brand, inner);
+  }
+
+  // ================================================================
+  //  DOKUMENTE: Zeichnungsfreigabe + Kundenuploads (Phase 12B)
+  // ================================================================
+  function meineZeichnungen() {
+    return (S.db.zeichnungsFreigaben || []).filter(function (z) {
+      return z.kundeId === S.kundeId && Portal.zeichnungSichtbar(z, S.portalUser && S.portalUser.ansprechpartnerId, nowISO());
+    });
+  }
+  function meineUploads() {
+    return (S.db.kundenUploads || []).filter(function (u) { return u.kundeId === S.kundeId; });
+  }
+  function zeichnungTag(status) {
+    var c = status === "freigegeben" ? "ok" : status === "Änderung verlangt" ? "warn" : status === "ersetzt" ? "err" : "info";
+    return '<span class="pp-tag ' + c + '">' + esc(status) + "</span>";
+  }
+  function renderDokumente(zurueck) {
+    S.view = "dokumente";
+    var zeich = meineZeichnungen();
+    var uploads = meineUploads();
+    var back = zurueck === "angebot" && S.angebot ? '<button class="pp-btn ghost" id="pp-dok-back">‹ Zurück zum Angebot</button>' : '<button class="pp-btn ghost" id="pp-dok-back">‹ Übersicht</button>';
+    var html = header() + '<div class="pp-wrap"><div class="pp-noprint" style="margin-bottom:10px">' + back + "</div>";
+
+    // Zeichnungsübersicht
+    html += '<div class="pp-card"><h2>Zeichnungen zur Freigabe</h2><div class="pp-muted" style="margin-bottom:6px">Sie sehen ausschließlich ausdrücklich für Sie freigegebene Zeichnungen.</div>';
+    html += zeich.length ? zeich.map(function (z) {
+      return '<div class="pp-list-item" data-zeich="' + esc(z.id) + '"><div class="pp-li-main"><div class="pp-li-titel">Zeichnung ' + esc(z.zeichnungsnummer) + " · Rev. " + esc(z.revision) + '</div>' +
+        '<div class="pp-li-sub">' + esc(z.titel || "") + " · " + fmtDate(z.datum) + '</div></div>' + zeichnungTag(z.status) + "</div>";
+    }).join("") : '<div class="pp-muted">Derzeit sind keine Zeichnungen für Sie freigegeben.</div>';
+    html += "</div>";
+
+    // Uploads
+    html += '<div class="pp-card"><div class="pp-btnrow" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Meine Uploads</h2><button class="pp-btn brand" id="pp-upload-neu" type="button">＋ Datei hochladen</button></div>';
+    html += uploads.length ? uploads.map(function (u) {
+      var tag = u.technischFreigegeben ? '<span class="pp-tag ok">freigegeben</span>' : u.pruefStatus === "abgelehnt" ? '<span class="pp-tag err">abgelehnt</span>' : '<span class="pp-tag warn">' + esc(u.pruefStatus) + "</span>";
+      return '<div class="pp-list-item" style="cursor:default"><div class="pp-li-main"><div class="pp-li-titel">' + esc(u.dateiname) + '</div>' +
+        '<div class="pp-li-sub">' + esc(u.typ || "") + " · " + esc(u.kommission || u.projekt || "") + " · " + Math.round((u.groesse || 0) / 1024) + " kB · " + fmtDT(u.hochgeladen) + '</div></div>' + tag + "</div>";
+    }).join("") : '<div class="pp-muted" style="margin-top:8px">Noch keine Uploads. Sie können z. B. Bestellunterlagen, Fotos oder freigegebene Zeichnungen hochladen.</div>';
+    html += '<div class="pp-muted" style="margin-top:8px">Hochgeladene Dateien werden intern geprüft. Sie gelten nicht automatisch als technisch freigegeben.</div></div>';
+
+    html += '<div class="pp-footer">' + esc(S.brand.name || "") + " · " + esc(S.brand.kontakt || "") + "</div></div>";
+    root().innerHTML = html; wireHeader();
+    d.getElementById("pp-dok-back").onclick = function () { if (zurueck === "angebot" && S.angebot) renderAngebot(); else renderDashboard(); };
+    Array.prototype.forEach.call(root().querySelectorAll("[data-zeich]"), function (li) { li.onclick = function () { renderZeichnung(li.getAttribute("data-zeich"), zurueck); }; });
+    if (d.getElementById("pp-upload-neu")) d.getElementById("pp-upload-neu").onclick = function () { uploadDialog(zurueck); };
+  }
+
+  function findDokument(id) { return (S.db.dokumente || []).filter(function (x) { return x.id === id; })[0]; }
+  function renderZeichnung(freigabeId, zurueck) {
+    var z = (S.db.zeichnungsFreigaben || []).filter(function (x) { return x.id === freigabeId; })[0];
+    if (!z || z.kundeId !== S.kundeId || !Portal.zeichnungSichtbar(z, S.portalUser && S.portalUser.ansprechpartnerId, nowISO())) { toast("Zeichnung nicht verfügbar.", "err"); renderDokumente(zurueck); return; }
+    var dok = z.dokumentId ? findDokument(z.dokumentId) : null;
+    var ersetzt = z.status === "ersetzt" || z.aktuell === false;
+    var freigegeben = z.status === "freigegeben";
+    var entsch = (z.entscheidungen || []);
+    var html = header() + '<div class="pp-wrap"><div class="pp-noprint" style="margin-bottom:10px"><button class="pp-btn ghost" id="pp-z-back">‹ Zeichnungen</button></div>' +
+      (ersetzt ? '<div class="pp-note">Diese Revision wurde durch eine neuere Version ersetzt. Eine Freigabe ist nicht mehr möglich.</div>' : "") +
+      '<div class="pp-card"><h2>Zeichnung ' + esc(z.zeichnungsnummer) + " · Revision " + esc(z.revision) + '</h2>' +
+      '<div class="pp-muted">' + esc(z.titel || "") + " · Datum " + fmtDate(z.datum) + '</div><div style="margin-top:6px">' + zeichnungTag(z.status) + "</div>" +
+      '<div class="pp-btnrow" style="margin-top:12px">' + (dok && dok.inhalt ? '<button class="pp-btn" id="pp-z-open">📄 Öffnen / Herunterladen</button>' : '<button class="pp-btn" id="pp-z-open" disabled>Keine Datei hinterlegt</button>') + '</div></div>';
+
+    if (!ersetzt && !freigegeben) {
+      html += '<div class="pp-card pp-noprint"><h3>Ihre Entscheidung</h3><div class="pp-muted" style="margin-bottom:8px">Bitte prüfen Sie die Zeichnung. Ihre Rückmeldung ist eine dokumentierte Zustimmung, keine qualifizierte elektronische Signatur und ersetzt keine technische/statische Prüfung.</div>' +
+        '<div class="pp-btnrow"><button class="pp-btn danger" id="pp-z-aenderung">Änderung erforderlich</button><button class="pp-btn brand lg" id="pp-z-frei">Zeichnung freigeben</button></div></div>';
+    } else if (freigegeben) {
+      html += '<div class="pp-card"><div class="pp-tag ok">Von Ihnen freigegeben</div></div>';
+    }
+
+    if (entsch.length) {
+      html += '<div class="pp-card"><h3>Verlauf</h3>' + entsch.map(function (e) { return '<div class="pp-msg"><div><strong>' + esc(e.entscheidung) + "</strong>" + (e.kommentar ? " – " + esc(e.kommentar) : "") + '</div><div class="pp-msg-meta">' + esc(e.person || "") + " · Rev. " + esc(e.revision) + " · " + fmtDT(e.zeitpunkt) + "</div></div>"; }).join("") + "</div>";
+    }
+    html += '<div class="pp-footer">' + esc(S.brand.name || "") + "</div></div>";
+    root().innerHTML = html; wireHeader();
+    d.getElementById("pp-z-back").onclick = function () { renderDokumente(zurueck); };
+    if (dok && dok.inhalt && d.getElementById("pp-z-open")) d.getElementById("pp-z-open").onclick = function () { var win = w.open(); if (win) win.document.write('<iframe src="' + dok.inhalt + '" style="border:0;position:fixed;inset:0;width:100%;height:100%"></iframe>'); };
+    if (d.getElementById("pp-z-frei")) d.getElementById("pp-z-frei").onclick = function () { zeichnungEntscheidung(z, "freigegeben", zurueck); };
+    if (d.getElementById("pp-z-aenderung")) d.getElementById("pp-z-aenderung").onclick = function () { zeichnungAenderung(z, zurueck); };
+  }
+  function zeichnungEntscheidung(z, entscheidung, zurueck) {
+    var ctx = { mandantId: S.tenantId, kundeId: S.kundeId, name: (S.portalUser && S.portalUser.name) || "Kunde", ansprechpartnerId: S.portalUser && S.portalUser.ansprechpartnerId, portalUser: S.portalUser, linkId: S.linkId || null };
+    var r = Portal.zeichnungEntscheidung(z, entscheidung, ctx, "", nowISO());
+    if (!r.ok) { toast("Nicht möglich: " + r.grund, "err"); return; }
+    (S.db.portalEreignisse = S.db.portalEreignisse || []).push(Portal.ereignis({ typ: "zeichnung_freigegeben", mandantId: S.tenantId, kundeId: S.kundeId, text: "Zeichnung " + z.zeichnungsnummer + " Rev. " + z.revision + " freigegeben" }, nowISO()));
+    saveTenant(S.tenantId, S.db); toast("Zeichnung freigegeben. Vielen Dank."); renderZeichnung(z.id, zurueck);
+  }
+  function zeichnungAenderung(z, zurueck) {
+    modal("Änderung erforderlich", '<label class="pp-field"><span>Was soll geändert werden? *</span><textarea id="pp-z-kommentar" rows="4" placeholder="Bitte beschreiben Sie den Änderungswunsch …"></textarea></label>', [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Änderung anfordern", cls: "danger", fn: function () {
+        var k = (d.getElementById("pp-z-kommentar").value || "").trim(); if (!k) { toast("Bitte Kommentar eingeben.", "err"); return false; }
+        var ctx = { mandantId: S.tenantId, kundeId: S.kundeId, name: (S.portalUser && S.portalUser.name) || "Kunde", ansprechpartnerId: S.portalUser && S.portalUser.ansprechpartnerId, portalUser: S.portalUser, linkId: S.linkId || null };
+        var r = Portal.zeichnungEntscheidung(z, "Änderung verlangt", ctx, k, nowISO());
+        if (!r.ok) { toast("Nicht möglich: " + r.grund, "err"); return false; }
+        (S.db.portalEreignisse = S.db.portalEreignisse || []).push(Portal.ereignis({ typ: "zeichnung_aenderung", mandantId: S.tenantId, kundeId: S.kundeId, text: "Änderung an Zeichnung " + z.zeichnungsnummer + " verlangt" }, nowISO()));
+        saveTenant(S.tenantId, S.db); toast("Änderungswunsch übermittelt."); renderZeichnung(z.id, zurueck); return true;
+      } }
+    ]);
+  }
+
+  function uploadDialog(zurueck) {
+    var projekte = {};
+    (S.db.angebote || []).filter(function (a) { return a.kundeId === S.kundeId; }).forEach(function (a) { if (a.kommission) projekte[a.kommission] = a.bezeichnung || a.betreff || ""; });
+    var komOpts = '<option value="">— keine —</option>' + Object.keys(projekte).map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + "</option>"; }).join("");
+    var typOpts = Portal.UPLOAD_DOKTYPEN.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
+    var body = '<label class="pp-field"><span>Datei * (max ' + Math.round(Portal.UPLOAD_MAX_BYTES / 1024 / 1024) + ' MB; erlaubt: ' + Portal.ERLAUBTE_EXT.join(", ") + ')</span><input type="file" id="pp-up-file"></label>' +
+      '<label class="pp-field"><span>Dokumenttyp</span><select id="pp-up-typ">' + typOpts + "</select></label>" +
+      '<label class="pp-field"><span>Kommission / Projekt</span><select id="pp-up-kom">' + komOpts + "</select></label>" +
+      '<label class="pp-field"><span>Beschreibung</span><textarea id="pp-up-beschr" rows="2"></textarea></label>' +
+      '<div id="pp-up-status" class="pp-muted"></div>';
+    modal("Datei hochladen", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Hochladen", cls: "brand", fn: function () {
+        var inp = d.getElementById("pp-up-file"); var f = inp && inp.files && inp.files[0];
+        if (!f) { toast("Bitte Datei wählen.", "err"); return false; }
+        var meta = { dateiname: f.name, mime: f.type || "", groesse: f.size };
+        var pruef = Portal.uploadPruefen(meta);
+        if (!pruef.ok) { d.getElementById("pp-up-status").innerHTML = '<span style="color:#a93232">Abgelehnt: ' + esc(pruef.grund) + "</span>"; return false; }
+        d.getElementById("pp-up-status").textContent = "Wird verarbeitet …";
+        // Datei lokal einlesen (kleine Dateien mit Inhalt, große nur Metadaten)
+        var fertig = function (inhalt) {
+          var r = Portal.uploadNeu({ mandantId: S.tenantId, kundeId: S.kundeId, dateiname: f.name, mime: f.type, groesse: f.size, typ: d.getElementById("pp-up-typ").value, kommission: d.getElementById("pp-up-kom").value, projekt: projekte[d.getElementById("pp-up-kom").value] || "", beschreibung: d.getElementById("pp-up-beschr").value, inhalt: inhalt }, nowISO());
+          if (!r.ok) { toast("Abgelehnt: " + r.grund, "err"); return; }
+          (S.db.kundenUploads = S.db.kundenUploads || []).push(r.upload);
+          (S.db.portalEreignisse = S.db.portalEreignisse || []).push(Portal.ereignis({ typ: "dokument_hochgeladen", mandantId: S.tenantId, kundeId: S.kundeId, text: "Kundenupload: " + f.name }, nowISO()));
+          saveTenant(S.tenantId, S.db);
+          d.getElementById("portal-modal").classList.remove("show"); d.getElementById("portal-modal").hidden = true;
+          toast("Datei hochgeladen (wird intern geprüft)."); renderDokumente(zurueck);
+        };
+        if (f.size <= 1024 * 1024) { var fr = new w.FileReader(); fr.onload = function () { fertig(fr.result); }; fr.onerror = function () { fertig(null); }; fr.readAsDataURL(f); }
+        else fertig(null);
+        return false; // Modal offen lassen; schließt nach Abschluss selbst
+      } }
+    ]);
   }
 
   // ================================================================

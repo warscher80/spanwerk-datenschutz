@@ -256,21 +256,92 @@
     return true;
   }
 
-  // ---- Zeichnungsfreigabe ----------------------------------------------
-  var ZEICHNUNG_STATUS = ["zur Prüfung", "geöffnet", "freigegeben", "Änderung verlangt", "ersetzt"];
-
-  // ---- Kundenupload (nie automatisch technisch freigegeben) ------------
+  // ---- Kundenupload: Validierung + Anlage ------------------------------
+  // Nur ausdrücklich erlaubte, ungefährliche Dateitypen. Größenlimit.
+  var UPLOAD_DOKTYPEN = ["Bestellunterlage", "freigegebene Zeichnung", "Foto", "Baustelleninformation", "sonstiges Projektdokument"];
+  var UPLOAD_MAX_BYTES = 15 * 1024 * 1024; // 15 MB
+  var ERLAUBTE_EXT = ["pdf", "png", "jpg", "jpeg", "webp", "gif", "dxf", "dwg", "csv", "xlsx", "docx", "txt"];
+  var ERLAUBTE_MIME = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif", "image/vnd.dxf", "application/dxf", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "application/octet-stream", "image/x-dwg", "application/acad", ""];
+  // Gefährliche/aktive Formate immer ablehnen (Doppelendungen berücksichtigt).
+  var GEFAEHRLICHE_EXT = ["exe", "bat", "cmd", "com", "msi", "sh", "js", "mjs", "vbs", "ps1", "jar", "scr", "html", "htm", "svg", "php", "app", "apk", "dll", "lnk"];
+  function extVon(name) { var m = String(name || "").toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ""; }
+  function hatGefaehrlicheEndung(name) {
+    var teile = String(name || "").toLowerCase().split(".");
+    for (var i = 1; i < teile.length; i++) { if (GEFAEHRLICHE_EXT.indexOf(teile[i]) >= 0) return true; }
+    return false;
+  }
+  // Serverseitig-äquivalente Prüfung (Typ/MIME/Größe/Name). {ok, grund}.
+  function uploadPruefen(datei) {
+    datei = datei || {};
+    var name = String(datei.dateiname || "").trim();
+    if (!name) return { ok: false, grund: "kein Dateiname" };
+    if (/[\/\\\0]/.test(name)) return { ok: false, grund: "ungültiger Dateiname" };
+    if (hatGefaehrlicheEndung(name)) return { ok: false, grund: "Dateityp nicht erlaubt (ausführbar/aktiv)" };
+    var ext = extVon(name);
+    if (ERLAUBTE_EXT.indexOf(ext) < 0) return { ok: false, grund: "Dateityp nicht erlaubt: ." + (ext || "?") };
+    var mime = String(datei.mime || "").toLowerCase();
+    if (mime && ERLAUBTE_MIME.indexOf(mime) < 0) return { ok: false, grund: "MIME-Typ nicht erlaubt: " + mime };
+    var groesse = num(datei.groesse);
+    if (groesse <= 0) return { ok: false, grund: "leere Datei" };
+    if (groesse > UPLOAD_MAX_BYTES) return { ok: false, grund: "Datei zu groß (max " + Math.round(UPLOAD_MAX_BYTES / 1024 / 1024) + " MB)" };
+    return { ok: true };
+  }
+  // Kundenupload (nie automatisch technisch freigegeben). Prüft vor Anlage.
   function uploadNeu(daten, jetztISO) {
+    var pruef = uploadPruefen(daten);
+    if (!pruef.ok) return { ok: false, grund: pruef.grund };
     var S = Store();
-    return {
+    var up = {
       id: S ? S.uid() : "up-" + Math.random().toString(36).slice(2, 9),
       mandantId: daten.mandantId, kundeId: daten.kundeId, angebotId: daten.angebotId || null,
-      dateiname: daten.dateiname || "", typ: daten.typ || "", beschreibung: daten.beschreibung || "",
+      dateiname: daten.dateiname || "", typ: daten.typ || "sonstiges Projektdokument", mime: daten.mime || "", beschreibung: daten.beschreibung || "",
       projekt: daten.projekt || "", kommission: daten.kommission || "", version: daten.version || 1,
-      groesse: daten.groesse || 0, pruefStatus: "ungeprüft", technischFreigegeben: false,
+      groesse: num(daten.groesse), inhalt: daten.inhalt || null,
+      pruefStatus: "ungeprüft", technischFreigegeben: false, sichtbarIntern: true,
       hochgeladen: jetztISO || nowISO(), beispiel: !!daten.beispiel
     };
+    return { ok: true, upload: up };
   }
+
+  // ---- Zeichnungsfreigabe im Portal ------------------------------------
+  var ZEICHNUNG_STATUS = ["zur Prüfung", "geöffnet", "freigegeben", "Änderung verlangt", "ersetzt"];
+  var ZEICHNUNG_ENTSCHEIDUNGEN = ["freigegeben", "Änderung verlangt"];
+  function zeichnungFreigabeNeu(daten, jetztISO) {
+    var S = Store();
+    return {
+      id: S ? S.uid() : "zf-" + Math.random().toString(36).slice(2, 9),
+      mandantId: daten.mandantId, kundeId: daten.kundeId, dokumentId: daten.dokumentId || null,
+      zeichnungsnummer: daten.zeichnungsnummer || "", revision: daten.revision || "", datum: daten.datum || (jetztISO || nowISO()),
+      titel: daten.titel || "", sichtbar: daten.sichtbar !== false, sichtbarAb: daten.sichtbarAb || null, sichtbarBis: daten.sichtbarBis || null,
+      erlaubteAnsprechpartner: daten.erlaubteAnsprechpartner || [],
+      status: "zur Prüfung", aktuell: daten.aktuell !== false, vorgaengerId: daten.vorgaengerId || null,
+      entscheidungen: [], erstellt: jetztISO || nowISO(), beispiel: !!daten.beispiel
+    };
+  }
+  function zeichnungSichtbar(freigabe, ansprechpartnerId, jetztISO) { return dokumentSichtbar(freigabe, ansprechpartnerId, jetztISO); }
+  // Kunde entscheidet: „freigegeben" oder „Änderung verlangt". Guards:
+  // nur sichtbare, aktuelle, nicht ersetzte Revision; keine Doppelfreigabe.
+  function zeichnungEntscheidung(freigabe, entscheidung, ctx, kommentar, jetztISO) {
+    ctx = ctx || {};
+    if (!freigabe) return { ok: false, grund: "unbekannt" };
+    if (ctx.mandantId != null && freigabe.mandantId != null && freigabe.mandantId !== ctx.mandantId) return { ok: false, grund: "fremder Mandant" };
+    if (ctx.kundeId != null && freigabe.kundeId !== ctx.kundeId) return { ok: false, grund: "fremder Kunde" };
+    if (!zeichnungSichtbar(freigabe, ctx.ansprechpartnerId, jetztISO)) return { ok: false, grund: "nicht sichtbar" };
+    if (freigabe.status === "ersetzt" || freigabe.aktuell === false) return { ok: false, grund: "ersetzte Revision" };
+    if (ZEICHNUNG_ENTSCHEIDUNGEN.indexOf(entscheidung) < 0) return { ok: false, grund: "ungültige Entscheidung" };
+    if (freigabe.status === "freigegeben") return { ok: false, grund: "bereits freigegeben" };
+    if (entscheidung === "Änderung verlangt" && !(kommentar && String(kommentar).trim())) return { ok: false, grund: "kommentar erforderlich" };
+    var eintrag = {
+      entscheidung: entscheidung, kunde: freigabe.kundeId, person: ctx.name || "", revision: freigabe.revision,
+      kommentar: kommentar || "", zeitpunkt: jetztISO || nowISO(),
+      zugang: ctx.linkId ? { art: "link", id: ctx.linkId } : { art: "konto", id: (ctx.portalUser || {}).id || null }
+    };
+    (freigabe.entscheidungen = freigabe.entscheidungen || []).push(eintrag);
+    freigabe.status = entscheidung;
+    return { ok: true, eintrag: eintrag };
+  }
+  // Neue Revision: alte Freigabe eindeutig als „ersetzt" kennzeichnen.
+  function zeichnungErsetzen(alteFreigabe) { if (alteFreigabe) { alteFreigabe.status = "ersetzt"; alteFreigabe.aktuell = false; } return alteFreigabe; }
 
   // ---- Auftragsstatus intern -> kundenfreundlich -----------------------
   var STATUS_MAPPING = {
@@ -306,7 +377,9 @@
     ABLEHNGRUENDE: ABLEHNGRUENDE, annahmePruefen: annahmePruefen, annahmeProtokoll: annahmeProtokoll, siegelPruefen: siegelPruefen, ablehnung: ablehnung,
     bestaetigungsDokument: bestaetigungsDokument,
     NACHRICHT_STATUS: NACHRICHT_STATUS, nachrichtNeu: nachrichtNeu, nachrichtenFuerKunde: nachrichtenFuerKunde,
-    dokumentSichtbar: dokumentSichtbar, ZEICHNUNG_STATUS: ZEICHNUNG_STATUS, uploadNeu: uploadNeu,
+    dokumentSichtbar: dokumentSichtbar,
+    UPLOAD_DOKTYPEN: UPLOAD_DOKTYPEN, UPLOAD_MAX_BYTES: UPLOAD_MAX_BYTES, ERLAUBTE_EXT: ERLAUBTE_EXT, uploadPruefen: uploadPruefen, uploadNeu: uploadNeu,
+    ZEICHNUNG_STATUS: ZEICHNUNG_STATUS, ZEICHNUNG_ENTSCHEIDUNGEN: ZEICHNUNG_ENTSCHEIDUNGEN, zeichnungFreigabeNeu: zeichnungFreigabeNeu, zeichnungSichtbar: zeichnungSichtbar, zeichnungEntscheidung: zeichnungEntscheidung, zeichnungErsetzen: zeichnungErsetzen,
     STATUS_MAPPING: STATUS_MAPPING, kundenStatus: kundenStatus, branding: branding,
     EVENTS: EVENTS, ereignis: ereignis
   };

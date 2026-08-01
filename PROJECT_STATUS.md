@@ -4,7 +4,15 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 12 – Sicheres Kundenportal & digitale
+Letzte Aktualisierung: **Phase 12B – Kundenuploads & Zeichnungsfreigabe**
+umgesetzt. Kunden können Dateien hochladen (serverseitig-äquivalente Prüfung:
+Typ/MIME/Größe/gefährliche Endungen; intern „ungeprüft", nie automatisch
+freigegeben) und ausdrücklich freigegebene Zeichnungen prüfen und
+„freigeben"/„Änderung erforderlich" (protokolliert; ersetzte Revisionen
+gesperrt, keine Doppelfreigabe, keine qualifizierte E-Signatur). Interne
+Prüf-/Verwaltungsansicht auf der System-Seite. Tests **196/196** + Browser-E2E.
+
+Vorher: **Phase 12 – Sicheres Kundenportal & digitale
 Angebotsannahme** umgesetzt. Kundenportal-Engine (`portal.js`) + eigene mobil-
 first Oberfläche (`portal.html`, `portal-app.js`, `portal.css`): sichere
 Zugriffe (Konto + gehashter/befristeter/widerrufbarer/scoped Angebotslink),

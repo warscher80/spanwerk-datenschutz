@@ -3,6 +3,32 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 12B – Kundenuploads & Zeichnungsfreigabe  (Schema v10)
+
+### Hinzugefügt
+- **Kundenuploads:** Datei-Upload im Portal mit Zuordnung (Kommission/Projekt,
+  Dokumenttyp, Beschreibung), Statusanzeige. **Serverseitig-äquivalente
+  Prüfung** (Endung-Whitelist, MIME, Größe max 15 MB, Abwehr gefährlicher/
+  aktiver Formate inkl. Doppelendungen). Upload intern „ungeprüft", nie
+  automatisch technisch freigegeben; interne Freigabe/Ablehnung auf System-Seite.
+- **Zeichnungsfreigabe im Portal:** nur ausdrücklich freigegebene Zeichnungen
+  sichtbar (Nummer/Revision/Datum/Status), Öffnen/Download, Entscheidung
+  „freigeben"/„Änderung erforderlich" (Kommentarpflicht bei Änderung), Protokoll
+  (Kunde/Person/Revision/Zeitpunkt). Ersetzte Revisionen gesperrt, keine
+  Doppelfreigabe. Interne Verwaltung (Sichtbarkeit, Entscheidungsverlauf,
+  Portal-Ereignisse). Ausdrücklich **keine** qualifizierte E-Signatur.
+- Portal-UI: Zeichnungsübersicht, Zeichnungsdetail, Freigabe-/Änderungsdialog,
+  Uploadliste + Upload-Dialog. Interne Prüf-/Verwaltungsansicht (System-Seite).
+- Beispieldaten: Zeichnungsfreigabe (Rev B „zur Prüfung", Rev A „ersetzt"),
+  Kundenupload.
+
+### Tests
+- `tests/referenz.test.js` auf **196/196** erweitert (16 neue: Upload-
+  Validierung inkl. gefährliche/zu große/leere Dateien; Zeichnungsfreigabe
+  freigeben/Änderung/ersetzte Revision/Doppelfreigabe/fremder Kunde/Mandant).
+  End-to-End-Browsertests: Upload gültig/abgelehnt, Zeichnung freigeben,
+  ersetzte Revision gesperrt, interne Prüfansicht.
+
 ## Phase 12 – Sicheres Kundenportal & digitale Angebotsannahme  (Schema v10)
 
 ### Hinzugefügt
