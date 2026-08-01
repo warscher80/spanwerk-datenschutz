@@ -1,29 +1,38 @@
-# KickProphet 🔮⚽ – Tippspiel mit lernenden Quoten
+# KickProphet 🔮⚽ – Prognosen mit lernendem Stärke-Modell
 
-Tippe **echte Spiele** aus Deutschland, Österreich und England, sieh **faire Quoten**
-und sammle **Punkte**. Die Quoten **lernen aus jedem echten Ergebnis dazu**, und die App
-bleibt automatisch am neuesten Stand. **Kein Echtgeld, kein Konto, keine Werbung.**
+Sieh für **echte Spiele**, wer gewinnt – mit einer Sicherheit in Prozent. Das Modell
+**lernt aus jedem echten Ergebnis dazu**, und die App bleibt automatisch am neuesten
+Stand. **Kein Echtgeld, kein Konto, keine Werbung.**
 
-> ⚠️ **Tippspiel um Punkte, kein Glücksspiel.** Keine Einzahlungen, keine Geldgewinne.
-> Die Quoten sind ein berechnetes Stärke-Modell, keine Buchmacher-Wettangebote.
+> ⚠️ **Prognose-App, kein Glücksspiel.** Keine Einzahlungen, keine Geldgewinne, keine
+> Wettangebote. Die Wahrscheinlichkeiten stammen aus einem berechneten Stärke-Modell.
 
-## Ligen (1. + 2. Liga je Land)
-| Land | 1. Liga | 2. Liga |
-|------|---------|---------|
-| 🇩🇪 Deutschland | 1. Bundesliga | 2. Bundesliga |
-| 🇦🇹 Österreich | Bundesliga | 2. Liga |
-| 🇬🇧 England | Premier League | Championship |
+> ℹ️ Bis Version 1.5 war KickProphet ein Tippspiel mit Punkten (Volltreffer 5 ·
+> Tordifferenz 3 · Tendenz 2). Seit **v1.6.0** ist es eine reine Prognose-App –
+> Tippen, Punkte und „Meine Saison" gibt es nicht mehr.
+
+## Wettbewerbe
+| Land | Wettbewerbe |
+|------|-------------|
+| 🏆 International | WM 2026 (Gruppen + K.o.) |
+| 🇩🇪 Deutschland | 1. Bundesliga · 2. Bundesliga |
+| 🇦🇹 Österreich | Bundesliga · 2. Liga |
+| 🇬🇧 England | Premier League · Championship |
+| 🇮🇹 Italien | Serie A |
+| 🇪🇸 Spanien | La Liga |
+| 🇫🇷 Frankreich | Ligue 1 |
 
 ## Funktionen
 - **Echte Spiele, Wappen, Anstoßzeiten & Ergebnisse** via [TheSportsDB](https://www.thesportsdb.com/)
-- **Lernende 1/X/2-Quoten** (Elo-Modell): Teamstärke aus echten Resultaten, je mehr
-  Spiele, desto genauer; Favorit pro Spiel hervorgehoben
-- **Immer aktuell:** Auto-Refresh alle 60 s, beim App-Start und beim Zurückkehren;
-  Sprung auf den nächsten anstehenden Spieltag
-- **Ergebnis-Tipps** mit Punkte-System (Volltreffer 5 · Tordifferenz 3 · Tendenz 2)
-- **🔮 Auto-Tipp:** offene Spiele mit einem Tipp aus der Modell-Prognose füllen
-- **„Meine Saison":** Gesamtpunkte, Volltreffer-Quote, Ø Punkte/Tipp und
-  **Modell-Treffsicherheit** (wie oft die Prognose richtig lag)
+- **Lernendes 1/X/2-Modell** (Elo): Teamstärke aus echten Resultaten, je mehr
+  Spiele, desto genauer; klare Ansage „wer gewinnt" samt Sicherheit in Prozent
+- **Ansicht „Aktuell":** alle anstehenden Spiele über sämtliche Wettbewerbe hinweg
+- **WM-Titelchancen** per Monte-Carlo-Simulation und **Turnierbaum**
+- **Tor-Alarm** während laufender Spiele
+- **Erinnerung** vor dem Anpfiff des nächsten Spiels
+- **Immer aktuell:** stille Aktualisierung im Vordergrund, beim App-Start und beim
+  Zurückkehren; Sprung auf den nächsten anstehenden Spieltag
+- **Modell-Treffsicherheit:** wie oft die Prognose der laufenden Saison richtig lag
 - Eigenes **App-Icon** (leuchtender Ball) als Adaptive Icon
 - Alles **nur lokal** gespeichert (kein Server, kein Tracking)
 
@@ -60,13 +69,15 @@ laufenden Saison.
 ## Projektaufbau (Flutter)
 ```
 lib/
-  main.dart    – Oberfläche (Ligen, Spieltag, Tipps, Quoten, Statistik, Auto-Update)
-  api.dart     – echte Spieldaten (TheSportsDB)
-  odds.dart    – lernendes Elo-Quoten-Modell + Hintergrund-Lerner + Auto-Tipp
-  engine.dart  – Punkte-Auswertung (reine Logik)
-  store.dart   – lokale Speicherung (Tipps, Lerndaten, Ergebnisse, Modell-Statistik)
+  main.dart    – Oberfläche (Wettbewerbe, Spieltag, Prognosen, Statistik, Auto-Update)
+  api.dart     – echte Spieldaten (TheSportsDB) inkl. Kurzzeit-Cache
+  odds.dart    – lernendes Elo-Modell, Hintergrund-Lerner, Monte-Carlo-Simulation
+  engine.dart  – Ausgang eines Spiels (1/X/2), reine Logik
+  store.dart   – lokale Speicherung (Lerndaten, Ergebnisse, Modell-Statistik)
+  notify.dart  – Erinnerungen und Tor-Alarm
+  update.dart  – Prüfung auf neuere App-Version
 assets/icon/   – Quellbilder fürs App-Icon
-test/          – Tests für Punkte- und Quoten-Logik
+test/          – Tests für Spieldaten-Auswertung, Cache und Modell-Logik
 ```
 
 ## APK selbst bauen

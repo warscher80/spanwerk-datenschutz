@@ -98,6 +98,42 @@ void main() {
     });
   });
 
+  // Der Kurzzeit-Cache ist die Bremse gegen die Drosselung: "Aktuell" fächert
+  // über alle zehn Ligen aus und kam so auf ~26 Anfragen pro Minute.
+  group('TtlCache', () {
+    final t0 = DateTime(2026, 5, 1, 12, 0, 0);
+
+    test('Gespeicherter Wert kommt innerhalb der Frist zurück', () {
+      final c = TtlCache<int>(const Duration(seconds: 90));
+      c.set('a', 1, now: t0);
+      expect(c.get('a', now: t0.add(const Duration(seconds: 89))), 1);
+    });
+
+    test('Nach Ablauf der Frist ist der Wert weg', () {
+      final c = TtlCache<int>(const Duration(seconds: 90));
+      c.set('a', 1, now: t0);
+      expect(c.get('a', now: t0.add(const Duration(seconds: 90))), isNull);
+      expect(c.length, 0, reason: 'abgelaufener Eintrag wird auch entfernt');
+    });
+
+    test('Unbekannter Schlüssel ergibt null', () {
+      expect(TtlCache<int>(const Duration(seconds: 5)).get('fehlt'), isNull);
+    });
+
+    test('clear leert alles', () {
+      final c = TtlCache<int>(const Duration(seconds: 90));
+      c.set('a', 1, now: t0);
+      c.set('b', 2, now: t0);
+      expect(c.length, 2);
+      c.clear();
+      expect(c.length, 0);
+    });
+
+    test('Api.clearCaches ist aufrufbar', () {
+      Api.clearCaches();
+    });
+  });
+
   group('FootyMatch.fromJson', () {
     test('Beendetes Spiel wird korrekt gelesen', () {
       final m = FootyMatch.fromJson(ev());

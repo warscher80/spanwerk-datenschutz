@@ -34,6 +34,12 @@ jobs:
       - name: Abhängigkeiten holen
         run: flutter pub get
 
+      # Statische Pruefung. Lief bisher nicht mit, obwohl sie Fehler findet,
+      # die kein Test abdeckt (ungenutzte Importe, tote Zweige, riskante
+      # Null-Zugriffe).
+      - name: Statische Analyse
+        run: flutter analyze
+
       - name: Tests
         run: flutter test
 

@@ -57,6 +57,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   List<FootyMatch> _matches = [];
   bool _loading = true;
+  bool _loadInFlight = false;
+  DateTime? _lastAutoLoad;
   String? _error;
   DateTime? _updatedAt;
   String? _learnStatus; // z.B. "lernt … 60 %"
@@ -87,10 +89,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _season = Api.seasonFor(_league, DateTime.now());
-    // Immer am neuesten Stand: alle 60 s im Vordergrund stillschweigend aktualisieren.
-    _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      _loadDay(silent: true);
-    });
+    // Immer am neuesten Stand, aber ohne den geteilten Gratis-Key zu erschöpfen.
+    _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoRefresh());
     _boot();
     // Im Hintergrund auf eine neuere App-Version prüfen.
     checkForUpdate().then((u) {
@@ -214,8 +214,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return Api.round(_league.id, _season, _day);
   }
 
+  /// Mindestabstand zwischen zwei automatischen Aktualisierungen.
+  ///
+  /// In der Einzel-Liga-Ansicht kostet ein Durchlauf ein bis zwei Anfragen -
+  /// 60 s sind dort unproblematisch. Die Ansicht „Aktuell" fächert dagegen
+  /// über alle zehn Ligen aus und kam so auf rund 26 Anfragen pro Minute;
+  /// daher dort deutlich seltener.
+  Duration get _autoAbstand =>
+      _currentMode ? const Duration(minutes: 5) : const Duration(seconds: 60);
+
+  void _autoRefresh() {
+    // Läuft noch ein Abruf, keinen zweiten daraufsetzen: ein voller Durchlauf
+    // über alle Ligen dauert leicht länger als das Timer-Intervall.
+    if (_loadInFlight) return;
+    final last = _lastAutoLoad;
+    if (last != null && DateTime.now().difference(last) < _autoAbstand) return;
+    _lastAutoLoad = DateTime.now();
+    _loadDay(silent: true);
+  }
+
   Future<void> _loadDay({bool silent = false}) async {
     if (!silent) setState(() { _loading = true; _error = null; });
+    _loadInFlight = true;
     try {
       var m = await _fetchMatches();
       // Leerer Erstabruf ist meist nur Drosselung -> einmal nachfassen.
@@ -253,6 +273,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (e) {
       if (!mounted) return;
       setState(() { if (!silent) _error = _msg(e); _loading = false; });
+    } finally {
+      _loadInFlight = false;
     }
   }
 

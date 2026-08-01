@@ -22,3 +22,9 @@ captures/
 .idea/
 .vscode/
 .DS_Store
+
+# Gebaute App nicht mitversionieren: jede Version legt ~50 MB dauerhaft in
+# die Historie. Die CI stellt das APK ohnehin als Artefakt bereit
+# (Actions -> APK bauen -> Artifacts).
+KickProphet.apk
+*.apk

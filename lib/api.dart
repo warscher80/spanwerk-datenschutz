@@ -229,9 +229,50 @@ class FootyMatch {
   }
 }
 
+/// Kurzzeit-Zwischenspeicher mit Verfallszeit.
+///
+/// Der geteilte Gratis-Key ist die knappste Ressource der App. Die Ansicht
+/// „Aktuell" fächert über alle Ligen aus und kam so auf ~26 Anfragen pro
+/// Minute; der bestehende [Api._finishedCache] half dort nie, weil er nur
+/// vollständig beendete Runden behält – die laufende Runde ist das nie.
+class TtlCache<T> {
+  final Duration ttl;
+  final Map<String, ({DateTime at, T wert})> _eintraege = {};
+
+  TtlCache(this.ttl);
+
+  T? get(String key, {DateTime? now}) {
+    final e = _eintraege[key];
+    if (e == null) return null;
+    if ((now ?? DateTime.now()).difference(e.at) >= ttl) {
+      _eintraege.remove(key);
+      return null;
+    }
+    return e.wert;
+  }
+
+  void set(String key, T wert, {DateTime? now}) =>
+      _eintraege[key] = (at: now ?? DateTime.now(), wert: wert);
+
+  void clear() => _eintraege.clear();
+  int get length => _eintraege.length;
+}
+
 class Api {
   // Öffentlicher Gratis-Test-Key von TheSportsDB.
   static const _base = 'https://www.thesportsdb.com/api/v1/json/123';
+
+  /// Antworten kurz zwischenspeichern. 90 s ist knapp genug, dass Spielstände
+  /// zeitnah bleiben, und lang genug, dass ein Durchlauf über alle Ligen nicht
+  /// dieselben Runden mehrfach abfragt.
+  static final TtlCache<Map<String, dynamic>> _jsonCache =
+      TtlCache<Map<String, dynamic>>(const Duration(seconds: 90));
+
+  /// Alle Zwischenspeicher leeren (für Tests und den manuellen Neuaufbau).
+  static void clearCaches() {
+    _jsonCache.clear();
+    _finishedCache.clear();
+  }
 
   /// Aktuelle Saison im Format "2025-2026" (Spielbetrieb startet im August).
   static String currentSeason(DateTime now) {
@@ -366,12 +407,17 @@ class Api {
   /// und im mobilen Netz – sonst bleibt die Liste bei einem Aussetzer leer.
   static Future<Map<String, dynamic>> _getJson(String path,
       {int retries = 4}) async {
+    final gecacht = _jsonCache.get(path);
+    if (gecacht != null) return gecacht;
+
     final uri = Uri.parse('$_base/$path');
     for (var a = 0; a < retries; a++) {
       try {
         final res = await http.get(uri).timeout(const Duration(seconds: 15));
         if (res.statusCode == 200) {
-          return jsonDecode(res.body) as Map<String, dynamic>;
+          final body = jsonDecode(res.body) as Map<String, dynamic>;
+          _jsonCache.set(path, body);
+          return body;
         }
         if (res.statusCode == 429 || res.statusCode >= 500) {
           await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
@@ -379,6 +425,14 @@ class Api {
         }
         throw Exception('Server ${res.statusCode}');
       } on TimeoutException {
+        await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
+      } on http.ClientException {
+        // Verbindungsabbruch im Mobilnetz: genauso behandeln wie eine
+        // Zeitüberschreitung. Vorher verliess dieser Fall _getJson sofort,
+        // der Wiederholungsversuch lief also nur bei Timeouts.
+        await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
+      } on FormatException {
+        // Kein JSON (z. B. HTML-Fehlerseite bei Drosselung) - erneut versuchen.
         await Future.delayed(Duration(milliseconds: 500 * (a + 1)));
       }
     }
