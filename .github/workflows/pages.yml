@@ -1,0 +1,76 @@
+name: GitHub Pages – HTTPS-Testversion
+
+# Veroeffentlicht die Web-App als statische Seite ueber HTTPS. Zweck ist der
+# echte Geraetetest auf iOS: ohne sicheren Kontext registriert Safari keinen
+# Service Worker, damit waeren Offline-Betrieb, IndexedDB und die
+# Exactly-once-Synchronisation auf dem iPhone nicht pruefbar.
+#
+# Bewusst NUR die Web-Dateien: android/, desktop/, deploy/, scripts/, tests/
+# und die Markdown-Dokumentation gehoeren nicht auf die oeffentliche Seite.
+#
+# Kein Backend: jeder Besucher erhaelt eine eigene, leere localStorage-Instanz.
+# Es werden keine Daten zwischen Besuchern geteilt und keine Daten an einen
+# Server uebertragen.
+
+on:
+  push:
+    branches:
+      - claude/metalwork-estimation-app-9ez1ks
+    paths:
+      - "index.html"
+      - "mobil.html"
+      - "portal.html"
+      - "datenschutz.html"
+      - "sw.js"
+      - "manifest.webmanifest"
+      - "assets/**"
+      - "brand/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Laufende Veroeffentlichungen nicht abbrechen - ein halb deployter Stand
+# waere schlechter als ein veralteter.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Testversion veroeffentlichen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Pages einrichten
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Nur die Web-App zusammenstellen
+        run: |
+          set -e
+          mkdir -p _site
+          cp index.html mobil.html portal.html datenschutz.html sw.js manifest.webmanifest _site/
+          cp -r assets brand _site/
+          # Verhindert, dass Jekyll Dateien mit Unterstrich verschluckt.
+          touch _site/.nojekyll
+          echo "Veroeffentlicht werden:"
+          find _site -maxdepth 1 -mindepth 1 -printf "  %f\n"
+
+      - name: Artefakt hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Auf Pages veroeffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
