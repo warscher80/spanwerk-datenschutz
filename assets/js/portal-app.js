@@ -214,10 +214,43 @@
       '</div>' +
       '<div class="pp-card"><div class="pp-btnrow" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Zeichnungen &amp; Dokumente</h2><button class="pp-btn brand" id="pp-open-dok" type="button">Öffnen ›</button></div>' +
       '<div class="pp-muted" style="margin-top:6px">' + meineZeichnungen().length + ' freigegebene Zeichnung(en) · ' + meineUploads().length + ' eigene(r) Upload(s)</div></div>' +
+      meineRechnungenHtml() +
       '<div class="pp-footer">' + esc(b.name || "") + ' · ' + esc(b.kontakt || "") + ' · <a href="' + esc(b.datenschutz || "datenschutz.html") + '">Datenschutz</a></div></div>';
     root().innerHTML = html; wireHeader();
     Array.prototype.forEach.call(root().querySelectorAll("[data-ang]"), function (li) { li.onclick = function () { openAngebot(li.getAttribute("data-ang")); }; });
     if (d.getElementById("pp-open-dok")) d.getElementById("pp-open-dok").onclick = function () { renderDokumente("dashboard"); };
+    Array.prototype.forEach.call(root().querySelectorAll("[data-repdf]"), function (bt) { bt.onclick = function () { rechnungPdfKunde(bt.getAttribute("data-repdf")); }; });
+  }
+
+  // Nur ausdrücklich freigegebene UND fürs Portal sichtbare Rechnungen (Phase 13B).
+  function meineRechnungen() {
+    var R = P.Rechnung; if (!R) return [];
+    return (S.db.rechnungen || []).filter(function (b) { return b.freigegeben && b.portalSichtbar && b.kundeId === S.kundeId; });
+  }
+  function meineRechnungenHtml() {
+    var R = P.Rechnung; if (!R) return "";
+    var res = meineRechnungen();
+    var html = '<div class="pp-card"><h2>Meine Rechnungen</h2>';
+    html += res.length ? res.map(function (b) {
+      var s = R.belegSummen(b); var tag = b.zahlungstatus === "bezahlt" ? "ok" : b.zahlungstatus === "überfällig" ? "err" : "info";
+      return '<div class="pp-list-item" style="cursor:default"><div class="pp-li-main"><div class="pp-li-titel">' + esc(b.nummer) + " · " + esc(b.art) + '</div>' +
+        '<div class="pp-li-sub">' + esc(b.kommission || "") + " · " + fmtDate(b.rechnungsdatum) + (b.faelligkeit ? " · fällig " + fmtDate(b.faelligkeit) : "") + " · " + money(s.brutto) + '</div></div>' +
+        '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><span class="pp-tag ' + tag + '">' + esc(b.zahlungstatus) + '</span><button class="pp-btn" style="min-height:34px;padding:6px 10px;font-size:13px" data-repdf="' + esc(b.id) + '">PDF</button></div></div>';
+    }).join("") : '<div class="pp-muted">Aktuell sind keine Rechnungen für Sie freigegeben.</div>';
+    html += '<div class="pp-muted" style="margin-top:6px">Es werden keine internen Kalkulations- oder Kostendaten angezeigt.</div></div>';
+    return html;
+  }
+  function rechnungPdfKunde(belegId) {
+    var R = P.Rechnung; var b = meineRechnungen().filter(function (x) { return x.id === belegId; })[0];
+    if (!b) { toast("Rechnung nicht verfügbar.", "err"); return; }
+    var s = R.belegSummen(b);
+    var rows = (b.positionen || []).map(function (p) { return "<tr><td>" + esc(p.bezeichnung) + '</td><td class="num">' + p.menge + " " + esc(p.einheit || "") + '</td><td class="num">' + money(p.einzelpreis) + '</td><td class="num">' + money(R.posNetto(p)) + "</td></tr>"; }).join("");
+    var inner = '<h2 style="font-size:16px">' + esc(b.art) + " " + esc(b.nummer) + '</h2><div class="muted">Kommission ' + esc(b.kommission || "-") + " · Datum " + esc(fmtDate(b.rechnungsdatum)) + (b.faelligkeit ? " · fällig " + esc(fmtDate(b.faelligkeit)) : "") + '</div>' +
+      '<table><thead><tr><th>Leistung</th><th class="num">Menge</th><th class="num">Einzel</th><th class="num">Netto</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+      '<div style="max-width:320px;margin-left:auto">' + s.steuerZeilen.map(function (z) { return '<div class="tot"><span>USt ' + z.satz + "%</span><span>" + money(z.steuer) + "</span></div>"; }).join("") +
+      '<div class="tot"><span>Netto</span><span>' + money(s.netto) + '</span></div><div class="tot g"><span>Brutto</span><span>' + money(s.brutto) + "</span></div>" +
+      (R.TEILARTEN.concat(["Schlussrechnung"]).indexOf(b.art) >= 0 ? '<div class="tot"><span>offen</span><span>' + money(R.offenerBetrag(b)) + "</span></div>" : "") + "</div>";
+    pdfWindow(b.art + " " + b.nummer, S.brand, inner);
   }
 
   // ================================================================

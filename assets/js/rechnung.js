@@ -321,13 +321,78 @@
   };
   function darfBeleg(rolle, aktion) { return (RECHNUNG_RECHTE[rolle] || []).indexOf(aktion) >= 0; }
 
+  // Position: verbleibende abrechenbare Menge
+  function positionRest(p) { return r2(num(p.gesamtmenge) - num(p.bereitsAbgerechnet) - num(p.menge)); }
+
+  // =============================================================
+  //  ERP-/KingBill-DATEIEXPORT (nur Datei; KEINE Live-Übertragung)
+  // =============================================================
+  var ERP_FELDER = [
+    { key: "belegnummer", label: "Belegnummer" }, { key: "art", label: "Belegart" }, { key: "datum", label: "Belegdatum" }, { key: "faelligkeit", label: "Faelligkeit" },
+    { key: "kundeName", label: "Kunde" }, { key: "kundeId", label: "KundenID" }, { key: "projekt", label: "Projekt" }, { key: "kommission", label: "Kommission" }, { key: "auftragReferenz", label: "Auftrag" },
+    { key: "positionNr", label: "Pos" }, { key: "bezeichnung", label: "Bezeichnung" }, { key: "menge", label: "Menge" }, { key: "einheit", label: "Einheit" }, { key: "einzelpreis", label: "Einzelpreis" }, { key: "rabattProz", label: "Rabatt%" }, { key: "nettoPosition", label: "PositionNetto" }, { key: "steuersatz", label: "Steuersatz" },
+    { key: "zahlungsziel", label: "ZahlungszielTage" }, { key: "belegNetto", label: "BelegNetto" }, { key: "belegMwst", label: "BelegUSt" }, { key: "belegBrutto", label: "BelegBrutto" }
+  ];
+  function standardMappingProfil() { return { name: "KingBill CSV (Standard)", trenner: ";", felder: ERP_FELDER.map(function (f) { return f.key; }) }; }
+  // Erzeugt eine flache Zeilenliste (1 Zeile je Position) für einen Beleg.
+  function erpZeilen(beleg, kundeName) {
+    var s = belegSummen(beleg); var vz = beleg.vorzeichen || 1;
+    return (beleg.positionen || []).map(function (p) {
+      var satz = beleg.reverseCharge ? 0 : (p.mwstProz != null ? num(p.mwstProz) : num(beleg.mwstProz));
+      return {
+        belegnummer: beleg.nummer || "", art: beleg.art, datum: (beleg.rechnungsdatum || "").slice(0, 10), faelligkeit: (beleg.faelligkeit || "").slice(0, 10),
+        kundeName: kundeName || "", kundeId: beleg.kundeId || "", projekt: beleg.projektId || "", kommission: beleg.kommission || "", auftragReferenz: beleg.auftragId || "",
+        positionNr: p.nummer || "", bezeichnung: p.bezeichnung || "", menge: num(p.menge) * vz, einheit: p.einheit || "", einzelpreis: num(p.einzelpreis), rabattProz: num(p.rabattProz), nettoPosition: r2(posNetto(p) * vz), steuersatz: satz,
+        zahlungsziel: num(beleg.zahlungszielTage), belegNetto: s.netto, belegMwst: s.mwst, belegBrutto: s.brutto
+      };
+    });
+  }
+  function csvFeld(v, trenner) {
+    var s = v == null ? "" : String(v);
+    if (s.indexOf('"') >= 0 || s.indexOf(trenner) >= 0 || s.indexOf("\n") >= 0 || s.indexOf("\r") >= 0) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  // Baut die CSV-Datei + Prüfsumme + Export-ID. kundenLookup: id -> name.
+  function erpExport(belege, kundenLookup, profil, jetztISO) {
+    profil = profil || standardMappingProfil();
+    var trenner = profil.trenner || ";";
+    var felder = (profil.felder && profil.felder.length) ? profil.felder : ERP_FELDER.map(function (f) { return f.key; });
+    var labelFor = {}; ERP_FELDER.forEach(function (f) { labelFor[f.key] = f.label; });
+    var kopf = felder.map(function (k) { return csvFeld(labelFor[k] || k, trenner); }).join(trenner);
+    var zeilen = [];
+    (belege || []).forEach(function (b) {
+      var name = kundenLookup ? (kundenLookup[b.kundeId] || "") : "";
+      erpZeilen(b, name).forEach(function (z) { zeilen.push(z); });
+    });
+    var body = zeilen.map(function (z) { return felder.map(function (k) { return csvFeld(z[k], trenner); }).join(trenner); }).join("\r\n");
+    var csv = kopf + "\r\n" + body + (zeilen.length ? "\r\n" : "");
+    var pruefsumme = Store() ? Store().hashPin(csv, "erp-export") : String(csv.length);
+    var exportId = "EXP-" + (Store() ? Store().uid() : Math.random().toString(36).slice(2, 9));
+    return {
+      exportId: exportId, csv: csv, pruefsumme: pruefsumme, zeilen: zeilen.length, belege: (belege || []).map(function (b) { return b.id; }), belegNummern: (belege || []).map(function (b) { return b.nummer; }),
+      felder: felder, dateiname: "erp-export-" + ((jetztISO || nowISO()).slice(0, 10)) + ".csv", erstellt: jetztISO || nowISO(), status: "Dateiexport"
+    };
+  }
+  // Doppelte Übertragung erkennen: gleiche Prüfsumme ODER gleiche Belegmenge
+  // bereits erfolgreich exportiert.
+  function erpDoppelt(exportLog, kandidat) {
+    exportLog = exportLog || [];
+    var gleicheSumme = exportLog.filter(function (e) { return e.pruefsumme === kandidat.pruefsumme; })[0];
+    if (gleicheSumme) return { doppelt: true, grund: "identischer Export", frueher: gleicheSumme.exportId };
+    // Belege, die schon einmal exportiert wurden
+    var schonExportiert = {}; exportLog.forEach(function (e) { (e.belege || []).forEach(function (id) { schonExportiert[id] = e.exportId; }); });
+    var betroffen = (kandidat.belege || []).filter(function (id) { return schonExportiert[id]; });
+    if (betroffen.length) return { doppelt: true, grund: "Belege bereits exportiert", frueher: schonExportiert[betroffen[0]], belege: betroffen };
+    return { doppelt: false };
+  }
+
   w.Preisschmiede.Rechnung = {
     // Nachträge
     NACHTRAG_STATUS: NACHTRAG_STATUS, NACHTRAG_URSACHEN: NACHTRAG_URSACHEN,
     nachtragNeu: nachtragNeu, nachtragKalkulation: nachtragKalkulation, nachtragKalkulieren: nachtragKalkulieren,
     nachtragStatus: nachtragStatus, zusatzUebernehmen: zusatzUebernehmen, auftragswert: auftragswert,
     // Rechnungskern
-    RECHNUNGSARTEN: RECHNUNGSARTEN, ZAHLUNGSTATUS: ZAHLUNGSTATUS, ABZUG_ARTEN: ABZUG_ARTEN, TEILARTEN: TEILARTEN,
+    RECHNUNGSARTEN: RECHNUNGSARTEN, ZAHLUNGSTATUS: ZAHLUNGSTATUS, ABZUG_ARTEN: ABZUG_ARTEN, TEILARTEN: TEILARTEN, NEGATIVE_ARTEN: NEGATIVE_ARTEN,
     belegNeu: belegNeu, belegSummen: belegSummen, posNetto: posNetto, belegHinweise: belegHinweise, reverseChargePruefung: reverseChargePruefung,
     // Nummern / Freigabe
     standardKreise: standardKreise, naechsteNummer: naechsteNummer, belegBearbeitbar: belegBearbeitbar, belegFreigeben: belegFreigeben,
@@ -338,6 +403,8 @@
     faelligkeit: faelligkeit, skonto: skonto, zahlungErfassen: zahlungErfassen, bezahltBetrag: bezahltBetrag, offenerBetrag: offenerBetrag, aktualisiereZahlungstatus: aktualisiereZahlungstatus, ueberfaellig: ueberfaellig,
     // Rechte
     RECHNUNG_RECHTE: RECHNUNG_RECHTE, darfBeleg: darfBeleg,
+    // Positionen / ERP-Dateiexport
+    positionRest: positionRest, ERP_FELDER: ERP_FELDER, standardMappingProfil: standardMappingProfil, erpZeilen: erpZeilen, erpExport: erpExport, erpDoppelt: erpDoppelt,
     num: num, r2: r2
   };
 })(typeof self !== "undefined" ? self : this);

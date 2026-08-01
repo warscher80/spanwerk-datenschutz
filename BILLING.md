@@ -87,8 +87,42 @@ Einbehalten (Haftrücklass/Deckungsrücklass/Skonto), Anzahlungs-/Schlussrechnun
 Logik, Rechnungsnummern-Vorschriften, Aufbewahrungsfristen. **Keine** Aussage zur
 Konformität – Steuer-/Rechtsberatung erforderlich.
 
+## Oberfläche & Export (Phase 13B)
+
+Vollständige interne Seite **„Rechnungen & Nachträge"** (Nav; nur admin/buero,
+werkstatt ohne Zugriff):
+
+- **Nachträge:** Übersicht, Anlegen/Bearbeiten (Kalkulationszeilen), (Neu-)
+  Kalkulieren, interne Freigabe, angenommen/abgelehnt, Zusatzleistung aus
+  Zeiterfassung, Detail mit Hauptauftrag/Kunde/Kommission/ursprünglichem +
+  aktuellem Auftragswert/Nachtragssumme/Status/Terminwirkung + Änderungsverlauf.
+- **Rechnungsübersicht:** alle Belegfelder + Filter (Kunde/Kommission/Art/
+  Status/Zeitraum/überfällig), ERP-Status.
+- **Rechnungsassistent** (4 Schritte): Auftrag → Art → Positionen + Nachträge →
+  frühere Rechnungen/Steuerart bestätigen/Zahlungsbedingungen → Vorschau →
+  Entwurf/Freigabe. **Positionseditor** (hinzufügen/bearbeiten/duplizieren/
+  entfernen/sortieren, Teilmenge, Rabatt, Steuersatz). Alle Summen kommen aus
+  der zentralen Engine (keine parallele UI-Formel).
+- **Freigabe-Prüfdialog** (Kunde/Firma/Positionen/Steuerart/Fälligkeit/
+  Überrechnung); nach Freigabe unveränderbar.
+- **Zahlungsoberfläche** (Teil-/Vollzahlung, Referenz/Datum/Notiz, offener
+  Betrag) – keine Bankanbindung.
+- **Gutschrift/Storno**-Dialoge (Korrekturweg).
+- **Rechnungs-PDF** (A4-Druckfenster): Firma/Bank/UID, Kunde, Nummer, Projekt/
+  Kommission/Auftrag, Leistungszeitraum, Positionen, USt je Satz, Brutto,
+  bereits bezahlt, offener Betrag, Fälligkeit, Zahlungsbedingungen, Belegkennung.
+  **Keine internen Kosten/Margen.**
+- **ERP-/KingBill-Dateiexport (CSV):** Auswahl freigegebener Belege, Vorschau,
+  Standard-Mappingprofil, Prüfsumme + Export-ID, **Doppelexport-Erkennung**,
+  Status „Dateiexport", Export-Verlauf, CSV-Download. **Keine Live-API.**
+- **Kundenportal:** nur ausdrücklich fürs Portal freigegebene Rechnungen
+  (Nummer/Datum/Projekt/Kommission/Betrag/Fälligkeit/Zahlungsstatus + PDF).
+  Keine internen/ERP-Daten.
+
+Datenschema-Ergänzung: `beleg.portalSichtbar`, `beleg.erpExportId`,
+`db.erpExporte[]` (Export-Log).
+
 ## Nächster Schritt (später)
 
-Vollständige Rechnungs-UI (Erstellung/Freigabe/PDF), ERP-Exportvorschau
-(Dateiexport, keine Live-Übertragung), Zahlungsimport – jeweils ohne
-vorgetäuschte Konformität/Anbindung.
+Zahlungsimport, XLSX-Export, weitere ERP-Profile – jeweils ohne vorgetäuschte
+Konformität/Live-Anbindung.

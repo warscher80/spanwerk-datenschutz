@@ -396,6 +396,8 @@
         R.belegFreigeben(gut, settings, { benutzer: "admin", firma: settings.firma, kunde: kundeR }, nowISO());
         var storno = R.stornoZu(teil2, { grund: "fehlerhafte Position – Neuausstellung", ersteller: "admin" }, nowISO());
         R.belegFreigeben(storno, settings, { benutzer: "admin", firma: settings.firma, kunde: kundeR }, nowISO());
+        // Zwei Belege ausdrücklich fürs Kundenportal freigeben (Demo)
+        akonto.portalSichtbar = true; schluss.portalSichtbar = true;
         rechnungen.push(akonto, teil1, teil2, schluss, gut, storno);
       }
     } catch (e) { nachtraege = []; rechnungen = []; }
@@ -437,6 +439,7 @@
       // Nachträge & Rechnungen (Phase 13A, nur Testumgebung)
       nachtraege: nachtraege,
       rechnungen: rechnungen,
+      erpExporte: [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -607,6 +610,7 @@
       st.rechnung.kreise = (w.Preisschmiede.Rechnung ? w.Preisschmiede.Rechnung.standardKreise() : { Rechnung: { praefix: "RE", jahr: null, laufend: 1, mindestlaenge: 4 }, Gutschrift: { praefix: "GU", jahr: null, laufend: 1, mindestlaenge: 4 }, Stornobeleg: { praefix: "ST", jahr: null, laufend: 1, mindestlaenge: 4 } });
     }
     if (st.nachtragZaehler == null) st.nachtragZaehler = (obj.nachtraege.length || 0) + 1;
+    if (!Array.isArray(obj.erpExporte)) obj.erpExporte = [];
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)
     if (obj.version !== 11) { st.betrieb.letzteMigration = nowISO(); obj.version = 11; }
     else if (st.betrieb.letzteMigration == null) st.betrieb.letzteMigration = nowISO();

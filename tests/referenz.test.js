@@ -833,5 +833,28 @@ function freigebe(settings, art, positionen, extra) {
   t("RECH werkstatt hat KEINE Rechnungsrechte", R.darfBeleg("werkstatt", "entwurf") === false && R.RECHNUNG_RECHTE.werkstatt.length === 0);
 })();
 
+// 21 Positionsrest (Teilmenge)
+t("RECH positionRest = Gesamt - bisher - aktuell", eq(R.positionRest({ gesamtmenge: 10, bereitsAbgerechnet: 2, menge: 3 }), 5));
+
+// 22/23 ERP-Dateiexport + Doppelübertragung (Phase 13B)
+(function () {
+  var s = mkSettings();
+  var b1 = freigebe(s, "Teilrechnung", [{ bezeichnung: "Leistung; mit Semikolon", menge: 2, einheit: "Stk", einzelpreis: 100, mwstProz: 20 }], { kundeId: "kA", kommission: "K1" });
+  var b2 = freigebe(s, "Akontorechnung", [{ bezeichnung: "Akonto", menge: 1, einzelpreis: 500, mwstProz: 20 }], { kundeId: "kA" });
+  var lookup = { kA: "Kunde A" };
+  var exp = R.erpExport([b1, b2], lookup, R.standardMappingProfil(), iso(2026, 8, 1));
+  t("RECH ERP-Export erzeugt CSV + Prüfsumme + Export-ID", !!exp.csv && !!exp.pruefsumme && /^EXP-/.test(exp.exportId) && exp.zeilen === 2);
+  t("RECH ERP-CSV Kopfzeile enthält Belegnummer", exp.csv.split("\r\n")[0].indexOf("Belegnummer") === 0);
+  t("RECH ERP-CSV maskiert Semikolon in Feld", exp.csv.indexOf('"Leistung; mit Semikolon"') >= 0);
+  t("RECH ERP-CSV enthält KEINE internen Kostenfelder", exp.csv.toLowerCase().indexOf("einkauf") < 0 && exp.csv.toLowerCase().indexOf("deckungsbeitrag") < 0 && exp.csv.toLowerCase().indexOf("gewinn") < 0);
+  var log = [{ exportId: exp.exportId, pruefsumme: exp.pruefsumme, belege: exp.belege }];
+  t("RECH doppelter Export (identisch) erkannt", R.erpDoppelt(log, exp).doppelt === true && R.erpDoppelt(log, exp).grund === "identischer Export");
+  var exp2 = R.erpExport([b1], lookup, R.standardMappingProfil(), iso(2026, 8, 2));
+  t("RECH doppelter Export (Beleg bereits exportiert) erkannt", R.erpDoppelt(log, exp2).doppelt === true);
+  var b3 = freigebe(s, "Teilrechnung", [{ bezeichnung: "Neu", menge: 1, einzelpreis: 50 }], { kundeId: "kA" });
+  var exp3 = R.erpExport([b3], lookup, R.standardMappingProfil(), iso(2026, 8, 3));
+  t("RECH neuer Beleg NICHT als doppelt erkannt", R.erpDoppelt(log, exp3).doppelt === false);
+})();
+
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

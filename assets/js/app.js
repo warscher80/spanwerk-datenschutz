@@ -18,6 +18,7 @@
   var Betrieb = w.Preisschmiede.Betrieb;
   var Mandant = w.Preisschmiede.Mandant;
   var Infra = w.Preisschmiede.Infra;
+  var Rechnung = w.Preisschmiede.Rechnung;
   var SCHRITTE = Products.SCHRITTE;
   var fmtEUR = Calc.fmtEUR;
 
@@ -65,6 +66,7 @@
     dashboard: function () { renderDashboard(); }, stammdaten: function () { renderStammdaten(); },
     material: function () { renderMaterial(); }, kalkulation: function () { renderKalkulation(); },
     auftraege: function () { renderAuftraege(); }, lernen: function () { renderLernen(); },
+    rechnungen: function () { renderRechnungen(); },
     planung: function () { renderPlanung(); },
     dokumente: function () { renderDokumente(); },
     system: function () { renderSystem(); },
@@ -1778,6 +1780,485 @@
         box.hidden = false;
       } else { box.hidden = true; }
     } catch (e) { box.hidden = true; }
+  }
+
+  // ============================================================
+  //  RECHNUNGEN & NACHTRÄGE – vollständige UI (Phase 13B)
+  //  Nutzt ausschließlich die zentrale Engine (Rechnung.*). Keine
+  //  parallele UI-Formel. Keine steuerliche/rechtliche Wertung,
+  //  kein Versand, keine Live-ERP-Übertragung.
+  // ============================================================
+  var rz = { tab: "rechnungen", mode: "liste", belegId: null, ntId: null, filter: { kunde: "", kommission: "", art: "", status: "", von: "", bis: "", ueberfaellig: false }, wizard: null };
+  function rzKunde(id) { var k = (db.kunden || []).filter(function (x) { return x.id === id; })[0]; return k ? k.name : "—"; }
+  function rzAuftrag(id) { return (db.auftraege || []).filter(function (a) { return a.id === id; })[0]; }
+  function rzSum(b) { return Rechnung.belegSummen(b); }
+  function rzOffen(b) { return Rechnung.offenerBetrag(b); }
+  function rzRolle() { return (Auth.current() || {}).rolle; }
+
+  function renderRechnungen() {
+    var root = $("#page-rechnungen .content");
+    if (!Auth.darf("rechnungen") || !Rechnung) { root.innerHTML = '<div class="empty">Kein Zugriff. Rechnungsdaten sind nur für Büro/Administration sichtbar.</div>'; return; }
+    var tabs = '<div class="inline" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">' +
+      rzTabBtn("rechnungen", "🧾 Rechnungen") + rzTabBtn("nachtraege", "➕ Nachträge") + rzTabBtn("erp", "📤 ERP-Export") + "</div>";
+    var body;
+    if (rz.wizard) body = rzWizardHtml();
+    else if (rz.tab === "nachtraege") body = rz.mode === "ntdetail" ? rzNachtragDetailHtml() : rzNachtraegeListeHtml();
+    else if (rz.tab === "erp") body = rzErpHtml();
+    else body = rz.mode === "detail" ? rzBelegDetailHtml() : rzRechnungenListeHtml();
+    root.innerHTML = tabs + '<p class="hint">Offline-Prüfsummen sind nicht kryptografisch manipulationssicher. Keine steuerliche/rechtliche Konformität, kein Rechnungsversand, keine Live-ERP-Übertragung.</p>' + body;
+    rzWire();
+  }
+  function rzTabBtn(key, label) { return '<button class="btn sm ' + (rz.tab === key && !rz.wizard ? "" : "ghost") + '" data-rztab="' + key + '" type="button">' + esc(label) + "</button>"; }
+
+  // ---------- Rechnungsübersicht ----------
+  function rzRechnungenListeHtml() {
+    var belege = (db.rechnungen || []).slice().reverse();
+    var f = rz.filter, now = Date.now();
+    var gefiltert = belege.filter(function (b) {
+      if (f.kunde && b.kundeId !== f.kunde) return false;
+      if (f.kommission && (b.kommission || "").toLowerCase().indexOf(f.kommission.toLowerCase()) < 0) return false;
+      if (f.art && b.art !== f.art) return false;
+      if (f.status && b.zahlungstatus !== f.status) return false;
+      if (f.von && new Date(b.rechnungsdatum) < new Date(f.von)) return false;
+      if (f.bis && new Date(b.rechnungsdatum) > new Date(f.bis + "T23:59:59")) return false;
+      if (f.ueberfaellig && !Rechnung.ueberfaellig(b, new Date(now).toISOString())) return false;
+      return true;
+    });
+    var kundenOpt = '<option value="">Alle Kunden</option>' + (db.kunden || []).map(function (k) { return '<option value="' + esc(k.id) + '"' + (f.kunde === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>"; }).join("");
+    var artOpt = '<option value="">Alle Arten</option>' + Rechnung.RECHNUNGSARTEN.map(function (a) { return '<option value="' + esc(a) + '"' + (f.art === a ? " selected" : "") + ">" + esc(a) + "</option>"; }).join("");
+    var statusOpt = '<option value="">Alle Zahlungsstatus</option>' + Rechnung.ZAHLUNGSTATUS.map(function (s) { return '<option value="' + esc(s) + '"' + (f.status === s ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("");
+    var html = '<div class="card"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3 style="margin:0">Rechnungsbelege (' + gefiltert.length + ")</h3>" +
+      (Rechnung.darfBeleg(rzRolle(), "entwurf") ? '<button class="btn sm" id="rz-neu" type="button">+ Neue Rechnung (Assistent)</button>' : "") + "</div>" +
+      '<div class="grid cols-4" style="margin-top:10px;gap:8px">' +
+      '<select id="rz-f-kunde">' + kundenOpt + "</select>" +
+      '<input id="rz-f-kommission" placeholder="Kommission" value="' + esc(f.kommission) + '">' +
+      '<select id="rz-f-art">' + artOpt + "</select>" +
+      '<select id="rz-f-status">' + statusOpt + "</select></div>" +
+      '<div class="grid cols-4" style="margin-top:8px;gap:8px"><label class="fld"><span class="lbl">von</span><input type="date" id="rz-f-von" value="' + esc(f.von) + '"></label>' +
+      '<label class="fld"><span class="lbl">bis</span><input type="date" id="rz-f-bis" value="' + esc(f.bis) + '"></label>' +
+      '<label class="inline" style="gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="rz-f-ueberfaellig"' + (f.ueberfaellig ? " checked" : "") + "> nur überfällig</label>" +
+      '<button class="btn sm ghost" id="rz-f-reset" type="button">Filter zurücksetzen</button></div>';
+    html += gefiltert.length ? '<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Nummer</th><th>Art</th><th>Kunde</th><th>Kommission</th><th>Datum</th><th>Fällig</th><th class="num">Netto</th><th class="num">USt</th><th class="num">Brutto</th><th class="num">Offen</th><th>Zahlung</th><th>ERP</th></tr></thead><tbody>' +
+      gefiltert.map(function (b) {
+        var s = rzSum(b); var ueb = Rechnung.ueberfaellig(b, new Date(now).toISOString()) && b.zahlungstatus !== "bezahlt";
+        return '<tr data-rz-open="' + esc(b.id) + '" style="cursor:pointer">' +
+          "<td>" + esc(b.nummer || "(Entwurf)") + "</td><td>" + esc(b.art) + "</td><td>" + esc(rzKunde(b.kundeId)) + "</td><td>" + esc(b.kommission || "") + "</td><td>" + fmtDate(b.rechnungsdatum) + "</td><td" + (ueb ? ' style="color:#e06666"' : "") + ">" + (b.faelligkeit ? fmtDate(b.faelligkeit) : "—") + '</td><td class="num">' + fmtEUR(s.netto) + '</td><td class="num">' + fmtEUR(s.mwst) + '</td><td class="num">' + fmtEUR(s.brutto) + '</td><td class="num">' + (Rechnung.TEILARTEN.indexOf(b.art) >= 0 || b.art === "Schlussrechnung" ? fmtEUR(rzOffen(b)) : "—") + "</td><td>" + esc(b.zahlungstatus) + "</td><td>" + (b.erpExportId ? '<span class="tag" style="background:#5a9d7a;color:#fff">exportiert</span>' : "—") + "</td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px;margin-top:10px">Keine Belege gefunden.</div>';
+    html += "</div>";
+    return html;
+  }
+
+  // ---------- Belegdetail ----------
+  function rzBelegDetailHtml() {
+    var b = (db.rechnungen || []).filter(function (x) { return x.id === rz.belegId; })[0];
+    if (!b) { rz.mode = "liste"; return rzRechnungenListeHtml(); }
+    var s = rzSum(b); var rolle = rzRolle();
+    var kunde = (db.kunden || []).filter(function (k) { return k.id === b.kundeId; })[0] || {};
+    var html = '<div class="card"><div class="inline" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><button class="btn sm ghost" id="rz-back" type="button">‹ Übersicht</button>' +
+      '<div class="inline" style="gap:6px;flex-wrap:wrap">';
+    html += '<button class="btn sm" id="rz-pdf" type="button">📄 PDF</button>';
+    if (!b.freigegeben && Rechnung.darfBeleg(rolle, "freigeben")) html += '<button class="btn sm" id="rz-freigabe" type="button">✅ Prüfen &amp; freigeben</button>';
+    if (!b.freigegeben && Rechnung.darfBeleg(rolle, "bearbeiten")) html += '<button class="btn sm ghost" id="rz-edit" type="button">✏️ Positionen bearbeiten</button>';
+    if (b.freigegeben && Rechnung.TEILARTEN.concat(["Schlussrechnung"]).indexOf(b.art) >= 0 && Rechnung.darfBeleg(rolle, "zahlung")) html += '<button class="btn sm" id="rz-zahlung" type="button">💶 Zahlung erfassen</button>';
+    if (b.freigegeben && Rechnung.NEGATIVE_ARTEN.indexOf(b.art) < 0 && Rechnung.darfBeleg(rolle, "gutschrift")) html += '<button class="btn sm ghost" id="rz-gutschrift" type="button">Gutschrift</button><button class="btn sm ghost" id="rz-storno" type="button">Storno</button>';
+    if (b.freigegeben) html += '<button class="btn sm ' + (b.portalSichtbar ? "" : "ghost") + '" id="rz-portal" type="button">' + (b.portalSichtbar ? "Im Portal sichtbar ✓" : "Für Portal freigeben") + "</button>";
+    html += "</div></div>";
+    html += '<h3 style="margin:10px 0 4px">' + esc(b.nummer || "(Entwurf)") + " · " + esc(b.art) + (b.freigegeben ? ' <span class="tag" style="background:#2fbf71;color:#fff">freigegeben</span>' : ' <span class="tag" style="background:#e0a000;color:#fff">Entwurf</span>') + "</h3>";
+    html += '<div class="table-wrap"><table><tbody>' +
+      dokZeile("Kunde", esc(kunde.name || "—") + (kunde.ansprechpartner ? " · " + esc(kunde.ansprechpartner) : "")) +
+      dokZeile("Kommission / Projekt", esc(b.kommission || "—")) +
+      dokZeile("Auftrag", esc((rzAuftrag(b.auftragId) || {}).titel || b.auftragId || "—")) +
+      dokZeile("Rechnungsdatum", fmtDate(b.rechnungsdatum)) + dokZeile("Leistungszeitraum", (b.leistungszeitraum && b.leistungszeitraum.von ? fmtDate(b.leistungszeitraum.von) + " – " + fmtDate(b.leistungszeitraum.bis) : "—")) +
+      dokZeile("Fälligkeit", b.faelligkeit ? fmtDate(b.faelligkeit) : "—") +
+      dokZeile("Steuerart", b.reverseCharge ? "Reverse Charge" + (b.reverseChargeBestaetigt ? " (bestätigt)" : " – NICHT bestätigt") : "Regelbesteuerung") +
+      "</tbody></table></div>";
+    // Positionen
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Pos</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einh.</th><th class="num">Einzel</th><th class="num">Rabatt</th><th class="num">USt</th><th class="num">Netto</th></tr></thead><tbody>' +
+      (b.positionen || []).map(function (p) { return "<tr><td>" + esc(p.nummer) + "</td><td>" + esc(p.bezeichnung) + (p.gesamtmenge ? '<br><span class="muted" style="font-size:11px">Gesamt ' + p.gesamtmenge + " · bisher " + p.bereitsAbgerechnet + " · Rest " + Rechnung.positionRest(p) + "</span>" : "") + '</td><td class="num">' + p.menge + "</td><td>" + esc(p.einheit || "") + '</td><td class="num">' + fmtEUR(p.einzelpreis) + '</td><td class="num">' + (p.rabattProz || 0) + '%</td><td class="num">' + (p.mwstProz != null ? p.mwstProz : b.mwstProz) + '%</td><td class="num">' + fmtEUR(Rechnung.posNetto(p)) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    // Anrechnungen
+    if ((b.anrechnungen || []).length) html += '<div class="muted" style="font-size:12px;margin-top:6px">Anrechnung früherer Rechnungen: ' + b.anrechnungen.map(function (a) { return esc(a.bezeichnung) + " (" + fmtEUR(a.brutto) + ")"; }).join(", ") + "</div>";
+    // Summen
+    html += '<div class="grid cols-2" style="margin-top:10px"><div></div><div class="card">' +
+      s.steuerZeilen.map(function (z) { return '<div class="zeile"><span>Netto ' + z.satz + "%</span><span>" + fmtEUR(z.netto) + "</span></div><div class=\"zeile\"><span>USt " + z.satz + "%</span><span>" + fmtEUR(z.steuer) + "</span></div>"; }).join("") +
+      '<div class="zeile"><strong>Netto</strong><strong>' + fmtEUR(s.netto) + "</strong></div>" +
+      '<div class="zeile"><span>USt gesamt</span><span>' + fmtEUR(s.mwst) + "</span></div>" +
+      (s.angerechnetBrutto ? '<div class="zeile"><span>abzügl. Anrechnung</span><span>-' + fmtEUR(s.angerechnetBrutto) + "</span></div>" : "") +
+      '<div class="zeile" style="font-size:16px"><strong>Brutto</strong><strong>' + fmtEUR(s.brutto) + "</strong></div>" +
+      (Rechnung.TEILARTEN.concat(["Schlussrechnung"]).indexOf(b.art) >= 0 ? '<div class="zeile"><span>bereits bezahlt</span><span>' + fmtEUR(Rechnung.bezahltBetrag(b)) + '</span></div><div class="zeile"><strong>offen</strong><strong>' + fmtEUR(rzOffen(b)) + "</strong></div>" : "") +
+      "</div></div>";
+    if (b.reverseCharge && b.reverseChargeBestaetigt) html += '<div class="insight"><span class="ico">ℹ️</span><span>' + esc(Rechnung.reverseChargePruefung(b).hinweis) + "</span></div>";
+    // Zahlungen
+    if ((b.zahlungen || []).length) html += '<h4 style="margin:12px 0 4px">Zahlungen</h4><div class="table-wrap"><table><thead><tr><th>Datum</th><th>Referenz</th><th>Art</th><th class="num">Betrag</th></tr></thead><tbody>' + b.zahlungen.map(function (z) { return "<tr><td>" + fmtDate(z.datum) + "</td><td>" + esc(z.referenz || "") + "</td><td>" + esc(z.art) + '</td><td class="num">' + fmtEUR(z.betrag) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    html += "</div>";
+    return html;
+  }
+
+  // ---------- Nachträge ----------
+  function rzNachtraegeListeHtml() {
+    var nts = (db.nachtraege || []).slice().reverse();
+    var html = '<div class="card"><div class="inline" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Nachträge (' + nts.length + ")</h3>" +
+      (Rechnung.darfBeleg(rzRolle(), "entwurf") ? '<button class="btn sm" id="nt-neu" type="button">+ Neuer Nachtrag</button>' : "") + "</div>";
+    html += nts.length ? '<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Nummer</th><th>Bezeichnung</th><th>Kommission</th><th>Ursache</th><th>Status</th><th class="num">Netto</th></tr></thead><tbody>' +
+      nts.map(function (n) { return '<tr data-nt-open="' + esc(n.id) + '" style="cursor:pointer"><td>' + esc(n.nummer || "(Entwurf)") + "</td><td>" + esc(n.bezeichnung || "") + "</td><td>" + esc(n.kommission || "") + "</td><td>" + esc(n.ursache || "") + "</td><td>" + esc(n.status) + '</td><td class="num">' + fmtEUR(n.sollSnapshot ? n.sollSnapshot.netto : 0) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="muted" style="font-size:12px;margin-top:10px">Noch keine Nachträge.</div>';
+    html += "</div>";
+    return html;
+  }
+  function rzNachtragDetailHtml() {
+    var n = (db.nachtraege || []).filter(function (x) { return x.id === rz.ntId; })[0];
+    if (!n) { rz.mode = "liste"; return rzNachtraegeListeHtml(); }
+    var auf = rzAuftrag(n.auftragId) || {}; var rolle = rzRolle();
+    var aw = Rechnung.auftragswert(auf.kalk ? auf.kalk.netto : 0, (db.nachtraege || []).filter(function (x) { return x.auftragId === n.auftragId; }));
+    var html = '<div class="card"><div class="inline" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><button class="btn sm ghost" id="nt-back" type="button">‹ Nachträge</button><div class="inline" style="gap:6px;flex-wrap:wrap">';
+    if (n.status !== "angenommen" && n.status !== "abgerechnet") html += '<button class="btn sm" id="nt-kalk" type="button">🧮 (Neu) kalkulieren</button>';
+    if (n.status === "kalkuliert") html += '<button class="btn sm" id="nt-frei" type="button">Intern freigeben</button>';
+    if (n.status === "freigegeben") html += '<button class="btn sm" id="nt-ang" type="button">Angenommen</button><button class="btn sm ghost" id="nt-abl" type="button">Abgelehnt</button>';
+    html += '<button class="btn sm ghost" id="nt-zusatz" type="button">+ Zusatzleistung</button></div></div>';
+    html += '<h3 style="margin:10px 0">' + esc(n.nummer || "(Entwurf)") + " · " + esc(n.bezeichnung || "") + ' <span class="tag" style="background:#888;color:#fff">' + esc(n.status) + "</span></h3>";
+    html += '<div class="grid cols-3"><div class="card"><div class="muted" style="font-size:11px">Hauptauftrag</div><strong>' + esc(auf.titel || n.auftragId || "—") + "</strong><div class=\"muted\" style=\"font-size:11px\">Kunde " + esc(rzKunde(n.kundeId)) + " · " + esc(n.kommission || "") + "</div></div>" +
+      '<div class="card"><div class="muted" style="font-size:11px">Nachtragssumme (netto)</div><strong style="font-size:16px">' + fmtEUR(n.sollSnapshot ? n.sollSnapshot.netto : 0) + "</strong></div>" +
+      '<div class="card"><div class="muted" style="font-size:11px">Ursache · Terminwirkung</div><strong>' + esc(n.ursache || "—") + "</strong><div class=\"muted\" style=\"font-size:11px\">" + esc(n.gewuenschterTermin ? fmtDate(n.gewuenschterTermin) : "keine Terminangabe") + "</div></div></div>";
+    html += '<div class="grid cols-3" style="margin-top:8px">' + stat("Ursprünglicher Auftragswert", fmtEUR(aw.ursprungNetto)) + stat("Angenommene Nachträge", fmtEUR(aw.nachtragNetto)) + stat("Aktueller Auftragswert", fmtEUR(aw.aktuellNetto)) + "</div>";
+    if (n.sollSnapshot) { var ts = n.sollSnapshot.teile || {}; html += '<div class="muted" style="font-size:12px;margin-top:8px">Kalkulation: Material ' + fmtEUR(ts.material) + " · Arbeit " + fmtEUR(ts.arbeit) + " · Maschine " + fmtEUR(ts.maschine) + " · Rüst " + fmtEUR(ts.ruest) + " · Montage " + fmtEUR(ts.montage) + " · Fremd " + fmtEUR(ts.fremd) + "</div>"; }
+    if (n.beschreibung) html += '<p style="margin-top:8px">' + esc(n.beschreibung) + "</p>";
+    if ((n.zusatzleistungen || []).length) html += '<h4 style="margin:10px 0 4px">Zusatzleistungen aus Zeiterfassung</h4>' + n.zusatzleistungen.map(function (z) { return '<div class="zeile"><span>' + esc(z.beschreibung) + "</span><span class=\"muted\">" + (z.stunden || 0) + " h</span></div>"; }).join("");
+    if ((n.aenderungsverlauf || []).length) html += '<h4 style="margin:10px 0 4px">Änderungsverlauf</h4>' + n.aenderungsverlauf.map(function (v) { return '<div class="zeile"><span>' + esc(v.aktion) + (v.notiz ? " – " + esc(v.notiz) : "") + '</span><span class="muted" style="font-size:11px">' + fmtDateTime(v.datum) + "</span></div>"; }).join("");
+    html += "</div>";
+    return html;
+  }
+
+  // ---------- ERP-Dateiexport ----------
+  function rzErpHtml() {
+    var freig = (db.rechnungen || []).filter(function (b) { return b.freigegeben; });
+    var html = '<div class="card"><h3>ERP-/KingBill-Dateiexport (CSV)</h3><p class="hint">Nur Dateiexport – keine aktive KingBill-API. Doppelter Export wird erkannt (Prüfsumme/Belege).</p>';
+    if (!Rechnung.darfBeleg(rzRolle(), "erp_export")) { html += '<div class="muted">Keine Berechtigung für ERP-Export.</div></div>'; return html; }
+    html += freig.length ? '<div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="erp-all"></th><th>Nummer</th><th>Art</th><th>Kunde</th><th class="num">Brutto</th><th>ERP-Status</th></tr></thead><tbody>' +
+      freig.map(function (b) { return '<tr><td><input type="checkbox" data-erp-sel="' + esc(b.id) + '"></td><td>' + esc(b.nummer) + "</td><td>" + esc(b.art) + "</td><td>" + esc(rzKunde(b.kundeId)) + '</td><td class="num">' + fmtEUR(rzSum(b).brutto) + "</td><td>" + (b.erpExportId ? '<span class="tag" style="background:#5a9d7a;color:#fff">' + esc(b.erpExportId) + "</span>" : '<span class="muted">offen</span>') + "</td></tr>"; }).join("") + "</tbody></table></div>" +
+      '<div class="btn-row" style="margin-top:10px"><button class="btn sm" id="erp-preview" type="button">Vorschau</button><button class="btn sm" id="erp-export" type="button">Exportdatei erzeugen</button></div>' +
+      '<div id="erp-preview-box"></div>' : '<div class="muted" style="font-size:12px">Keine freigegebenen Belege für den Export.</div>';
+    // Export-Log
+    var log = db.erpExporte || [];
+    if (log.length) html += '<h4 style="margin:12px 0 4px">Export-Verlauf</h4><div class="table-wrap"><table><thead><tr><th>Export-ID</th><th>Zeit</th><th>Belege</th><th>Zeilen</th><th>Prüfsumme</th></tr></thead><tbody>' + log.slice().reverse().slice(0, 12).map(function (e) { return "<tr><td><code>" + esc(e.exportId) + "</code></td><td>" + fmtDateTime(e.erstellt) + "</td><td>" + (e.belegNummern || []).join(", ") + "</td><td>" + e.zeilen + "</td><td><code>" + esc((e.pruefsumme || "").slice(0, 10)) + "</code></td></tr>"; }).join("") + "</tbody></table></div>";
+    html += "</div>";
+    return html;
+  }
+
+  // ---------- Verdrahtung ----------
+  function rzWire() {
+    $all("[data-rztab]").forEach(function (b) { b.onclick = function () { rz.tab = b.getAttribute("data-rztab"); rz.mode = "liste"; rz.wizard = null; renderRechnungen(); }; });
+    // Liste
+    if ($("#rz-neu")) $("#rz-neu").onclick = rzWizardStart;
+    $all("[data-rz-open]").forEach(function (r) { r.onclick = function () { rz.belegId = r.getAttribute("data-rz-open"); rz.mode = "detail"; renderRechnungen(); }; });
+    ["kunde", "kommission", "art", "status", "von", "bis"].forEach(function (k) { var el = $("#rz-f-" + k); if (el) el.onchange = function () { rz.filter[k] = el.value; renderRechnungen(); }; });
+    if ($("#rz-f-ueberfaellig")) $("#rz-f-ueberfaellig").onchange = function () { rz.filter.ueberfaellig = this.checked; renderRechnungen(); };
+    if ($("#rz-f-reset")) $("#rz-f-reset").onclick = function () { rz.filter = { kunde: "", kommission: "", art: "", status: "", von: "", bis: "", ueberfaellig: false }; renderRechnungen(); };
+    // Belegdetail
+    if ($("#rz-back")) $("#rz-back").onclick = function () { rz.mode = "liste"; renderRechnungen(); };
+    if ($("#rz-pdf")) $("#rz-pdf").onclick = function () { rechnungPdf(rzCurrentBeleg()); };
+    if ($("#rz-freigabe")) $("#rz-freigabe").onclick = function () { rzFreigabeDialog(rzCurrentBeleg()); };
+    if ($("#rz-edit")) $("#rz-edit").onclick = function () { rzWizardEdit(rzCurrentBeleg()); };
+    if ($("#rz-zahlung")) $("#rz-zahlung").onclick = function () { rzZahlungDialog(rzCurrentBeleg()); };
+    if ($("#rz-gutschrift")) $("#rz-gutschrift").onclick = function () { rzKorrekturDialog(rzCurrentBeleg(), "Gutschrift"); };
+    if ($("#rz-storno")) $("#rz-storno").onclick = function () { rzKorrekturDialog(rzCurrentBeleg(), "Stornobeleg"); };
+    if ($("#rz-portal")) $("#rz-portal").onclick = function () { var b = rzCurrentBeleg(); b.portalSichtbar = !b.portalSichtbar; Store.save(); renderRechnungen(); toast(b.portalSichtbar ? "Rechnung im Kundenportal sichtbar." : "Aus Portal entfernt."); };
+    // Nachträge
+    if ($("#nt-neu")) $("#nt-neu").onclick = function () { rzNachtragModal(null); };
+    $all("[data-nt-open]").forEach(function (r) { r.onclick = function () { rz.ntId = r.getAttribute("data-nt-open"); rz.mode = "ntdetail"; renderRechnungen(); }; });
+    if ($("#nt-back")) $("#nt-back").onclick = function () { rz.mode = "liste"; renderRechnungen(); };
+    if ($("#nt-kalk")) $("#nt-kalk").onclick = function () { var n = rzCurrentNt(); Rechnung.nachtragKalkulieren(n, Store.nowISO()); Store.save(); renderRechnungen(); toast("Nachtrag kalkuliert."); };
+    if ($("#nt-frei")) $("#nt-frei").onclick = function () { Rechnung.nachtragStatus(rzCurrentNt(), "freigegeben", Store.nowISO()); Store.save(); renderRechnungen(); toast("Nachtrag intern freigegeben."); };
+    if ($("#nt-ang")) $("#nt-ang").onclick = function () { Rechnung.nachtragStatus(rzCurrentNt(), "angenommen", Store.nowISO()); Store.save(); renderRechnungen(); toast("Nachtrag als angenommen markiert."); };
+    if ($("#nt-abl")) $("#nt-abl").onclick = function () { Rechnung.nachtragStatus(rzCurrentNt(), "abgelehnt", Store.nowISO()); Store.save(); renderRechnungen(); toast("Nachtrag abgelehnt."); };
+    if ($("#nt-zusatz")) $("#nt-zusatz").onclick = function () { rzZusatzDialog(rzCurrentNt()); };
+    if ($("#nt-edit")) $("#nt-edit").onclick = function () { rzNachtragModal(rzCurrentNt()); };
+    // ERP
+    if ($("#erp-all")) $("#erp-all").onchange = function () { var c = this.checked; $all("[data-erp-sel]").forEach(function (x) { x.checked = c; }); };
+    if ($("#erp-preview")) $("#erp-preview").onclick = function () { rzErpPreview(false); };
+    if ($("#erp-export")) $("#erp-export").onclick = function () { rzErpPreview(true); };
+    // Wizard
+    rzWizardWire();
+  }
+  function rzCurrentBeleg() { return (db.rechnungen || []).filter(function (x) { return x.id === rz.belegId; })[0]; }
+  function rzCurrentNt() { return (db.nachtraege || []).filter(function (x) { return x.id === rz.ntId; })[0]; }
+
+  // ---------- Rechnungsassistent (Wizard) ----------
+  function rzWizardStart() {
+    rz.wizard = { schritt: 1, editBelegId: null, auftragId: "", art: "Teilrechnung", positionen: [], nachtragIds: [], anrechnungen: [], mwstProz: 20, rabattProz: 0, zahlungszielTage: 14, skontoProz: 0, skontoTage: 0, reverseCharge: false, reverseChargeBestaetigt: false, reverseChargeHinweis: "Steuerschuldnerschaft des Leistungsempfängers.", steuerBestaetigt: false, leistungVon: "", leistungBis: "" };
+    renderRechnungen();
+  }
+  function rzWizardEdit(b) {
+    rz.wizard = { schritt: 2, editBelegId: b.id, auftragId: b.auftragId || "", art: b.art, positionen: JSON.parse(JSON.stringify(b.positionen || [])), nachtragIds: [], anrechnungen: (b.anrechnungen || []).slice(), mwstProz: b.mwstProz, rabattProz: b.rabattProz, zahlungszielTage: b.zahlungszielTage, skontoProz: b.skontoProz, skontoTage: b.skontoTage, reverseCharge: b.reverseCharge, reverseChargeBestaetigt: b.reverseChargeBestaetigt, reverseChargeHinweis: b.reverseChargeHinweis, steuerBestaetigt: true, leistungVon: (b.leistungszeitraum || {}).von || "", leistungBis: (b.leistungszeitraum || {}).bis || "" };
+    renderRechnungen();
+  }
+  // Temporären Beleg aus dem Wizard bauen (für Engine-Summen; keine UI-Formel).
+  function rzWizardBeleg() {
+    var wz = rz.wizard;
+    return Rechnung.belegNeu({ mandantId: null, kundeId: rzWizardKundeId(), kommission: (rzAuftrag(wz.auftragId) || {}).kommission || "", auftragId: wz.auftragId, art: wz.art, mwstProz: wz.mwstProz, rabattProz: wz.rabattProz, zahlungszielTage: wz.zahlungszielTage, skontoProz: wz.skontoProz, skontoTage: wz.skontoTage, reverseCharge: wz.reverseCharge, reverseChargeBestaetigt: wz.reverseChargeBestaetigt, reverseChargeHinweis: wz.reverseChargeHinweis, positionen: wz.positionen, anrechnungen: wz.anrechnungen, leistungszeitraum: { von: wz.leistungVon || null, bis: wz.leistungBis || null } }, Store.nowISO());
+  }
+  function rzWizardKundeId() { var a = rzAuftrag(rz.wizard.auftragId); return a ? a.kundeId : null; }
+  function rzWizardHtml() {
+    var wz = rz.wizard; var schritt = wz.schritt;
+    var kopf = '<div class="card"><div class="inline" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3 style="margin:0">' + (wz.editBelegId ? "Positionen bearbeiten" : "Rechnungsassistent") + " – Schritt " + schritt + "/4</h3><button class=\"btn sm ghost\" id=\"wz-cancel\" type=\"button\">Abbrechen</button></div>";
+    var body = "";
+    if (schritt === 1) {
+      var aufOpt = '<option value="">— Auftrag wählen —</option>' + (db.auftraege || []).map(function (a) { return '<option value="' + esc(a.id) + '"' + (wz.auftragId === a.id ? " selected" : "") + ">" + esc(a.titel || a.id) + " · " + esc(a.kommission || "") + "</option>"; }).join("");
+      var artOpt = ["Akontorechnung", "Abschlagsrechnung", "Teilrechnung", "Schlussrechnung"].map(function (a) { return '<option value="' + a + '"' + (wz.art === a ? " selected" : "") + ">" + a + "</option>"; }).join("");
+      body = '<label class="fld"><span class="lbl">1. Auftrag auswählen</span><select id="wz-auftrag">' + aufOpt + "</select></label>" +
+        '<label class="fld"><span class="lbl">2. Rechnungsart</span><select id="wz-art">' + artOpt + "</select></label>";
+    } else if (schritt === 2) {
+      body = rzPositionEditorHtml() + rzNachtragAuswahlHtml();
+    } else if (schritt === 3) {
+      body = rzFruehereRechnungenHtml() + rzSteuerZahlungHtml();
+    } else {
+      body = rzWizardVorschauHtml();
+    }
+    var nav = '<div class="btn-row" style="margin-top:14px">' + (schritt > 1 ? '<button class="btn ghost" id="wz-back" type="button">‹ Zurück</button>' : "") + (schritt < 4 ? '<button class="btn primary" id="wz-next" type="button">Weiter ›</button>' : '<button class="btn ghost" id="wz-entwurf" type="button">Als Entwurf speichern</button><button class="btn primary" id="wz-freigabe" type="button">Prüfen &amp; freigeben</button>') + "</div>";
+    return kopf + body + nav + "</div>";
+  }
+  function rzPositionEditorHtml() {
+    var wz = rz.wizard;
+    var rows = wz.positionen.map(function (p, i) {
+      return '<tr><td><input data-wzp="bezeichnung" data-i="' + i + '" value="' + esc(p.bezeichnung) + '" style="min-width:160px"></td>' +
+        '<td><input data-wzp="menge" data-i="' + i + '" type="number" step="any" value="' + esc(p.menge) + '" style="width:70px"></td>' +
+        '<td><input data-wzp="einheit" data-i="' + i + '" value="' + esc(p.einheit || "") + '" style="width:60px"></td>' +
+        '<td><input data-wzp="einzelpreis" data-i="' + i + '" type="number" step="any" value="' + esc(p.einzelpreis) + '" style="width:90px"></td>' +
+        '<td><input data-wzp="rabattProz" data-i="' + i + '" type="number" step="any" value="' + esc(p.rabattProz || 0) + '" style="width:60px"></td>' +
+        '<td><input data-wzp="mwstProz" data-i="' + i + '" type="number" step="any" value="' + esc(p.mwstProz != null ? p.mwstProz : wz.mwstProz) + '" style="width:60px"></td>' +
+        '<td><input data-wzp="gesamtmenge" data-i="' + i + '" type="number" step="any" value="' + esc(p.gesamtmenge != null ? p.gesamtmenge : "") + '" style="width:70px" placeholder="—"></td>' +
+        '<td><input data-wzp="bereitsAbgerechnet" data-i="' + i + '" type="number" step="any" value="' + esc(p.bereitsAbgerechnet || 0) + '" style="width:70px"></td>' +
+        '<td class="num">' + fmtEUR(Rechnung.posNetto(p)) + "</td>" +
+        '<td class="inline" style="gap:2px"><button class="btn sm ghost" data-wzp-up="' + i + '" type="button" title="hoch">↑</button><button class="btn sm ghost" data-wzp-dup="' + i + '" type="button" title="duplizieren">⧉</button><button class="btn sm danger" data-wzp-del="' + i + '" type="button" title="entfernen">✕</button></td></tr>';
+    }).join("");
+    return '<h4 style="margin:6px 0">3. Abzurechnende Positionen</h4><div class="table-wrap"><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einh.</th><th>Einzel</th><th>Rab%</th><th>USt%</th><th>Gesamtmg.</th><th>bisher</th><th class="num">Netto</th><th></th></tr></thead><tbody>' + (rows || '<tr><td colspan="10" class="muted">Noch keine Positionen.</td></tr>') + '</tbody></table></div><button class="btn sm" id="wz-addpos" type="button">+ Position</button>' +
+      '<p class="hint">Teilmenge: „Gesamtmg." und „bisher" bestimmen die verbleibende abrechenbare Menge. Beträge werden zentral über die Engine berechnet.</p>';
+  }
+  function rzNachtragAuswahlHtml() {
+    var wz = rz.wizard;
+    var nts = (db.nachtraege || []).filter(function (n) { return n.auftragId === wz.auftragId && n.status === "angenommen"; });
+    if (!nts.length) return '<div class="muted" style="font-size:12px;margin-top:8px">Keine angenommenen Nachträge für diesen Auftrag.</div>';
+    return '<h4 style="margin:10px 0 4px">Angenommene Nachträge übernehmen</h4>' + nts.map(function (n) { return '<label class="inline" style="gap:8px;align-items:center;font-size:13px;display:flex;margin:4px 0"><input type="checkbox" data-wz-nt="' + esc(n.id) + '"> ' + esc(n.nummer || "") + " · " + esc(n.bezeichnung) + " (" + fmtEUR(n.sollSnapshot ? n.sollSnapshot.netto : 0) + ")</label>"; }).join("");
+  }
+  function rzFruehereRechnungenHtml() {
+    var wz = rz.wizard;
+    var frueher = (db.rechnungen || []).filter(function (b) { return b.freigegeben && b.auftragId === wz.auftragId && Rechnung.NEGATIVE_ARTEN.indexOf(b.art) < 0 && b.id !== wz.editBelegId; });
+    var aw = rzAuftrag(wz.auftragId);
+    var stand = aw && aw.kalk ? Rechnung.abrechnungsstand(aw.kalk.netto, (db.nachtraege || []).filter(function (n) { return n.auftragId === wz.auftragId; }), frueher) : null;
+    var html = "<h4 style=\"margin:6px 0\">4. Frühere Rechnungen berücksichtigen</h4>";
+    if (stand) html += '<div class="grid cols-4">' + stat("Auftragswert aktuell", fmtEUR(stand.gesamtNetto)) + stat("bereits verrechnet", fmtEUR(stand.verrechnetNetto)) + stat("offen (netto)", fmtEUR(stand.offenNetto)) + stat("Vorschlag Schluss", fmtEUR(Rechnung.schlussVorschlagNetto(aw.kalk.netto, (db.nachtraege || []).filter(function (n) { return n.auftragId === wz.auftragId; }), frueher))) + "</div>";
+    html += frueher.length ? frueher.map(function (b) { var s = rzSum(b); var checked = wz.anrechnungen.some(function (a) { return a.belegId === b.id; }); return '<label class="inline" style="gap:8px;align-items:center;font-size:13px;display:flex;margin:4px 0"><input type="checkbox" data-wz-anr="' + esc(b.id) + '"' + (checked ? " checked" : "") + "> " + esc(b.nummer) + " · " + esc(b.art) + " (" + fmtEUR(s.brutto) + ")</label>"; }).join("") : '<div class="muted" style="font-size:12px">Keine früheren Rechnungen.</div>';
+    return html;
+  }
+  function rzSteuerZahlungHtml() {
+    var wz = rz.wizard;
+    return '<h4 style="margin:10px 0 4px">5. Steuerart bestätigen &amp; Zahlungsbedingungen</h4>' +
+      '<label class="inline" style="gap:8px;align-items:center;font-size:13px;display:flex;margin:4px 0"><input type="checkbox" id="wz-rc"' + (wz.reverseCharge ? " checked" : "") + "> Reverse Charge (Steuerschuldnerschaft des Leistungsempfängers)</label>" +
+      '<label class="inline" style="gap:8px;align-items:center;font-size:13px;display:flex;margin:4px 0"><input type="checkbox" id="wz-steuer"' + (wz.steuerBestaetigt ? " checked" : "") + "> Ich habe die Steuerart geprüft und bestätige sie ausdrücklich (keine automatische steuerliche Beurteilung).</label>" +
+      '<div class="grid cols-3" style="margin-top:6px"><label class="fld"><span class="lbl">Zahlungsziel (Tage)</span><input type="number" id="wz-ziel" value="' + esc(wz.zahlungszielTage) + '"></label>' +
+      '<label class="fld"><span class="lbl">Skonto %</span><input type="number" step="any" id="wz-skontop" value="' + esc(wz.skontoProz) + '"></label>' +
+      '<label class="fld"><span class="lbl">Skonto Tage</span><input type="number" id="wz-skontot" value="' + esc(wz.skontoTage) + '"></label></div>' +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Leistungszeitraum von</span><input type="date" id="wz-lvon" value="' + esc(wz.leistungVon) + '"></label><label class="fld"><span class="lbl">bis</span><input type="date" id="wz-lbis" value="' + esc(wz.leistungBis) + '"></label></div>';
+  }
+  function rzWizardVorschauHtml() {
+    var b = rzWizardBeleg(); var s = rzSum(b); var wz = rz.wizard;
+    var aw = rzAuftrag(wz.auftragId);
+    var frueher = (db.rechnungen || []).filter(function (x) { return x.freigegeben && x.auftragId === wz.auftragId && Rechnung.NEGATIVE_ARTEN.indexOf(x.art) < 0 && x.id !== wz.editBelegId; });
+    var ueber = aw && aw.kalk ? Rechnung.pruefeUeberrechnung(Rechnung.auftragswert(aw.kalk.netto, (db.nachtraege || []).filter(function (n) { return n.auftragId === wz.auftragId; })).aktuellNetto, Rechnung.verrechnetNetto(frueher), s.netto, false) : { ueberrechnet: false };
+    var html = '<h4 style="margin:6px 0">6. Vorschau</h4>';
+    if (ueber.ueberrechnet) html += '<div class="fehler-box">⚠️ Überrechnung: Diese Rechnung überschreitet den Auftragswert um ' + fmtEUR(ueber.ueberschussNetto) + " (netto). Freigabe nur mit Begründung/Berechtigung.</div>";
+    if (b.reverseCharge && !wz.steuerBestaetigt) html += '<div class="fehler-box">Steuerart nicht bestätigt.</div>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Pos</th><th>Bezeichnung</th><th class="num">Menge</th><th class="num">Einzel</th><th class="num">Netto</th></tr></thead><tbody>' +
+      b.positionen.map(function (p) { return "<tr><td>" + esc(p.nummer) + "</td><td>" + esc(p.bezeichnung) + '</td><td class="num">' + p.menge + '</td><td class="num">' + fmtEUR(p.einzelpreis) + '</td><td class="num">' + fmtEUR(Rechnung.posNetto(p)) + "</td></tr>"; }).join("") + "</tbody></table></div>" +
+      '<div class="grid cols-2"><div></div><div class="card">' + s.steuerZeilen.map(function (z) { return '<div class="zeile"><span>USt ' + z.satz + "%</span><span>" + fmtEUR(z.steuer) + "</span></div>"; }).join("") +
+      '<div class="zeile"><strong>Netto</strong><strong>' + fmtEUR(s.netto) + "</strong></div><div class=\"zeile\"><span>USt</span><span>" + fmtEUR(s.mwst) + "</span></div>" +
+      (s.angerechnetBrutto ? '<div class="zeile"><span>abzügl. Anrechnung</span><span>-' + fmtEUR(s.angerechnetBrutto) + "</span></div>" : "") +
+      '<div class="zeile" style="font-size:16px"><strong>Brutto</strong><strong>' + fmtEUR(s.brutto) + "</strong></div></div></div>";
+    rz.wizard._ueber = ueber.ueberrechnet;
+    return html;
+  }
+  function rzWizardWire() {
+    var wz = rz.wizard; if (!wz) return;
+    if ($("#wz-cancel")) $("#wz-cancel").onclick = function () { rz.wizard = null; renderRechnungen(); };
+    if ($("#wz-back")) $("#wz-back").onclick = function () { wz.schritt = Math.max(1, wz.schritt - 1); renderRechnungen(); };
+    if ($("#wz-next")) $("#wz-next").onclick = function () { rzWizardCollect(); if (wz.schritt === 1 && !wz.auftragId) { toast("Bitte einen Auftrag wählen.", "err"); return; } if (wz.schritt === 1 && !wz.positionen.length) rzWizardPrefill(); wz.schritt = Math.min(4, wz.schritt + 1); renderRechnungen(); };
+    if ($("#wz-auftrag")) $("#wz-auftrag").onchange = function () { wz.auftragId = this.value; };
+    if ($("#wz-art")) $("#wz-art").onchange = function () { wz.art = this.value; };
+    // Positionseditor
+    $all("[data-wzp]").forEach(function (inp) { inp.onchange = function () { var i = +inp.getAttribute("data-i"); var key = inp.getAttribute("data-wzp"); var v = inp.value; wz.positionen[i][key] = (["menge", "einzelpreis", "rabattProz", "mwstProz", "gesamtmenge", "bereitsAbgerechnet"].indexOf(key) >= 0) ? (v === "" ? (key === "gesamtmenge" ? null : 0) : parseFloat(v)) : v; renderRechnungen(); }; });
+    $all("[data-wzp-del]").forEach(function (b2) { b2.onclick = function () { wz.positionen.splice(+b2.getAttribute("data-wzp-del"), 1); renderRechnungen(); }; });
+    $all("[data-wzp-dup]").forEach(function (b2) { b2.onclick = function () { var i = +b2.getAttribute("data-wzp-dup"); wz.positionen.splice(i + 1, 0, JSON.parse(JSON.stringify(wz.positionen[i]))); rzRenumber(); renderRechnungen(); }; });
+    $all("[data-wzp-up]").forEach(function (b2) { b2.onclick = function () { var i = +b2.getAttribute("data-wzp-up"); if (i > 0) { var t = wz.positionen[i - 1]; wz.positionen[i - 1] = wz.positionen[i]; wz.positionen[i] = t; rzRenumber(); renderRechnungen(); } }; });
+    if ($("#wz-addpos")) $("#wz-addpos").onclick = function () { wz.positionen.push({ nummer: String(wz.positionen.length + 1), bezeichnung: "", menge: 1, einheit: "", einzelpreis: 0, rabattProz: 0, mwstProz: wz.mwstProz, gesamtmenge: null, bereitsAbgerechnet: 0 }); renderRechnungen(); };
+    $all("[data-wz-nt]").forEach(function (cb) { cb.onchange = function () { var n = (db.nachtraege || []).filter(function (x) { return x.id === cb.getAttribute("data-wz-nt"); })[0]; if (cb.checked && n) { wz.positionen.push({ nummer: String(wz.positionen.length + 1), bezeichnung: "Nachtrag " + (n.nummer || "") + " – " + n.bezeichnung, menge: 1, einheit: "Pausch.", einzelpreis: n.sollSnapshot ? n.sollSnapshot.netto : 0, rabattProz: 0, mwstProz: n.mwstProz, gesamtmenge: null, bereitsAbgerechnet: 0, bezug: { nachtragId: n.id } }); renderRechnungen(); } }; });
+    $all("[data-wz-anr]").forEach(function (cb) { cb.onchange = function () { var b3 = (db.rechnungen || []).filter(function (x) { return x.id === cb.getAttribute("data-wz-anr"); })[0]; var s = rzSum(b3); if (cb.checked) wz.anrechnungen.push({ belegId: b3.id, bezeichnung: b3.nummer, netto: s.netto, mwst: s.mwst, brutto: s.brutto }); else wz.anrechnungen = wz.anrechnungen.filter(function (a) { return a.belegId !== b3.id; }); renderRechnungen(); }; });
+    if ($("#wz-rc")) $("#wz-rc").onchange = function () { wz.reverseCharge = this.checked; };
+    if ($("#wz-steuer")) $("#wz-steuer").onchange = function () { wz.steuerBestaetigt = this.checked; wz.reverseChargeBestaetigt = this.checked && wz.reverseCharge; };
+    if ($("#wz-entwurf")) $("#wz-entwurf").onclick = function () { rzWizardSpeichern(false); };
+    if ($("#wz-freigabe")) $("#wz-freigabe").onclick = function () { rzWizardSpeichern(true); };
+  }
+  function rzWizardCollect() {
+    var wz = rz.wizard;
+    if ($("#wz-ziel")) wz.zahlungszielTage = parseFloat($("#wz-ziel").value) || 0;
+    if ($("#wz-skontop")) wz.skontoProz = parseFloat($("#wz-skontop").value) || 0;
+    if ($("#wz-skontot")) wz.skontoTage = parseFloat($("#wz-skontot").value) || 0;
+    if ($("#wz-lvon")) wz.leistungVon = $("#wz-lvon").value;
+    if ($("#wz-lbis")) wz.leistungBis = $("#wz-lbis").value;
+    if ($("#wz-auftrag")) wz.auftragId = $("#wz-auftrag").value;
+    if ($("#wz-art")) wz.art = $("#wz-art").value;
+  }
+  function rzRenumber() { rz.wizard.positionen.forEach(function (p, i) { p.nummer = String(i + 1); }); }
+  function rzWizardPrefill() {
+    var wz = rz.wizard; var a = rzAuftrag(wz.auftragId); if (!a) return;
+    var basis = a.kalk ? a.kalk.netto : 0;
+    var titel = wz.art === "Akontorechnung" ? "Akontozahlung" : wz.art === "Schlussrechnung" ? "Schlussrechnung Restleistung" : "Teilleistung lt. Auftrag";
+    wz.positionen = [{ nummer: "1", bezeichnung: titel + " – " + (a.titel || ""), menge: 1, einheit: "Pausch.", einzelpreis: basis, rabattProz: 0, mwstProz: wz.mwstProz, gesamtmenge: null, bereitsAbgerechnet: 0 }];
+  }
+  function rzWizardSpeichern(freigeben) {
+    rzWizardCollect(); var wz = rz.wizard;
+    if (!wz.positionen.length) { toast("Bitte mindestens eine Position.", "err"); return; }
+    if (freigeben && !wz.steuerBestaetigt) { toast("Bitte Steuerart ausdrücklich bestätigen.", "err"); return; }
+    if (freigeben && wz._ueber && !w.confirm("Achtung: Der Auftragswert wird überrechnet. Trotzdem freigeben (Begründung liegt vor)?")) return;
+    var b;
+    if (wz.editBelegId) { b = (db.rechnungen || []).filter(function (x) { return x.id === wz.editBelegId; })[0]; if (!b || b.freigegeben) { toast("Beleg nicht bearbeitbar.", "err"); return; }
+      var neu = rzWizardBeleg(); b.positionen = neu.positionen; b.anrechnungen = neu.anrechnungen; b.mwstProz = wz.mwstProz; b.rabattProz = wz.rabattProz; b.zahlungszielTage = wz.zahlungszielTage; b.skontoProz = wz.skontoProz; b.skontoTage = wz.skontoTage; b.reverseCharge = wz.reverseCharge; b.reverseChargeBestaetigt = wz.reverseChargeBestaetigt; b.leistungszeitraum = neu.leistungszeitraum; b.geaendert = Store.nowISO();
+    } else { b = rzWizardBeleg(); b.ersteller = (Auth.current() || {}).benutzername || ""; (db.rechnungen = db.rechnungen || []).push(b); }
+    if (freigeben) {
+      var r = Rechnung.belegFreigeben(b, db.settings, { benutzer: (Auth.current() || {}).benutzername || "", firma: db.settings.firma, kunde: (db.kunden || []).filter(function (k) { return k.id === b.kundeId; })[0] || {} }, Store.nowISO());
+      if (!r.ok) { toast("Freigabe nicht möglich: " + r.grund, "err"); Store.save(); return; }
+      toast("Rechnung " + r.nummer + " freigegeben.");
+    } else toast("Entwurf gespeichert.");
+    Store.save(); rz.wizard = null; rz.belegId = b.id; rz.mode = "detail"; rz.tab = "rechnungen"; renderRechnungen();
+  }
+
+  // ---------- Freigabe-Prüfdialog ----------
+  function rzFreigabeDialog(b) {
+    var s = rzSum(b); var kunde = (db.kunden || []).filter(function (k) { return k.id === b.kundeId; })[0] || {};
+    var body = '<p class="muted" style="font-size:12px">Bitte vor Freigabe prüfen. Nach Freigabe ist der Beleg unveränderbar (Korrektur nur über Gutschrift/Storno).</p>' +
+      '<div class="table-wrap"><table><tbody>' + dokZeile("Kunde", esc(kunde.name || "—")) + dokZeile("Firma", esc((db.settings.firma || {}).name || "—")) + dokZeile("Positionen", (b.positionen || []).length) + dokZeile("Steuerart", b.reverseCharge ? "Reverse Charge" + (b.reverseChargeBestaetigt ? " (bestätigt)" : " NICHT bestätigt") : "Regelbesteuerung") + dokZeile("Netto/USt/Brutto", fmtEUR(s.netto) + " / " + fmtEUR(s.mwst) + " / " + fmtEUR(s.brutto)) + dokZeile("Zahlungsziel", b.zahlungszielTage + " Tage") + "</tbody></table></div>" +
+      (b.reverseCharge && !b.reverseChargeBestaetigt ? '<div class="fehler-box">Reverse Charge nicht bestätigt – Freigabe gesperrt.</div>' : "");
+    openModal("Rechnung prüfen & freigeben", body, function () {
+      var r = Rechnung.belegFreigeben(b, db.settings, { benutzer: (Auth.current() || {}).benutzername || "", firma: db.settings.firma, kunde: kunde }, Store.nowISO());
+      if (!r.ok) { toast("Freigabe nicht möglich: " + r.grund, "err"); return false; }
+      Store.save(); renderRechnungen(); toast("Rechnung " + r.nummer + " freigegeben."); return true;
+    }, "Endgültig freigeben");
+  }
+
+  // ---------- Zahlung ----------
+  function rzZahlungDialog(b) {
+    var offen = rzOffen(b);
+    var body = '<div class="muted" style="font-size:12px;margin-bottom:6px">Offener Betrag: <strong>' + fmtEUR(offen) + "</strong> von " + fmtEUR(rzSum(b).brutto) + "</div>" +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Betrag</span><input type="number" step="any" id="zz-betrag" value="' + esc(offen) + '"></label>' +
+      '<label class="fld"><span class="lbl">Datum</span><input type="date" id="zz-datum" value="' + new Date().toISOString().slice(0, 10) + '"></label></div>' +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Zahlungsart</span><input id="zz-art" value="Überweisung"></label><label class="fld"><span class="lbl">Referenz</span><input id="zz-ref"></label></div>' +
+      '<label class="fld"><span class="lbl">Notiz</span><input id="zz-notiz"></label>';
+    openModal("Zahlung erfassen", body, function () {
+      var betrag = parseFloat($("#zz-betrag").value); if (!(betrag > 0)) { toast("Betrag ungültig.", "err"); return false; }
+      Rechnung.zahlungErfassen(b, { betrag: betrag, datum: $("#zz-datum").value ? new Date($("#zz-datum").value).toISOString() : Store.nowISO(), art: $("#zz-art").value, referenz: $("#zz-ref").value, notiz: $("#zz-notiz").value, erfasstVon: (Auth.current() || {}).benutzername || "" }, Store.nowISO());
+      Store.save(); renderRechnungen(); toast("Zahlung erfasst (" + b.zahlungstatus + ")."); return true;
+    }, "Zahlung speichern");
+  }
+
+  // ---------- Gutschrift / Storno ----------
+  function rzKorrekturDialog(b, art) {
+    var voll = art === "Stornobeleg";
+    var body = '<p class="muted" style="font-size:12px">' + (voll ? "Storno kehrt den gesamten Beleg um." : "Gutschrift zu " + esc(b.nummer) + ".") + " Der Originalbeleg bleibt unverändert erhalten.</p>" +
+      (voll ? "" : '<label class="fld"><span class="lbl">Gutschriftbetrag (netto)</span><input type="number" step="any" id="ko-betrag" value="' + esc(rzSum(b).netto) + '"></label>') +
+      '<label class="fld"><span class="lbl">Grund</span><input id="ko-grund" value=""></label>';
+    openModal(art + " erstellen", body, function () {
+      var neu;
+      if (voll) neu = Rechnung.stornoZu(b, { grund: $("#ko-grund").value, ersteller: (Auth.current() || {}).benutzername || "" }, Store.nowISO());
+      else { var betrag = parseFloat($("#ko-betrag").value) || 0; neu = Rechnung.gutschriftZu(b, { positionen: [{ bezeichnung: "Gutschrift zu " + b.nummer + (($("#ko-grund").value) ? " – " + $("#ko-grund").value : ""), menge: 1, einheit: "Pausch.", einzelpreis: betrag, mwstProz: b.mwstProz }], grund: $("#ko-grund").value, ersteller: (Auth.current() || {}).benutzername || "" }, Store.nowISO()); }
+      (db.rechnungen = db.rechnungen || []).push(neu);
+      var r = Rechnung.belegFreigeben(neu, db.settings, { benutzer: (Auth.current() || {}).benutzername || "", firma: db.settings.firma, kunde: (db.kunden || []).filter(function (k) { return k.id === b.kundeId; })[0] || {} }, Store.nowISO());
+      Store.save(); rz.belegId = neu.id; renderRechnungen(); toast(art + " " + (r.nummer || "") + " erstellt."); return true;
+    }, art + " freigeben");
+  }
+
+  // ---------- Nachtrag anlegen/bearbeiten ----------
+  function rzNachtragModal(n) {
+    var neu = !n;
+    var aufOpt = (db.auftraege || []).map(function (a) { return '<option value="' + esc(a.id) + '"' + (n && n.auftragId === a.id ? " selected" : "") + ">" + esc(a.titel || a.id) + "</option>"; }).join("");
+    var ursOpt = Rechnung.NACHTRAG_URSACHEN.map(function (u) { return '<option value="' + esc(u) + '"' + (n && n.ursache === u ? " selected" : "") + ">" + esc(u) + "</option>"; }).join("");
+    var k = n ? n.kalk : {};
+    var mat = (k && k.material) || {}, arb = (k && k.arbeit) || {};
+    var body = '<label class="fld"><span class="lbl">Hauptauftrag</span><select id="nt-auftrag">' + aufOpt + "</select></label>" +
+      '<div class="grid cols-2"><label class="fld"><span class="lbl">Bezeichnung</span><input id="nt-bez" value="' + esc(n ? n.bezeichnung : "") + '"></label><label class="fld"><span class="lbl">Ursache</span><select id="nt-urs">' + ursOpt + "</select></label></div>" +
+      '<label class="fld"><span class="lbl">Beschreibung</span><textarea id="nt-beschr" rows="2">' + esc(n ? n.beschreibung : "") + "</textarea></label>" +
+      '<div class="muted" style="font-size:12px;margin:6px 0">Kalkulationszeilen (Verkaufswerte werden über die zentrale Engine berechnet):</div>' +
+      '<div class="grid cols-3"><label class="fld"><span class="lbl">Material Menge</span><input type="number" step="any" id="nt-m-menge" value="' + esc(mat.menge || "") + '"></label><label class="fld"><span class="lbl">Material EK/Einh.</span><input type="number" step="any" id="nt-m-ek" value="' + esc(mat.einkaufspreis || "") + '"></label><label class="fld"><span class="lbl">Materialaufschlag %</span><input type="number" step="any" id="nt-m-auf" value="' + esc(mat.materialaufschlagProz || "") + '"></label></div>' +
+      '<div class="grid cols-3"><label class="fld"><span class="lbl">Arbeit Std.</span><input type="number" step="any" id="nt-a-std" value="' + esc(arb.bearbeitungProStk || "") + '"></label><label class="fld"><span class="lbl">interner Satz</span><input type="number" step="any" id="nt-a-int" value="' + esc(arb.internerSatz || 40) + '"></label><label class="fld"><span class="lbl">Verkaufssatz</span><input type="number" step="any" id="nt-a-vk" value="' + esc(arb.verkaufSatz || 70) + '"></label></div>';
+    openModal(neu ? "Neuer Nachtrag" : "Nachtrag bearbeiten", body, function () {
+      var bez = ($("#nt-bez").value || "").trim(); if (!bez) { toast("Bezeichnung erforderlich.", "err"); return false; }
+      var auf = rzAuftrag($("#nt-auftrag").value) || {};
+      var kalk = { material: { menge: parseFloat($("#nt-m-menge").value) || 0, einkaufspreis: parseFloat($("#nt-m-ek").value) || 0, materialaufschlagProz: parseFloat($("#nt-m-auf").value) || 0, verschnittProz: 0, frachtanteil: 0 }, arbeit: { ruestzeit: 0, bearbeitungProStk: parseFloat($("#nt-a-std").value) || 0, stueckzahl: 1, anzahlMitarbeiter: 1, internerSatz: parseFloat($("#nt-a-int").value) || 0, verkaufSatz: parseFloat($("#nt-a-vk").value) || 0 } };
+      if (neu) {
+        var obj = Rechnung.nachtragNeu({ mandantId: null, auftragId: auf.id, kommission: auf.kommission, kundeId: auf.kundeId, bezeichnung: bez, beschreibung: $("#nt-beschr").value, ursache: $("#nt-urs").value, gemeldetVon: (Auth.current() || {}).benutzername || "", mwstProz: (db.settings || {}).mwst || 20, kalk: kalk }, Store.nowISO());
+        obj.nummer = "NT-" + new Date().getFullYear() + "-" + ("000" + (((db.settings.nachtragZaehler || 1))) ).slice(-4); db.settings.nachtragZaehler = (db.settings.nachtragZaehler || 1) + 1;
+        (db.nachtraege = db.nachtraege || []).push(obj); rz.ntId = obj.id; rz.mode = "ntdetail";
+      } else { n.bezeichnung = bez; n.beschreibung = $("#nt-beschr").value; n.ursache = $("#nt-urs").value; n.auftragId = auf.id; n.kommission = auf.kommission; n.kundeId = auf.kundeId; n.kalk = kalk; n.sollSnapshot = null; n.status = "in Prüfung"; }
+      Store.save(); renderRechnungen(); toast(neu ? "Nachtrag angelegt." : "Nachtrag aktualisiert."); return true;
+    }, neu ? "Anlegen" : "Speichern");
+  }
+  function rzZusatzDialog(n) {
+    openModal("Zusatzleistung aus Zeiterfassung", '<label class="fld"><span class="lbl">Beschreibung</span><input id="zl-beschr"></label><label class="fld"><span class="lbl">Stunden</span><input type="number" step="any" id="zl-std" value="1"></label>', function () {
+      Rechnung.zusatzUebernehmen(n, { beschreibung: $("#zl-beschr").value, stunden: parseFloat($("#zl-std").value) || 0 }, Store.nowISO());
+      Store.save(); renderRechnungen(); toast("Zusatzleistung übernommen (Prüfliste)."); return true;
+    }, "Übernehmen");
+  }
+
+  // ---------- ERP-Vorschau/Export ----------
+  function rzErpAuswahl() { return $all("[data-erp-sel]").filter(function (x) { return x.checked; }).map(function (x) { return (db.rechnungen || []).filter(function (b) { return b.id === x.getAttribute("data-erp-sel"); })[0]; }).filter(Boolean); }
+  function rzErpPreview(exportieren) {
+    var belege = rzErpAuswahl();
+    if (!belege.length) { toast("Bitte Belege auswählen.", "err"); return; }
+    var lookup = {}; (db.kunden || []).forEach(function (k) { lookup[k.id] = k.name; });
+    var exp = Rechnung.erpExport(belege, lookup, Rechnung.standardMappingProfil(), Store.nowISO());
+    var dop = Rechnung.erpDoppelt(db.erpExporte || [], exp);
+    var box = $("#erp-preview-box");
+    if (!exportieren) {
+      if (box) box.innerHTML = '<div class="card" style="margin-top:10px"><h4>Vorschau (' + exp.zeilen + ' Zeilen)</h4>' + (dop.doppelt ? '<div class="fehler-box">Doppelter Export erkannt: ' + esc(dop.grund) + " (früher: " + esc(dop.frueher) + ")</div>" : "") + '<pre style="white-space:pre-wrap;font-size:11px;background:var(--panel-2);padding:8px;border-radius:6px;max-height:260px;overflow:auto">' + esc(exp.csv.slice(0, 4000)) + "</pre></div>";
+      return;
+    }
+    if (dop.doppelt && !w.confirm("Achtung: " + dop.grund + " (früher: " + dop.frueher + "). Trotzdem erneut exportieren?")) return;
+    // Datei herunterladen
+    try { var blob = new Blob([exp.csv], { type: "text/csv;charset=utf-8" }); var url = w.URL.createObjectURL(blob); var a = el("a"); a.href = url; a.download = exp.dateiname; d.body.appendChild(a); a.click(); d.body.removeChild(a); w.URL.revokeObjectURL(url); } catch (e) {}
+    (db.erpExporte = db.erpExporte || []).push({ exportId: exp.exportId, pruefsumme: exp.pruefsumme, belege: exp.belege, belegNummern: exp.belegNummern, zeilen: exp.zeilen, erstellt: exp.erstellt, status: exp.status });
+    belege.forEach(function (b) { b.erpExportId = exp.exportId; b.erpStatus = "Dateiexport"; });
+    Store.save(); renderRechnungen(); toast("ERP-Datei erzeugt (" + exp.exportId + ").");
+  }
+
+  // ---------- Rechnungs-PDF (A4, Druckfenster) ----------
+  function rechnungPdf(b) {
+    if (!b) return;
+    var s = rzSum(b); var firma = db.settings.firma || {}; var kunde = (db.kunden || []).filter(function (k) { return k.id === b.kundeId; })[0] || {};
+    var auf = rzAuftrag(b.auftragId) || {};
+    var kennung = (b.nummer || "ENTWURF") + (b.snapshot && b.snapshot.pruefsumme ? "-" + b.snapshot.pruefsumme.slice(0, 8) : "");
+    var posRows = (b.positionen || []).map(function (p) {
+      var satz = b.reverseCharge ? 0 : (p.mwstProz != null ? p.mwstProz : b.mwstProz);
+      return "<tr><td>" + esc(p.nummer) + "</td><td>" + esc(p.bezeichnung) + (p.beschreibung ? '<br><span class="muted">' + esc(p.beschreibung) + "</span>" : "") + '</td><td class="num">' + p.menge + "</td><td>" + esc(p.einheit || "") + '</td><td class="num">' + fmtEUR(p.einzelpreis) + '</td><td class="num">' + (p.rabattProz || 0) + '%</td><td class="num">' + satz + '%</td><td class="num">' + fmtEUR(Rechnung.posNetto(p)) + "</td></tr>";
+    }).join("");
+    var steuer = s.steuerZeilen.map(function (z) { return '<div class="t"><span>Nettobetrag ' + z.satz + "%</span><span>" + fmtEUR(z.netto) + "</span></div><div class=\"t\"><span>zzgl. USt " + z.satz + "%</span><span>" + fmtEUR(z.steuer) + "</span></div>"; }).join("");
+    var anr = (b.anrechnungen || []).length ? '<div style="margin-top:8px"><strong>Bereits berechnet:</strong><table>' + b.anrechnungen.map(function (a) { return "<tr><td>" + esc(a.bezeichnung || "") + "</td><td class='num'>" + fmtEUR(a.brutto) + "</td></tr>"; }).join("") + "</table></div>" : "";
+    var bezahlt = Rechnung.bezahltBetrag(b), offen = rzOffen(b);
+    var inner = '<div style="display:flex;justify-content:space-between"><div><strong style="font-size:16px">' + esc(firma.name || "") + "</strong><br><span class='muted'>" + esc([firma.strasse, firma.plzOrt].filter(Boolean).join(", ")) + "</span></div>" +
+      "<div style='text-align:right'><span class='muted'>" + esc(b.art) + "</span><br><strong style='font-size:15px'>" + esc(b.nummer || "(Entwurf)") + "</strong></div></div><hr>" +
+      "<div style='display:flex;justify-content:space-between'><div>" + esc(kunde.name || "") + "<br><span class='muted'>" + esc([kunde.strasse, kunde.plzOrt].filter(Boolean).join(", ")) + "</span></div>" +
+      "<div style='text-align:right' class='muted'>Datum: " + fmtDate(b.rechnungsdatum) + "<br>" + (b.faelligkeit ? "Fällig: " + fmtDate(b.faelligkeit) + "<br>" : "") + (b.leistungszeitraum && b.leistungszeitraum.von ? "Leistung: " + fmtDate(b.leistungszeitraum.von) + "–" + fmtDate(b.leistungszeitraum.bis) + "<br>" : "") + "Projekt/Kommission: " + esc(b.kommission || "") + "<br>Auftrag: " + esc(auf.titel || b.auftragId || "") + "</div></div>" +
+      '<table style="margin-top:10px"><thead><tr><th>Pos</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einh.</th><th class="num">Einzel</th><th class="num">Rab.</th><th class="num">USt</th><th class="num">Netto</th></tr></thead><tbody>' + posRows + "</tbody></table>" +
+      '<div style="margin-left:auto;max-width:340px;margin-top:10px">' + steuer + '<div class="t g"><span>Rechnungsbetrag (brutto)</span><span>' + fmtEUR(s.brutto) + "</span></div>" + anr +
+      (Rechnung.TEILARTEN.concat(["Schlussrechnung"]).indexOf(b.art) >= 0 ? '<div class="t"><span>bereits bezahlt</span><span>' + fmtEUR(bezahlt) + '</span></div><div class="t g"><span>offener Betrag</span><span>' + fmtEUR(offen) + "</span></div>" : "") + "</div>" +
+      (b.reverseCharge && b.reverseChargeBestaetigt ? '<p class="muted">' + esc(b.reverseChargeHinweis || "Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge).") + "</p>" : "") +
+      '<p class="muted">Zahlbar innerhalb ' + (b.zahlungszielTage || 0) + " Tagen" + (b.skontoProz ? ", " + b.skontoProz + "% Skonto binnen " + b.skontoTage + " Tagen" : "") + ". Bankverbindung: " + esc(firma.bank || "") + " · IBAN " + esc(firma.iban || "") + " · BIC " + esc(firma.bic || "") + (firma.uid ? " · UID " + esc(firma.uid) : "") + "</p>" +
+      '<p class="muted" style="margin-top:6px">Belegkennung: ' + esc(kennung) + " · Keine steuerliche/rechtliche Konformitätsaussage.</p>";
+    pdfFensterRechnung("Rechnung " + (b.nummer || ""), firma, inner);
+  }
+  function pdfFensterRechnung(titel, firma, innerHtml) {
+    var wnd = w.open("", "_blank"); if (!wnd) { toast("Bitte Pop-ups erlauben.", "err"); return; }
+    var doc = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>' + esc(titel) + '</title><style>' +
+      'body{font-family:Arial,Helvetica,sans-serif;color:#1c2530;max-width:800px;margin:22px auto;padding:0 20px;font-size:12px}hr{border:none;border-top:1px solid #ccc;margin:10px 0}' +
+      'table{width:100%;border-collapse:collapse;margin:4px 0}th,td{text-align:left;padding:5px 7px;border-bottom:1px solid #e2e2e2;font-size:11.5px}td.num,th.num{text-align:right;white-space:nowrap}.muted{color:#667;font-size:11px}' +
+      '.t{display:flex;justify-content:space-between;padding:3px 0}.t.g{font-weight:700;font-size:14px;border-top:2px solid #333;margin-top:4px;padding-top:6px}' +
+      '@media print{.noprint{display:none}} @page{margin:16mm}</style></head><body>' + innerHtml +
+      '<div class="noprint" style="margin:16px 0"><button onclick="window.print()" style="padding:10px 16px;font-size:14px">🖨️ Drucken / als PDF speichern</button></div></body></html>';
+    wnd.document.open(); wnd.document.write(doc); wnd.document.close();
   }
 
   function systemBackup() {

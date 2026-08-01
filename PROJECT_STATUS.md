@@ -4,7 +4,20 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 13A – Nachträge & Rechnungskern** umgesetzt.
+Letzte Aktualisierung: **Phase 13B – Rechnungs-UI, PDF, Kundenportal &
+ERP-Dateiexport** umgesetzt. Vollständige interne Seite „Rechnungen & Nachträge"
+(Nav; admin/buero, werkstatt gesperrt): Nachtragsverwaltung, Rechnungsübersicht
+mit Filtern, 4-Schritt-Rechnungsassistent inkl. Positionseditor (Teilmengen,
+Nachtragsübernahme, Anrechnung, Steuerart-Bestätigung, Überrechnungswarnung),
+Freigabe/Unveränderbarkeit, Zahlungserfassung, Gutschrift/Storno, Rechnungs-PDF
+(A4, keine internen Kosten), ERP-/KingBill-**Dateiexport** (CSV, Vorschau,
+Prüfsumme/Export-ID, Doppelexport-Erkennung; keine Live-API), Portal-Freigabe je
+Beleg. Kundenportal zeigt freigegebene Rechnungen mit PDF. Alle Summen aus der
+zentralen Engine. Tests **242/242** + Browser-E2E. Ehrlich: Offline-Prüfsumme
+nicht kryptografisch, keine steuerliche/rechtliche Konformität, kein Versand,
+keine Live-ERP-/Bank-/Zahlungsanbindung.
+
+Vorher: **Phase 13A – Nachträge & Rechnungskern** umgesetzt.
 Neue Engine `rechnung.js` (Decimal, nutzt Kalkulationslogik): Nachträge mit
 eigenem Soll-Snapshot (Auftragswert bleibt unverändert; angenommene Nachträge
 getrennt addiert); Rechnungskern (Entwurf/Akonto/Abschlag/Teil/Schluss/

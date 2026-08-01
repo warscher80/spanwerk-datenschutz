@@ -3,6 +3,37 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 13B – Rechnungs-UI, PDF, Kundenportal & ERP-Dateiexport  (Schema v11)
+
+### Hinzugefügt
+- **Interne Seite „Rechnungen & Nachträge"** (Nav; admin/buero, werkstatt ohne
+  Zugriff): Nachtragsübersicht/-detail (anlegen/bearbeiten/kalkulieren/interne
+  Freigabe/angenommen/abgelehnt/Zusatzleistung/Änderungsverlauf, ursprünglicher
+  + aktueller Auftragswert), Rechnungsübersicht mit Filtern, **Rechnungs-
+  assistent** (4 Schritte inkl. Positionseditor mit Teilmengen, Nachtrags-
+  übernahme, Anrechnung früherer Rechnungen, Steuerart-Bestätigung, Über-
+  rechnungswarnung), Freigabe-Prüfdialog + Unveränderbarkeit, Zahlungserfassung,
+  Gutschrift/Storno, Portal-Freigabe je Beleg. Alle Summen aus der zentralen
+  Engine (keine parallele UI-Formel).
+- **Rechnungs-PDF** (A4): alle Pflichtfelder, USt je Steuersatz, bereits bezahlt/
+  offen, Belegkennung; **keine internen Kosten/Margen**.
+- **ERP-/KingBill-Dateiexport (CSV):** Vorschau, Mappingprofil, Prüfsumme +
+  Export-ID, **Doppelexport-Erkennung**, Export-Verlauf, Download; keine Live-API.
+- **Kundenportal – Rechnungen:** nur ausdrücklich freigegebene, portal-sichtbare
+  Rechnungen mit PDF-Download; keine internen/ERP-Daten.
+- Nav „🧾 Rechnungen"; Auth-Recht `rechnungen` (admin/buero). Datenmodell:
+  `beleg.portalSichtbar`, `beleg.erpExportId`, `db.erpExporte[]`.
+
+### Tests
+- `tests/referenz.test.js` **242/242** (8 neue: positionRest, ERP-Export/CSV-
+  Maskierung/keine internen Felder, Doppelexport-Erkennung) + Browser-E2E
+  (Assistent→Freigabe→PDF, ERP-Export, Portal-Rechnungen, kein interner Leak).
+
+### Ehrlich / Grenzen
+- Offline-Prüfsumme **nicht** kryptografisch manipulationssicher. Keine
+  steuerliche/rechtliche Konformität, kein Versand, keine Live-ERP-Übertragung,
+  keine Bank-/Zahlungsanbindung.
+
 ## Phase 13A – Nachträge & Rechnungskern  (Schema v11)
 
 ### Hinzugefügt
