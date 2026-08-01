@@ -139,7 +139,41 @@ synchronisieren"-Knopf. Keine unfertigen Aktions-Schaltflächen.
 - Reload ≈ App-/Browser-Neustart; ein echter Prozess-Kill/Absturz wurde nicht
   auf Geräten reproduziert.
 
-## Nicht enthalten (spätere Phase 14)
+## Phase 14B – mobile Werkstatt-/Montageoberfläche
 
-Umfangreiche mobile Werkstatt-/Montage-Oberfläche, Foto-Upload-Queue,
-Terminalmodus. Dieser Kern ist die Grundlage dafür.
+Aufbauend auf diesem Kern (keine zweite Offline-Logik) ergänzt Phase 14B eine
+eigenständige, installierbare PWA-Oberfläche:
+
+- **Dateien:** `mobil.html` (Shell), `assets/css/mobil.css` (festes dunkles
+  Hoch-Kontrast-Theme, große Touch-Flächen, Karten statt Tabellen),
+  `assets/js/mobil-app.js` (Controller). In `sw.js`-SHELL und `copyweb.mjs`
+  eingebunden; verlinkt aus `index.html`.
+- **Bindung an den Kern:** Alle Erfassungen laufen über `Offline.ereignis` /
+  `Offline.timerStart|pauseStart|pauseEnde|timerStop` und
+  `Offline.synchronisiere` – dieselbe Queue, Idempotenz und Konflikterkennung.
+- **Ansichten:** Heute, Auftragssuche (aktive/geplante zuerst), Zeit-Timer,
+  Maschine/Rüstzeit/Stillstand, Material, Stückzahl, Montage-Tagesbericht,
+  Fotos (lokal komprimiert, Status „nur lokal"), Offline-Dokumente, Sync-,
+  Konflikt-, Profilansicht, Terminalmodus (Mitarbeiter-PIN, kein Sammelkonto).
+- **Datenschutz-Sichtbarkeit:** keine Verkaufs-/Einkaufspreise, Deckungs-
+  beiträge, Gewinne oder Rechnungsdaten – im E2E über alle Ansichten geprüft.
+
+### Phase-14B-E2E (Chromium, http/localhost) – 22/22
+
+Service Worker steuert die Seite; IndexedDB-Treiber aktiv (kein `file://`-
+Fallback); Werkstatt-Login; Auftragswahl; Timer Start/Pause/Fortsetzen mit
+Doppelstart-Guard; **Timer überlebt Reload online und offline**; Material-,
+Montage-, Stückzahlerfassung; Foto nur lokal (kein Fake-Upload); Sync
+**exactly-once (8→8, keine Duplikate)**; Konflikt erkannt + Konfliktansicht mit
+Retry/Storno; **keine Preis-/Finanzdaten** in den Werkstatt-Ansichten;
+Terminalmodus mit Mitarbeiterauswahl. Screenshots: Smartphone & Tablet, Hoch-
+und Querformat.
+
+### Bekannte Grenzen (weiterhin gültig)
+
+Getestet nur in **headless Chromium**, nicht auf echten iOS/Android-Geräten;
+iOS-Safari-PWA-Verhalten daher nur simuliert. **`file://` bleibt nur ein
+Fallback und keine zuverlässige Produktions-Offlinelösung** – Service Worker und
+IndexedDB benötigen einen sicheren Kontext (https oder localhost). Fotos werden
+lokal gespeichert und **nicht** zu einem Server hochgeladen (kein Backend
+konfiguriert); der Status wird ehrlich als „nur lokal" ausgewiesen.

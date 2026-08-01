@@ -4,16 +4,17 @@
    IndexedDB und werden vom SW nicht angefasst). Sichere Cache-
    Versionierung: alte Caches werden bei Aktivierung entfernt. */
 "use strict";
-var CACHE = "preisschmiede-shell-v1";
+var CACHE = "preisschmiede-shell-v2";
 var SHELL = [
-  "index.html", "portal.html", "datenschutz.html", "manifest.webmanifest",
-  "assets/css/styles.css", "assets/css/portal.css",
+  "index.html", "portal.html", "mobil.html", "datenschutz.html", "manifest.webmanifest",
+  "assets/css/styles.css", "assets/css/portal.css", "assets/css/mobil.css",
   "assets/vendor/qrcode.js", "assets/vendor/jsQR.js",
   "assets/js/products.js", "assets/js/konfigurator.js", "assets/js/vorlagen.js", "assets/js/kalkulation.js",
   "assets/js/angebot.js", "assets/js/store.js", "assets/js/auth.js", "assets/js/calc.js", "assets/js/datanorm.js",
   "assets/js/sortiment.js", "assets/js/auswertung.js", "assets/js/planung.js", "assets/js/dokumente.js",
   "assets/js/betrieb.js", "assets/js/mandant.js", "assets/js/infra.js", "assets/js/portal.js", "assets/js/portal-app.js",
-  "assets/js/rechnung.js", "assets/js/sync.js", "assets/js/offlinedb.js", "assets/js/offline-app.js", "assets/js/app.js",
+  "assets/js/rechnung.js", "assets/js/sync.js", "assets/js/offlinedb.js", "assets/js/offline-app.js",
+  "assets/js/mobil-app.js", "assets/js/app.js",
   "brand/icon-only.png", "brand/icon-foreground.png"
 ];
 

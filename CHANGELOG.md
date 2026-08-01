@@ -3,6 +3,51 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 14B – mobile Werkstatt- & Montageoberfläche  (Schema v11)
+
+### Hinzugefügt
+- **Mobile PWA-Oberfläche** `mobil.html`, `assets/css/mobil.css`,
+  `assets/js/mobil-app.js` für Werkstatt/Montage – nutzt **denselben
+  Phase-14A-Offline-Kern** (Sync/OfflineDB/Offline), keine zweite Offline-Logik.
+- **Ansichten:** Heute (Schnellaktionen, laufender Timer, heute geplant),
+  Auftragssuche (aktive/geplante Aufträge zuerst sortiert), Zeit-Timer
+  (Start/Pause/Fortsetzen/Beenden mit Gut-/Ausschuss-/Nacharbeit-Mengen),
+  Maschine/Rüstzeit/Stillstand, Materialverbrauch, Stückzahl, Montage-
+  Tagesbericht, **Fotos** (lokal per Canvas komprimiert, Status „nur lokal",
+  kein vorgetäuschter Upload), offline verfügbare freigegebene Dokumente, Sync-
+  und **Konfliktansicht** (Retry/lokal stornieren), Profil, **Terminalmodus**
+  (Mitarbeiter-PIN statt Sammelkonto, Inaktivitäts-Rückkehr), PWA-Installations-
+  hinweis (iOS/Android).
+- **Rollenschutz:** Werkstatt/Montage sehen keine Verkaufs-/Einkaufspreise,
+  Deckungsbeiträge, Gewinne oder Rechnungsdaten (im E2E über alle Ansichten
+  geprüft).
+- `offline-app.js`: `ereignis()` unterstützt Nicht-Timer-Datensätze
+  (Maschine/Material/Montage/Stückzahl/Foto) über `Sync.recordNeu`; neue Exporte
+  `stornieren(recordId)` (markiert CANCELLED, löscht nicht) und `record(id)`.
+- `sw.js`-SHELL um `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js`
+  erweitert (Cache `preisschmiede-shell-v2`); `copyweb.mjs` kopiert `mobil.html`;
+  Link auf die mobile App aus `index.html`.
+
+### Behoben
+- `assets/css/mobil.css`: Toast-Overlay blockierte Touch-Eingaben auf Dialog-
+  Buttons – `pointer-events: none` ergänzt.
+- Mobile Auftragsliste sortiert aktive/geplante Aufträge nach vorn (statt
+  unsortiert); Maschine/Material/Montage nutzen nach einem Reload den Auftrag
+  des laufenden Timers als Kontext.
+
+### Tests / Prüfungen
+- `tests/referenz.test.js` **277/277**; **Browser-E2E (Chromium, http/localhost)
+  22/22** (SW-Steuerung, IndexedDB, Timer-Persistenz online+offline, exactly-once
+  8→8, Konflikt, keine Preisdaten, Terminalmodus); Screenshots Smartphone/Tablet
+  Hoch-/Querformat; `node --check` alle JS, Secret-Scan, Produktions-Build grün.
+
+### Ehrlich / Grenzen
+- Nur in headless Chromium getestet, **nicht** auf echten iOS/Android-Geräten.
+- `file://`-localStorage-Fallback ist **keine** zuverlässige Produktions-Offline-
+  lösung (Service Worker/IndexedDB brauchen https/localhost).
+- Fotos bleiben lokal (kein Backend); Status wird ehrlich als „nur lokal"
+  ausgewiesen. Keine stille Löschung lokaler Daten.
+
 ## Phase 14A – PWA- & Offline-Synchronisationskern  (Schema v11)
 
 ### Hinzugefügt

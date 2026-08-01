@@ -4,7 +4,34 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 14A – PWA- & Offline-Synchronisationskern**
+Letzte Aktualisierung: **Phase 14B – mobile Werkstatt- & Montageoberfläche**
+umgesetzt. Eigenständige, installierbare PWA-Oberfläche (`mobil.html`,
+`assets/css/mobil.css`, `assets/js/mobil-app.js`) für Werkstatt/Montage, die
+**denselben Phase-14A-Offline-Kern** nutzt (Sync/OfflineDB/Offline) – keine
+zweite Offline-Logik. Festes hoch-kontrastreiches dunkles Theme, große
+Touch-Flächen (mit Handschuhen bedienbar), Karten statt Tabellen, Bottom-Nav
+(Heute/Aufträge/Zeit/Maschine/Material/Montage/Doku/Sync/Profil). Enthalten:
+Heute-Startansicht mit Schnellaktionen, Auftragssuche (aktive/geplante zuerst),
+Timer-UI (Start/Pause/Fortsetzen/Beenden mit Gut-/Ausschuss-/Nacharbeit-Mengen),
+Maschinen-/Rüstzeit + Stillstand, Materialverbrauch, Stückzahlen, Montage-
+Tagesbericht, **Fotos (lokal komprimiert, Status „nur lokal" – kein
+vorgetäuschter Upload)**, offline verfügbare freigegebene Dokumente, Sync- und
+**Konfliktansicht** (Retry/lokal stornieren, nie stilles Löschen), Geräte-/
+Profilansicht, **Terminalmodus** mit Mitarbeiter-PIN (kein Sammelkonto) inkl.
+Inaktivitäts-Rückkehr, PWA-Installationshinweis (iOS/Android). Guards:
+Doppel-Tap, Doppelstart, Beenden ohne Start, Mandantenwechsel bei aktivem Timer,
+Abmeldung mit offenen lokalen Daten (Warnung, Daten bleiben erhalten).
+Werkstatt/Montage sehen **keine** Verkaufs-/Einkaufspreise, Deckungsbeiträge,
+Gewinne oder Rechnungsdaten (im E2E über alle Ansichten geprüft). Tests
+**277/277**; **Browser-E2E (Chromium, http/localhost) 22/22**: SW steuert Seite,
+IndexedDB-Treiber aktiv, Timer überlebt Reload (online **und** offline), Sync
+exactly-once (8→8 ohne Duplikate), Konflikt erkannt, keine Preisdaten sichtbar,
+Terminalmodus. Screenshots: Smartphone/Tablet, Hoch- & Querformat. Ehrlich:
+`file://`-localStorage-Fallback ist **keine** zuverlässige Produktions-Offline-
+lösung (Service Worker/IndexedDB brauchen https/localhost); getestet nur in
+headless Chromium, nicht auf echten iOS/Android-Geräten. Doku: OFFLINE_SYNC.md.
+
+Vorher: **Phase 14A – PWA- & Offline-Synchronisationskern**
 umgesetzt. Neustartfeste, ereignisbasierte Zeiterfassung mit Exactly-once-
 Synchronisation in die zentrale `Store`-db. Neue Bausteine: reine Sync-Engine
 (`sync.js`: Ereignisse TIMER_STARTED/…/ENTRY_CANCELLED, Dauer aus Ereignissen,
@@ -120,6 +147,7 @@ KNOWN_LIMITATIONS.md).
 | Offline-Sync | `assets/js/sync.js` | Ereignismodell, Idempotenz, Warteschlange, Retry, Konflikte, Zeitdrift, Ein-Timer-Garantie |
 | Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
 | PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
+| Mobile Werkstatt/Montage | `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js` | Touch-Oberfläche über dem Offline-Kern: Timer/Maschine/Material/Stückzahl/Montage/Fotos, Sync-/Konfliktansicht, Terminalmodus, keine Preisdaten |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |
 | Berechnung | `assets/js/calc.js` | Kalkulation, Soll/Ist, Lernfaktoren |

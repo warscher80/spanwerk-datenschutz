@@ -63,7 +63,7 @@
       if (event === "TIMER_STOPPED") { var gs = Sync.guardStop(_records, basis.timerId, mz.geraetezeit); if (!gs.ok) return { ok: false, grund: gs.grund }; }
       if (event === "BREAK_STARTED" || event === "BREAK_ENDED") { var gp = Sync.guardPause(_records, basis.timerId, event === "BREAK_STARTED", mz.geraetezeit); if (!gp.ok) return { ok: false, grund: gp.grund }; }
     }
-    var rec = Sync.timerEreignis(basis, event, nowISO());
+    var rec = basis.typ === "timer" ? Sync.timerEreignis(basis, event, nowISO()) : Sync.recordNeu(Object.assign({}, basis, { event: event }), nowISO());
     var eq = Sync.enqueue(_records, rec);       // Idempotenz beim Einreihen
     persist(eq.record);
     return { ok: true, record: eq.record, neu: eq.neu };
@@ -126,6 +126,10 @@
     return { ok: true, verarbeitet: verarbeitet, konflikte: konflikte };
   }
   function wiederholen(recordId) { var r = _records.filter(function (x) { return x.id === recordId; })[0]; if (r) { Sync.manuellWiederholen(r); persist(r); } return r; }
+  // Lokalen Eintrag kontrolliert stornieren (nur mit ausdrücklicher Bestätigung;
+  // Daten werden nicht gelöscht, sondern als CANCELLED markiert und bleiben erhalten).
+  function stornieren(recordId) { var r = _records.filter(function (x) { return x.id === recordId; })[0]; if (r) { r.status = Sync.STATUS.CANCELLED; r.geaendert = nowISO(); persist(r); } return r; }
+  function record(recordId) { return _records.filter(function (x) { return x.id === recordId; })[0]; }
 
   function zusammenfassung() {
     var z = Sync.zusammenfassung(_records, timerEvents(), nowISO());
@@ -174,7 +178,7 @@
     init: init, bereit: function () { return _bereit; }, online: online, geraet: function () { return _geraet; },
     ereignis: ereignis, timerStart: timerStart, pauseStart: pauseStart, pauseEnde: pauseEnde, timerStop: timerStop,
     aktiverTimer: aktiverTimer, synchronisiere: function () { var r = synchronisiere(); if (r.ok) _letzteSync = nowISO(); return r; },
-    wiederholen: wiederholen, zusammenfassung: zusammenfassung, konflikte: konflikte, ladeRecords: ladeRecords, records: function () { return _records; }, meta: meta
+    wiederholen: wiederholen, stornieren: stornieren, record: record, zusammenfassung: zusammenfassung, konflikte: konflikte, ladeRecords: ladeRecords, records: function () { return _records; }, meta: meta
   };
   if (d.readyState === "loading") d.addEventListener("DOMContentLoaded", init); else init();
 })(typeof window !== "undefined" ? window : this, typeof document !== "undefined" ? document : { readyState: "complete", getElementById: function () { return null; }, createElement: function () { return {}; }, body: {}, addEventListener: function () {} });
