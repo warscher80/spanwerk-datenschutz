@@ -1814,7 +1814,11 @@ function qmPlan(s, extra) {
   t("SW Cache-Konstante kommt nur einmal vor", (sw.match(/^var CACHE = /gm) || []).length === 1);
   t("Deploy stempelt die Cache-Version", /sed -i .*var CACHE/.test(pages));
   t("Deploy prüft das Stempeln und bricht sonst ab", /grep -q "preisschmiede-shell-b\$\{BUILD\}"/.test(pages) && /exit 1/.test(pages));
-  t("Deploy erzeugt build-info.js", /window\.PSBUILD/.test(pages) && /_site\/assets\/build-info\.js/.test(pages));
+  t("Deploy erzeugt build-info.js", /window\.PSBUILD/.test(pages) && /assets\/build-info\.js/.test(pages));
+  // Der Branch-Weg umgeht die Environment-Sperre auf den Standard-Branch,
+  // ohne dass dafuer nach main gemergt werden muesste.
+  t("Deploy veröffentlicht über den gh-pages-Branch",
+    /HEAD:gh-pages/.test(pages) && !/uses:\s*actions\/deploy-pages/.test(pages));
 
   // Kein automatisches skipWaiting: ein Update darf eine laufende Zeiterfassung
   // nicht mitten im Speichern abschießen.

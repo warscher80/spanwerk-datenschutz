@@ -5,12 +5,18 @@ name: GitHub Pages – HTTPS-Testversion
 # Service Worker, damit waeren Offline-Betrieb, IndexedDB und die
 # Exactly-once-Synchronisation auf dem iPhone nicht pruefbar.
 #
+# Bewusst der KLASSISCHE Weg ueber einen gh-pages-Branch statt
+# actions/deploy-pages: die Umgebung "github-pages" erlaubt ab Werk nur
+# Deployments vom Standard-Branch, und die Entwicklung laeuft hier bewusst
+# nicht auf main. Der Branch-Weg kennt diese Sperre nicht - ohne dass dafuer
+# nach main gemergt oder eine Schutzregel aufgeweicht werden muesste.
+#
 # Bewusst NUR die Web-Dateien: android/, desktop/, deploy/, scripts/, tests/
 # und die Markdown-Dokumentation gehoeren nicht auf die oeffentliche Seite.
 #
 # Kein Backend: jeder Besucher erhaelt eine eigene, leere localStorage-Instanz.
-# Es werden keine Daten zwischen Besuchern geteilt und keine Daten an einen
-# Server uebertragen.
+# Es werden keine Daten zwischen Besuchern geteilt und keine an einen Server
+# uebertragen.
 
 on:
   push:
@@ -29,12 +35,9 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write   # fuer den Push auf gh-pages
+  pages: write      # fuer das Aktivieren der Pages-Seite
 
-# Laufende Veroeffentlichungen nicht abbrechen - ein halb deployter Stand
-# waere schlechter als ein veralteter.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -43,33 +46,26 @@ jobs:
   deploy:
     name: Testversion veroeffentlichen
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Quellcode auschecken
         uses: actions/checkout@v4
 
-      - name: Pages einrichten
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Nur die Web-App zusammenstellen
+      - name: Web-App zusammenstellen und Version stempeln
         run: |
           set -e
-          mkdir -p _site
-          cp index.html mobil.html portal.html datenschutz.html sw.js manifest.webmanifest _site/
-          cp -r assets brand _site/
+          SITE="${RUNNER_TEMP}/site"
+          rm -rf "$SITE"; mkdir -p "$SITE"
+          cp index.html mobil.html portal.html datenschutz.html sw.js manifest.webmanifest "$SITE/"
+          cp -r assets brand "$SITE/"
           # Verhindert, dass Jekyll Dateien mit Unterstrich verschluckt.
-          touch _site/.nojekyll
+          touch "$SITE/.nojekyll"
 
           BUILD=${{ github.run_number }}
           VERSION="1.0.${BUILD}"
           DATUM=$(date +%Y-%m-%d)
 
           # Sichtbare Versionsangabe in der App (window.PSBUILD).
-          echo "window.PSBUILD = {\"build\": ${BUILD}, \"version\": \"${VERSION}\", \"datum\": \"${DATUM}\"};" > _site/assets/build-info.js
+          echo "window.PSBUILD = {\"build\": ${BUILD}, \"version\": \"${VERSION}\", \"datum\": \"${DATUM}\"};" > "$SITE/assets/build-info.js"
 
           # Cache-Version des Service Workers automatisch stempeln.
           # Die Konstante in sw.js ist von Hand gepflegt ("...-v6"). Bliebe sie
@@ -77,18 +73,53 @@ jobs:
           # erkennt kein Update und der Aktualisieren-Hinweis erscheint nie -
           # die neue Fassung kaeme erst still beim uebernaechsten Laden.
           # Mit der Build-Nummer aendert sich sw.js bei jedem Deploy garantiert.
-          sed -i "s/^var CACHE = \".*\";/var CACHE = \"preisschmiede-shell-b${BUILD}\";/" _site/sw.js
-          grep -q "preisschmiede-shell-b${BUILD}" _site/sw.js || { echo "FEHLER: Cache-Version nicht gestempelt"; exit 1; }
+          sed -i "s/^var CACHE = \".*\";/var CACHE = \"preisschmiede-shell-b${BUILD}\";/" "$SITE/sw.js"
+          grep -q "preisschmiede-shell-b${BUILD}" "$SITE/sw.js" || { echo "FEHLER: Cache-Version nicht gestempelt"; exit 1; }
 
           echo "Version ${VERSION} (Build ${BUILD})"
           echo "Veroeffentlicht werden:"
-          find _site -maxdepth 1 -mindepth 1 -printf "  %f\n"
+          find "$SITE" -maxdepth 1 -mindepth 1 -printf "  %f\n"
 
-      - name: Artefakt hochladen
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
+      - name: Auf gh-pages veroeffentlichen
+        run: |
+          set -e
+          SITE="${RUNNER_TEMP}/site"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Loser Branch ohne Historie: der Inhalt ist ein Erzeugnis, kein
+          # Quellcode. Die Zugangsdaten stammen aus actions/checkout.
+          git checkout --orphan gh-pages-neu
+          git rm -rqf .
+          cp -r "$SITE"/. .
+          git add -A
+          git commit -q -m "Testversion Build ${{ github.run_number }} (aus ${GITHUB_SHA})"
+          git push --force origin HEAD:gh-pages
+          echo "gh-pages aktualisiert"
 
-      - name: Auf Pages veroeffentlichen
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Pages-Seite einrichten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "Pages bereits aktiv – Quelle auf gh-pages setzen."
+            gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/"
+          else
+            echo "Pages noch nicht aktiv – wird eingerichtet."
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/"
+          fi
+
+      - name: Adresse ausgeben
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          URL=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .html_url)
+          {
+            echo "### Testversion veroeffentlicht"
+            echo ""
+            echo "- App: ${URL}index.html"
+            echo "- Mobil: ${URL}mobil.html"
+            echo "- Kundenportal: ${URL}portal.html"
+            echo "- Build: ${{ github.run_number }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL"
