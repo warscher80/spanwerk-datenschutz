@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # fuer das Release-Asset mit dem fertigen APK
 
 jobs:
   build:
@@ -52,3 +52,26 @@ jobs:
           name: footy-predict-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      # Zusaetzlich als Release bereitstellen. Ein Artefakt laesst sich nur
+      # angemeldet und nur als ZIP herunterladen - am Handy unbrauchbar.
+      # Ein Release-Asset hat eine feste, direkt anklickbare Adresse:
+      # https://github.com/warscher80/spanwerk-datenschutz/releases/download/kickprophet-latest/KickProphet.apk
+      - name: APK als Release bereitstellen
+        if: github.ref_name == 'claude/football-betting-apk-m9fb1c'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          cp build/app/outputs/flutter-apk/app-release.apk KickProphet.apk
+          if gh release view kickprophet-latest >/dev/null 2>&1; then
+            gh release upload kickprophet-latest KickProphet.apk --clobber
+            gh release edit kickprophet-latest \
+              --notes "KickProphet ${VERSION} · Build ${{ github.run_number }} · Commit ${GITHUB_SHA::7}"
+          else
+            gh release create kickprophet-latest KickProphet.apk \
+              --title "KickProphet – aktueller Build" \
+              --notes "KickProphet ${VERSION} · Build ${{ github.run_number }} · Commit ${GITHUB_SHA::7}"
+          fi
+          echo "Direktlink: https://github.com/${GITHUB_REPOSITORY}/releases/download/kickprophet-latest/KickProphet.apk"
