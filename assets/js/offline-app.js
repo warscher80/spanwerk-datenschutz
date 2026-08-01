@@ -92,8 +92,26 @@
       zeitPlausibel: Sync.zeitPlausibel(rec.geraetezeit, rec.serverzeitBekannt, 6 * 60 * 60000)
     };
   }
+  // Baut den Lager-Zustandsadapter über die db-Arrays (dieselben Referenzen).
+  function lagerState(db) {
+    return {
+      artikel: db.lagerArtikel, plaetze: db.lagerplaetze, chargen: db.lagerChargen, bewegungen: db.lagerBewegungen,
+      reservierungen: db.lagerReservierungen, reststuecke: db.lagerReststuecke, wareneingaenge: db.wareneingaenge,
+      bestellungen: db.bestellungen, konflikte: db.lagerKonflikte, inventuren: db.lagerInventuren
+    };
+  }
   // Wendet einen (validierten) Datensatz idempotent auf die zentrale db an.
   function anwenden(rec, db) {
+    // Lager-Bewegung (Phase 15B, mobil): über den Phase-15A-Lagerkern erneut
+    // validieren und idempotent ins Bewegungsjournal übernehmen. KEINE zweite
+    // Bestandslogik – exactly-once über denselben Idempotenzschlüssel.
+    if (rec.typ === "lager") {
+      var Lager = P.Lager; if (!Lager) return { fehler: "Lagerkern nicht geladen", temporaer: true };
+      var daten = Object.assign({}, rec.payload || {}, { idempotenzKey: rec.idempotenzKey, mandantId: rec.mandantId, benutzer: rec.benutzer });
+      var lres = Lager.uebernehmeOffline(lagerState(db), daten, nowISO());
+      if (!lres.ok) return { konflikt: true, grund: lres.grund };
+      return { ok: true, serverRef: lres.bewegung ? lres.bewegung.id : null };
+    }
     // Exactly-once auf zentraler Seite: je idempotenzKey höchstens eine Buchung.
     var vorhanden = (db.offlineBuchungen || []).filter(function (b) { return b.idempotenzKey === rec.idempotenzKey; })[0];
     if (vorhanden) return { ok: true, serverRef: vorhanden.id };
@@ -115,7 +133,9 @@
     var liste = Sync.faellig(_records, jetzt);
     var verarbeitet = 0, konflikte = 0;
     liste.forEach(function (rec) {
-      var kf = Sync.pruefeKonflikt(rec, kontextFuer(rec, db));
+      // Lager-Datensätze validiert der Lagerkern selbst (in anwenden); die
+      // timer-orientierte Konfliktprüfung greift dort nicht.
+      var kf = rec.typ === "lager" ? { konflikt: false } : Sync.pruefeKonflikt(rec, kontextFuer(rec, db));
       var applyFn = function (r) { if (kf.konflikt) return { konflikt: true, grund: kf.grund }; return anwenden(r, db); };
       var res = Sync.verarbeite(rec, applyFn, jetzt);
       if (res.status === Sync.STATUS.SYNCED) verarbeitet++;

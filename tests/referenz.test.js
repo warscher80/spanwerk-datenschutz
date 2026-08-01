@@ -1188,5 +1188,81 @@ function freshLager() {
   t("LAGER Bewegung hält eigenen Preis-Snapshot", bew.preisSnapshot === 9);
 })();
 
+// =============================================================
+//  LAGER-UI-KERN  (Phase 15B) – Inventur, Bestellworkflow, QR/
+//  Etikett, Berichte, Rückwärts-Rückverfolgung, Dashboard.
+// =============================================================
+var L = P.Lager;
+(function () {
+  var s = freshLager();
+  L.wareneingang(s, { mandantId: "m1", lieferantId: "lief1", lieferschein: "LS-UI", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C-UI", schmelznummer: "SMX", zertifikate: ["3.1"], einkaufspreis: 7 }] }, LJ);
+  // Dashboard-Aggregation
+  var dash = L.dashboard(s, "m1", LJ);
+  t("LAGER-UI Dashboard summiert physischen Bestand", dash.bestand.physisch === 20 && dash.artikelAnzahl >= 1);
+  t("LAGER-UI Dashboard zählt Artikel unter Meldebestand", typeof dash.unterMelde === "number");
+  // Artikelübersicht + Filter
+  var ueb = L.artikelUebersicht(s, "m1", {});
+  t("LAGER-UI Artikelübersicht liefert Bestand + letzte Bewegung", ueb.length >= 1 && ueb[0].bestand && ueb[0].letzteBewegung);
+  t("LAGER-UI Filter unterMelde", L.artikelUebersicht(s, "m1", { unterMelde: true }).every(function (r) { return r.bestand.verfuegbar < r.artikel.meldebestand; }));
+  // QR / Referenzcode / Etikett
+  var code = L.referenzCode("charge", s.chargen[0].id);
+  t("LAGER-UI Referenzcode Format PS:CH:", /^PS:CH:/.test(code));
+  var parsed = L.parseReferenz(code);
+  t("LAGER-UI parseReferenz erkennt Typ", parsed && parsed.typ === "charge");
+  var etik = L.etikettDaten(s, "charge", s.chargen[0].id);
+  t("LAGER-UI Etikettdaten enthalten keinen Preis", etik && JSON.stringify(etik).indexOf("preis") < 0 && etik.titel === "C-UI");
+  // Rückwärts-Rückverfolgung
+  L.entnahme(s, { mandantId: "m1", artikelId: "a1", menge: 4, chargeId: s.chargen[0].id, auftragId: "aufX", kommission: "KommX" }, LJ);
+  var rw = L.rueckverfolgungRueckwaerts(s, "aufX");
+  t("LAGER-UI Rückwärts-Rückverfolgung Auftrag→Charge→WE→Lieferant", rw.length === 1 && rw[0].chargennummer === "C-UI" && rw[0].lieferschein === "LS-UI" && rw[0].lieferantId === "lief1");
+  // Chargensperre-Impact
+  var imp = L.chargeSperrImpact(s, s.chargen[0].id);
+  t("LAGER-UI Sperr-Impact listet Bestand/Aufträge", imp && imp.bestand === 16 && imp.auftraege.indexOf("aufX") >= 0);
+  // Berichte
+  var bb = L.berichtBestand(s, "m1", true);
+  t("LAGER-UI Bestandsbericht CSV mit Wertspalten", bb.csv.indexOf("Lagerwert") >= 0 && bb.rows.length >= 1);
+  var bbOhne = L.berichtBestand(s, "m1", false);
+  t("LAGER-UI Bestandsbericht ohne Wert (kein Recht)", bbOhne.csv.indexOf("Lagerwert") < 0);
+})();
+
+// Inventur: anlegen → zählen → zweite Zählung → Freigabe → buchen
+(function () {
+  var s = freshLager();
+  L.wareneingang(s, { mandantId: "m1", positionen: [{ artikelId: "a1", gelieferteMenge: 20, lagerplatzId: "p1", chargennummer: "C1", einkaufspreis: 7 }] }, LJ);
+  var inv = L.inventurNeu(s, { mandantId: "m1", typ: L.INVENTUR_TYP.ARTIKEL, artikelIds: ["a1"], schwelleProz: 10 }, LJ);
+  t("LAGER Inventur angelegt mit Zählliste", inv.positionen.length >= 1 && inv.status === L.INVENTUR_STATUS.ANGELEGT);
+  var pos = inv.positionen[0];
+  // starke Abweichung -> zweite Zählung nötig
+  var z1 = L.inventurZaehlung(s, inv.id, { positionId: pos.id, gezaehlt: pos.systemBestand - 10 }, LJ);
+  t("LAGER Inventur: hohe Abweichung fordert zweite Zählung", z1.zweitNoetig === true);
+  var freigabe1 = L.inventurFreigabe(s, inv.id, "admin", LJ);
+  t("LAGER Inventur: Freigabe blockiert ohne zweite Zählung", freigabe1.ok === false);
+  L.inventurZaehlung(s, inv.id, { positionId: pos.id, gezaehlt: pos.systemBestand - 10, zweit: true }, LJ);
+  var freigabe2 = L.inventurFreigabe(s, inv.id, "admin", LJ);
+  t("LAGER Inventur: Freigabe nach zweiter Zählung", freigabe2.ok === true && inv.status === L.INVENTUR_STATUS.FREIGEGEBEN);
+  var vorher = L.bestand(s, "a1", { mandantId: "m1" }).physisch;
+  var buchen = L.inventurBuchen(s, inv.id, "admin", LJ);
+  t("LAGER Inventur: Korrekturbuchung senkt Bestand", buchen.ok && buchen.gebucht === 1 && L.bestand(s, "a1", { mandantId: "m1" }).physisch === vorher - 10);
+  t("LAGER Inventur: abgeschlossen", inv.status === L.INVENTUR_STATUS.ABGESCHLOSSEN);
+})();
+
+// Bestell-Workflow (Status; niemals automatisch versenden)
+(function () {
+  var s = freshLager();
+  var bo = L.bestellungNeu(s, { mandantId: "m1", lieferantId: "lief1", positionen: [{ artikelId: "a1", menge: 12 }] }, LJ);
+  t("LAGER Bestellung startet als Entwurf", bo.status === "Entwurf");
+  L.bestellungStatus(s, bo.id, "zur Freigabe", "buero", LJ);
+  var frei = L.bestellungStatus(s, bo.id, "freigegeben", "admin", LJ);
+  t("LAGER Bestellstatus-Workflow bis freigegeben", frei.ok && bo.status === "freigegeben" && bo.freigegebenVon === "admin" && bo.historie.length >= 3);
+  t("LAGER Bestellung unbekannter Status abgelehnt", L.bestellungStatus(s, bo.id, "versendet", "admin", LJ).ok === false);
+})();
+
+// Neue Rollen-Rechte (15B)
+(function () {
+  t("LAGER-UI Rolle werkstatt darf umlagern + inventur zählen", L.darf("werkstatt", "umlagern") && L.darf("werkstatt", "inventurZaehlen"));
+  t("LAGER-UI Rolle werkstatt darf NICHT Charge entsperren/Berichte", L.darf("werkstatt", "chargeEntsperren") === false && L.darf("werkstatt", "berichteExportieren") === false);
+  t("LAGER-UI Nur admin darf Charge entsperren", L.darf("admin", "chargeEntsperren") && L.darf("buero", "chargeEntsperren") === false);
+})();
+
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

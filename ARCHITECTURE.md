@@ -22,6 +22,8 @@ Jedes Modul ist ein IIFE, das an `window.Preisschmiede.*` hängt.
 | `auswertung.js` | Dashboard-/Analyse-Engine (7A) |
 | `planung.js` | Fertigungsplanung: Kapazität, Konflikte, Auto-Plan, Rüstopt. (7C) |
 | `dokumente.js` | Dokumente/CSV-BOM/PDF-Text/DXF, Erkennungswerte, Übernahme (7D) |
+| `lager.js` | Lagerkern (15A): Bestand, Bewegungsjournal, Chargen, Reservierung, Reststücke, Inventur, Bestellvorschlag |
+| `lager-ui.js` | Lageroberfläche (15B): Seite „Lager" mit 15 Registern über dem Lagerkern |
 | `store.js` | Datenmodell, `fresh()`/`migrate()`, Persistenz, Hash/Salt |
 | `auth.js` | Anmeldung, Rollen, Rechtematrix, `darfFinanzen()` |
 | `app.js` | gesamte UI-Steuerung (Renderer je Seite, Modale) |

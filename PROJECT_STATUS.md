@@ -4,7 +4,37 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 15A – Lagerkern, Bestandsbuchungen &
+Letzte Aktualisierung: **Phase 15B – Lageroberfläche, Inventur, QR-Erfassung &
+mobile Buchungen** umgesetzt. Vollständige Lager-UI (`assets/js/lager-ui.js`,
+neue Seite „Lager") auf **demselben Phase-15A-Kern** – keine zweite
+Bestandslogik. 15 Register: Dashboard (alle Bestandsarten, unter Meldebestand,
+offene/verspätete Bestellungen, gesperrte Chargen, Konflikte,
+Inventurdifferenzen; **Lagerwert nur mit Preisrecht**), Bestand mit Filtern,
+Lagerstruktur (anlegen/bearbeiten/sperren, belegte Plätze nie gelöscht),
+**unveränderbares Journal** (Suche/Filter/Detail/**Gegenbuchung**/CSV, keine
+Löschschaltfläche), Wareneingangs-Assistent (Teillieferung, Mehrlieferungs-
+warnung, beschädigte Menge, Charge/Schmelze/Zertifikat, QS, EK-Snapshot,
+Etikett), Reservierung (voll/teilweise, Fehlmenge → Bestellvorschlag), Entnahme
+(gegen Reservierung, Warnung bei ungewöhnlicher Menge, gesperrte Charge
+blockiert), Rückgabe (referenziert Entnahme, optional als Reststück),
+Umlagerung, Reststücke (Langgut-Restlänge live, Bleche L×B×S), Chargen
+(**Rückverfolgung vorwärts + rückwärts**, Sperr-Auswirkungsanalyse, Entsperren
+mit Grund + Audit), **Inventur** (Voll/Lagerplatz/Artikel/Stichprobe, zweite
+Zählung bei hoher Abweichung, Freigabe, Korrekturbuchungen), Bestellungen
+(9-stufiger Status-Workflow, nichts wird versendet), **QR/Etiketten**
+(`PS:TYP:id`, keine Preise, druckbar) und Berichte (CSV/Druck).
+**Mobile Lageransicht** in der PWA (Scannen, Entnahme, Umlagerung,
+Inventurzählung, Reststück, Wareneingang, Bestand ohne Preise) bucht über die
+**bestehende Phase-14-Queue**; `offline-app.js` übergibt Lagerdatensätze beim
+Sync an `Lager.uebernehmeOffline` (Neuvalidierung, exactly-once, Konflikt statt
+negativem Bestand); mobile Inventurzählungen rechnen erst beim Sync gegen den
+**aktuellen** Systembestand. Erweiterte Rollenrechte (15 Rechte; Werkstatt ohne
+Preise/Wareneingang/Freigaben, Lager-Seite im Desktop ausgeblendet). Tests
+**346/346**, **Desktop-E2E 14/14**, **Mobile-E2E 13/13**. Ehrlich: keine
+Bewegung gelöscht, keine steuerrechtliche Lagerbewertung, keine echte Bestellung
+versendet, keine ERP-Lagerverbindung, kein Nesting. Doku: WAREHOUSE.md.
+
+Vorher: **Phase 15A – Lagerkern, Bestandsbuchungen &
 Reservierungen** umgesetzt. Reiner, testbarer Lagerkern (`assets/js/lager.js`,
 `window.Preisschmiede.Lager`) **ohne UI**: Lagerstruktur (Standort/Lager/
 Bereich/Regal/Lagerplatz), Lagerartikel, zentrale Bestandsberechnung
@@ -172,6 +202,7 @@ KNOWN_LIMITATIONS.md).
 | Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
 | PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
 | Mobile Werkstatt/Montage | `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js` | Touch-Oberfläche über dem Offline-Kern: Timer/Maschine/Material/Stückzahl/Montage/Fotos, Sync-/Konfliktansicht, Terminalmodus, keine Preisdaten |
+| Lager-UI (Desktop) | `assets/js/lager-ui.js` | Seite „Lager": Dashboard, Bestand, Struktur, Journal+Gegenbuchung, Wareneingangs-Assistent, Reservierung, Entnahme, Rückgabe, Umlagerung, Reststücke, Chargen/Rückverfolgung, Inventur, Bestellungen, QR/Etiketten, Berichte |
 | Lagerkern | `assets/js/lager.js` | Lagerstruktur, Artikel, Bewegungsjournal (unveränderbar), Bestand (verfügbar/reserviert/gesperrt/QS/bestellt), Wareneingang, Chargen + Rückverfolgung, Reservierung, Entnahme/Rückgabe, Reststücke, Bestellvorschlag, Bewertung, Idempotenz, Rechte |
 | Portal-UI | `portal.html`, `assets/js/portal-app.js`, `assets/css/portal.css` | mobil-first Kundenoberfläche mit Mandanten-Branding |
 | Anmeldung/Rollen | `assets/js/auth.js` | Login, Rollen, Berechtigungen |

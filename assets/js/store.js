@@ -325,11 +325,18 @@
       var chGesperrt = state.chargen.filter(function (c) { return c.chargennummer === "CH-RR-2026-08"; })[0];
       if (chGesperrt) L.chargeSperren(state, chGesperrt.id, "Zertifikat unklar", jetzt);
 
+      // Beispiel-Bestellung im Freigabe-Workflow (Entwurf) für die Bestell-UI.
+      L.bestellungNeu(state, { mandantId: mandantId, lieferantId: liefFrank, lieferzeitTage: 6, liefertermin: null, benutzer: "buero", positionen: [{ artikelId: aBlS.id, menge: 6 }] }, jetzt);
+      // Beispiel-Artikelinventur mit einer kleinen Differenz (offen, nicht gebucht).
+      state.inventuren = [];
+      var inv = L.inventurNeu(state, { mandantId: mandantId, typ: L.INVENTUR_TYP.ARTIKEL, artikelIds: [aBlS.id], umfang: "Blech Stahl" }, jetzt);
+      if (inv.positionen[0]) L.inventurZaehlung(state, inv.id, { positionId: inv.positionen[0].id, gezaehlt: inv.positionen[0].systemBestand - 1, grund: "Zählabweichung", benutzer: "buero" }, jetzt);
+
       return {
         lagerStandorte: [stand], lager: [lHaupt, lAussen], lagerBereiche: [bStahl, bBlech, bLang], lagerRegale: [rStahl, rLang],
         lagerplaetze: state.plaetze, lagerArtikel: state.artikel, lagerBewegungen: state.bewegungen, lagerChargen: state.chargen,
         lagerReservierungen: state.reservierungen, lagerReststuecke: state.reststuecke, wareneingaenge: state.wareneingaenge,
-        bestellungen: state.bestellungen, lagerKonflikte: state.konflikte
+        bestellungen: state.bestellungen, lagerKonflikte: state.konflikte, lagerInventuren: state.inventuren || []
       };
     } catch (e) { return leer; }
   }
@@ -555,6 +562,7 @@
       wareneingaenge: lagerSeed.wareneingaenge,
       bestellungen: lagerSeed.bestellungen,
       lagerKonflikte: lagerSeed.lagerKonflikte,
+      lagerInventuren: lagerSeed.lagerInventuren || [],
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -744,6 +752,7 @@
     if (!Array.isArray(obj.wareneingaenge)) obj.wareneingaenge = [];
     if (!Array.isArray(obj.bestellungen)) obj.bestellungen = [];
     if (!Array.isArray(obj.lagerKonflikte)) obj.lagerKonflikte = [];
+    if (!Array.isArray(obj.lagerInventuren)) obj.lagerInventuren = [];
     if (!st.lager || typeof st.lager !== "object") st.lager = { bewertungsmethode: "gleitend", zaehler: { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 } };
     if (!st.lager.zaehler || typeof st.lager.zaehler !== "object") st.lager.zaehler = { artikel: 1, charge: 1, wareneingang: 1, bestellung: 1 };
     // Schema-Version stempeln + letzte Migration protokollieren (bei Änderung)

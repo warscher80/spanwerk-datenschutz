@@ -3,6 +3,64 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 15B – Lageroberfläche, Inventur, QR-Erfassung & mobile Buchungen  (Schema v12)
+
+### Hinzugefügt
+- **Desktop-Lager-UI `assets/js/lager-ui.js`** (neue Seite „Lager", 15 Register)
+  auf demselben Phase-15A-Kern – **keine zweite Bestandslogik**: Dashboard mit
+  allen Bestandsarten und Warnungen (Lagerwert nur mit Preisrecht), Artikel-/
+  Bestandsübersicht mit Filtern, Lagerstruktur (Standort→Lagerplatz) inkl.
+  Sperren/Etikett, **unveränderbares Bewegungsjournal** mit Suche/Filter/Detail/
+  **Gegenbuchung**/CSV (keine Löschschaltfläche), Wareneingangs-Assistent
+  (Teillieferung, Mehrlieferungswarnung, beschädigte Menge, Charge/Schmelze/
+  Zertifikat, QS-Status, Lagerplatz, EK-Snapshot), Reservierung (voll/teilweise,
+  Fehlmenge → Bestellvorschlag), Entnahme (gegen Reservierung, Warnung bei
+  ungewöhnlicher Menge), Rückgabe (referenziert Entnahme, optional als
+  Reststück), Umlagerung, Reststückverwaltung (Langgut-Restlänge live, Bleche),
+  Chargen mit **Rückverfolgung vorwärts und rückwärts**, Sperr-Auswirkungs-
+  analyse und Entsperren mit Grund + Audit, Inventur, Bestellungen, QR/Etiketten,
+  Berichte.
+- **Inventur** (Engine + UI): Voll-/Lagerplatz-/Artikel-/Stichprobeninventur,
+  Zählliste aus Systembestand, **zweite Zählung bei hoher Abweichung** (Freigabe
+  blockiert), Freigabe nur mit Recht, **Korrekturbuchungen** als
+  `INVENTURDIFFERENZ` (idempotent), Abschluss; Differenzwert nur mit Preisrecht.
+- **Bestell-Workflow** (9 Status von Entwurf bis geliefert/storniert) mit
+  Historie und Freigaberecht – **nichts wird automatisch versendet**.
+- **QR-Codes/Etiketten**: Referenzcode `PS:<LP|AR|CH|RS|BO|WE>:<id>` (nur sichere
+  Referenz, **keine Preise**), typabhängige Etikettdaten, druckbare Ansicht.
+- **Berichte/Exporte**: Bestand, Bewegungen, Fehlmengen, Inventur als CSV oder
+  Druckansicht; Wertspalten nur mit `einkaufspreiseSehen`.
+- **Mobile Lageransicht** in der PWA (`mobil.html`, `mobil-app.js`): Scannen/
+  Code, Entnahme, Umlagerung, Inventurzählung, Reststück, Wareneingang
+  (rollenabhängig), Bestandsliste ohne Preise, Sync-Status. Buchungen laufen über
+  die **bestehende Phase-14-Queue** (`Offline.ereignis({typ:"lager"})`);
+  `offline-app.js` übergibt sie beim Sync an `Lager.uebernehmeOffline`
+  (Neuvalidierung, exactly-once, **Konflikt statt negativem Bestand**).
+- **Mobile Inventurzählung** bildet die Differenz erst beim Sync gegen den
+  **aktuellen** Systembestand – veraltete Offline-Bestände gelten nie als
+  verbindlich.
+- Erweiterte **Rollenmatrix** (15 Rechte inkl. umlagern, inventurZaehlen,
+  inventurFreigeben, chargeEntsperren, berichteExportieren); Seite „Lager" für
+  admin/buero, Werkstatt nutzt die mobile Ansicht.
+- `db.lagerInventuren` (Migration additiv), Beispiel-Inventur und Beispiel-
+  Bestellung im Testdatensatz; `lager-ui.js` in `index.html` und `sw.js`-SHELL
+  (v4), `lager.js` zusätzlich in `mobil.html`.
+
+### Behoben
+- `artikelUebersicht` referenzierte eine undefinierte Variable (`bws`).
+- Journal-Bewegungsnummern und CSV-Schaltfläche kosmetisch korrigiert.
+
+### Tests / Prüfungen
+- Referenztests **346/346** (23 neue); **Desktop-E2E 14/14**; **Mobile-E2E
+  13/13** (Offline-Buchung, Reload, exactly-once 10→11/11→11, Konflikt, mobile
+  Inventurdifferenz −3). `node --check`, Secret-Scan, Produktions-Build grün.
+
+### Ehrlich / Grenzen
+- Keine Bestandsbewegung wird gelöscht (nur Storno/Gegenbuchung), keine zweite
+  Bestandsengine, keine echte Bestellung versendet, keine ERP-Lagerverbindung,
+  keine steuerrechtliche Lagerbewertung, kein geometrisches Nesting. Technische
+  Eignung von Reststücken wird nie automatisch bestätigt.
+
 ## Phase 15A – Lagerkern, Bestandsbuchungen & Reservierungen  (Schema v12)
 
 ### Hinzugefügt

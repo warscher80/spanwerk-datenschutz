@@ -186,6 +186,91 @@ QS-Wareneingang mit beschädigter Menge, **2+ Chargen** (eine gesperrt),
 Reservierung + **Teilreservierung** (Fehlmenge), Entnahme + Rückgabe,
 Reststück (Langgut), woraus sich reale **Bestellvorschläge** ergeben.
 
+## Phase 15B – Lageroberfläche, Inventur, QR-Erfassung, mobile Buchungen
+
+Aufbauend auf demselben Kern (**keine zweite Bestandslogik**) ergänzt Phase 15B
+die Oberflächen. Jede Buchung läuft über `Lager.*`; die Bestandstöpfe kommen
+immer aus dem Bewegungsjournal.
+
+### Desktop – Seite „Lager" (`assets/js/lager-ui.js`, Nav-Eintrag `lager`)
+
+15 Register: **Dashboard** (physisch/verfügbar/reserviert/bestellt/gesperrt/QS/
+Reststücke, unter Meldebestand, offene Bestellungen, verspätete Lieferungen,
+gesperrte Chargen, offene Konflikte, Inventurdifferenzen; **Lagerwert nur mit
+Preisrecht**), **Bestand** (Artikelübersicht + Filter Werkstoff/unter Melde/
+gesperrt/mit Reststücken/ohne Preis, Detaildialog), **Struktur** (Standort→
+Lager→Bereich→Regal→Lagerplatz anlegen/bearbeiten/sperren, Etikett; belegte
+Plätze werden nicht gelöscht), **Journal** (unveränderbar, Suche/Filter, Detail,
+**Gegenbuchung**, CSV – *keine Löschschaltfläche*), **Wareneingang** (Assistent
+mit Bestellbezug, bestellt/bisher geliefert/Restmenge, Mehrlieferungswarnung mit
+Bestätigung, beschädigte Menge, Charge/Schmelznummer/Zertifikat, QS-Status,
+Lagerplatz, EK-Snapshot, Etikett), **Reservierung** (voll/teilweise, Fehlmenge,
+Bestellvorschlag aus Fehlmenge), **Entnahme** (gegen Reservierung, Warnung bei
+ungewöhnlich hoher Menge, gesperrte Chargen gesperrt), **Rückgabe** (referenziert
+die Entnahme, optional als Reststück), **Umlagerung** (Quelle/Ziel im Journal),
+**Reststücke** (Übersicht/Suche/anlegen/reservieren/verwenden/verschrotten/
+Etikett; Langgut-Restlängenrechnung live), **Chargen** (Sperren mit
+Auswirkungsanalyse, Entsperren mit Grund + Audit, **Rückverfolgung vorwärts und
+rückwärts**), **Inventur**, **Bestellungen**, **QR/Etiketten**, **Berichte**.
+
+### Inventur
+
+Voll-, Lagerplatz-, Artikel- und Stichprobeninventur. Ablauf: anlegen → Zählliste
+(Artikel × Lagerplatz mit Systembestand) → zählen → **zweite Zählung bei
+Abweichung über Schwelle** (Freigabe blockiert, bis sie vorliegt) → Freigabe
+(nur mit Recht `inventurFreigeben`) → **Korrekturbuchungen** als
+`INVENTURDIFFERENZ` (idempotent) → Abschluss. Differenzwert nur mit Preisrecht.
+
+### QR-Codes & Etiketten
+
+Referenzcode `PS:<LP|AR|CH|RS|BO|WE>:<id>` – **nur eine sichere Referenz, keine
+Preise**. `etikettDaten()` liefert je Typ passende Zeilen (Artikelnummer,
+Werkstoff, Abmessung, Charge, Lagerplatz, Reststückmaß …). Druckbare
+Etikettenansicht (einzeln oder alle Lagerplätze).
+
+### Mobile Lageransicht (PWA)
+
+Neuer Bereich „Lager" in `mobil.html`/`mobil-app.js`: **Scannen/Code**,
+Entnahme, Umlagerung, Inventurzählung, Reststück, Wareneingang (rollenabhängig),
+Bestandsliste (**nur Mengen, keine Preise**) und Sync-Status. Alle Buchungen
+laufen über `Offline.ereignis({typ:"lager"})` in die **bestehende Phase-14-Queue**
+mit stabilem Idempotenzschlüssel; `offline-app.js` übergibt sie beim Sync an
+`Lager.uebernehmeOffline`, das sie **erneut validiert** (Konflikt statt stillem
+Fehler oder negativem Bestand). **Mobile Inventurzählungen** bilden die Differenz
+erst beim Sync gegen den **aktuellen** Systembestand – veraltete Offline-Bestände
+gelten nie als verbindlich.
+
+### Berichte & Exporte
+
+Bestands-, Bewegungs-, Fehlmengen- und Inventurbericht als **CSV** oder
+druckbare Ansicht. Wertspalten nur mit `einkaufspreiseSehen`. Keine
+Live-ERP-Verbindung.
+
+### Rollen (erweitert)
+
+`bestandSehen, einkaufspreiseSehen, wareneingang, reservieren, entnehmen,
+zurueckgeben, umlagern, korrigieren, chargeSperren, chargeEntsperren,
+inventurZaehlen, inventurFreigeben, bestellungErstellen, bestellungFreigeben,
+berichteExportieren`. Werkstatt: Bestand sehen, entnehmen, zurückgeben,
+umlagern, Inventur zählen – **keine** Preise, kein Wareneingang, keine Freigaben.
+Die Desktop-Seite „Lager" ist für Werkstatt nicht in der Navigation.
+
+### Phase-15B-Tests
+
+Referenztests **346/346** (23 neue: Dashboard-Aggregation, Artikelübersicht +
+Filter, QR-Referenzcode/Parsing, Etikett ohne Preis, Rückwärts-Rückverfolgung,
+Sperr-Impact, Berichte mit/ohne Wert, Inventur inkl. zweiter Zählung/Freigabe/
+Buchung, Bestell-Workflow, neue Rollenrechte).
+**Desktop-E2E (Chromium) 14/14**: alle 15 Register fehlerfrei, Dashboard mit
+echten Zahlen, Wareneingang gebucht, Journal, Entnahme, Inventur angelegt,
+Chargenrückverfolgung, QR/Etikett erzeugt, Bestellvorschläge, Werkstatt ohne
+Lager-Navigation.
+**Mobile-E2E (Chromium, http/localhost) 13/13**: mobile Lageransicht ohne
+Preise, Rollenfilter der Aktionen, QR-Code erkannt, **Offline-Entnahme in der
+Queue**, überlebt Reload, **exactly-once** ins Journal (10→11, zweiter Sync
+11→11), **Offline-Konflikt statt negativem Bestand**, mobile Inventurzählung
+erzeugt −3-Differenzbuchung gegen den aktuellen Bestand.
+
 ## Tests
 
 `tests/referenz.test.js` – **323/323** (davon 46 neue Lagertests): Wareneingang,

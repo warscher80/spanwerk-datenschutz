@@ -48,10 +48,13 @@
 
   // Rechtematrix Lager (zentral geprüft; UI erzwingt zusätzlich)
   var LAGER_RECHTE = {
-    admin: ["bestandSehen", "einkaufspreiseSehen", "wareneingang", "reservieren", "entnehmen", "zurueckgeben", "korrigieren", "chargeSperren", "inventurFreigeben", "bestellungErstellen", "bestellungFreigeben"],
-    buero: ["bestandSehen", "einkaufspreiseSehen", "wareneingang", "reservieren", "entnehmen", "zurueckgeben", "korrigieren", "chargeSperren", "bestellungErstellen"],
-    werkstatt: ["bestandSehen", "entnehmen", "zurueckgeben"]
+    admin: ["bestandSehen", "einkaufspreiseSehen", "wareneingang", "reservieren", "entnehmen", "zurueckgeben", "umlagern", "korrigieren", "chargeSperren", "chargeEntsperren", "inventurZaehlen", "inventurFreigeben", "bestellungErstellen", "bestellungFreigeben", "berichteExportieren"],
+    buero: ["bestandSehen", "einkaufspreiseSehen", "wareneingang", "reservieren", "entnehmen", "zurueckgeben", "umlagern", "korrigieren", "chargeSperren", "inventurZaehlen", "bestellungErstellen", "berichteExportieren"],
+    werkstatt: ["bestandSehen", "entnehmen", "zurueckgeben", "umlagern", "inventurZaehlen"]
   };
+  var BESTELL_STATUS = ["Entwurf", "zur Freigabe", "freigegeben", "exportiert", "bestellt", "bestätigt", "teilweise geliefert", "geliefert", "storniert"];
+  var INVENTUR_TYP = { VOLL: "voll", LAGERPLATZ: "lagerplatz", ARTIKEL: "artikel", STICHPROBE: "stichprobe" };
+  var INVENTUR_STATUS = { ANGELEGT: "angelegt", ZAEHLUNG: "in Zählung", PRUEFUNG: "in Prüfung", FREIGEGEBEN: "freigegeben", ABGESCHLOSSEN: "abgeschlossen" };
   function darf(rolle, recht) { return (LAGER_RECHTE[rolle] || []).indexOf(recht) >= 0; }
   function darfEinkaufspreise(rolle) { return darf(rolle, "einkaufspreiseSehen"); }
 
@@ -601,6 +604,17 @@
     // Idempotenz: bereits vorhandener Schlüssel -> keine zweite Bewegung
     var key = daten.idempotenzKey;
     if (key) { var da = (state.bewegungen || []).filter(function (b) { return b.idempotenzKey === key; })[0]; if (da) return { ok: true, bewegung: da, neu: false }; }
+    // Mobile Inventurzählung: Differenz gegen den AKTUELLEN Systembestand
+    // berechnen (nicht gegen einen möglicherweise veralteten Offline-Bestand).
+    if (daten.aktion === "inventurzaehlung") {
+      var art0 = artikelById(state, daten.artikelId); if (!art0) { var kf0 = { id: uid("kf"), mandantId: daten.mandantId || null, grund: "Artikel nicht vorhanden", daten: daten, status: "offen", erstellt: jetztISO }; (state.konflikte || (state.konflikte = [])).push(kf0); return { ok: false, konflikt: kf0, grund: "Artikel nicht vorhanden" }; }
+      var sys = bestandProPlatz(state.bewegungen, daten.artikelId, daten.lagerplatzId, { mandantId: art0.mandantId });
+      var diff = r3(num(daten.gezaehlt) - sys);
+      if (diff === 0) return { ok: true, bewegung: null, neu: false };
+      var ib = bewegungNeu({ mandantId: art0.mandantId, typ: BEWEGUNG.INVENTURDIFFERENZ, artikelId: daten.artikelId, menge: diff, einheit: art0.basiseinheit, zielLagerplatzId: daten.lagerplatzId, chargeId: daten.chargeId || null, benutzer: daten.benutzer, zeitpunkt: jetztISO, grund: "Mobile Inventurzählung (gegen aktuellen Bestand " + sys + ")", idempotenzKey: key }, jetztISO);
+      var ip = journalPush(state.bewegungen, ib);
+      return { ok: true, bewegung: ip.record, neu: ip.neu };
+    }
     var pr = pruefeBewegung(state, daten);
     if (!pr.ok) {
       var kf = { id: uid("kf"), mandantId: daten.mandantId || null, grund: pr.grund, fehlmenge: pr.fehlmenge != null ? pr.fehlmenge : null, daten: daten, status: "offen", erstellt: jetztISO };
@@ -612,8 +626,287 @@
     return { ok: true, bewegung: pushed.record, neu: pushed.neu };
   }
 
+  // ============================================================
+  //  RÜCKWÄRTS-RÜCKVERFOLGUNG  (Auftrag → Verbrauch → Charge → WE → Lieferant)
+  // ============================================================
+  function rueckverfolgungRueckwaerts(state, auftragId) {
+    var verbraeuche = (state.bewegungen || []).filter(function (b) { return b.auftragId === auftragId && (b.typ === BEWEGUNG.ENTNAHME || b.typ === BEWEGUNG.RESTSTUECK_VERBRAUCH); });
+    return verbraeuche.map(function (b) {
+      var ch = b.chargeId ? chargeById(state, b.chargeId) : null;
+      var we = ch ? (state.wareneingaenge || []).filter(function (x) { return x.id === ch.wareneingangId; })[0] : null;
+      return {
+        bewegungId: b.id, typ: b.typ, artikelId: b.artikelId, menge: b.menge, kommission: b.kommission, arbeitsgang: b.arbeitsgang, zeitpunkt: b.zeitpunkt,
+        chargennummer: ch ? ch.chargennummer : null, schmelznummer: ch ? ch.schmelznummer : null,
+        wareneingangId: we ? we.id : null, lieferschein: we ? we.lieferschein : null, lieferantId: ch ? ch.lieferantId : null
+      };
+    });
+  }
+
+  // ============================================================
+  //  CHARGENSPERRE – Auswirkungsanalyse (vor dem Sperren anzeigen)
+  // ============================================================
+  function chargeSperrImpact(state, chargeId) {
+    var ch = chargeById(state, chargeId); if (!ch) return null;
+    var proArt = chargeToepfeProArtikel(state, chargeId, "physisch");
+    var bestand = 0; Object.keys(proArt).forEach(function (k) { bestand += num(proArt[k]); });
+    var reservierungen = (state.reservierungen || []).filter(function (r) { return r.chargeId === chargeId && r.status !== RES_STATUS.STORNIERT && r.status !== RES_STATUS.FREIGEGEBEN; });
+    var entnahmen = (state.bewegungen || []).filter(function (b) { return b.chargeId === chargeId && b.typ === BEWEGUNG.ENTNAHME; });
+    var auftraege = {}, kommissionen = {};
+    entnahmen.concat(reservierungen).forEach(function (x) { if (x.auftragId) auftraege[x.auftragId] = true; if (x.kommission) kommissionen[x.kommission] = true; });
+    return {
+      chargennummer: ch.chargennummer, bestand: r3(bestand), lagerplaetze: ch.lagerplaetze.slice(),
+      reservierungen: reservierungen.length, entnahmen: entnahmen.length,
+      auftraege: Object.keys(auftraege), kommissionen: Object.keys(kommissionen), zertifikate: ch.zertifikate.slice()
+    };
+  }
+  // Entsperren nur mit Grund + Audit (Protokoll bleibt an der Charge erhalten).
+  function chargeEntsperrenAudit(state, chargeId, opts, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    opts = opts || {};
+    if (!opts.grund) return { ok: false, grund: "Grund erforderlich" };
+    var res = chargeEntsperren(state, chargeId, jetztISO);
+    if (!res.ok) return res;
+    var ch = res.charge;
+    if (!Array.isArray(ch.entsperrHistorie)) ch.entsperrHistorie = [];
+    ch.entsperrHistorie.push({ grund: opts.grund, benutzer: opts.benutzer || null, zeitpunkt: jetztISO });
+    return res;
+  }
+
+  // ============================================================
+  //  BESTELLUNGEN (Status-Workflow; niemals automatisch versenden)
+  // ============================================================
+  function bestellungNeu(state, daten, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var bo = {
+      id: uid("bo"), mandantId: daten.mandantId || null, nummer: daten.nummer || ("BST-" + uid("n").slice(-6)),
+      lieferantId: daten.lieferantId || null, status: "Entwurf", lieferzeitTage: num(daten.lieferzeitTage),
+      liefertermin: daten.liefertermin || null, erstellt: jetztISO, freigegebenVon: null, historie: [{ status: "Entwurf", zeitpunkt: jetztISO, benutzer: daten.benutzer || null }],
+      positionen: (daten.positionen || []).map(function (p) { return { artikelId: p.artikelId, bestellt: num(p.menge != null ? p.menge : p.bestellt), geliefert: 0, status: "offen", einzelpreis: p.einzelpreis != null ? num(p.einzelpreis) : null }; })
+    };
+    (state.bestellungen || (state.bestellungen = [])).push(bo);
+    return bo;
+  }
+  function bestellungStatus(state, boId, status, benutzer, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var bo = (state.bestellungen || []).filter(function (x) { return x.id === boId; })[0];
+    if (!bo) return { ok: false, grund: "Bestellung nicht vorhanden" };
+    if (BESTELL_STATUS.indexOf(status) < 0) return { ok: false, grund: "Unbekannter Status" };
+    bo.status = status; if (status === "freigegeben") bo.freigegebenVon = benutzer || null;
+    if (!Array.isArray(bo.historie)) bo.historie = [];
+    bo.historie.push({ status: status, zeitpunkt: jetztISO, benutzer: benutzer || null });
+    return { ok: true, bestellung: bo };
+  }
+  function bestellungAusVorschlag(state, artikelId, benutzer, jetztISO) {
+    var v = bestellvorschlag(state, artikelId); if (!v || !v.bestellen) return null;
+    var art = artikelById(state, artikelId);
+    return bestellungNeu(state, { mandantId: art.mandantId, lieferantId: v.lieferantId, lieferzeitTage: v.lieferzeitTage, benutzer: benutzer, positionen: [{ artikelId: artikelId, menge: v.menge }] }, jetztISO);
+  }
+  // Verspätete Lieferungen: offene Bestellungen mit überschrittenem Liefertermin.
+  function verspaeteteLieferungen(state, mandantId, jetztISO) {
+    var jetzt = jetztISO ? new Date(jetztISO).getTime() : (w.Preisschmiede.Store ? new Date(w.Preisschmiede.Store.nowISO()).getTime() : Date.now());
+    return (state.bestellungen || []).filter(function (bo) {
+      if (mandantId != null && bo.mandantId !== mandantId) return false;
+      if (["geliefert", "storniert", "Entwurf"].indexOf(bo.status) >= 0) return false;
+      return bo.liefertermin && new Date(bo.liefertermin).getTime() < jetzt;
+    });
+  }
+
+  // ============================================================
+  //  INVENTUR (Voll/Lagerplatz/Artikel/Stichprobe)
+  // ============================================================
+  function inventurNeu(state, daten, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var typ = daten.typ || INVENTUR_TYP.VOLL;
+    var mandantId = daten.mandantId || null;
+    var artikelListe = (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; });
+    if (typ === INVENTUR_TYP.ARTIKEL && daten.artikelIds) artikelListe = artikelListe.filter(function (a) { return daten.artikelIds.indexOf(a.id) >= 0; });
+    // Zählliste je (Artikel × Lagerplatz mit Bestand > 0) aufbauen.
+    var positionen = [];
+    artikelListe.forEach(function (a) {
+      var plaetze = {};
+      (state.bewegungen || []).forEach(function (b) { if (b.artikelId !== a.id) return; var p = b.zielLagerplatzId || b.quelleLagerplatzId; if (p) plaetze[p] = true; });
+      if (a.standardLagerplatzId) plaetze[a.standardLagerplatzId] = true;
+      Object.keys(plaetze).forEach(function (pid) {
+        if (typ === INVENTUR_TYP.LAGERPLATZ && daten.lagerplatzIds && daten.lagerplatzIds.indexOf(pid) < 0) return;
+        var sys = bestandProPlatz(state.bewegungen, a.id, pid, { mandantId: a.mandantId });
+        positionen.push({ id: uid("ip"), artikelId: a.id, lagerplatzId: pid, systemBestand: sys, gezaehlt: null, differenz: null, zweitZaehlung: null, chargeId: null, grund: null, geprueft: false });
+      });
+    });
+    if (typ === INVENTUR_TYP.STICHPROBE) {
+      var n = daten.stichprobe || Math.max(1, Math.ceil(positionen.length * 0.2));
+      positionen = positionen.slice(0, n); // deterministische Stichprobe (kein Zufall im reinen Kern)
+    }
+    var inv = { id: uid("inv"), mandantId: mandantId, nummer: daten.nummer || ("INV-" + uid("n").slice(-6)), typ: typ, status: INVENTUR_STATUS.ANGELEGT, umfang: daten.umfang || typ, schwelleProz: daten.schwelleProz != null ? num(daten.schwelleProz) : 10, positionen: positionen, erstellt: jetztISO, pruefer: null, freigabe: null };
+    (state.inventuren || (state.inventuren = [])).push(inv);
+    return inv;
+  }
+  function inventurZaehlung(state, invId, daten, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var inv = (state.inventuren || []).filter(function (x) { return x.id === invId; })[0];
+    if (!inv) return { ok: false, grund: "Inventur nicht vorhanden" };
+    if (inv.status === INVENTUR_STATUS.ABGESCHLOSSEN) return { ok: false, grund: "Inventur abgeschlossen" };
+    var pos = inv.positionen.filter(function (p) { return p.id === daten.positionId; })[0];
+    if (!pos) return { ok: false, grund: "Position nicht vorhanden" };
+    var gez = num(daten.gezaehlt);
+    var zweit = !!daten.zweit;
+    if (zweit) pos.zweitZaehlung = gez; else pos.gezaehlt = gez;
+    pos.chargeId = daten.chargeId || pos.chargeId; pos.grund = daten.grund || pos.grund; pos.benutzer = daten.benutzer || pos.benutzer;
+    var mass = zweit ? gez : pos.gezaehlt;
+    pos.differenz = r3(num(mass) - num(pos.systemBestand));
+    // Zweite Zählung bei hoher Abweichung anfordern.
+    var basis = Math.max(1, Math.abs(num(pos.systemBestand)));
+    pos.zweitZaehlungNoetig = !zweit && Math.abs(pos.differenz) / basis * 100 > inv.schwelleProz;
+    pos.geprueft = zweit || !pos.zweitZaehlungNoetig;
+    if (inv.status === INVENTUR_STATUS.ANGELEGT) inv.status = INVENTUR_STATUS.ZAEHLUNG;
+    return { ok: true, position: pos, zweitNoetig: pos.zweitZaehlungNoetig };
+  }
+  function inventurFreigabe(state, invId, benutzer, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var inv = (state.inventuren || []).filter(function (x) { return x.id === invId; })[0];
+    if (!inv) return { ok: false, grund: "Inventur nicht vorhanden" };
+    var offen = inv.positionen.filter(function (p) { return p.gezaehlt == null; });
+    if (offen.length) return { ok: false, grund: offen.length + " Position(en) noch nicht gezählt" };
+    var strittig = inv.positionen.filter(function (p) { return p.zweitZaehlungNoetig && p.zweitZaehlung == null; });
+    if (strittig.length) return { ok: false, grund: strittig.length + " Position(en) benötigen zweite Zählung" };
+    inv.status = INVENTUR_STATUS.FREIGEGEBEN; inv.pruefer = benutzer || null; inv.freigabe = jetztISO;
+    return { ok: true, inventur: inv };
+  }
+  // Korrekturbuchungen aus Differenzen (INVENTURDIFFERENZ; nichts wird gelöscht).
+  function inventurBuchen(state, invId, benutzer, jetztISO) {
+    jetztISO = jetztISO || (w.Preisschmiede.Store ? w.Preisschmiede.Store.nowISO() : new Date().toISOString());
+    var inv = (state.inventuren || []).filter(function (x) { return x.id === invId; })[0];
+    if (!inv) return { ok: false, grund: "Inventur nicht vorhanden" };
+    if (inv.status !== INVENTUR_STATUS.FREIGEGEBEN) return { ok: false, grund: "Inventur nicht freigegeben" };
+    var gebucht = 0;
+    inv.positionen.forEach(function (p) {
+      if (!p.differenz) return;
+      var art = artikelById(state, p.artikelId); if (!art) return;
+      var bew = bewegungNeu({ mandantId: art.mandantId, typ: BEWEGUNG.INVENTURDIFFERENZ, artikelId: p.artikelId, menge: p.differenz, einheit: art.basiseinheit, zielLagerplatzId: p.lagerplatzId, chargeId: p.chargeId, benutzer: benutzer, zeitpunkt: jetztISO, grund: "Inventur " + inv.nummer + (p.grund ? ": " + p.grund : ""), idempotenzKey: idempotenzKey("inv", inv.id, p.id) }, jetztISO);
+      if (journalPush(state.bewegungen, bew).neu) { p.bewegungId = bew.id; gebucht++; }
+    });
+    inv.status = INVENTUR_STATUS.ABGESCHLOSSEN; inv.abgeschlossen = jetztISO;
+    return { ok: true, inventur: inv, gebucht: gebucht };
+  }
+
+  // ============================================================
+  //  QR-CODES / ETIKETTEN  (nur sichere Referenz, KEINE Preise)
+  // ============================================================
+  var REF_PREFIX = { lagerplatz: "LP", artikel: "AR", charge: "CH", reststueck: "RS", bestellung: "BO", wareneingang: "WE" };
+  function referenzCode(typ, id) { return "PS:" + (REF_PREFIX[typ] || "XX") + ":" + String(id || ""); }
+  function parseReferenz(code) { var m = /^PS:([A-Z]{2}):(.+)$/.exec(String(code || "")); if (!m) return null; var typ = { LP: "lagerplatz", AR: "artikel", CH: "charge", RS: "reststueck", BO: "bestellung", WE: "wareneingang" }[m[1]]; return typ ? { typ: typ, id: m[2] } : null; }
+  // Etikettdaten je Typ – niemals Preise/Margen.
+  function etikettDaten(state, typ, id) {
+    var code = referenzCode(typ, id);
+    if (typ === "lagerplatz") { var p = platzById(state, id); return p ? { typ: typ, code: code, titel: p.code, zeilen: [["Bezeichnung", p.bezeichnung], ["Status", p.status], ["Gruppen", (p.erlaubteMaterialgruppen || []).join(", ")]] } : null; }
+    if (typ === "artikel") { var a = artikelById(state, id); return a ? { typ: typ, code: code, titel: a.artikelnummer, zeilen: [["Werkstoff", a.werkstoff], ["Abmessung", a.abmessung || "—"], ["Einheit", a.basiseinheit], ["Standardplatz", a.standardLagerplatzId || "—"]] } : null; }
+    if (typ === "charge") { var c = chargeById(state, id); return c ? { typ: typ, code: code, titel: c.chargennummer, zeilen: [["Schmelze", c.schmelznummer || "—"], ["Werkstoff", c.werkstoff || "—"], ["Prüfstatus", c.pruefstatus], ["Zertifikate", (c.zertifikate || []).join(", ") || "—"]] } : null; }
+    if (typ === "reststueck") { var r = (state.reststuecke || []).filter(function (x) { return x.id === id; })[0]; return r ? { typ: typ, code: code, titel: r.reststuecknummer, zeilen: [["Werkstoff", r.werkstoff || "—"], ["Maß", [r.laenge, r.breite, r.staerke].filter(function (v) { return v != null; }).join(" × ") || (r.durchmesser != null ? "Ø" + r.durchmesser : "—")], ["Gewicht", r.gewicht != null ? r.gewicht + " kg" : "—"], ["Lagerplatz", r.lagerplatzId || "—"]] } : null; }
+    if (typ === "bestellung") { var bo = (state.bestellungen || []).filter(function (x) { return x.id === id; })[0]; return bo ? { typ: typ, code: code, titel: bo.nummer || bo.id, zeilen: [["Status", bo.status], ["Positionen", String((bo.positionen || []).length)]] } : null; }
+    return { typ: typ, code: code, titel: String(id), zeilen: [] };
+  }
+
+  // ============================================================
+  //  BERICHTE / CSV  (Werte nur mit Recht; keine Live-ERP-Verbindung)
+  // ============================================================
+  function csvEscape(v) { var s = String(v == null ? "" : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function zuCSV(headers, rows) { return [headers.join(";")].concat(rows.map(function (r) { return r.map(csvEscape).join(";"); })).join("\n"); }
+  function berichtBestand(state, mandantId, mitWert) {
+    var rows = (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; }).map(function (a) {
+      var b = bestand(state, a.id, { mandantId: a.mandantId });
+      var row = [a.artikelnummer, a.werkstoff, a.basiseinheit, b.physisch, b.reserviert, b.verfuegbar, b.gesperrt, b.qualitaet, b.bestellt, a.mindestbestand, a.meldebestand, a.zielbestand];
+      if (mitWert) { var bw = bewertung(state, a.id); row.push(bw.gleitend, r2(b.physisch * bw.gleitend)); }
+      return row;
+    });
+    var head = ["Artikelnummer", "Werkstoff", "Einheit", "physisch", "reserviert", "verfügbar", "gesperrt", "QS", "bestellt", "Mindest", "Melde", "Ziel"];
+    if (mitWert) head.push("Ø-EK", "Lagerwert");
+    return { headers: head, rows: rows, csv: zuCSV(head, rows) };
+  }
+  function berichtBewegungen(state, mandantId) {
+    var head = ["Zeitpunkt", "Art", "Artikel", "Menge", "Einheit", "Quelle", "Ziel", "Auftrag", "Kommission", "Charge", "Benutzer", "Grund", "Storno-von"];
+    var rows = (state.bewegungen || []).filter(function (b) { return mandantId == null || b.mandantId === mandantId; }).map(function (b) {
+      var a = artikelById(state, b.artikelId); var c = b.chargeId ? chargeById(state, b.chargeId) : null;
+      return [b.zeitpunkt, b.typ, a ? a.artikelnummer : b.artikelId, b.menge, b.einheit, b.quelleLagerplatzId, b.zielLagerplatzId, b.auftragId, b.kommission, c ? c.chargennummer : "", b.benutzer, b.grund, b.stornoVon];
+    });
+    return { headers: head, rows: rows, csv: zuCSV(head, rows) };
+  }
+  function berichtFehlmengen(state, mandantId) {
+    var head = ["Artikel", "verfügbar", "Meldebestand", "reservierter Fehlbedarf", "Vorschlagsmenge"];
+    var rows = (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; }).map(function (a) {
+      var v = bestellvorschlag(state, a.id); var b = bestand(state, a.id, { mandantId: a.mandantId });
+      return { unter: b.verfuegbar < num(a.meldebestand) || (v && v.fehlbedarf > 0), row: [a.artikelnummer, b.verfuegbar, a.meldebestand, v ? v.fehlbedarf : 0, v ? v.menge : 0] };
+    }).filter(function (x) { return x.unter; }).map(function (x) { return x.row; });
+    return { headers: head, rows: rows, csv: zuCSV(head, rows) };
+  }
+  function berichtInventur(state, invId, mitWert) {
+    var inv = (state.inventuren || []).filter(function (x) { return x.id === invId; })[0]; if (!inv) return null;
+    var head = ["Artikel", "Lagerplatz", "System", "gezählt", "Differenz", "Grund", "geprüft"];
+    if (mitWert) head.push("Differenzwert");
+    var rows = inv.positionen.map(function (p) {
+      var a = artikelById(state, p.artikelId);
+      var row = [a ? a.artikelnummer : p.artikelId, p.lagerplatzId, p.systemBestand, p.gezaehlt, p.differenz, p.grund, p.geprueft ? "ja" : "nein"];
+      if (mitWert) { var bw = bewertung(state, p.artikelId); row.push(r2(num(p.differenz) * bw.gleitend)); }
+      return row;
+    });
+    return { headers: head, rows: rows, csv: zuCSV(head, rows), inventur: inv };
+  }
+
+  // ============================================================
+  //  DASHBOARD-AGGREGATION (aus echten Lagerdaten)
+  // ============================================================
+  function dashboard(state, mandantId, jetztISO) {
+    var art = (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; });
+    var sum = { physisch: 0, reserviert: 0, verfuegbar: 0, bestellt: 0, gesperrt: 0, qualitaet: 0, reststueck: 0 };
+    var unterMelde = 0;
+    art.forEach(function (a) {
+      var b = bestand(state, a.id, { mandantId: a.mandantId });
+      sum.physisch += b.physisch; sum.reserviert += b.reserviert; sum.verfuegbar += b.verfuegbar;
+      sum.bestellt += b.bestellt; sum.gesperrt += b.gesperrt; sum.qualitaet += b.qualitaet; sum.reststueck += b.reststueck;
+      if (b.verfuegbar < num(a.meldebestand)) unterMelde++;
+    });
+    Object.keys(sum).forEach(function (k) { sum[k] = r3(sum[k]); });
+    var offeneBestellungen = (state.bestellungen || []).filter(function (bo) { return (mandantId == null || bo.mandantId === mandantId) && ["geliefert", "storniert"].indexOf(bo.status) < 0; }).length;
+    var gesperrteChargen = (state.chargen || []).filter(function (c) { return (mandantId == null || c.mandantId === mandantId) && c.gesperrt; }).length;
+    var offeneKonflikte = (state.konflikte || []).filter(function (k) { return (mandantId == null || k.mandantId === mandantId) && k.status === "offen"; }).length;
+    var inventurdiff = 0; (state.inventuren || []).forEach(function (inv) { if (mandantId != null && inv.mandantId !== mandantId) return; inv.positionen.forEach(function (p) { if (p.differenz) inventurdiff++; }); });
+    return {
+      bestand: sum, unterMelde: unterMelde, offeneBestellungen: offeneBestellungen,
+      verspaeteteLieferungen: verspaeteteLieferungen(state, mandantId, jetztISO).length,
+      gesperrteChargen: gesperrteChargen, offeneKonflikte: offeneKonflikte, inventurdifferenzen: inventurdiff,
+      artikelAnzahl: art.length
+    };
+  }
+  // Artikelübersicht mit Bestand + letzter Bewegung (für Tabellen/Filter).
+  function artikelUebersicht(state, mandantId, filter) {
+    filter = filter || {};
+    return (state.artikel || []).filter(function (a) { return mandantId == null || a.mandantId === mandantId; }).map(function (a) {
+      var b = bestand(state, a.id, { mandantId: a.mandantId });
+      var bews = (state.bewegungen || []).filter(function (x) { return x.artikelId === a.id; });
+      var letzte = bews.length ? bews[bews.length - 1] : null;
+      var chargen = {}; bews.forEach(function (x) { if (x.chargeId) chargen[x.chargeId] = true; });
+      var reststuecke = (state.reststuecke || []).filter(function (r) { return r.artikelId === a.id && r.status !== REST_STATUS.VERBRAUCHT && r.status !== REST_STATUS.VERSCHROTTET; });
+      var bw = bewertung(state, a.id);
+      return { artikel: a, bestand: b, letzteBewegung: letzte, chargen: Object.keys(chargen), reststuecke: reststuecke, hatPreis: bews.some(function (x) { return x.typ === BEWEGUNG.WARENEINGANG && x.preisSnapshot > 0; }) || bw.letzter > 0, bewertung: bw };
+    }).filter(function (row) {
+      var a = row.artikel, b = row.bestand;
+      if (filter.werkstoff && a.werkstoff !== filter.werkstoff) return false;
+      if (filter.unterMelde && !(b.verfuegbar < num(a.meldebestand))) return false;
+      if (filter.gesperrt && !(b.gesperrt > 0)) return false;
+      if (filter.mitRest && !row.reststuecke.length) return false;
+      if (filter.ohnePreis && row.hatPreis) return false;
+      if (filter.q) { var hay = (a.artikelnummer + " " + a.werkstoff + " " + (a.abmessung || "")).toLowerCase(); if (hay.indexOf(String(filter.q).toLowerCase()) < 0) return false; }
+      return true;
+    });
+  }
+
   w.Preisschmiede.Lager = {
     BEWEGUNG: BEWEGUNG, RES_STATUS: RES_STATUS, REST_STATUS: REST_STATUS, PRUEF_STATUS: PRUEF_STATUS, PLATZ_STATUS: PLATZ_STATUS,
+    BESTELL_STATUS: BESTELL_STATUS, INVENTUR_TYP: INVENTUR_TYP, INVENTUR_STATUS: INVENTUR_STATUS,
+    rueckverfolgungRueckwaerts: rueckverfolgungRueckwaerts, chargeSperrImpact: chargeSperrImpact, chargeEntsperrenAudit: chargeEntsperrenAudit,
+    bestellungNeu: bestellungNeu, bestellungStatus: bestellungStatus, bestellungAusVorschlag: bestellungAusVorschlag, verspaeteteLieferungen: verspaeteteLieferungen,
+    inventurNeu: inventurNeu, inventurZaehlung: inventurZaehlung, inventurFreigabe: inventurFreigabe, inventurBuchen: inventurBuchen,
+    referenzCode: referenzCode, parseReferenz: parseReferenz, etikettDaten: etikettDaten,
+    zuCSV: zuCSV, berichtBestand: berichtBestand, berichtBewegungen: berichtBewegungen, berichtFehlmengen: berichtFehlmengen, berichtInventur: berichtInventur,
+    dashboard: dashboard, artikelUebersicht: artikelUebersicht,
     METHODE: METHODE, LAGER_RECHTE: LAGER_RECHTE, darf: darf, darfEinkaufspreise: darfEinkaufspreise,
     num: num, r2: r2, r3: r3, uid: uid, idempotenzKey: idempotenzKey,
     deltas: deltas, bewegungNeu: bewegungNeu, journalPush: journalPush,

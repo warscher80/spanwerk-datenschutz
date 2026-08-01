@@ -10,12 +10,13 @@
 (function (w, d) {
   "use strict";
   var P = w.Preisschmiede || {};
-  var Store = P.Store, Auth = P.Auth, Offline = P.Offline, Sync = P.Sync, Mandant = P.Mandant;
+  var Store = P.Store, Auth = P.Auth, Offline = P.Offline, Sync = P.Sync, Mandant = P.Mandant, Lager = P.Lager;
 
   var NAV = [
     { key: "heute", ic: "🏠", label: "Heute" }, { key: "auftraege", ic: "📁", label: "Aufträge" },
     { key: "zeit", ic: "⏱️", label: "Zeit" }, { key: "maschine", ic: "🛠️", label: "Maschine" },
     { key: "material", ic: "🧱", label: "Material" }, { key: "montage", ic: "🚚", label: "Montage" },
+    { key: "lager", ic: "📦", label: "Lager" },
     { key: "dokumente", ic: "📎", label: "Doku" }, { key: "sync", ic: "🔄", label: "Sync" }, { key: "profil", ic: "👤", label: "Profil" }
   ];
   var STILLSTAND = ["Material fehlt", "Werkzeugwechsel", "Störung", "Programmierung", "Qualitätsproblem", "Freigabe fehlt", "sonstiges"];
@@ -118,6 +119,7 @@
       case "maschine": inner = viewMaschine(); break;
       case "material": inner = viewMaterial(); break;
       case "montage": inner = viewMontage(); break;
+      case "lager": inner = viewLager(); break;
       case "dokumente": inner = viewDokumente(); break;
       case "sync": inner = viewSync(); break;
       case "konflikt": inner = viewKonflikt(); break;
@@ -338,6 +340,144 @@
   }
 
   // ============================================================
+  //  LAGER (mobil) – Buchungen über die Phase-14-Offline-Queue und
+  //  den Phase-15A-Lagerkern (exactly once, idempotent). Keine
+  //  zweite Bestandslogik. Werkstatt sieht keine Preise/Lagerwerte.
+  // ============================================================
+  var _scan = null; // zuletzt gescannter/erfasster Referenzcode
+  function lagerState() {
+    var db = Store.load();
+    return { artikel: db.lagerArtikel || [], plaetze: db.lagerplaetze || [], chargen: db.lagerChargen || [], bewegungen: db.lagerBewegungen || [], reservierungen: db.lagerReservierungen || [], reststuecke: db.lagerReststuecke || [], wareneingaenge: db.wareneingaenge || [], bestellungen: db.bestellungen || [], konflikte: db.lagerKonflikte || [], inventuren: db.lagerInventuren || [] };
+  }
+  function ldarf(recht) { return Lager && Lager.darf(rolle(), recht); }
+  function artikelListe() { return (db().lagerArtikel || []); }
+  function bucheLager(daten) {
+    var r = Offline.ereignis({ typ: "lager", auftragId: daten.auftragId || null, payload: daten }, null);
+    if (!r.ok) { toast("Nicht möglich: " + r.grund, "err"); return null; }
+    if (online()) Offline.synchronisiere();
+    return r;
+  }
+  function viewLager() {
+    if (!Lager) return '<div class="m-card"><div class="m-muted">Lagerkern nicht geladen.</div></div>';
+    var s = lagerState();
+    var artikel = s.artikel;
+    var html = '<div class="m-card"><h3>Lager</h3><div class="m-muted">Buchungen werden offline gespeichert und exakt einmal synchronisiert. Offline-Bestände sind vorläufig – bei der Synchronisation wird erneut geprüft.</div>' +
+      '<div class="m-grid" style="margin-top:10px">' +
+      '<button class="m-btn accent" data-lager="scan">📷 Scannen/Code</button>' +
+      (ldarf("entnehmen") ? '<button class="m-btn" data-lager="entnahme">📤 Entnahme</button>' : "") +
+      (ldarf("umlagern") ? '<button class="m-btn" data-lager="umlagerung">🔀 Umlagern</button>' : "") +
+      (ldarf("inventurZaehlen") ? '<button class="m-btn" data-lager="inventur">🧮 Inventur</button>' : "") +
+      (ldarf("zurueckgeben") ? '<button class="m-btn" data-lager="reststueck">➕ Reststück</button>' : "") +
+      (ldarf("wareneingang") ? '<button class="m-btn" data-lager="wareneingang">📥 Wareneingang</button>' : "") +
+      "</div></div>";
+    if (_scan) { var ref = Lager.parseReferenz(_scan); html += '<div class="m-note">Erfasst: ' + esc(_scan) + (ref ? " (" + esc(ref.typ) + ")" : " – unbekannt") + "</div>"; }
+    // Bestandsliste (nur Mengen, keine Preise)
+    html += '<div class="m-card"><h3>Bestand</h3>' + (artikel.length ? artikel.map(function (a) {
+      var b = Lager.bestand(s, a.id, {});
+      return '<div class="m-row"><span><strong>' + esc(a.artikelnummer) + '</strong><br><span class="m-muted">' + esc(a.werkstoff) + (a.abmessung ? " · " + esc(a.abmessung) : "") + '</span></span><span style="text-align:right">verf. <strong>' + fmtNum(b.verfuegbar) + " " + esc(a.basiseinheit) + '</strong><br><span class="m-muted">phys ' + fmtNum(b.physisch) + " · res " + fmtNum(b.reserviert) + (b.gesperrt ? " · 🔒" + fmtNum(b.gesperrt) : "") + "</span></span></div>";
+    }).join("") : '<div class="m-muted">Keine Artikel.</div>') + "</div>";
+    var z = Offline.zusammenfassung();
+    html += '<div class="m-card"><div class="m-kv"><span>Sync</span><span>' + z.wartend + " wartend · " + z.konflikte + ' Konflikt</span></div><button class="m-btn" data-nav-go="sync">Synchronisierung öffnen</button></div>';
+    return html;
+  }
+  function fmtNum(n) { n = parseFloat(n) || 0; return (Math.round(n * 1000) / 1000).toLocaleString("de-AT"); }
+  function artikelOptions() { return artikelListe().map(function (a) { return '<option value="' + esc(a.id) + '">' + esc(a.artikelnummer) + " · " + esc(a.werkstoff) + "</option>"; }).join(""); }
+  function platzOptions() { return (db().lagerplaetze || []).map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.code) + "</option>"; }).join(""); }
+  function chargeOptions() { return '<option value="">— Charge —</option>' + (db().lagerChargen || []).map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.gesperrt ? " disabled" : "") + ">" + esc(c.chargennummer) + (c.gesperrt ? " (gesperrt)" : "") + "</option>"; }).join(""); }
+  function lagerScanDialog() {
+    modal("Referenzcode erfassen", '<div class="m-muted">QR-Code scannen (Kamera am Gerät) oder Code eingeben. Format PS:LP/AR/CH/RS:…</div><label class="m-field"><span>Code</span><input id="sc-code" placeholder="PS:AR:…" value="' + esc(_scan || "") + '"></label>', [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Übernehmen", cls: "accent", fn: function () { _scan = d.getElementById("sc-code").value || null; var ref = _scan ? Lager.parseReferenz(_scan) : null; toast(ref ? "Erkannt: " + ref.typ : "Code gespeichert."); render(); return true; } }
+    ]);
+  }
+  function scanDefault(typ) { if (!_scan) return ""; var ref = Lager.parseReferenz(_scan); return ref && ref.typ === typ ? ref.id : ""; }
+  function lagerEntnahmeDialog() {
+    var artSel = scanDefault("artikel");
+    var body = '<label class="m-field"><span>Artikel</span><select id="le-art">' + artikelOptions() + "</select></label>" +
+      '<label class="m-field"><span>Charge</span><select id="le-ch">' + chargeOptions() + "</select></label>" +
+      '<label class="m-field"><span>Lagerplatz</span><select id="le-platz">' + platzOptions() + "</select></label>" +
+      '<label class="m-field"><span>Auftrag/Kommission</span><input id="le-auf" placeholder="Auftrag oder Kommission"></label>' +
+      numField("le-menge", "Entnahmemenge", 1) + '<div id="le-info" class="m-muted"></div>';
+    modal("Entnahme", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Buchen", cls: "accent", fn: function () {
+        var artId = d.getElementById("le-art").value; var menge = parseFloat(d.getElementById("le-menge").value) || 0;
+        if (menge <= 0) { toast("Menge muss > 0 sein.", "err"); return false; }
+        var s = lagerState(); var b = Lager.bestand(s, artId, {});
+        if (menge > b.verfuegbar) { if (!w.confirm("Entnahme (" + menge + ") übersteigt den (vorläufigen) verfügbaren Bestand (" + b.verfuegbar + "). Trotzdem buchen? Bei der Synchronisation wird erneut geprüft.")) return false; }
+        bucheLager({ typ: Lager.BEWEGUNG.ENTNAHME, artikelId: artId, menge: menge, chargeId: d.getElementById("le-ch").value || null, quelleLagerplatzId: d.getElementById("le-platz").value || null, auftragId: d.getElementById("le-auf").value || null, kommission: d.getElementById("le-auf").value || null, benutzer: benutzer() });
+        toast("Entnahme offline gebucht."); render(); return true;
+      } }
+    ]);
+    if (artSel) d.getElementById("le-art").value = artSel;
+    wireNum(d.getElementById("m-modal"));
+    var art = d.getElementById("le-art"); function upd() { var s = lagerState(); var b = Lager.bestand(s, art.value, {}); d.getElementById("le-info").innerHTML = "Verfügbar: <strong>" + fmtNum(b.verfuegbar) + "</strong> · gesperrt " + fmtNum(b.gesperrt); } if (art) art.onchange = upd; upd();
+  }
+  function lagerUmlagerungDialog() {
+    var body = '<label class="m-field"><span>Artikel</span><select id="lu-art">' + artikelOptions() + "</select></label>" +
+      '<label class="m-field"><span>Charge</span><select id="lu-ch">' + chargeOptions() + "</select></label>" +
+      '<label class="m-field"><span>von Lagerplatz</span><select id="lu-q">' + platzOptions() + "</select></label>" +
+      '<label class="m-field"><span>nach Lagerplatz</span><select id="lu-z">' + platzOptions() + "</select></label>" +
+      numField("lu-menge", "Menge", 1);
+    modal("Umlagern", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Buchen", cls: "accent", fn: function () {
+        var q = d.getElementById("lu-q").value, z = d.getElementById("lu-z").value;
+        if (q === z) { toast("Quelle und Ziel müssen verschieden sein.", "err"); return false; }
+        var menge = parseFloat(d.getElementById("lu-menge").value) || 0; if (menge <= 0) { toast("Menge muss > 0 sein.", "err"); return false; }
+        bucheLager({ typ: Lager.BEWEGUNG.UMLAGERUNG, artikelId: d.getElementById("lu-art").value, menge: menge, quelleLagerplatzId: q, zielLagerplatzId: z, chargeId: d.getElementById("lu-ch").value || null, benutzer: benutzer() });
+        toast("Umlagerung offline gebucht."); render(); return true;
+      } }
+    ]);
+    wireNum(d.getElementById("m-modal"));
+  }
+  function lagerInventurDialog() {
+    var body = '<div class="m-muted">Gezählte Menge erfassen. Die Differenz wird bei der Synchronisation gegen den aktuellen Systembestand gebildet (nicht gegen den vorläufigen Offline-Bestand).</div>' +
+      '<label class="m-field"><span>Artikel</span><select id="li-art">' + artikelOptions() + "</select></label>" +
+      '<label class="m-field"><span>Lagerplatz</span><select id="li-platz">' + platzOptions() + "</select></label>" +
+      numField("li-menge", "gezählte Menge", 0);
+    modal("Inventurzählung", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Speichern", cls: "accent", fn: function () {
+        bucheLager({ aktion: "inventurzaehlung", artikelId: d.getElementById("li-art").value, lagerplatzId: d.getElementById("li-platz").value, gezaehlt: parseFloat(d.getElementById("li-menge").value) || 0, benutzer: benutzer() });
+        toast("Zählung offline gespeichert."); render(); return true;
+      } }
+    ]);
+    wireNum(d.getElementById("m-modal"));
+  }
+  function lagerReststueckDialog() {
+    var body = '<label class="m-field"><span>Artikel</span><select id="lr-art">' + artikelOptions() + "</select></label>" +
+      '<label class="m-field"><span>Charge</span><select id="lr-ch">' + chargeOptions() + "</select></label>" +
+      '<label class="m-field"><span>Lagerplatz</span><select id="lr-platz">' + platzOptions() + "</select></label>" +
+      '<div class="m-grid">' + numField("lr-l", "Länge (m)", 0) + numField("lr-g", "Gewicht (kg)", 0) + "</div>";
+    modal("Reststück anlegen", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Anlegen", cls: "accent", fn: function () {
+        var art = (db().lagerArtikel || []).filter(function (a) { return a.id === d.getElementById("lr-art").value; })[0];
+        bucheLager({ typ: Lager.BEWEGUNG.RESTSTUECK_ZUGANG, artikelId: d.getElementById("lr-art").value, menge: parseFloat(d.getElementById("lr-g").value) || 1, chargeId: d.getElementById("lr-ch").value || null, zielLagerplatzId: d.getElementById("lr-platz").value || null, benutzer: benutzer(), grund: "Reststückzugang (mobil, L=" + (parseFloat(d.getElementById("lr-l").value) || 0) + " m, " + ((art && art.werkstoff) || "") + ")" });
+        toast("Reststück offline erfasst."); render(); return true;
+      } }
+    ]);
+    wireNum(d.getElementById("m-modal"));
+  }
+  function lagerWareneingangDialog() {
+    var body = '<div class="m-note">Mobiler Wareneingang bucht den Zugang; Chargenanlage/Zertifikate erfolgen am Desktop.</div>' +
+      '<label class="m-field"><span>Artikel</span><select id="lw-art">' + artikelOptions() + "</select></label>" +
+      '<label class="m-field"><span>Lagerplatz</span><select id="lw-platz">' + platzOptions() + "</select></label>" +
+      '<label class="m-field"><span>Charge-Nr. (optional)</span><input id="lw-ch"></label>' +
+      numField("lw-menge", "gelieferte Menge", 1);
+    modal("Wareneingang (mobil)", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Buchen", cls: "accent", fn: function () {
+        var menge = parseFloat(d.getElementById("lw-menge").value) || 0; if (menge <= 0) { toast("Menge muss > 0 sein.", "err"); return false; }
+        bucheLager({ typ: Lager.BEWEGUNG.WARENEINGANG, artikelId: d.getElementById("lw-art").value, menge: menge, zielLagerplatzId: d.getElementById("lw-platz").value || null, benutzer: benutzer(), grund: "Wareneingang mobil" + (d.getElementById("lw-ch").value ? " · Charge " + d.getElementById("lw-ch").value : "") });
+        toast("Wareneingang offline gebucht."); render(); return true;
+      } }
+    ]);
+    wireNum(d.getElementById("m-modal"));
+  }
+
+  // ============================================================
   //  DOKUMENTE (freigegebene Zeichnungen offline verfügbar)
   // ============================================================
   var _offlineDocs = {};
@@ -487,6 +627,14 @@
   // ---- Verdrahtung je View ----
   function wireView() {
     root().querySelectorAll("[data-nav-go]").forEach(function (b) { b.onclick = function () { S.view = b.getAttribute("data-nav-go"); render(); }; });
+    root().querySelectorAll("[data-lager]").forEach(function (b) { b.onclick = function () { var a = b.getAttribute("data-lager"); resetInaktiv();
+      if (a === "scan") lagerScanDialog();
+      else if (a === "entnahme") lagerEntnahmeDialog();
+      else if (a === "umlagerung") lagerUmlagerungDialog();
+      else if (a === "inventur") lagerInventurDialog();
+      else if (a === "reststueck") lagerReststueckDialog();
+      else if (a === "wareneingang") lagerWareneingangDialog();
+    }; });
     root().querySelectorAll("[data-auf]").forEach(function (b) { b.onclick = function () { S.auftragId = b.getAttribute("data-auf"); S.view = "zeit"; render(); toast("Auftrag gewählt."); }; });
     var su = d.getElementById("m-suche"); if (su) su.oninput = function () { S.suche = su.value; var box = root(); /* leichte Live-Suche */ clearTimeout(su._t); su._t = setTimeout(render, 250); };
     root().querySelectorAll("[data-act]").forEach(function (b) { b.onclick = function () { var act = b.getAttribute("data-act"); resetInaktiv();

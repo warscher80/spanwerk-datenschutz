@@ -74,7 +74,8 @@
     kundenprojekte: function () { renderKundenProjekte(); },
     konfigurator: function () { renderKonfigurator(); },
     kalkulationen: function () { renderKalkulationen(); },
-    angebote: function () { renderAngebote(); }
+    angebote: function () { renderAngebote(); },
+    lager: function () { if (w.Preisschmiede.LagerUI) w.Preisschmiede.LagerUI.render($("#page-lager .content")); }
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten
@@ -5479,6 +5480,13 @@
   // ============================================================
   function normAddr(a) { return (a || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, ""); }
   function schliesseModal() { $("#modal-bg").classList.remove("show"); }
+
+  // Kleine UI-Hilfs-API für ausgelagerte Seitenmodule (z. B. Lager – Phase 15B).
+  // Vermeidet Duplikate von Modal/Toast/QR und hält das Verhalten konsistent.
+  w.Preisschmiede.UI = {
+    openModal: openModal, openModalWide: openModalWide, closeModal: schliesseModal,
+    toast: toast, zeichneQR: zeichneQR, esc: esc, navTo: navTo
+  };
 
   function zeichneQR(el, text) {
     if (!el) return;
