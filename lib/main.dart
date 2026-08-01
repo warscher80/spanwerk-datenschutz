@@ -116,14 +116,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _boot() async {
-    await _store.load();
-    await Notifier.init();
-    if (_store.remindersEnabled) await Notifier.requestPermission();
+    // Jeder Schritt einzeln abgesichert: _boot() wird aus initState gestartet,
+    // eine Ausnahme hier käme nirgends an. Ohne diesen Schutz blieb bei
+    // beschädigtem lokalem Speicher _loading dauerhaft true - Endlos-Ladekreis,
+    // aus dem nur das Löschen der App-Daten herausführte.
+    try {
+      await _store.load();
+    } catch (e) {
+      debugPrint('Gespeicherte Daten unlesbar, starte mit leerem Stand: $e');
+    }
+    try {
+      await Notifier.init();
+      if (_store.remindersEnabled) await Notifier.requestPermission();
+    } catch (e) {
+      debugPrint('Benachrichtigungen nicht verfügbar: $e');
+    }
     // Dort öffnen, wo der Nutzer zuletzt war.
     final saved = _store.lastLeagueIdx;
     if (saved >= -1 && saved < kLeagues.length) _leagueIdx = saved;
     _season = Api.seasonFor(_league, DateTime.now());
-    await _selectLeague();
+    try {
+      await _selectLeague();
+    } catch (e) {
+      // Letzte Sicherung: der Ladekreis darf nie stehen bleiben. _loadDay
+      // fängt eigene Fehler ab, aber alles davor (z. B. Rundenermittlung)
+      // käme sonst ungebremst hier heraus.
+      if (mounted) setState(() { _loading = false; _error = _msg(e); });
+    }
   }
 
   /// Plant eine Benachrichtigung ~90 Min vor dem ersten anstehenden Spiel.
@@ -895,15 +914,17 @@ class _MatchCard extends StatelessWidget {
   }
 
   /// Vorhergesagter Ausgang (0 = Heim, 1 = Remis, 2 = Gast).
-  /// Bei gleicher Wahrscheinlichkeit für beide Teams -> Unentschieden (X).
+  /// Die Regel liegt in odds.dart, damit Anzeige und Trefferquoten-Statistik
+  /// zwingend dieselbe Prognose verwenden.
   int _predictedIdx() {
-    final rh = (probs.home * 100).round();
-    final rd = (probs.draw * 100).round();
-    final ra = (probs.away * 100).round();
-    if (rh == ra && rh >= rd) return 1;
-    final values = [probs.home, probs.draw, probs.away];
-    final maxp = values.reduce((a, b) => a > b ? a : b);
-    return values.indexOf(maxp);
+    switch (predictedTendency(probs)) {
+      case Tendency.home:
+        return 0;
+      case Tendency.draw:
+        return 1;
+      case Tendency.away:
+        return 2;
+    }
   }
 
   /// Klare Ansage: wer gewinnt – plus Sicherheit in %.

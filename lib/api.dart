@@ -140,7 +140,58 @@ class FootyMatch {
   bool get hasResult => homeGoals != null && awayGoals != null;
   bool startedBy(DateTime now) => kickoff != null && !now.isBefore(kickoff!);
 
-  static const _finishedStates = {'FT', 'AET', 'PEN', 'Match Finished', 'AP'};
+  // Statuswerte, die ein ENDGUELTIGES Ergebnis bedeuten.
+  static const _finishedStates = {
+    'FT', 'AET', 'PEN', 'AP', 'MATCH FINISHED', 'AW', 'WO',
+  };
+
+  // Statuswerte, die ausdruecklich KEIN Endergebnis bedeuten - allen voran
+  // laufende Spiele. Ein Zwischenstand darf niemals als Endstand gelernt
+  // werden: ingestMatch merkt sich jedes Spiel per markIngested einmalig,
+  // das echte Ergebnis kaeme also nie mehr nach.
+  static const _openStates = {
+    'NS', 'TBD', 'POSTP', 'PST', 'CANC', 'ABD', 'SUSP', 'INT',
+    '1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'IN PLAY', 'PEN LIVE',
+  };
+
+  /// Ist das Spiel endgueltig abgeschlossen?
+  ///
+  /// Bewusst eine Positivliste. Frueher galt "alles ausser leer und NS" als
+  /// beendet, sobald Tore vorlagen - ein laufendes Spiel mit Halbzeitstand
+  /// wurde dadurch als Endergebnis verbucht und ins Elo-Modell gelernt.
+  /// Zusaetzlich fror Api.round die Runde im Sitzungs-Cache ein, womit auch
+  /// der Tor-Alarm waehrend des Spiels verstummte.
+  ///
+  /// Unbekannte Statuswerte gelten nur dann als beendet, wenn ein Ergebnis
+  /// vorliegt und der Anpfiff so lange zurueckliegt, dass kein laufendes
+  /// Spiel mehr gemeint sein kann.
+  static bool matchIsFinished(
+    String status, {
+    required bool hasScores,
+    DateTime? kickoff,
+    DateTime? now,
+  }) {
+    final s = status.trim().toUpperCase();
+    if (_finishedStates.contains(s)) return true;
+    if (_openStates.contains(s)) return false;
+    if (!hasScores || kickoff == null) return false;
+    final jetzt = now ?? DateTime.now();
+    return jetzt.difference(kickoff) >= const Duration(hours: 3, minutes: 30);
+  }
+
+  /// Wie [FootyMatch.fromJson], liefert aber null statt zu werfen.
+  ///
+  /// Fast alle Felder haben einen Rueckfallwert, nur `idEvent` wird hart
+  /// geparst. Fehlt oder verunglueckt dieses eine Feld, riss die Ausnahme
+  /// bisher den kompletten Spieltag mit - der Aufrufer bekam eine leere
+  /// Liste und keinen Hinweis auf die Ursache.
+  static FootyMatch? tryFromJson(Map<String, dynamic> j) {
+    try {
+      return FootyMatch.fromJson(j);
+    } catch (_) {
+      return null;
+    }
+  }
 
   factory FootyMatch.fromJson(Map<String, dynamic> j) {
     int? toInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
@@ -159,8 +210,11 @@ class FootyMatch {
     final status = (j['strStatus'] ?? '').toString();
     final hg = toInt(j['intHomeScore']);
     final ag = toInt(j['intAwayScore']);
-    final finished = _finishedStates.contains(status) ||
-        (hg != null && ag != null && status.isEmpty == false && status != 'NS');
+    final finished = matchIsFinished(
+      status,
+      hasScores: hg != null && ag != null,
+      kickoff: kickoff,
+    );
 
     return FootyMatch(
       id: int.parse(j['idEvent'].toString()),
@@ -333,8 +387,14 @@ class Api {
 
   static List<FootyMatch> _parseEvents(Map<String, dynamic> body) {
     final events = (body['events'] as List?) ?? const [];
-    final matches =
-        events.cast<Map<String, dynamic>>().map(FootyMatch.fromJson).toList();
+    // Einzelne unbrauchbare Eintraege ueberspringen, statt den ganzen
+    // Spieltag zu verlieren (siehe FootyMatch.tryFromJson).
+    final matches = <FootyMatch>[];
+    for (final e in events) {
+      if (e is! Map) continue;
+      final m = FootyMatch.tryFromJson(Map<String, dynamic>.from(e));
+      if (m != null) matches.add(m);
+    }
     matches.sort((a, b) {
       final ka = a.kickoff, kb = b.kickoff;
       if (ka == null || kb == null) return 0;

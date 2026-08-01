@@ -1,6 +1,7 @@
 // Tests für das lernende Quoten-Modell (Elo).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footy_predict/odds.dart';
+import 'package:footy_predict/engine.dart';
 
 void main() {
   test('Wahrscheinlichkeiten ergeben in Summe 1', () {
@@ -21,6 +22,39 @@ void main() {
     final o = m.odds('A', 'B');
     final overround = 1 / o.home + 1 / o.draw + 1 / o.away;
     expect(overround, greaterThan(1.0));
+  });
+
+  // Anzeige und Trefferquoten-Statistik müssen dieselbe Prognose verwenden.
+  // Früher lagen zwei Regeln getrennt in main.dart und odds.dart: bei
+  // gleicher Heim-/Auswärtswahrscheinlichkeit zeigte die App "Unentschieden",
+  // bewertet wurde aber "Heimsieg".
+  group('predictedTendency', () {
+    test('Gleichstand zwischen Heim und Gast ergibt Unentschieden', () {
+      expect(predictedTendency(const MatchProbs(0.40, 0.20, 0.40)), Tendency.draw);
+    });
+
+    test('Gleichstand gilt auch bei auf Prozent gerundeten Werten', () {
+      // 0,4002 und 0,3998 werden beide als 40 % angezeigt.
+      expect(predictedTendency(const MatchProbs(0.4002, 0.1996, 0.3998)), Tendency.draw);
+    });
+
+    test('Ist Remis wahrscheinlicher als der Gleichstand, gewinnt Remis', () {
+      expect(predictedTendency(const MatchProbs(0.30, 0.40, 0.30)), Tendency.draw);
+    });
+
+    test('Klarer Favorit wird als solcher erkannt', () {
+      expect(predictedTendency(const MatchProbs(0.60, 0.25, 0.15)), Tendency.home);
+      expect(predictedTendency(const MatchProbs(0.15, 0.25, 0.60)), Tendency.away);
+    });
+
+    test('Modellbewertung nutzt dieselbe Regel wie die Anzeige', () {
+      // Ein Modell mit exakt gleich starken Teams auf neutralem Platz ergibt
+      // Heim == Gast -> die Prognose muss Unentschieden lauten, nicht Heim.
+      final m = EloModel({'A': 1500, 'B': 1500});
+      final p = m.probs('A', 'B', neutral: true);
+      expect(p.home, closeTo(p.away, 1e-9));
+      expect(predictedTendency(p), Tendency.draw);
+    });
   });
 
   test('Modell lernt: Heimsieg hebt das Heim-Rating', () {

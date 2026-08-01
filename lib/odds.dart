@@ -150,6 +150,28 @@ Map<String, double> titleChances(List<KoGame> firstRound, EloModel model,
   return wins.map((k, v) => MapEntry(k, v / sims));
 }
 
+/// Welchen Ausgang sagt das Modell voraus?
+///
+/// Bewusst die EINZIGE Stelle, an der aus Wahrscheinlichkeiten eine Tendenz
+/// wird - Anzeige und Bewertung müssen dieselbe Antwort geben. Vorher zeigte
+/// die Spielkarte bei gleicher Heim-/Auswärtswahrscheinlichkeit
+/// "Unentschieden", während die Trefferquoten-Statistik "Heimsieg" bewertete.
+/// Die Kennzahl maß damit eine Prognose, die nie jemand zu sehen bekam.
+///
+/// Die Regel ist die der Anzeige (eingeführt in v1.7.1): auf ganze Prozent
+/// gerundeter Gleichstand zwischen beiden Teams ergibt X, sonst gewinnt der
+/// größte Wert, bei Gleichstand in der Reihenfolge Heim, Remis, Gast.
+Tendency predictedTendency(MatchProbs p) {
+  final rh = (p.home * 100).round();
+  final ra = (p.away * 100).round();
+  final rd = (p.draw * 100).round();
+  if (rh == ra && rh >= rd) return Tendency.draw;
+  final values = [p.home, p.draw, p.away];
+  final maxp = values.reduce((a, b) => a > b ? a : b);
+  final idx = values.indexOf(maxp);
+  return idx == 0 ? Tendency.home : (idx == 1 ? Tendency.draw : Tendency.away);
+}
+
 /// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.
@@ -166,9 +188,7 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
   // fließt nicht in die angezeigte Treffsicherheit ein.
   if (evaluate) {
     final p = model.probs(m.home.name, m.away.name, neutral: neutral);
-    final predicted = p.home >= p.draw && p.home >= p.away
-        ? Tendency.home
-        : (p.away > p.home && p.away >= p.draw ? Tendency.away : Tendency.draw);
+    final predicted = predictedTendency(p);
     final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
     store.addModelEval(predicted == actual);
   }
