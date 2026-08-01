@@ -349,13 +349,13 @@
   // Normen/Prüfvorschriften sind reine Freitext-Referenzen (keine Konformität!).
   function beispielQualitaet(lagerSeed, auftraege, kunden, lieferanten, mandantId) {
     var Q = w.Preisschmiede && w.Preisschmiede.Qualitaet;
-    var leer = { qualPruefplaene: [], qualPruefauftraege: [], qualAbweichungen: [], qualSperren: [], qualNacharbeiten: [], qualAusschuss: [], qualSonderfreigaben: [], qualMassnahmen: [], qualReklamationen: [], qualLieferantenReklamationen: [], qualPruefmittel: [], qualKosten: [], qualAudit: [], qualWareneingangspruefungen: [], qualKonflikte: [] };
+    var leer = { qualPruefplaene: [], qualPruefauftraege: [], qualAbweichungen: [], qualSperren: [], qualNacharbeiten: [], qualAusschuss: [], qualSonderfreigaben: [], qualMassnahmen: [], qualReklamationen: [], qualLieferantenReklamationen: [], qualPruefmittel: [], qualKosten: [], qualAudit: [], qualWareneingangspruefungen: [], qualKonflikte: [], qualAbnahmen: [], qualPortalFreigaben: [] };
     if (!Q) return leer;
     try {
       var jz = nowISO();
       var vorTagenISO = function (n) { return new Date(Date.now() - n * 86400000).toISOString(); };
       var inTagenISO = function (n) { return new Date(Date.now() + n * 86400000).toISOString(); };
-      var s = { stammdaten: Q.standardStammdaten(), pruefplaene: [], pruefauftraege: [], abweichungen: [], sperren: [], nacharbeiten: [], ausschuss: [], sonderfreigaben: [], massnahmen: [], reklamationen: [], lieferantenReklamationen: [], pruefmittel: [], qualitaetskosten: [], audit: [], wareneingangspruefungen: [], konflikte: [] };
+      var s = { stammdaten: Q.standardStammdaten(), pruefplaene: [], pruefauftraege: [], abweichungen: [], sperren: [], nacharbeiten: [], ausschuss: [], sonderfreigaben: [], massnahmen: [], reklamationen: [], lieferantenReklamationen: [], pruefmittel: [], qualitaetskosten: [], audit: [], wareneingangspruefungen: [], konflikte: [], abnahmen: [], portalFreigaben: [] };
       var lagerState = { artikel: lagerSeed.lagerArtikel, plaetze: lagerSeed.lagerplaetze, chargen: lagerSeed.lagerChargen, bewegungen: lagerSeed.lagerBewegungen, reservierungen: lagerSeed.lagerReservierungen, reststuecke: lagerSeed.lagerReststuecke, wareneingaenge: lagerSeed.wareneingaenge, bestellungen: lagerSeed.bestellungen, konflikte: lagerSeed.lagerKonflikte, inventuren: lagerSeed.lagerInventuren };
 
       // --- Prüfmittel: eines gültig, eines mit abgelaufener Kalibrierung ---
@@ -498,13 +498,33 @@
         menge: 2, prioritaet: "hoch", verantwortlicher: "buero", benutzer: "buero", rolle: "buero"
       }, jz);
 
+      // --- Montageabnahme mit Mängeln + Portalfreigabe (keine qualifizierte Signatur) ---
+      var abn = Q.abnahmeNeu(s, {
+        mandantId: mandantId, auftragId: aufA.id, kommission: aufA.kommission, kundeId: kunde0.id,
+        baustelle: aufA.kommission || "BV Musterstraße", datum: vorTagenISO(2),
+        anwesende: ["Bauleitung Kunde", "Monteur Preisschmiede"],
+        ausgefuehrteLeistungen: "Geländermontage EG bis 2. OG inkl. Befestigung und Justierung.",
+        offenePunkte: ["Endreinigung Handlauf im 2. OG"],
+        maengel: ["Kratzer an zwei Handlaufabschnitten"],
+        restarbeiten: ["Nachschleifen der Kratzer", "Abdeckkappen setzen"],
+        fotoRefs: ["foto-abnahme-1", "foto-abnahme-2"], nachtermin: inTagenISO(7),
+        kundenkommentar: "Montage insgesamt in Ordnung, Kratzer bitte nacharbeiten.",
+        kenntnisnahme: true, kenntnisnahmeName: "Bauleitung Kunde", benutzer: "werkstatt"
+      }, jz);
+      if (abn.ok) {
+        Q.portalFreigabe(s, { mandantId: mandantId, typ: "abnahme", referenzId: abn.abnahme.id, kundeId: kunde0.id, benutzer: "admin", rolle: "admin", titel: "Abnahmeprotokoll " + abn.abnahme.nummer }, jz);
+      }
+      // Prüfbericht der bestandenen Prüfung fürs Portal freigeben
+      if (pa1 && pa1.ok) Q.portalFreigabe(s, { mandantId: mandantId, typ: "pruefbericht", referenzId: pa1.pruefauftrag.id, kundeId: kunde0.id, benutzer: "admin", rolle: "admin" }, jz);
+
       return {
         qualStammdaten: s.stammdaten, qualPruefplaene: s.pruefplaene, qualPruefauftraege: s.pruefauftraege,
         qualAbweichungen: s.abweichungen, qualSperren: s.sperren, qualNacharbeiten: s.nacharbeiten,
         qualAusschuss: s.ausschuss, qualSonderfreigaben: s.sonderfreigaben, qualMassnahmen: s.massnahmen,
         qualReklamationen: s.reklamationen, qualLieferantenReklamationen: s.lieferantenReklamationen,
         qualPruefmittel: s.pruefmittel, qualKosten: s.qualitaetskosten, qualAudit: s.audit,
-        qualWareneingangspruefungen: s.wareneingangspruefungen, qualKonflikte: s.konflikte
+        qualWareneingangspruefungen: s.wareneingangspruefungen, qualKonflikte: s.konflikte,
+        qualAbnahmen: s.abnahmen, qualPortalFreigaben: s.portalFreigaben
       };
     } catch (e) { return leer; }
   }
@@ -749,6 +769,8 @@
       qualAudit: qualSeed.qualAudit,
       qualWareneingangspruefungen: qualSeed.qualWareneingangspruefungen,
       qualKonflikte: qualSeed.qualKonflikte,
+      qualAbnahmen: qualSeed.qualAbnahmen,
+      qualPortalFreigaben: qualSeed.qualPortalFreigaben,
       // Lernmodell: Korrekturfaktoren je Produkttyp & Arbeitsschritt
       lernen: { faktoren: {}, erkenntnisse: [] }
     };
@@ -958,6 +980,8 @@
     if (!Array.isArray(obj.qualAudit)) obj.qualAudit = [];
     if (!Array.isArray(obj.qualWareneingangspruefungen)) obj.qualWareneingangspruefungen = [];
     if (!Array.isArray(obj.qualKonflikte)) obj.qualKonflikte = [];
+    if (!Array.isArray(obj.qualAbnahmen)) obj.qualAbnahmen = [];
+    if (!Array.isArray(obj.qualPortalFreigaben)) obj.qualPortalFreigaben = [];
     if (!st.qualitaet || typeof st.qualitaet !== "object") st.qualitaet = { stammdaten: null, zaehler: { pruefplan: 1, pruefauftrag: 1, abweichung: 1 } };
     if (!st.qualitaet.zaehler || typeof st.qualitaet.zaehler !== "object") st.qualitaet.zaehler = { pruefplan: 1, pruefauftrag: 1, abweichung: 1 };
     // Qualitätsstammdaten sind konfigurierbar; Standardvorschlag nur auffüllen.

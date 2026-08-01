@@ -844,8 +844,305 @@
     return konflikt("Unbekannte QM-Aktion");
   }
 
+  // ============================================================
+  //  16B-ERWEITERUNGEN – Aggregation, Abnahme, Berichte, Hinweise.
+  //  KEINE zweite Prüf-/Toleranz-/Sperr-/Reklamationslogik: alles
+  //  liest die oben definierten Kernfunktionen/Datensätze.
+  // ============================================================
+
+  // ---- Kalibrierung eintragen (fortschreibend, mit Audit) ----
+  function kalibrierungNeu(state, pmId, daten, jetztISO) {
+    var jz = jetzt(jetztISO); daten = daten || {};
+    if (daten.rolle && !darf(daten.rolle, "pruefmittelVerwalten")) return { ok: false, grund: "Keine Berechtigung" };
+    var pm = pruefmittelById(state, pmId); if (!pm) return { ok: false, grund: "Prüfmittel nicht vorhanden" };
+    var vorher = pm.naechsteKalibrierung;
+    pm.letzteKalibrierung = daten.datum || jz;
+    pm.kalibrierintervallTage = daten.intervallTage != null ? num(daten.intervallTage) : pm.kalibrierintervallTage;
+    pm.naechsteKalibrierung = new Date(new Date(pm.letzteKalibrierung).getTime() + pm.kalibrierintervallTage * 86400000).toISOString();
+    if (daten.zertifikat) pm.zertifikat = daten.zertifikat;
+    if (pm.status === PM_STATUS.KALIBRIERUNG_FAELLIG) pm.status = PM_STATUS.VERFUEGBAR;
+    if (!Array.isArray(pm.kalibrierhistorie)) pm.kalibrierhistorie = [];
+    pm.kalibrierhistorie.push({ datum: pm.letzteKalibrierung, naechste: pm.naechsteKalibrierung, zertifikat: pm.zertifikat || null, benutzer: daten.benutzer || null });
+    audit(state, { mandantId: pm.mandantId, benutzer: daten.benutzer, aktion: "pruefmittel.kalibrierung", referenzTyp: "pruefmittel", referenzId: pm.id, vorher: vorher, nachher: pm.naechsteKalibrierung }, jz);
+    return { ok: true, pruefmittel: pm };
+  }
+  // Kalibrierung läuft bald ab (Vorwarnung, Standard 30 Tage)
+  function kalibrierungBaldFaellig(pm, tage, jetztISO) {
+    if (!pm || !pm.naechsteKalibrierung) return false;
+    var grenze = new Date(jetzt(jetztISO)).getTime() + num(tage || 30) * 86400000;
+    var n = new Date(pm.naechsteKalibrierung).getTime();
+    return n >= new Date(jetzt(jetztISO)).getTime() && n <= grenze;
+  }
+
+  // ---- Überfällige Prüfungen (geplantes Datum überschritten, nicht fertig) ----
+  function ueberfaelligePruefungen(state, mandantId, jetztISO) {
+    var jz = new Date(jetzt(jetztISO)).getTime();
+    var offen = [PA_STATUS.GEPLANT, PA_STATUS.BEREIT, PA_STATUS.IN_PRUEFUNG, PA_STATUS.NACHPRUEFUNG];
+    return (state.pruefauftraege || []).filter(function (pa) {
+      if (mandantId != null && pa.mandantId !== mandantId) return false;
+      if (offen.indexOf(pa.status) < 0) return false;
+      return pa.geplantesDatum && new Date(pa.geplantesDatum).getTime() < jz;
+    });
+  }
+
+  // ---- 1) QUALITÄTSDASHBOARD (aus echten Daten) ----
+  // filter: {von,bis,kundeId,projektId,kommission,produktgruppeKey,maschineId,
+  //          artikelId,chargeId,pruefstatus,fehlerart,verantwortlicher}
+  function imZeitraum(iso, filter) {
+    if (!filter || (!filter.von && !filter.bis)) return true;
+    if (!iso) return false;
+    var t = new Date(iso).getTime();
+    if (filter.von && t < new Date(filter.von).getTime()) return false;
+    if (filter.bis && t > new Date(filter.bis).getTime() + 86399999) return false;
+    return true;
+  }
+  function paPasst(pa, filter) {
+    filter = filter || {};
+    if (filter.mandantId != null && pa.mandantId !== filter.mandantId) return false;
+    if (filter.kommission && pa.kommission !== filter.kommission) return false;
+    if (filter.auftragId && pa.auftragId !== filter.auftragId) return false;
+    if (filter.pruefstatus && pa.status !== filter.pruefstatus) return false;
+    if (filter.verantwortlicher && pa.pruefer !== filter.verantwortlicher) return false;
+    if (filter.produktgruppeKey && (pa.pruefplanSnapshot || {}).produktgruppeKey !== filter.produktgruppeKey) return false;
+    if (!imZeitraum(pa.tatsaechlichesDatum || pa.erstellt, filter)) return false;
+    return true;
+  }
+  function abwPasst(a, filter) {
+    filter = filter || {};
+    if (filter.mandantId != null && a.mandantId !== filter.mandantId) return false;
+    if (filter.kommission && a.kommission !== filter.kommission) return false;
+    if (filter.auftragId && a.auftragId !== filter.auftragId) return false;
+    if (filter.maschineId && a.maschineId !== filter.maschineId) return false;
+    if (filter.artikelId && a.artikelId !== filter.artikelId) return false;
+    if (filter.chargeId && a.chargeId !== filter.chargeId) return false;
+    if (filter.fehlerart && a.fehlerart !== filter.fehlerart) return false;
+    if (!imZeitraum(a.erkanntAm || a.erstellt, filter)) return false;
+    return true;
+  }
+  function dashboard(state, filter, jetztISO) {
+    filter = filter || {};
+    var pas = (state.pruefauftraege || []).filter(function (pa) { return paPasst(pa, filter); });
+    var abw = (state.abweichungen || []).filter(function (a) { return abwPasst(a, filter); });
+    var offeneStatus = [PA_STATUS.GEPLANT, PA_STATUS.BEREIT, PA_STATUS.IN_PRUEFUNG];
+    var bestanden = pas.filter(function (p) { return p.status === PA_STATUS.BESTANDEN || p.status === PA_STATUS.MIT_ABWEICHUNG; }).length;
+    var nichtBestanden = pas.filter(function (p) { return p.status === PA_STATUS.NICHT_BESTANDEN || p.status === PA_STATUS.GESPERRT; }).length;
+    var sperren = (state.sperren || []).filter(function (s) { return s.aktiv && (filter.mandantId == null || s.mandantId === filter.mandantId); });
+    var nacharbeiten = (state.nacharbeiten || []).filter(function (n) { return filter.mandantId == null || n.mandantId === filter.mandantId; });
+    var offeneNacharbeiten = nacharbeiten.filter(function (n) { return !n.ergebnis; });
+    var nacharbeitStd = 0; nacharbeiten.forEach(function (n) { nacharbeitStd += num(n.tatsaechlicheZeitStd) || num(n.geplanteZeitStd); });
+    var ausschuss = (state.ausschuss || []).filter(function (a) { return (filter.mandantId == null || a.mandantId === filter.mandantId) && imZeitraum(a.erstellt, filter); });
+    var ausschussMenge = 0; ausschuss.forEach(function (a) { ausschussMenge += num(a.menge); });
+    var geprueftMenge = 0; abw.forEach(function (a) { geprueftMenge += num(a.menge); });
+    var basis = ausschussMenge + Math.max(geprueftMenge, pas.length);
+    var pm = (state.pruefmittel || []).filter(function (p) { return filter.mandantId == null || p.mandantId === filter.mandantId; });
+    var pmFaellig = pm.filter(function (p) { return !pruefmittelGueltig(p, jetztISO).gueltig; });
+    var massnahmen = (state.massnahmen || []).filter(function (m) { return filter.mandantId == null || m.mandantId === filter.mandantId; });
+    var offeneMassnahmen = massnahmen.filter(function (m) { return [MASSNAHME_STATUS.WIRKSAM, MASSNAHME_STATUS.ABGESCHLOSSEN].indexOf(m.status) < 0; });
+    var jzT = new Date(jetzt(jetztISO)).getTime();
+    return {
+      offenePruefauftraege: pas.filter(function (p) { return offeneStatus.indexOf(p.status) >= 0; }).length,
+      ueberfaelligePruefungen: ueberfaelligePruefungen(state, filter.mandantId, jetztISO).filter(function (p) { return paPasst(p, filter); }).length,
+      bestanden: bestanden, nichtBestanden: nichtBestanden,
+      offeneAbweichungen: abw.filter(function (a) { return a.status !== ABW_STATUS.ABGESCHLOSSEN; }).length,
+      gesperrteBauteile: sperren.filter(function (s) { return ["Bauteil", "Auftragsteil"].indexOf(s.objektTyp) >= 0; }).length,
+      gesperrteChargen: sperren.filter(function (s) { return s.objektTyp === "Materialcharge"; }).length,
+      offeneNacharbeiten: offeneNacharbeiten.length,
+      offeneNachpruefungen: pas.filter(function (p) { return p.status === PA_STATUS.NACHPRUEFUNG; }).length,
+      ausschussMenge: r3(ausschussMenge), ausschussquoteProz: basis > 0 ? r2(ausschussMenge / basis * 100) : 0,
+      nacharbeitsstunden: r2(nacharbeitStd),
+      qualitaetskosten: kostenSumme(state, { mandantId: filter.mandantId, auftragId: filter.auftragId }).gesamt,
+      kundenreklamationen: (state.reklamationen || []).filter(function (r) { return (filter.mandantId == null || r.mandantId === filter.mandantId) && r.status !== REKL_STATUS.ABGESCHLOSSEN && imZeitraum(r.meldedatum, filter); }).length,
+      lieferantenreklamationen: (state.lieferantenReklamationen || []).filter(function (r) { return (filter.mandantId == null || r.mandantId === filter.mandantId) && r.status !== LREKL_STATUS.ABGESCHLOSSEN; }).length,
+      faelligePruefmittel: pmFaellig.length,
+      offeneKorrekturmassnahmen: offeneMassnahmen.length,
+      ueberfaelligeMassnahmen: offeneMassnahmen.filter(function (m) { return m.frist && new Date(m.frist).getTime() < jzT; }).length,
+      pruefauftraegeGesamt: pas.length
+    };
+  }
+
+  // ---- 17) MONTAGE-/KUNDENABNAHME (keine qualifizierte Signatur!) ----
+  function abnahmeNeu(state, daten, jetztISO) {
+    var jz = jetzt(jetztISO);
+    var ab = {
+      id: uid("ab"), mandantId: daten.mandantId || null, nummer: daten.nummer || ("ABN-" + uid("n").slice(-6)),
+      auftragId: daten.auftragId || null, kommission: daten.kommission || null, kundeId: daten.kundeId || null,
+      baustelle: daten.baustelle || null, datum: daten.datum || jz,
+      anwesende: (daten.anwesende || []).slice(), ausgefuehrteLeistungen: daten.ausgefuehrteLeistungen || "",
+      offenePunkte: (daten.offenePunkte || []).slice(), maengel: (daten.maengel || []).slice(),
+      restarbeiten: (daten.restarbeiten || []).slice(), fotoRefs: (daten.fotoRefs || []).slice(),
+      nachtermin: daten.nachtermin || null, kundenkommentar: daten.kundenkommentar || "",
+      // Ausdrücklich KEINE qualifizierte elektronische Signatur.
+      kenntnisnahme: !!daten.kenntnisnahme, kenntnisnahmeName: daten.kenntnisnahmeName || null,
+      kenntnisnahmeAm: daten.kenntnisnahme ? jz : null,
+      signaturHinweis: "Bestätigung der Kenntnisnahme – KEINE qualifizierte elektronische Signatur.",
+      abweichungIds: (daten.abweichungIds || []).slice(), erstellt: jz, ersteller: daten.benutzer || null,
+      portalFreigegeben: false, idempotenzKey: daten.idempotenzKey || idempotenzKey("qm-abn", daten.mandantId, daten.auftragId || "", daten.datum || jz)
+    };
+    var vorhanden = (state.abnahmen || []).filter(function (x) { return x.idempotenzKey === ab.idempotenzKey; })[0];
+    if (vorhanden) return { ok: true, abnahme: vorhanden, neu: false };
+    (state.abnahmen || (state.abnahmen = [])).push(ab);
+    audit(state, { mandantId: ab.mandantId, benutzer: daten.benutzer, aktion: "abnahme.neu", referenzTyp: "abnahme", referenzId: ab.id, nachher: ab.nummer }, jz);
+    return { ok: true, abnahme: ab, neu: true };
+  }
+  // Abnahmeprotokoll-Daten (kundensicher: keine internen Kosten/Ursachen).
+  function abnahmeProtokoll(state, abId) {
+    var ab = (state.abnahmen || []).filter(function (x) { return x.id === abId; })[0]; if (!ab) return null;
+    return {
+      nummer: ab.nummer, datum: ab.datum, auftragId: ab.auftragId, kommission: ab.kommission, baustelle: ab.baustelle,
+      anwesende: ab.anwesende, ausgefuehrteLeistungen: ab.ausgefuehrteLeistungen, offenePunkte: ab.offenePunkte,
+      maengel: ab.maengel, restarbeiten: ab.restarbeiten, nachtermin: ab.nachtermin, kundenkommentar: ab.kundenkommentar,
+      kenntnisnahme: ab.kenntnisnahme, kenntnisnahmeName: ab.kenntnisnahmeName, kenntnisnahmeAm: ab.kenntnisnahmeAm,
+      signaturHinweis: ab.signaturHinweis, fotos: ab.fotoRefs.length,
+      dokumentkennung: "ABN-" + String(ab.id).slice(-8).toUpperCase()
+    };
+  }
+
+  // ---- 19) KUNDENPORTAL-FREIGABE (nur ausdrücklich freigegebene Belege) ----
+  var PORTAL_TYPEN = ["abnahme", "pruefbericht", "materialzertifikat", "reklamationsstatus"];
+  function portalFreigabe(state, daten, jetztISO) {
+    var jz = jetzt(jetztISO); daten = daten || {};
+    if (daten.rolle && !darf(daten.rolle, "qualitaetsberichteExportieren")) return { ok: false, grund: "Keine Berechtigung zur Portalfreigabe" };
+    if (PORTAL_TYPEN.indexOf(daten.typ) < 0) return { ok: false, grund: "Unbekannter Belegtyp" };
+    if (!daten.benutzer) return { ok: false, grund: "Benutzer erforderlich" };
+    var f = {
+      id: uid("pf"), mandantId: daten.mandantId || null, typ: daten.typ, referenzId: daten.referenzId || null,
+      kundeId: daten.kundeId || null, sichtbar: daten.sichtbar !== false, freigegebenVon: daten.benutzer,
+      freigegebenAm: jz, titel: daten.titel || null
+    };
+    (state.portalFreigaben || (state.portalFreigaben = [])).push(f);
+    if (daten.typ === "abnahme") { var ab = (state.abnahmen || []).filter(function (x) { return x.id === daten.referenzId; })[0]; if (ab) ab.portalFreigegeben = f.sichtbar; }
+    audit(state, { mandantId: f.mandantId, benutzer: daten.benutzer, aktion: "portal.freigabe", referenzTyp: daten.typ, referenzId: daten.referenzId, nachher: f.sichtbar ? "sichtbar" : "verborgen" }, jz);
+    return { ok: true, freigabe: f };
+  }
+  // Kundensichtbare QM-Belege – interne Daten werden hier NIE ausgegeben.
+  function portalBelege(state, kundeId) {
+    return (state.portalFreigaben || []).filter(function (f) { return f.sichtbar && (kundeId == null || f.kundeId == null || f.kundeId === kundeId); }).map(function (f) {
+      var titel = f.titel;
+      if (!titel && f.typ === "abnahme") { var ab = (state.abnahmen || []).filter(function (x) { return x.id === f.referenzId; })[0]; titel = ab ? "Abnahmeprotokoll " + ab.nummer : "Abnahmeprotokoll"; }
+      if (!titel && f.typ === "pruefbericht") { var pa = pruefauftragById(state, f.referenzId); titel = pa ? "Prüfbericht " + pa.nummer : "Prüfbericht"; }
+      return { id: f.id, typ: f.typ, referenzId: f.referenzId, titel: titel || f.typ, freigegebenAm: f.freigegebenAm };
+    });
+  }
+  // Kundensichere Ausgabe eines Prüfberichts: KEINE internen Ursachen/Kosten/
+  // Mitarbeiterbewertungen, keine Lieferanteninformationen.
+  function pruefberichtKundensicher(state, paId) {
+    var pa = pruefauftragById(state, paId); if (!pa) return null;
+    return {
+      nummer: pa.nummer, auftragId: pa.auftragId, kommission: pa.kommission, bauteil: pa.bauteil,
+      pruefplan: (pa.pruefplanSnapshot || {}).nummer, pruefplanVersion: pa.pruefplanVersion,
+      datum: pa.tatsaechlichesDatum, status: pa.status,
+      ergebnisse: (pa.ergebnisse || []).map(function (e) {
+        return { schritt: e.schrittNummer, merkmal: e.merkmalTyp, sollwert: e.sollwert, istwert: e.wert, einheit: e.einheit, ergebnis: e.ergebnis };
+      }),
+      hinweis: "Prüfbericht ohne interne Kalkulations-, Kosten- oder Ursachendaten."
+    };
+  }
+
+  // ---- 20) QUALITÄTSBERICHTE / CSV ----
+  function csvEscape(v) { var s = String(v == null ? "" : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function zuCSV(headers, rows) { return [headers.join(";")].concat(rows.map(function (r) { return r.map(csvEscape).join(";"); })).join("\n"); }
+  function bericht(state, art, filter) {
+    filter = filter || {};
+    var head, rows;
+    if (art === "pruefstatus") {
+      head = ["Prüfauftrag", "Auftrag", "Kommission", "Bauteil", "Arbeitsgang", "Planversion", "Prüfer", "Termin", "Status", "Abweichungen"];
+      rows = (state.pruefauftraege || []).filter(function (p) { return paPasst(p, filter); }).map(function (p) {
+        return [p.nummer, p.auftragId, p.kommission, p.bauteil, p.arbeitsgang, p.pruefplanVersion, p.pruefer, p.geplantesDatum, p.status, (p.abweichungIds || []).length];
+      });
+    } else if (art === "abweichungen") {
+      head = ["Nummer", "Auftrag", "Kommission", "Bauteil", "Arbeitsgang", "Fehlerart", "Fehlerklasse", "Menge", "Risiko", "Status", "Herkunft", "erkannt"];
+      rows = (state.abweichungen || []).filter(function (a) { return abwPasst(a, filter); }).map(function (a) {
+        return [a.nummer, a.auftragId, a.kommission, a.bauteil, a.arbeitsgang, a.fehlerart, a.fehlerklasse, a.menge, a.risikostufe, a.status, a.herkunft, a.erkanntAm];
+      });
+    } else if (art === "nacharbeit") {
+      head = ["Nummer", "Abweichung", "Tätigkeit", "Herkunft", "geplant (h)", "tatsächlich (h)", "Termin", "Nachprüfung", "freigegeben"];
+      rows = (state.nacharbeiten || []).filter(function (n) { return filter.mandantId == null || n.mandantId === filter.mandantId; }).map(function (n) {
+        return [n.nummer, n.abweichungId, n.taetigkeit, n.herkunft, n.geplanteZeitStd, n.tatsaechlicheZeitStd, n.termin, n.nachpruefungPruefauftragId ? "ja" : "nein", n.freigegeben ? "ja" : "nein"];
+      });
+    } else if (art === "ausschuss") {
+      head = ["Nummer", "Auftrag", "Bauteil", "Menge", "Materialkosten", "Bearbeitung", "Maschine", "Grund", "Ersatzfertigung"];
+      rows = (state.ausschuss || []).filter(function (a) { return filter.mandantId == null || a.mandantId === filter.mandantId; }).map(function (a) {
+        return [a.nummer, a.auftragId, a.bauteil, a.menge, a.materialkosten, a.bearbeitungskosten, a.maschinenkosten, a.grund, a.ersatzfertigung ? "ja" : "nein"];
+      });
+    } else if (art === "reklamationen") {
+      head = ["Nummer", "Kunde", "Auftrag", "Kommission", "Produkt", "Menge", "Priorität", "Status", "Bewertung", "gemeldet"];
+      rows = (state.reklamationen || []).filter(function (r) { return filter.mandantId == null || r.mandantId === filter.mandantId; }).map(function (r) {
+        return [r.nummer, r.kundeId, r.auftragId, r.kommission, r.produkt, r.menge, r.prioritaet, r.status, r.berechtigung, r.meldedatum];
+      });
+    } else if (art === "lieferantenqualitaet") {
+      head = ["Nummer", "Lieferant", "Wareneingang", "Charge", "Menge", "Fehler", "geforderte Maßnahme", "Status", "Charge gesperrt"];
+      rows = (state.lieferantenReklamationen || []).filter(function (r) { return filter.mandantId == null || r.mandantId === filter.mandantId; }).map(function (r) {
+        return [r.nummer, r.lieferantId, r.wareneingangId, r.chargeId, r.menge, r.fehler, r.geforderteMassnahme, r.status, r.sperrId ? "ja" : "nein"];
+      });
+    } else if (art === "pruefmittel") {
+      head = ["Nummer", "Bezeichnung", "Seriennummer", "Messbereich", "letzte Kalibrierung", "nächste Kalibrierung", "Status", "gültig"];
+      rows = (state.pruefmittel || []).filter(function (p) { return filter.mandantId == null || p.mandantId === filter.mandantId; }).map(function (p) {
+        return [p.nummer, p.bezeichnung, p.seriennummer, p.messbereich, p.letzteKalibrierung, p.naechsteKalibrierung, p.status, pruefmittelGueltig(p, filter.jetztISO).gueltig ? "ja" : "nein"];
+      });
+    } else if (art === "qualitaetskosten") {
+      head = ["Kostenart", "Betrag", "Auftrag", "Abweichung", "Herkunft", "Kostenträger", "Zeitpunkt"];
+      rows = (state.qualitaetskosten || []).filter(function (k) { return (filter.mandantId == null || k.mandantId === filter.mandantId) && (!filter.auftragId || k.auftragId === filter.auftragId); }).map(function (k) {
+        return [k.art, k.betrag, k.auftragId, k.abweichungId, k.herkunft, k.kostentraeger, k.zeitpunkt];
+      });
+    } else return null;
+    return { art: art, headers: head, rows: rows, csv: zuCSV(head, rows) };
+  }
+
+  // ---- 21) LERNHINWEISE (Korrelation, KEINE sichere Ursache, keine Personen) ----
+  function lernhinweise(state, filter) {
+    filter = filter || {};
+    var abw = (state.abweichungen || []).filter(function (a) { return abwPasst(a, filter); });
+    var hinweise = [];
+    function vertrauen(n) { return n >= 12 ? "hoch" : n >= 6 ? "mittel" : "niedrig"; }
+    function zeitraum(liste) {
+      var ts = liste.map(function (x) { return new Date(x.erkanntAm || x.erstellt).getTime(); }).filter(isFinite);
+      if (!ts.length) return null;
+      return { von: new Date(Math.min.apply(null, ts)).toISOString(), bis: new Date(Math.max.apply(null, ts)).toISOString() };
+    }
+    function gruppiere(liste, keyFn) { var g = {}; liste.forEach(function (x) { var k = keyFn(x); if (k == null || k === "") return; (g[k] = g[k] || []).push(x); }); return g; }
+    // Häufigste Fehlerart je Produktgruppe (über den Prüfplan-Snapshot des Prüfauftrags)
+    var proGruppe = {};
+    abw.forEach(function (a) {
+      var pa = a.pruefauftragId ? pruefauftragById(state, a.pruefauftragId) : null;
+      var g = pa && pa.pruefplanSnapshot ? pa.pruefplanSnapshot.produktgruppeKey : null;
+      if (!g || !a.fehlerart) return;
+      proGruppe[g] = proGruppe[g] || {}; (proGruppe[g][a.fehlerart] = proGruppe[g][a.fehlerart] || []).push(a);
+    });
+    Object.keys(proGruppe).forEach(function (g) {
+      var arten = proGruppe[g]; var top = Object.keys(arten).sort(function (x, y) { return arten[y].length - arten[x].length; })[0];
+      if (!top) return; var liste = arten[top];
+      hinweise.push({ typ: "fehlerart_produktgruppe", text: "In der Produktgruppe „" + g + "\" tritt die Fehlerart „" + top + "\" am häufigsten auf.", datenmenge: liste.length, zeitraum: zeitraum(liste), vertrauen: vertrauen(liste.length), grundlage: "Abweichungen mit Prüfauftrag und Produktgruppe im Prüfplan-Snapshot", hinweis: "Korrelation, keine gesicherte Ursache." });
+    });
+    // Erhöhte Nacharbeit bei einer Maschine
+    var proMaschine = gruppiere(abw.filter(function (a) { return (a.nacharbeitIds || []).length; }), function (a) { return a.maschineId; });
+    Object.keys(proMaschine).forEach(function (m) {
+      var liste = proMaschine[m];
+      hinweise.push({ typ: "nacharbeit_maschine", text: "An Maschine „" + m + "\" führten " + liste.length + " Abweichung(en) zu Nacharbeit.", datenmenge: liste.length, zeitraum: zeitraum(liste), vertrauen: vertrauen(liste.length), grundlage: "Abweichungen mit verknüpfter Nacharbeit", hinweis: "Korrelation, keine gesicherte Ursache." });
+    });
+    // Wiederkehrende Abweichung bei einem Material/Artikel
+    var proArtikel = gruppiere(abw, function (a) { return a.artikelId; });
+    Object.keys(proArtikel).forEach(function (art) {
+      var liste = proArtikel[art]; if (liste.length < 2) return;
+      hinweise.push({ typ: "abweichung_material", text: "Beim Material „" + art + "\" wurden " + liste.length + " Abweichungen erfasst.", datenmenge: liste.length, zeitraum: zeitraum(liste), vertrauen: vertrauen(liste.length), grundlage: "Abweichungen mit Artikelbezug", hinweis: "Korrelation, keine gesicherte Ursache." });
+    });
+    // Häufig unterschätzte Qualitätszeit (Nacharbeit dauert länger als geplant)
+    var nas = (state.nacharbeiten || []).filter(function (n) { return (filter.mandantId == null || n.mandantId === filter.mandantId) && num(n.geplanteZeitStd) > 0 && num(n.tatsaechlicheZeitStd) > 0; });
+    var ueber = nas.filter(function (n) { return num(n.tatsaechlicheZeitStd) > num(n.geplanteZeitStd); });
+    if (nas.length) {
+      hinweise.push({ typ: "qualitaetszeit_unterschaetzt", text: ueber.length + " von " + nas.length + " Nacharbeiten dauerten länger als geplant.", datenmenge: nas.length, zeitraum: zeitraum(nas.map(function (n) { return { erstellt: n.erstellt }; })), vertrauen: vertrauen(nas.length), grundlage: "Vergleich geplanter und tatsächlicher Nacharbeitszeit", hinweis: "Korrelation, keine gesicherte Ursache." });
+    }
+    // Bewusst KEINE personenbezogene Auswertung / keine Mitarbeiter-Rangliste.
+    return hinweise;
+  }
+
   w.Preisschmiede.Qualitaet = {
     PRUEFZEITPUNKT: PRUEFZEITPUNKT, MERKMAL_TYP: MERKMAL_TYP, TOLERANZ_ERGEBNIS: TOLERANZ_ERGEBNIS,
+    PORTAL_TYPEN: PORTAL_TYPEN,
+    kalibrierungNeu: kalibrierungNeu, kalibrierungBaldFaellig: kalibrierungBaldFaellig,
+    ueberfaelligePruefungen: ueberfaelligePruefungen, dashboard: dashboard,
+    abnahmeNeu: abnahmeNeu, abnahmeProtokoll: abnahmeProtokoll,
+    portalFreigabe: portalFreigabe, portalBelege: portalBelege, pruefberichtKundensicher: pruefberichtKundensicher,
+    zuCSV: zuCSV, bericht: bericht, lernhinweise: lernhinweise,
     PA_STATUS: PA_STATUS, ABW_STATUS: ABW_STATUS, SPERR_OBJEKT: SPERR_OBJEKT,
     URSACHE_HERKUNFT: URSACHE_HERKUNFT, URSACHE_KATEGORIE: URSACHE_KATEGORIE,
     MASSNAHME_STATUS: MASSNAHME_STATUS, REKL_STATUS: REKL_STATUS, LREKL_STATUS: LREKL_STATUS,

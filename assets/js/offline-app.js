@@ -100,6 +100,18 @@
       bestellungen: db.bestellungen, konflikte: db.lagerKonflikte, inventuren: db.lagerInventuren
     };
   }
+  // Zustandsadapter für den Qualitätskern (dieselben db-Arrays).
+  function qualState(db) {
+    return {
+      stammdaten: (db.settings.qualitaet || {}).stammdaten || null,
+      pruefplaene: db.qualPruefplaene, pruefauftraege: db.qualPruefauftraege, abweichungen: db.qualAbweichungen,
+      sperren: db.qualSperren, nacharbeiten: db.qualNacharbeiten, ausschuss: db.qualAusschuss,
+      sonderfreigaben: db.qualSonderfreigaben, massnahmen: db.qualMassnahmen, reklamationen: db.qualReklamationen,
+      lieferantenReklamationen: db.qualLieferantenReklamationen, pruefmittel: db.qualPruefmittel,
+      qualitaetskosten: db.qualKosten, audit: db.qualAudit, wareneingangspruefungen: db.qualWareneingangspruefungen,
+      konflikte: db.qualKonflikte, abnahmen: db.qualAbnahmen, portalFreigaben: db.qualPortalFreigaben
+    };
+  }
   // Wendet einen (validierten) Datensatz idempotent auf die zentrale db an.
   function anwenden(rec, db) {
     // Lager-Bewegung (Phase 15B, mobil): über den Phase-15A-Lagerkern erneut
@@ -111,6 +123,23 @@
       var lres = Lager.uebernehmeOffline(lagerState(db), daten, nowISO());
       if (!lres.ok) return { konflikt: true, grund: lres.grund };
       return { ok: true, serverRef: lres.bewegung ? lres.bewegung.id : null };
+    }
+    // Qualitäts-Datensatz (Phase 16B, mobil): über den Phase-16A-Qualitätskern
+    // erneut validieren, Toleranz ZENTRAL neu berechnen, idempotent übernehmen.
+    // KEINE zweite Prüf-/Toleranzlogik, keine automatische Freigabe offline.
+    if (rec.typ === "qualitaet") {
+      var Qual = P.Qualitaet; if (!Qual) return { fehler: "Qualitätskern nicht geladen", temporaer: true };
+      var qs = qualState(db);
+      var qdaten = Object.assign({}, rec.payload || {}, { idempotenzKey: rec.idempotenzKey, mandantId: rec.mandantId, benutzer: rec.benutzer });
+      // Berechtigung beim Sync erneut prüfen (Offline-Daten sind nicht vertrauenswürdig).
+      if (qdaten.rolle && qdaten.aktion === "abweichung" && !Qual.darf(qdaten.rolle, "abweichungAnlegen")) return { konflikt: true, grund: "Keine Berechtigung für Abweichungen" };
+      if (qdaten.aktion === "abnahme") {
+        var ab = Qual.abnahmeNeu(qs, qdaten, nowISO());
+        return ab.ok ? { ok: true, serverRef: ab.abnahme.id } : { konflikt: true, grund: ab.grund };
+      }
+      var qres = Qual.uebernehmeOffline(qs, qdaten, nowISO());
+      if (!qres.ok) return { konflikt: true, grund: qres.grund };
+      return { ok: true, serverRef: (qres.ergebnisEintrag && qres.ergebnisEintrag.id) || (qres.abweichung && qres.abweichung.id) || null };
     }
     // Exactly-once auf zentraler Seite: je idempotenzKey höchstens eine Buchung.
     var vorhanden = (db.offlineBuchungen || []).filter(function (b) { return b.idempotenzKey === rec.idempotenzKey; })[0];
@@ -135,7 +164,7 @@
     liste.forEach(function (rec) {
       // Lager-Datensätze validiert der Lagerkern selbst (in anwenden); die
       // timer-orientierte Konfliktprüfung greift dort nicht.
-      var kf = rec.typ === "lager" ? { konflikt: false } : Sync.pruefeKonflikt(rec, kontextFuer(rec, db));
+      var kf = (rec.typ === "lager" || rec.typ === "qualitaet") ? { konflikt: false } : Sync.pruefeKonflikt(rec, kontextFuer(rec, db));
       var applyFn = function (r) { if (kf.konflikt) return { konflikt: true, grund: kf.grund }; return anwenden(r, db); };
       var res = Sync.verarbeite(rec, applyFn, jetzt);
       if (res.status === Sync.STATUS.SYNCED) verarbeitet++;

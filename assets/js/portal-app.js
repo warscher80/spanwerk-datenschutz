@@ -214,12 +214,82 @@
       '</div>' +
       '<div class="pp-card"><div class="pp-btnrow" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Zeichnungen &amp; Dokumente</h2><button class="pp-btn brand" id="pp-open-dok" type="button">Öffnen ›</button></div>' +
       '<div class="pp-muted" style="margin-top:6px">' + meineZeichnungen().length + ' freigegebene Zeichnung(en) · ' + meineUploads().length + ' eigene(r) Upload(s)</div></div>' +
-      meineRechnungenHtml() +
+      meineRechnungenHtml() + meineQualitaetHtml() +
       '<div class="pp-footer">' + esc(b.name || "") + ' · ' + esc(b.kontakt || "") + ' · <a href="' + esc(b.datenschutz || "datenschutz.html") + '">Datenschutz</a></div></div>';
     root().innerHTML = html; wireHeader();
     Array.prototype.forEach.call(root().querySelectorAll("[data-ang]"), function (li) { li.onclick = function () { openAngebot(li.getAttribute("data-ang")); }; });
     if (d.getElementById("pp-open-dok")) d.getElementById("pp-open-dok").onclick = function () { renderDokumente("dashboard"); };
     Array.prototype.forEach.call(root().querySelectorAll("[data-repdf]"), function (bt) { bt.onclick = function () { rechnungPdfKunde(bt.getAttribute("data-repdf")); }; });
+    Array.prototype.forEach.call(root().querySelectorAll("[data-qbeleg]"), function (bt) { bt.onclick = function () { openQualitaetsbeleg(bt.getAttribute("data-qbeleg")); }; });
+  }
+
+  // Qualitätsbelege (Phase 16B): NUR ausdrücklich freigegebene Belege.
+  // Interne Ursachenanalysen, Mitarbeiterdaten, Qualitätskosten, interne
+  // Bewertungen und nicht freigegebene Lieferanteninformationen bleiben
+  // vollständig unsichtbar.
+  function qualState() {
+    var db = S.db;
+    return {
+      pruefauftraege: db.qualPruefauftraege || [], abnahmen: db.qualAbnahmen || [],
+      portalFreigaben: db.qualPortalFreigaben || [], reklamationen: db.qualReklamationen || []
+    };
+  }
+  function meineQualitaetsbelege() {
+    var Q = P.Qualitaet; if (!Q) return [];
+    return Q.portalBelege(qualState(), S.kundeId);
+  }
+  function meineQualitaetHtml() {
+    var Q = P.Qualitaet; if (!Q) return "";
+    var belege = meineQualitaetsbelege();
+    var qs = qualState();
+    // Reklamationsstatus: nur eigener Kunde, ohne interne Bewertung/Ursachen.
+    var rek = (qs.reklamationen || []).filter(function (r) { return r.kundeId === S.kundeId; });
+    var html = '<div class="pp-card"><h2>Qualitätsdokumente</h2>';
+    html += belege.length ? belege.map(function (b) {
+      return '<div class="pp-list-item" style="cursor:default"><div class="pp-li-main"><div class="pp-li-titel">' + esc(b.titel) + '</div>' +
+        '<div class="pp-li-sub">' + esc(b.typ) + " · freigegeben " + fmtDate(b.freigegebenAm) + '</div></div>' +
+        '<button class="pp-btn" style="min-height:34px;padding:6px 10px;font-size:13px" data-qbeleg="' + esc(b.id) + '">Ansehen</button></div>';
+    }).join("") : '<div class="pp-muted">Aktuell sind keine Qualitätsdokumente für Sie freigegeben.</div>';
+    if (rek.length) {
+      html += '<h3 style="margin-top:12px">Reklamationsstatus</h3>' + rek.map(function (r) {
+        var tag = r.status === "abgeschlossen" ? "ok" : r.status === "abgelehnt" ? "err" : "info";
+        return '<div class="pp-list-item" style="cursor:default"><div class="pp-li-main"><div class="pp-li-titel">' + esc(r.nummer) + " · " + esc(r.produkt || "") + '</div>' +
+          '<div class="pp-li-sub">' + esc(r.kommission || "") + " · gemeldet " + fmtDate(r.meldedatum) + '</div></div><span class="pp-tag ' + tag + '">' + esc(r.status) + "</span></div>";
+      }).join("");
+    }
+    html += '<div class="pp-muted" style="margin-top:6px">Es werden keine internen Ursachenanalysen, Mitarbeiterdaten, Qualitätskosten oder internen Bewertungen angezeigt.</div></div>';
+    return html;
+  }
+  // Kundensichere Anzeige eines freigegebenen Qualitätsbelegs.
+  function openQualitaetsbeleg(freigabeId) {
+    var Q = P.Qualitaet; if (!Q) return;
+    var qs = qualState();
+    var f = (qs.portalFreigaben || []).filter(function (x) { return x.id === freigabeId && x.sichtbar; })[0];
+    if (!f) return;
+    var titel = "", inner = "";
+    if (f.typ === "abnahme") {
+      var pr = Q.abnahmeProtokoll(qs, f.referenzId); if (!pr) return;
+      titel = "Abnahmeprotokoll " + pr.nummer;
+      function liste(t, arr) { return "<h3>" + esc(t) + "</h3>" + ((arr || []).length ? "<ul>" + arr.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : "<p>—</p>"); }
+      inner = "<p><strong>Kommission:</strong> " + esc(pr.kommission || "—") + " · <strong>Baustelle:</strong> " + esc(pr.baustelle || "—") + " · <strong>Datum:</strong> " + fmtDate(pr.datum) + "</p>" +
+        "<h3>Ausgeführte Leistungen</h3><p>" + esc(pr.ausgefuehrteLeistungen || "—") + "</p>" +
+        liste("Mängel", pr.maengel) + liste("Restarbeiten", pr.restarbeiten) + liste("Offene Punkte", pr.offenePunkte) +
+        "<h3>Ihr Kommentar</h3><p>" + esc(pr.kundenkommentar || "—") + "</p>" +
+        "<p><strong>Kenntnisnahme:</strong> " + (pr.kenntnisnahme ? "bestätigt durch " + esc(pr.kenntnisnahmeName || "") : "offen") + "</p>" +
+        '<p style="font-size:12px;color:#666">' + esc(pr.signaturHinweis) + "</p>";
+    } else if (f.typ === "pruefbericht") {
+      var pb = Q.pruefberichtKundensicher(qs, f.referenzId); if (!pb) return;
+      titel = "Prüfbericht " + pb.nummer;
+      inner = "<p><strong>Kommission:</strong> " + esc(pb.kommission || "—") + " · <strong>Bauteil:</strong> " + esc(pb.bauteil || "—") + " · <strong>Datum:</strong> " + fmtDate(pb.datum) + "</p>" +
+        "<table><thead><tr><th>Schritt</th><th>Sollwert</th><th>Istwert</th><th>Ergebnis</th></tr></thead><tbody>" +
+        pb.ergebnisse.map(function (e) { return "<tr><td>" + e.schritt + "</td><td>" + esc(String(e.sollwert == null ? "—" : e.sollwert)) + " " + esc(e.einheit || "") + "</td><td>" + esc(String(e.istwert)) + "</td><td>" + esc(e.ergebnis) + "</td></tr>"; }).join("") +
+        "</tbody></table><p><strong>Gesamtergebnis:</strong> " + esc(pb.status) + '</p><p style="font-size:12px;color:#666">' + esc(pb.hinweis) + "</p>";
+    } else return;
+    var win = w.open("", "_blank"); if (!win) return;
+    win.document.write('<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>' + esc(titel) + '</title><style>@page{size:A4;margin:18mm}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#15202b;font-size:12px;margin:24px}h1{font-size:18px}h3{font-size:13px;margin:14px 0 4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c3ccd6;padding:4px 6px;text-align:left}.noprint{position:fixed;top:8px;right:8px}@media print{.noprint{display:none}}</style></head><body>' +
+      '<button class="noprint" onclick="window.print()">Drucken / PDF</button><h1>' + esc(titel) + "</h1>" + inner +
+      '<p style="font-size:11px;color:#777;margin-top:18px">Dieses Dokument bestätigt keine Normkonformität und keine Zertifizierung.</p></body></html>');
+    win.document.close();
   }
 
   // Nur ausdrücklich freigegebene UND fürs Portal sichtbare Rechnungen (Phase 13B).

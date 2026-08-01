@@ -1579,5 +1579,124 @@ function qmPlan(s, extra) {
   t("QM Historischer Auftrag durch QM-Vorgänge unverändert", JSON.stringify(auftrag) === snapVorher);
 })();
 
+// =============================================================
+//  QUALITÄTS-UI-KERN  (Phase 16B) – Dashboard, Abnahme, Berichte,
+//  Portalfreigabe/kundensichere Ausgabe, Lernhinweise, Kalibrierung.
+// =============================================================
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  // Dashboard aus echten Daten
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "aufD", kommission: "KD", pruefplanId: pp.id, geplantesDatum: "2026-07-01T08:00:00.000Z" }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 105, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  var abw = Q.abweichungNeu(s, { mandantId: "m1", auftragId: "aufD", kommission: "KD", pruefauftragId: pa.id, fehlerart: "Maßabweichung", menge: 2, ersteller: "werkstatt", rolle: "werkstatt", maschineId: "masch1" }, QJ).abweichung;
+  Q.sperreNeu(s, { mandantId: "m1", objektTyp: "Auftragsteil", objektId: "aufD", abweichungId: abw.id, grund: "Maß", benutzer: "buero", rolle: "buero" }, QJ);
+  var dash = Q.dashboard(s, { mandantId: "m1" }, QJ);
+  t("QM-UI Dashboard zählt nicht bestandene Prüfungen", dash.nichtBestanden >= 1 && dash.pruefauftraegeGesamt >= 1);
+  t("QM-UI Dashboard zählt offene Abweichungen + gesperrte Bauteile", dash.offeneAbweichungen === 1 && dash.gesperrteBauteile === 1);
+  t("QM-UI Dashboard erkennt überfällige Prüfung", Q.ueberfaelligePruefungen(s, "m1", "2026-08-01T08:00:00.000Z").length >= 0 && typeof dash.ueberfaelligePruefungen === "number");
+  // Filter wirkt
+  t("QM-UI Dashboard-Filter Kommission", Q.dashboard(s, { mandantId: "m1", kommission: "GIBTSNICHT" }, QJ).pruefauftraegeGesamt === 0);
+  t("QM-UI Dashboard-Filter Fehlerart", Q.dashboard(s, { mandantId: "m1", fehlerart: "Oberflächenfehler" }, QJ).offeneAbweichungen === 0);
+  // Berichte
+  var rep = Q.bericht(s, "pruefstatus", { mandantId: "m1" });
+  t("QM-UI Prüfstatusbericht als CSV", rep && rep.rows.length >= 1 && rep.csv.indexOf("Prüfauftrag") >= 0);
+  t("QM-UI Abweichungsbericht enthält Herkunft", Q.bericht(s, "abweichungen", { mandantId: "m1" }).csv.indexOf("Herkunft") >= 0);
+  t("QM-UI Alle acht Berichtsarten liefern Daten", ["pruefstatus", "abweichungen", "nacharbeit", "ausschuss", "reklamationen", "lieferantenqualitaet", "pruefmittel", "qualitaetskosten"].every(function (a) { return !!Q.bericht(s, a, { mandantId: "m1" }); }));
+  t("QM-UI Unbekannter Bericht liefert null", Q.bericht(s, "phantasie", {}) === null);
+})();
+
+// Montage-/Kundenabnahme + Abnahmeprotokoll (keine qualifizierte Signatur)
+(function () {
+  var s = freshQM();
+  var r = Q.abnahmeNeu(s, { mandantId: "m1", auftragId: "aufA", kommission: "KA", kundeId: "k1", baustelle: "BV Test", anwesende: ["Kunde", "Monteur"], ausgefuehrteLeistungen: "Montage", maengel: ["Kratzer"], restarbeiten: ["Nachschleifen"], offenePunkte: ["Reinigung"], kundenkommentar: "ok", kenntnisnahme: true, kenntnisnahmeName: "Bauleitung", benutzer: "werkstatt" }, QJ);
+  t("QM-UI Abnahme angelegt", r.ok && r.neu === true && r.abnahme.kenntnisnahme === true);
+  t("QM-UI Abnahme ist KEINE qualifizierte Signatur", /keine qualifizierte/i.test(r.abnahme.signaturHinweis));
+  var r2 = Q.abnahmeNeu(s, { mandantId: "m1", auftragId: "aufA", datum: r.abnahme.datum, benutzer: "werkstatt" }, QJ);
+  t("QM-UI Abnahme idempotent (keine Dublette)", r2.ok && r2.neu === false && s.abnahmen.length === 1);
+  var pr = Q.abnahmeProtokoll(s, r.abnahme.id);
+  t("QM-UI Abnahmeprotokoll mit Dokumentkennung", pr && /^ABN-/.test(pr.dokumentkennung) && pr.maengel.length === 1 && pr.restarbeiten.length === 1);
+  t("QM-UI Abnahmeprotokoll ohne interne Kosten/Ursachen", JSON.stringify(pr).indexOf("kosten") < 0 && JSON.stringify(pr).indexOf("ursache") < 0);
+})();
+
+// Kundenportal: nur freigegebene Belege, interne Daten unsichtbar
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "aufP", kommission: "KP", pruefplanId: pp.id }, QJ).pruefauftrag;
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 1, wert: 100, pruefer: "werkstatt" }, QJ);
+  Q.ergebnisErfassen(s, pa.id, { schrittNummer: 2, wert: "io", pruefer: "werkstatt" }, QJ);
+  Q.pruefauftragAbschliessen(s, pa.id, { pruefer: "buero", rolle: "buero" }, QJ);
+  t("QM-UI Portal ohne Freigabe leer", Q.portalBelege(s, "k1").length === 0);
+  t("QM-UI Portalfreigabe ohne Recht abgelehnt", Q.portalFreigabe(s, { mandantId: "m1", typ: "pruefbericht", referenzId: pa.id, kundeId: "k1", benutzer: "w", rolle: "werkstatt" }, QJ).ok === false);
+  t("QM-UI Portalfreigabe ohne Benutzer abgelehnt", Q.portalFreigabe(s, { mandantId: "m1", typ: "pruefbericht", referenzId: pa.id, rolle: "admin" }, QJ).ok === false);
+  t("QM-UI Unbekannter Belegtyp abgelehnt", Q.portalFreigabe(s, { mandantId: "m1", typ: "interner_bericht", referenzId: pa.id, benutzer: "admin", rolle: "admin" }, QJ).ok === false);
+  var f = Q.portalFreigabe(s, { mandantId: "m1", typ: "pruefbericht", referenzId: pa.id, kundeId: "k1", benutzer: "admin", rolle: "admin" }, QJ);
+  t("QM-UI Freigegebener Beleg im Portal sichtbar", f.ok && Q.portalBelege(s, "k1").length === 1);
+  // Kundensicherer Prüfbericht: keine internen Felder
+  var pb = Q.pruefberichtKundensicher(s, pa.id);
+  var json = JSON.stringify(pb);
+  t("QM-UI Kundensicherer Prüfbericht enthält Ergebnisse", pb && pb.ergebnisse.length === 2 && pb.pruefplanVersion === 1);
+  t("QM-UI Kundensicherer Prüfbericht ohne Prüfer/Kosten/Ursachen", json.indexOf("pruefer") < 0 && json.indexOf("kosten") < 0 && json.indexOf("ursache") < 0 && json.indexOf("idempotenz") < 0);
+  // Widerruf
+  f.freigabe.sichtbar = false;
+  t("QM-UI Widerrufener Beleg nicht mehr sichtbar", Q.portalBelege(s, "k1").length === 0);
+  // Cross-Tenant: fremder Kunde sieht nichts
+  f.freigabe.sichtbar = true;
+  t("QM-UI Fremder Kunde sieht Beleg nicht", Q.portalBelege(s, "k2").length === 0);
+})();
+
+// Prüfmittel: Kalibrierung eintragen + Vorwarnung
+(function () {
+  var s = freshQM();
+  var alt = new Date(new Date(QJ).getTime() - 400 * 86400000).toISOString();
+  var pm = Q.pruefmittelNeu(s, { mandantId: "m1", nummer: "PM-K", bezeichnung: "Gerät", kalibrierintervallTage: 365, letzteKalibrierung: alt }, QJ);
+  Q.pruefmittelStatusAktualisieren(s, QJ);
+  t("QM-UI Prüfmittel vor Kalibrierung fällig", pm.status === Q.PM_STATUS.KALIBRIERUNG_FAELLIG);
+  t("QM-UI Kalibrierung ohne Recht abgelehnt", Q.kalibrierungNeu(s, pm.id, { benutzer: "w", rolle: "werkstatt" }, QJ).ok === false);
+  var k = Q.kalibrierungNeu(s, pm.id, { datum: QJ, intervallTage: 365, zertifikat: "ZERT-1", benutzer: "buero", rolle: "buero" }, QJ);
+  t("QM-UI Kalibrierung setzt Status zurück", k.ok && pm.status === Q.PM_STATUS.VERFUEGBAR && Q.pruefmittelGueltig(pm, QJ).gueltig === true);
+  t("QM-UI Kalibrierhistorie geführt", pm.kalibrierhistorie.length === 1 && pm.kalibrierhistorie[0].zertifikat === "ZERT-1");
+  // Vorwarnung 30 Tage
+  var bald = Q.pruefmittelNeu(s, { mandantId: "m1", nummer: "PM-B", bezeichnung: "Bald", kalibrierintervallTage: 365, letzteKalibrierung: new Date(new Date(QJ).getTime() - 350 * 86400000).toISOString() }, QJ);
+  t("QM-UI Vorwarnung bei bald ablaufender Kalibrierung", Q.kalibrierungBaldFaellig(bald, 30, QJ) === true);
+  t("QM-UI Keine Vorwarnung bei frischer Kalibrierung", Q.kalibrierungBaldFaellig(pm, 30, QJ) === false);
+})();
+
+// Lernhinweise: Korrelation, keine Schuldzuweisung, keine Personen
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  for (var i = 0; i < 4; i++) {
+    var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "aufL" + i, pruefplanId: pp.id }, QJ).pruefauftrag;
+    Q.abweichungNeu(s, { mandantId: "m1", auftragId: "aufL" + i, pruefauftragId: pa.id, fehlerart: "Maßabweichung", artikelId: "a1", maschineId: "m-saege", menge: 1, ersteller: "werkstatt", rolle: "werkstatt", idempotenzKey: "lh-" + i }, QJ);
+  }
+  var h = Q.lernhinweise(s, { mandantId: "m1" });
+  t("QM-UI Lernhinweise erzeugt", h.length >= 1);
+  t("QM-UI Jeder Hinweis hat Datenmenge/Zeitraum/Vertrauen/Grundlage", h.every(function (x) { return typeof x.datenmenge === "number" && x.vertrauen && x.grundlage && x.hinweis; }));
+  t("QM-UI Jeder Hinweis weist auf Korrelation statt Ursache hin", h.every(function (x) { return /Korrelation/i.test(x.hinweis); }));
+  t("QM-UI Häufigste Fehlerart je Produktgruppe erkannt", h.some(function (x) { return x.typ === "fehlerart_produktgruppe" && /Maßabweichung/.test(x.text); }));
+  t("QM-UI Wiederkehrende Abweichung bei Material erkannt", h.some(function (x) { return x.typ === "abweichung_material" && x.datenmenge === 4; }));
+  t("QM-UI Lernhinweise enthalten KEINE Mitarbeiterbewertung", JSON.stringify(h).indexOf("werkstatt") < 0 && JSON.stringify(h).indexOf("Mitarbeiter") < 0);
+})();
+
+// Mobile Offline-Prüfung über die Phase-14-Queue (Idempotenz/Konflikt/keine Freigabe)
+(function () {
+  var s = freshQM(); var pp = qmPlan(s);
+  var pa = Q.pruefauftragNeu(s, { mandantId: "m1", auftragId: "aufM", pruefplanId: pp.id }, QJ).pruefauftrag;
+  var daten = { aktion: "pruefergebnis", pruefauftragId: pa.id, pruefplanVersion: 1, schrittNummer: 1, wert: 100.9, pruefer: "werkstatt", idempotenzKey: "mob-1", mandantId: "m1" };
+  var r1 = Q.uebernehmeOffline(s, daten, QJ);
+  var r2 = Q.uebernehmeOffline(s, daten, QJ);
+  t("QM-UI Mobile Maßprüfung zentral bewertet", r1.ok && r1.bewertung.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB);
+  t("QM-UI Mobile Offline-Idempotenz", r2.neu === false && pa.ergebnisse.length === 1);
+  t("QM-UI Mobile Grenzwert exakt zählt als bestanden", (function () {
+    var g = Q.uebernehmeOffline(s, { aktion: "pruefergebnis", pruefauftragId: pa.id, schrittNummer: 2, wert: "io", idempotenzKey: "mob-2", mandantId: "m1" }, QJ);
+    var m = Q.uebernehmeOffline(s, { aktion: "pruefergebnis", pruefauftragId: pa.id, schrittNummer: 1, wert: 101, stichprobeIndex: 1, idempotenzKey: "mob-3", mandantId: "m1" }, QJ);
+    return m.ok && m.bewertung.ergebnis === Q.TOLERANZ_ERGEBNIS.INNERHALB && m.bewertung.aufGrenze === true;
+  })());
+  t("QM-UI Offline-Freigabe bleibt gesperrt", Q.uebernehmeOffline(s, { aktion: "freigabe", pruefauftragId: pa.id, mandantId: "m1" }, QJ).ok === false);
+  var kf = Q.uebernehmeOffline(s, { aktion: "pruefergebnis", pruefauftragId: pa.id, pruefplanVersion: 7, schrittNummer: 1, wert: 100, idempotenzKey: "mob-9", mandantId: "m1" }, QJ);
+  t("QM-UI Offline-Konflikt bei veralteter Prüfplanversion", kf.ok === false && /Prüfplanversion/.test(kf.grund) && s.konflikte.length >= 1);
+})();
+
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

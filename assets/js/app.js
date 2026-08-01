@@ -75,7 +75,8 @@
     konfigurator: function () { renderKonfigurator(); },
     kalkulationen: function () { renderKalkulationen(); },
     angebote: function () { renderAngebote(); },
-    lager: function () { if (w.Preisschmiede.LagerUI) w.Preisschmiede.LagerUI.render($("#page-lager .content")); }
+    lager: function () { if (w.Preisschmiede.LagerUI) w.Preisschmiede.LagerUI.render($("#page-lager .content")); },
+    qualitaet: function () { if (w.Preisschmiede.QualitaetUI) w.Preisschmiede.QualitaetUI.render($("#page-qualitaet .content")); }
   };
   function navTo(page) {
     // Rollen-Schutz: gesperrte Seiten auf die erste erlaubte umleiten

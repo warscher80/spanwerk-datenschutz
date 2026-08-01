@@ -3,6 +3,84 @@
 Format orientiert an „Keep a Changelog". Versionierung bezieht sich auf das
 Datenschema (`store.js` `version`).
 
+## Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen, Berichte & Dashboard  (Schema v13)
+
+### Hinzugefügt
+- **Desktop-Qualitäts-UI `assets/js/qualitaet-ui.js`** (neue Seite „Qualität",
+  15 Register) auf demselben Phase-16A-Kern – **keine zweite Prüf-, Toleranz-,
+  Sperr- oder Reklamationslogik**.
+- **Qualitätsdashboard** aus echten Daten mit 11 Filtern (Zeitraum, Kommission,
+  Produktgruppe, Maschine, Material, Charge, Prüfstatus, Fehlerart,
+  Verantwortlicher …); **bewusst keine Mitarbeiter-Ranglisten**.
+- **Prüfplanverwaltung**: Übersicht, Editor mit allen Phase-16A-Schrittfeldern,
+  neue Version, Vorschau, interne Freigabe, aktivieren/deaktivieren,
+  **Versionsvergleich**; bestehende Auftrags-Snapshots bleiben unverändert.
+- **Prüfungsassistent**: Schrittnavigation, Soll- und Toleranzgrenzen, Istwert,
+  Prüfmittelwahl, Foto/Dokument, Notiz, **zentrale Bewertung im Kern**,
+  Zwischenstand und geschützter Abschluss. Ergebnisanzeige immer mit Symbol
+  **und** Text (Status nie nur über Farbe).
+- **Abweichungsmanagement** mit betroffenen Materialien/Chargen/Reservierungen/
+  Aufträgen/Kommissionen/Prüfungen, Ursachenanalyse (Kandidaten vs. bestätigte
+  Ursache) und **Audit-Verlauf**; **Sperransicht** mit erlaubten Folgeaktionen,
+  Entsperrung nur mit Pflichtgrund und Bestätigung.
+- **Nacharbeit → Nachprüfung** aus demselben Prüfplan-Snapshot; **Ausschuss** mit
+  **Auswirkungsvorschau** (Lagerbestand, Fertigungsmenge, Nachkalkulation,
+  Ersatzbedarf); **Sonderfreigabe** mit ausdrücklichem Normhinweis.
+- **Kunden- und Lieferantenreklamationen** (Chargensperre direkt über Qualitäts-
+  und Lagerkern), **Maßnahmen-Kanban** über alle 8 Status inkl. Überfälligkeit
+  und Wirksamkeitsprüfung, **Prüfmittelverwaltung** (Kalibrierung eintragen,
+  Vorwarnung 30 Tage, betroffene frühere Prüfungen, Sperren).
+- **Montage-/Kundenabnahme** inkl. Abnahmeprotokoll (`abnahmeNeu`,
+  `abnahmeProtokoll`) – ausdrücklich **keine qualifizierte elektronische
+  Signatur**.
+- **Qualitäts-PDFs**: Prüfprotokoll, Abweichungs-, Nacharbeits- und
+  Reklamationsbericht, Abnahmeprotokoll, Prüfmittelübersicht sowie alle acht
+  Berichtsarten – A4, Kopf-/Fußzeile, Firma, Kunde, Projekt/Kommission, Auftrag,
+  **Prüfplanversion**, Ergebnisse, Abweichungen, Fotonachweise, Freigaben,
+  **Dokumentkennung**, Seitenangabe.
+- **Qualitätsberichte** (Prüfstatus, Abweichungen, Nacharbeit, Ausschuss,
+  Reklamationen, Lieferantenqualität, Prüfmittel, Qualitätskosten) als CSV oder
+  druckbare Ansicht/PDF.
+- **Lernhinweise** mit Datenmenge, Zeitraum, Vertrauenswert, Grundlage und
+  ausdrücklichem **Korrelationshinweis**; keine Personenbewertung.
+- **Mobile Prüfoberfläche** in der PWA (`mobil.html`, `mobil-app.js`):
+  Prüfauftrag öffnen, Sollwert/Grenzen, großes Istwertfeld bzw. XL-Buttons
+  i. O./n. i. O., Prüfmittel, Kamera, Abweichung, Montageabnahme – ohne Preis-
+  oder Finanzdaten, Hoch- und Querformat.
+- **Offline-Prüfung** über die bestehende Phase-14-Queue: `offline-app.js`
+  übergibt `typ:"qualitaet"`-Datensätze beim Sync an den Qualitätskern, der
+  **Berechtigung und Prüfplanversion erneut prüft, die Toleranz zentral neu
+  berechnet**, Idempotenz anwendet, doppelte Abweichungen verhindert, Konflikte
+  sichtbar speichert und **offline niemals freigibt**.
+- **Kundenportal**: nur ausdrücklich freigegebene Belege (Abnahmeprotokoll,
+  Prüfbericht) und eigener Reklamationsstatus; `pruefberichtKundensicher()` gibt
+  keine internen Ursachen, Mitarbeiterdaten, Qualitätskosten oder Bewertungen
+  aus. Freigaben widerrufbar (protokolliert).
+- Engine-Erweiterungen in `qualitaet.js`: `dashboard`, `ueberfaelligePruefungen`,
+  `bericht`, `lernhinweise`, `abnahmeNeu/abnahmeProtokoll`, `portalFreigabe/
+  portalBelege/pruefberichtKundensicher`, `kalibrierungNeu/kalibrierungBaldFaellig`.
+  Neue Arrays `qualAbnahmen`, `qualPortalFreigaben` (Migration additiv).
+  `qualitaet-ui.js` in `index.html` und `sw.js`-SHELL (v6); `qualitaet.js`
+  zusätzlich in `portal.html`.
+
+### Behoben
+- Prüfplan-Editor verlor die Kopffelder beim Öffnen des Prüfschritt-Dialogs
+  (Eingaben werden jetzt vor jedem Neuaufbau übernommen).
+- Druck-Button der PDF-Ansicht überdeckte die Kopfzeile (jetzt unten rechts).
+
+### Tests / Prüfungen
+- Referenztests **481/481** (40 neue); **Desktop-E2E 39/39**; **Mobile-E2E
+  18/18** (Offline-Messwert, exactly-once 17→18/18→18, zentrale Bewertung beim
+  Sync, Konflikt bei veralteter Prüfplanversion, keine Offline-Freigabe, mobile
+  Abnahme). Bestehende E2E unverändert grün (14B 22/22, 15B 14/14 + 13/13).
+  `node --check`, Secret-Scan, Produktions-Build grün.
+
+### Ehrlich / Grenzen
+- **Keine Normkonformität, keine Zertifizierung**; keine Norm im Code – nur
+  konfigurierbare Freitext-Referenzen. **Keine automatische Schuldzuweisung**,
+  keine automatische Sonderfreigabe, keine automatische Reklamationsbewertung,
+  **keine qualifizierte elektronische Signatur**. Keine zweite Qualitätsengine.
+
 ## Phase 16A – Qualitätsmanagement-Kern, Prüfpläne & Abweichungen  (Schema v13)
 
 ### Hinzugefügt

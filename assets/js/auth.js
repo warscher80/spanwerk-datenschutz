@@ -18,8 +18,8 @@
   // Welche Navigationsbereiche darf welche Rolle sehen?
   // (dashboard = Start, auftraege = Aufträge/Zeiterfassung)
   var RECHTE = {
-    admin:     ["dashboard", "kalkulation", "konfigurator", "kalkulationen", "angebote", "auftraege", "rechnungen", "planung", "dokumente", "kundenprojekte", "material", "lager", "lernen", "stammdaten", "system", "benutzer", "produktgruppen", "textbausteine"],
-    buero:     ["dashboard", "kalkulation", "konfigurator", "kalkulationen", "angebote", "auftraege", "rechnungen", "planung", "dokumente", "kundenprojekte", "material", "lager", "lernen", "stammdaten", "textbausteine"],
+    admin:     ["dashboard", "kalkulation", "konfigurator", "kalkulationen", "angebote", "auftraege", "rechnungen", "planung", "dokumente", "kundenprojekte", "material", "lager", "qualitaet", "lernen", "stammdaten", "system", "benutzer", "produktgruppen", "textbausteine"],
+    buero:     ["dashboard", "kalkulation", "konfigurator", "kalkulationen", "angebote", "auftraege", "rechnungen", "planung", "dokumente", "kundenprojekte", "material", "lager", "qualitaet", "lernen", "stammdaten", "textbausteine"],
     werkstatt: ["dashboard", "auftraege", "planung"]
   };
 

@@ -224,6 +224,106 @@ Prüfauftrag **bestanden** (inkl. Messwert exakt auf dem Grenzwert), Prüfauftra
 bewertet"); **gültiges Prüfmittel** und **Prüfmittel mit abgelaufener
 Kalibrierung**; Korrekturmaßnahme; Qualitätskosten getrennt nach Kostenart.
 
+## Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen, Berichte, Dashboard
+
+Aufbauend auf **demselben Kern** (keine zweite Prüf-, Toleranz-, Sperr- oder
+Reklamationslogik) ergänzt Phase 16B die Oberflächen. Jede Bewertung und jede
+Buchung läuft über `Qualitaet.*`; Bestände weiterhin über den Lagerkern.
+
+### Desktop – Seite „Qualität" (`assets/js/qualitaet-ui.js`, Nav `qualitaet`)
+
+15 Register: **Dashboard** (offene/überfällige Prüfungen, bestanden/nicht
+bestanden, offene Abweichungen, gesperrte Bauteile/Chargen, offene Nacharbeiten/
+Nachprüfungen, Ausschussquote, Nacharbeitsstunden, Qualitätskosten, Kunden-/
+Lieferantenreklamationen, fällige Prüfmittel, offene Korrekturmaßnahmen; Filter
+nach Zeitraum/Kommission/Produktgruppe/Maschine/Material/Charge/Prüfstatus/
+Fehlerart/Verantwortlichem; **bewusst keine Mitarbeiter-Ranglisten**),
+**Prüfpläne** (Übersicht, Editor mit allen Phase-16A-Schrittfeldern, neue
+Version, Vorschau, Freigabe, aktiv/inaktiv, **Versionsvergleich**),
+**Prüfaufträge** (Liste + Prüfer zuweisen + Protokoll), **Prüfungsassistent**
+(Schrittnavigation, Soll/Toleranzgrenzen, Istwert, Prüfmittel, Foto/Dokument,
+Notiz, **zentrale Bewertung**, Zwischenstand, Abschluss), **Abweichungen**
+(Detail mit betroffenen Vorgängen, Ursachenanalyse, Audit-Verlauf, Aktionen),
+**Sperren** (Grund, Risiko, betroffene Vorgänge, erlaubte nächste Aktionen,
+Entsperren mit Pflichtgrund + Bestätigung), **Nacharbeit** (inkl. Nachprüfung
+aus demselben Snapshot, getrennte Kosten), **Ausschuss** (mit
+**Auswirkungsvorschau** auf Lagerbestand, Fertigungsmenge, Nachkalkulation und
+Ersatzbedarf), **Reklamationen**, **Lieferanten** (Chargensperre direkt),
+**Maßnahmen** (Kanban über alle 8 Status, Überfälligkeit, Wirksamkeitsprüfung),
+**Prüfmittel** (Kalibrierung eintragen, Vorwarnung, betroffene frühere
+Prüfungen, Sperren), **Abnahmen**, **Portalfreigaben**, **Berichte**,
+**Lernhinweise**.
+
+### Prüfungsassistent
+
+Zeigt je Schritt Sollwert und berechnete Grenzen, nimmt den Istwert auf und
+lässt **den Kern** bewerten. Das Ergebnis wird eindeutig als **bestanden /
+außerhalb Toleranz / Nachprüfung erforderlich / nicht bewertbar** angezeigt –
+immer mit Symbol **und** Text (Status nie nur über Farbe). Gesperrte oder
+abgelaufene Prüfmittel sind nur mit Sonderberechtigung („Prüfmittel verwalten")
+wählbar.
+
+### Mobile Prüfoberfläche (PWA)
+
+Neuer Bereich „Prüfung" in `mobil.html`/`mobil-app.js`: Prüfauftrag suchen/
+öffnen, Sollwert und Grenzen sehen, Istwert mit großem Zahlenfeld erfassen
+(bzw. i. O./n. i. O. als XL-Buttons), Prüfmittel wählen, **Foto aufnehmen**,
+Abweichung erfassen und **Montageabnahme** vorbereiten. Keine Preis- oder
+Finanzdaten. Alle Erfassungen laufen über die **bestehende Phase-14-Queue**
+(`Offline.ereignis({typ:"qualitaet"})`); `offline-app.js` übergibt sie beim Sync
+an den Qualitätskern, der **Berechtigung und Prüfplanversion erneut prüft**, die
+**Toleranz zentral neu berechnet**, Idempotenz anwendet, doppelte Abweichungen
+verhindert, Konflikte sichtbar speichert und **offline niemals freigibt**.
+
+### Qualitäts-PDFs
+
+Prüfprotokoll, Abweichungsbericht, Nacharbeitsbericht, Reklamationsbericht,
+Abnahmeprotokoll, Prüfmittelübersicht und alle acht Berichtsarten als druckbare
+A4-Ansicht (Firma, Kunde, Projekt/Kommission, Auftrag, **Prüfplanversion**,
+Ergebnisse, Abweichungen, Fotonachweise, Freigaben, **Dokumentkennung**,
+Kopf-/Fußzeile mit Seitenangabe). Jedes Dokument trägt den Hinweis, dass **keine
+Normkonformität und keine Zertifizierung** bestätigt wird.
+
+### Kundenportal
+
+Im Portal erscheinen **ausschließlich ausdrücklich freigegebene** Belege
+(Abnahmeprotokoll, Prüfbericht, Materialzertifikat, freigegebene Zeichnung) und
+der eigene **Reklamationsstatus**. `pruefberichtKundensicher()` gibt nur
+Schritt, Soll-, Istwert, Einheit und Ergebnis aus – **keine** internen
+Ursachenanalysen, Mitarbeiterdaten, Qualitätskosten, internen Bewertungen oder
+nicht freigegebenen Lieferanteninformationen. Freigaben sind jederzeit
+widerrufbar (protokolliert).
+
+### Lernhinweise
+
+Statistische Auffälligkeiten (häufigste Fehlerart je Produktgruppe, erhöhte
+Nacharbeit bei einer Maschine, wiederkehrende Abweichung bei einem Material,
+häufig unterschätzte Qualitätszeit). Jeder Hinweis nennt **Datenmenge,
+Zeitraum, Vertrauenswert und Grundlage** und weist ausdrücklich auf
+**Korrelation statt gesicherter Ursache** hin. Es findet **keine Bewertung
+einzelner Mitarbeiter** statt.
+
+### Phase-16B-Tests
+
+Referenztests **481/481** (40 neue): Dashboard inkl. Filter, acht Berichtsarten,
+Abnahme + Protokoll + Idempotenz, Portalfreigabe/Widerruf/Rechte,
+kundensicherer Prüfbericht ohne interne Felder, Kalibrierung + Vorwarnung,
+Lernhinweise (Korrelation, ohne Personen), mobile Offline-Prüfung mit
+Idempotenz/Konflikt/keiner Freigabe.
+**Desktop-E2E (Chromium) 39/39**: alle 15 Register, Dashboard, Prüfplaneditor +
+Prüfschritt + Versionsvergleich, Prüfungsassistent mit zentraler Bewertung,
+Abweichung → Detail (betroffene Vorgänge/Ursachen/Audit), Sperren, Nacharbeit →
+Nachprüfung, Prüfmittel + Kalibrierung, Reklamationsbewertung nur mit
+Begründung, Lieferantenreklamation mit Chargensperre, Maßnahmen-Kanban,
+Abnahmen, **PDFs (Prüfprotokoll, Abnahmeprotokoll) mit Normhinweis**, Berichte,
+Rollen (Werkstatt ohne Qualitäts-Nav, Büro ohne Prüfplanfreigabe), Tablet- und
+Smartphone-Ansicht ohne horizontalen Scroll.
+**Mobile-E2E (Chromium, http/localhost) 18/18**: mobile Prüfansicht ohne
+Preisdaten, Sollwert/Grenzen, Prüfmittel, Kamera, **Offline-Messwert in der
+Queue**, Offline-Abweichung, Reload-Persistenz, **exactly-once** (17→18, 18→18),
+**zentrale Toleranzbewertung beim Sync**, Offline-Konflikt bei veralteter
+Prüfplanversion, **Offline-Freigabe abgelehnt**, mobile Montageabnahme.
+
 ## Tests
 
 `tests/referenz.test.js` – **441/441** (95 neue QM-Tests): Prüfplanversionierung,

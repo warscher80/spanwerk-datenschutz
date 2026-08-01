@@ -10,13 +10,13 @@
 (function (w, d) {
   "use strict";
   var P = w.Preisschmiede || {};
-  var Store = P.Store, Auth = P.Auth, Offline = P.Offline, Sync = P.Sync, Mandant = P.Mandant, Lager = P.Lager;
+  var Store = P.Store, Auth = P.Auth, Offline = P.Offline, Sync = P.Sync, Mandant = P.Mandant, Lager = P.Lager, Qual = P.Qualitaet;
 
   var NAV = [
     { key: "heute", ic: "🏠", label: "Heute" }, { key: "auftraege", ic: "📁", label: "Aufträge" },
     { key: "zeit", ic: "⏱️", label: "Zeit" }, { key: "maschine", ic: "🛠️", label: "Maschine" },
     { key: "material", ic: "🧱", label: "Material" }, { key: "montage", ic: "🚚", label: "Montage" },
-    { key: "lager", ic: "📦", label: "Lager" },
+    { key: "lager", ic: "📦", label: "Lager" }, { key: "pruefung", ic: "🔬", label: "Prüfung" },
     { key: "dokumente", ic: "📎", label: "Doku" }, { key: "sync", ic: "🔄", label: "Sync" }, { key: "profil", ic: "👤", label: "Profil" }
   ];
   var STILLSTAND = ["Material fehlt", "Werkzeugwechsel", "Störung", "Programmierung", "Qualitätsproblem", "Freigabe fehlt", "sonstiges"];
@@ -120,6 +120,7 @@
       case "material": inner = viewMaterial(); break;
       case "montage": inner = viewMontage(); break;
       case "lager": inner = viewLager(); break;
+      case "pruefung": inner = viewPruefung(); break;
       case "dokumente": inner = viewDokumente(); break;
       case "sync": inner = viewSync(); break;
       case "konflikt": inner = viewKonflikt(); break;
@@ -478,6 +479,186 @@
   }
 
   // ============================================================
+  //  PRÜFUNG (mobil) – nutzt den Phase-16A-Qualitätskern und die
+  //  Phase-14-Offline-Queue. KEINE eigene Toleranzlogik: die
+  //  Bewertung erfolgt zentral (offline vorläufig, beim Sync neu).
+  //  Keine Preis-/Finanzdaten. Keine automatische Freigabe offline.
+  // ============================================================
+  var QS = { paId: null, index: 0 };
+  function qualState() {
+    var dbx = db();
+    return { stammdaten: (dbx.settings.qualitaet || {}).stammdaten || (Qual ? Qual.standardStammdaten() : {}),
+      pruefplaene: dbx.qualPruefplaene || [], pruefauftraege: dbx.qualPruefauftraege || [], abweichungen: dbx.qualAbweichungen || [],
+      sperren: dbx.qualSperren || [], nacharbeiten: dbx.qualNacharbeiten || [], ausschuss: dbx.qualAusschuss || [],
+      sonderfreigaben: dbx.qualSonderfreigaben || [], massnahmen: dbx.qualMassnahmen || [], reklamationen: dbx.qualReklamationen || [],
+      lieferantenReklamationen: dbx.qualLieferantenReklamationen || [], pruefmittel: dbx.qualPruefmittel || [],
+      qualitaetskosten: dbx.qualKosten || [], audit: dbx.qualAudit || [], wareneingangspruefungen: dbx.qualWareneingangspruefungen || [],
+      konflikte: dbx.qualKonflikte || [], abnahmen: dbx.qualAbnahmen || [], portalFreigaben: dbx.qualPortalFreigaben || [] };
+  }
+  function qdarf(recht) { return Qual && Qual.darf(rolle(), recht); }
+  function bucheQM(daten) {
+    var r = Offline.ereignis({ typ: "qualitaet", auftragId: daten.auftragId || null, payload: daten }, null);
+    if (!r.ok) { toast("Nicht möglich: " + r.grund, "err"); return null; }
+    if (online()) Offline.synchronisiere();
+    return r;
+  }
+  function viewPruefung() {
+    if (!Qual) return '<div class="m-card"><div class="m-muted">Qualitätskern nicht geladen.</div></div>';
+    var s = qualState();
+    if (QS.paId) return viewPruefLauf(s);
+    var offen = s.pruefauftraege.filter(function (pa) { return [Qual.PA_STATUS.ABGESCHLOSSEN].indexOf(pa.status) < 0; });
+    var suche = (S.suche || "").toLowerCase();
+    if (suche) offen = offen.filter(function (pa) { return ((pa.nummer || "") + " " + (pa.auftragId || "") + " " + (pa.kommission || "") + " " + (pa.bauteil || "")).toLowerCase().indexOf(suche) >= 0; });
+    var z = Offline.zusammenfassung();
+    var html = '<div class="m-card"><h3>Prüfung</h3><div class="m-muted">Ergebnisse werden offline gespeichert und exakt einmal synchronisiert. Die Bewertung erfolgt zentral – <strong>offline erfolgt keine Freigabe</strong>.</div>' +
+      '<div class="m-grid" style="margin-top:10px"><button class="m-btn accent" data-qm="scan">📷 Auftrag scannen/suchen</button>' +
+      (qdarf("pruefungDurchfuehren") ? '<button class="m-btn" data-qm="abnahme">📋 Montageabnahme</button>' : "") + "</div></div>";
+    html += '<div class="m-card"><div class="m-kv"><span>Verbindung</span><span><span class="m-dot ' + (z.online ? "ok" : "warn") + '">' + (z.online ? "online" : "offline") + "</span></span></div>" +
+      '<div class="m-kv"><span>Wartend / Konflikte</span><span>' + z.wartend + " / " + z.konflikte + '</span></div><button class="m-btn" data-nav-go="sync">Synchronisierung öffnen</button></div>';
+    html += '<div class="m-card"><h3>Offene Prüfaufträge</h3>' + (offen.length ? offen.map(function (pa) {
+      var a = auftrag(pa.auftragId);
+      var erf = (pa.ergebnisse || []).length; var ges = (pa.pruefplanSnapshot.schritte || []).length;
+      return '<div class="m-item" data-qmopen="' + esc(pa.id) + '"><div class="m-item-main"><div class="m-item-t">' + esc(pa.nummer) + " · " + esc(pa.bauteil || auftragNr(a)) + '</div>' +
+        '<div class="m-item-s">' + esc(pa.kommission || "") + " · Plan v" + pa.pruefplanVersion + " · " + erf + "/" + ges + ' Schritte</div></div><span class="m-tag ' + (pa.status === Qual.PA_STATUS.NACHPRUEFUNG ? "warn" : "wait") + '">' + esc(pa.status) + "</span></div>";
+    }).join("") : '<div class="m-muted">Keine offenen Prüfaufträge.</div>') + "</div>";
+    return html;
+  }
+  function viewPruefLauf(s) {
+    var pa = Qual.pruefauftragById(s, QS.paId);
+    if (!pa) { QS.paId = null; return viewPruefung(); }
+    var schritte = pa.pruefplanSnapshot.schritte || [];
+    var idx = Math.max(0, Math.min(QS.index, schritte.length - 1));
+    var x = schritte[idx];
+    var letzte = (pa.ergebnisse || []).filter(function (e) { return e.schrittNummer === x.nummer; }).slice(-1)[0];
+    var soll = x.sollwert != null ? fmtNum(x.sollwert) + " " + esc(x.einheit || "") : "—";
+    var grenzen = "—";
+    if (x.obereToleranz != null || x.untereToleranz != null) {
+      var g = Qual.toleranzGrenzen(x.sollwert, x.obereToleranz, x.untereToleranz);
+      grenzen = fmtNum(g.unten) + " … " + fmtNum(g.oben) + " " + esc(x.einheit || "");
+    }
+    var fortschritt = schritte.map(function (sx, i) {
+      var e = (pa.ergebnisse || []).filter(function (z) { return z.schrittNummer === sx.nummer; })[0];
+      var mark = e ? (e.ergebnis === Qual.TOLERANZ_ERGEBNIS.INNERHALB ? "✓" : e.ergebnis === Qual.TOLERANZ_ERGEBNIS.AUSSERHALB ? "✕" : "!") : "○";
+      return '<button class="m-tag ' + (i === idx ? "wait" : "") + '" data-qmgoto="' + i + '" style="padding:6px 10px;font-size:13px">' + mark + " " + sx.nummer + "</button>";
+    }).join(" ");
+    var typ = x.merkmalTyp;
+    var eingabe;
+    if (["mass", "zahl", "winkel", "gewicht", "stueckzahl"].indexOf(typ) >= 0) {
+      eingabe = '<label class="m-field"><span>Istwert' + (x.einheit ? " (" + esc(x.einheit) + ")" : "") + '</span><input id="qw-wert" type="number" inputmode="decimal" step="any" value="' + (letzte ? letzte.wert : "") + '" style="font-size:30px;font-weight:800;text-align:center;padding:18px"></label>';
+    } else if (["jaNein", "bestanden", "sicht", "bestaetigung"].indexOf(typ) >= 0) {
+      eingabe = '<div class="m-grid"><button class="m-btn ok xl" data-qmio="io">✓ in Ordnung</button><button class="m-btn err xl" data-qmio="nio">✕ nicht i. O.</button></div><input id="qw-wert" type="hidden" value="' + esc(letzte ? letzte.wert : "") + '">';
+    } else {
+      eingabe = '<label class="m-field"><span>Wert</span><input id="qw-wert" value="' + esc(letzte ? letzte.wert : "") + '"></label>';
+    }
+    var pmOpt = '<option value="">— kein Prüfmittel —</option>' + s.pruefmittel.map(function (p) {
+      var g = Qual.pruefmittelGueltig(p, nowISO());
+      var sel = (letzte && letzte.pruefmittelId === p.id) || (!letzte && x.pruefmittelId === p.id);
+      return '<option value="' + esc(p.id) + '"' + (sel ? " selected" : "") + (!g.gueltig ? " disabled" : "") + ">" + esc(p.nummer + " " + p.bezeichnung) + (g.gueltig ? "" : " ⚠ ungültig") + "</option>";
+    }).join("");
+    var a = auftrag(pa.auftragId);
+    var html = '<div class="m-card"><div class="m-kv"><span>Prüfauftrag</span><span>' + esc(pa.nummer) + '</span></div>' +
+      '<div class="m-kv"><span>Auftrag / Kommission</span><span>' + esc(auftragNr(a)) + " · " + esc(pa.kommission || "—") + '</span></div>' +
+      '<div class="m-kv"><span>Prüfplan</span><span>v' + pa.pruefplanVersion + '</span></div>' +
+      '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">' + fortschritt + '</div>' +
+      '<button class="m-btn ghost" data-qm="zurueck" style="margin-top:10px">‹ Prüfaufträge</button></div>';
+    html += '<div class="m-card"><h3>Schritt ' + x.nummer + ": " + esc(x.bezeichnung) + "</h3>" +
+      '<div class="m-muted">' + esc(x.pruefzeitpunkt) + (x.methode ? " · " + esc(x.methode) : "") + "</div>" +
+      '<div class="m-kv"><span>Sollwert</span><span><strong>' + soll + '</strong></span></div>' +
+      '<div class="m-kv"><span>Grenzen</span><span><strong>' + grenzen + '</strong></span></div>' + eingabe +
+      '<label class="m-field"><span>Prüfmittel</span><select id="qw-pm">' + pmOpt + "</select></label>" +
+      '<label class="m-field"><span>Foto' + (x.fotoErforderlich ? " (erforderlich)" : "") + '</span><input type="file" id="qw-foto" accept="image/*" capture="environment"></label>' +
+      '<label class="m-field"><span>Notiz</span><input id="qw-notiz"></label>' +
+      '<button class="m-btn accent xl" data-qm="save">Ergebnis speichern</button>' +
+      '<div class="m-grid" style="margin-top:8px">' + (idx > 0 ? '<button class="m-btn" data-qm="prev">‹ Zurück</button>' : "<span></span>") +
+      (idx < schritte.length - 1 ? '<button class="m-btn" data-qm="next">Weiter ›</button>' : "<span></span>") + "</div>" +
+      '<button class="m-btn warn" data-qm="abw" style="margin-top:8px">⚠️ Abweichung erfassen</button></div>';
+    if (letzte) {
+      var art = letzte.ergebnis === Qual.TOLERANZ_ERGEBNIS.INNERHALB ? "ok" : letzte.ergebnis === Qual.TOLERANZ_ERGEBNIS.AUSSERHALB ? "err" : "warn";
+      var sym = letzte.ergebnis === Qual.TOLERANZ_ERGEBNIS.INNERHALB ? "✓" : letzte.ergebnis === Qual.TOLERANZ_ERGEBNIS.AUSSERHALB ? "✕" : "!";
+      html += '<div class="m-card"><h3>Letztes Ergebnis</h3><div class="m-timer"><div class="big" style="font-size:34px">' + sym + " " + esc(letzte.ergebnis) + "</div>" +
+        '<div class="m-muted">Istwert ' + esc(String(letzte.wert)) + (letzte.abweichung != null ? " · Abweichung " + fmtNum(letzte.abweichung) : "") + "</div></div>" +
+        (letzte.offline ? '<div class="m-note">Offline erfasst – die Bewertung wird bei der Synchronisation zentral neu berechnet.</div>' : "") + "</div>";
+    }
+    return html;
+  }
+  function qmErgebnisSpeichern() {
+    var s = qualState(); var pa = Qual.pruefauftragById(s, QS.paId);
+    var schritte = pa.pruefplanSnapshot.schritte || [];
+    var x = schritte[QS.index];
+    var el = d.getElementById("qw-wert");
+    var wert = el ? el.value : "";
+    if (wert === "") { toast("Bitte einen Wert erfassen.", "err"); return; }
+    var fotoEl = d.getElementById("qw-foto");
+    var fotoRef = fotoEl && fotoEl.files && fotoEl.files[0] ? ("foto-" + fotoEl.files[0].name) : null;
+    if (x.fotoErforderlich && !fotoRef) { if (!w.confirm("Für diesen Schritt ist ein Foto erforderlich. Ohne Foto bleibt der Nachweis offen. Trotzdem speichern?")) return; }
+    // Ergebnis geht über die Phase-14-Queue; die zentrale Bewertung erfolgt beim Sync.
+    bucheQM({
+      aktion: "pruefergebnis", pruefauftragId: pa.id, pruefplanVersion: pa.pruefplanVersion,
+      schrittNummer: x.nummer, wert: wert, pruefer: benutzer(),
+      pruefmittelId: d.getElementById("qw-pm").value || null, fotoRef: fotoRef,
+      notiz: d.getElementById("qw-notiz").value || null, auftragId: pa.auftragId,
+      idempotenzKey: Qual.idempotenzKey("mob", pa.id, x.nummer, nowISO())
+    });
+    toast("Ergebnis gespeichert (zentral bewertet)."); render();
+  }
+  function qmAbweichungDialog() {
+    var s = qualState(); var pa = Qual.pruefauftragById(s, QS.paId);
+    var faOpt = (s.stammdaten.fehlerarten || []).map(function (x) { return "<option>" + esc(x) + "</option>"; }).join("");
+    var body = '<label class="m-field"><span>Fehlerart</span><select id="qa-fa">' + faOpt + "</select></label>" +
+      '<label class="m-field"><span>Beschreibung</span><textarea id="qa-beschr" rows="3"></textarea></label>' +
+      numField("qa-menge", "Menge", 1) +
+      '<label class="m-field"><span>Foto</span><input type="file" id="qa-foto" accept="image/*" capture="environment"></label>';
+    modal("Abweichung erfassen", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Erfassen", cls: "warn", fn: function () {
+        var beschr = (d.getElementById("qa-beschr").value || "").trim();
+        if (!beschr) { toast("Beschreibung angeben.", "err"); return false; }
+        var f = d.getElementById("qa-foto");
+        bucheQM({
+          aktion: "abweichung", auftragId: pa ? pa.auftragId : null, kommission: pa ? pa.kommission : null,
+          bauteil: pa ? pa.bauteil : null, arbeitsgang: pa ? pa.arbeitsgang : null, pruefauftragId: pa ? pa.id : null,
+          beschreibung: beschr, fehlerart: d.getElementById("qa-fa").value, menge: parseFloat(d.getElementById("qa-menge").value) || 1,
+          ersteller: benutzer(), rolle: rolle(),
+          fotoRefs: f && f.files && f.files[0] ? ["foto-" + f.files[0].name] : [],
+          idempotenzKey: Qual.idempotenzKey("mobabw", (pa && pa.id) || "", beschr, nowISO())
+        });
+        toast("Abweichung offline erfasst."); render(); return true;
+      } }
+    ]);
+    wireNum(d.getElementById("m-modal"));
+  }
+  function qmAbnahmeDialog() {
+    var a = auftrag(aktAuftragId());
+    var body = '<div class="m-note">Bestätigung der Kenntnisnahme – <strong>keine qualifizierte elektronische Signatur</strong>.</div>' +
+      '<label class="m-field"><span>Auftrag/Kommission</span><input id="qn-auf" value="' + esc(a ? (a.kommission || auftragNr(a)) : "") + '"></label>' +
+      '<label class="m-field"><span>Baustelle</span><input id="qn-bs" value="' + esc((a && a.kommission) || "") + '"></label>' +
+      '<label class="m-field"><span>Anwesende (Komma)</span><input id="qn-anw"></label>' +
+      '<label class="m-field"><span>Ausgeführte Leistungen</span><textarea id="qn-leist" rows="2"></textarea></label>' +
+      '<label class="m-field"><span>Mängel (Komma)</span><input id="qn-maengel"></label>' +
+      '<label class="m-field"><span>Restarbeiten (Komma)</span><input id="qn-rest"></label>' +
+      '<label class="m-field"><span>Kundenkommentar</span><textarea id="qn-komm" rows="2"></textarea></label>' +
+      '<label class="m-field"><span>Name Kenntnisnahme</span><input id="qn-name"></label>' +
+      '<label class="m-field"><span>Foto</span><input type="file" id="qn-foto" accept="image/*" capture="environment"></label>';
+    modal("Montageabnahme", body, [
+      { label: "Abbrechen", cls: "ghost" },
+      { label: "Speichern (offline)", cls: "accent", fn: function () {
+        var split = function (id) { var v = d.getElementById(id).value; return v ? v.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : []; };
+        var f = d.getElementById("qn-foto");
+        bucheQM({
+          aktion: "abnahme", auftragId: a ? a.id : null, kommission: a ? a.kommission : d.getElementById("qn-auf").value,
+          kundeId: a ? a.kundeId : null, baustelle: d.getElementById("qn-bs").value, datum: nowISO(),
+          anwesende: split("qn-anw"), ausgefuehrteLeistungen: d.getElementById("qn-leist").value,
+          maengel: split("qn-maengel"), restarbeiten: split("qn-rest"), kundenkommentar: d.getElementById("qn-komm").value,
+          kenntnisnahme: !!d.getElementById("qn-name").value, kenntnisnahmeName: d.getElementById("qn-name").value,
+          fotoRefs: f && f.files && f.files[0] ? ["foto-" + f.files[0].name] : [], benutzer: benutzer(),
+          idempotenzKey: Qual.idempotenzKey("mobabn", (a && a.id) || "", nowISO())
+        });
+        toast("Abnahme offline vorbereitet."); render(); return true;
+      } }
+    ]);
+  }
+
+  // ============================================================
   //  DOKUMENTE (freigegebene Zeichnungen offline verfügbar)
   // ============================================================
   var _offlineDocs = {};
@@ -627,6 +808,18 @@
   // ---- Verdrahtung je View ----
   function wireView() {
     root().querySelectorAll("[data-nav-go]").forEach(function (b) { b.onclick = function () { S.view = b.getAttribute("data-nav-go"); render(); }; });
+    root().querySelectorAll("[data-qmopen]").forEach(function (b) { b.onclick = function () { QS.paId = b.getAttribute("data-qmopen"); QS.index = 0; render(); }; });
+    root().querySelectorAll("[data-qmgoto]").forEach(function (b) { b.onclick = function () { QS.index = parseInt(b.getAttribute("data-qmgoto"), 10) || 0; render(); }; });
+    root().querySelectorAll("[data-qmio]").forEach(function (b) { b.onclick = function () { var el = d.getElementById("qw-wert"); if (el) el.value = b.getAttribute("data-qmio"); qmErgebnisSpeichern(); }; });
+    root().querySelectorAll("[data-qm]").forEach(function (b) { b.onclick = function () { var a = b.getAttribute("data-qm"); resetInaktiv();
+      if (a === "save") qmErgebnisSpeichern();
+      else if (a === "prev") { QS.index = Math.max(0, QS.index - 1); render(); }
+      else if (a === "next") { QS.index = QS.index + 1; render(); }
+      else if (a === "zurueck") { QS.paId = null; render(); }
+      else if (a === "abw") qmAbweichungDialog();
+      else if (a === "abnahme") qmAbnahmeDialog();
+      else if (a === "scan") { S.view = "auftraege"; render(); toast("Auftrag wählen, dann Prüfung öffnen."); }
+    }; });
     root().querySelectorAll("[data-lager]").forEach(function (b) { b.onclick = function () { var a = b.getAttribute("data-lager"); resetInaktiv();
       if (a === "scan") lagerScanDialog();
       else if (a === "entnahme") lagerEntnahmeDialog();

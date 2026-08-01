@@ -4,7 +4,47 @@ Kalkulations- und Betriebsverwaltungs-App für Metallbaubetriebe.
 Läuft vollständig **offline** (localStorage), als Web-App, Android-App (Capacitor)
 und Windows-Desktop (Electron). Alle Daten bleiben lokal auf dem Gerät.
 
-Letzte Aktualisierung: **Phase 16A – Qualitätsmanagement-Kern, Prüfpläne &
+Letzte Aktualisierung: **Phase 16B – Qualitäts-UI, mobile Prüfungen, Abnahmen,
+Berichte & Qualitätsdashboard** umgesetzt. Vollständige QM-Oberfläche
+(`assets/js/qualitaet-ui.js`, neue Seite „Qualität", 15 Register) auf
+**demselben Phase-16A-Kern** – keine zweite Prüf-, Toleranz-, Sperr- oder
+Reklamationslogik. Enthalten: **Qualitätsdashboard** aus echten Daten (offene/
+überfällige Prüfungen, bestanden/nicht bestanden, offene Abweichungen, gesperrte
+Bauteile/Chargen, Nacharbeiten/Nachprüfungen, Ausschussquote,
+Nacharbeitsstunden, Qualitätskosten, Kunden-/Lieferantenreklamationen, fällige
+Prüfmittel, Korrekturmaßnahmen) mit 11 Filtern und **ohne Mitarbeiter-
+Ranglisten**; Prüfplanverwaltung (Editor mit allen Schrittfeldern, Versionierung,
+Vorschau, Freigabe, **Versionsvergleich**; Auftrags-Snapshots bleiben
+unverändert); **Prüfungsassistent** (Soll/Toleranzgrenzen, Istwert, Prüfmittel,
+Foto/Dokument, **zentrale Bewertung**, eindeutige Anzeige bestanden/außerhalb/
+Nachprüfung/nicht bewertbar mit Symbol *und* Text); Abweichungsmanagement mit
+betroffenen Vorgängen, Ursachenanalyse und Audit-Verlauf; Sperransicht mit
+erlaubten Folgeaktionen und Entsperrung nur mit Grund + Bestätigung; Nacharbeit
+→ **Nachprüfung aus demselben Snapshot**; Ausschuss mit **Auswirkungsvorschau**
+(Lager, Fertigungsmenge, Nachkalkulation, Ersatzbedarf); Sonderfreigabe; Kunden-
+und Lieferantenreklamationen (Chargensperre direkt); Maßnahmen-Kanban;
+Prüfmittelverwaltung mit Kalibrierung, Vorwarnung und betroffenen früheren
+Prüfungen; Montage-/Kundenabnahme; **Qualitäts-PDFs** (Prüfprotokoll,
+Abweichungs-, Nacharbeits-, Reklamationsbericht, Abnahmeprotokoll,
+Prüfmittelübersicht, 8 Berichtsarten) mit Firma/Kunde/Projekt/Kommission/
+Auftrag/Prüfplanversion/Dokumentkennung/Seitenangabe; **Lernhinweise** mit
+Datenmenge, Zeitraum, Vertrauenswert und Korrelationshinweis.
+**Mobile Prüfoberfläche** in der PWA (Prüfauftrag öffnen, Sollwert/Grenzen,
+großes Istwertfeld, Prüfmittel, Kamera, Abweichung, Montageabnahme) bucht über
+die **bestehende Phase-14-Queue**; beim Sync werden **Berechtigung und
+Prüfplanversion erneut geprüft, die Toleranz zentral neu berechnet**, Idempotenz
+angewandt, doppelte Abweichungen verhindert, Konflikte sichtbar gespeichert und
+**offline niemals freigegeben**. **Kundenportal** zeigt nur ausdrücklich
+freigegebene Belege (Abnahmeprotokoll, Prüfbericht) und den eigenen
+Reklamationsstatus – ohne interne Ursachen, Mitarbeiterdaten, Qualitätskosten
+oder Bewertungen. Schema **v13** (zusätzlich `qualAbnahmen`,
+`qualPortalFreigaben`). Tests **481/481**, **Desktop-E2E 39/39**, **Mobile-E2E
+18/18**; bestehende E2E unverändert grün (14B 22/22, 15B 14/14 + 13/13).
+**Ehrlich: keine Normkonformität, keine Zertifizierung, keine Norm im Code
+(nur konfigurierbare Freitext-Referenzen), keine automatische Schuldzuweisung,
+keine qualifizierte elektronische Signatur.** Doku: QUALITY.md.
+
+Vorher: **Phase 16A – Qualitätsmanagement-Kern, Prüfpläne &
 Abweichungen** umgesetzt. Reiner, testbarer QM-Kern (`assets/js/qualitaet.js`,
 `window.Preisschmiede.Qualitaet`) **ohne UI**: konfigurierbare Qualitäts-
 stammdaten, **versionierte Prüfpläne** mit unveränderbarem **Prüfplan-Snapshot**
@@ -233,6 +273,7 @@ KNOWN_LIMITATIONS.md).
 | Offline-Speicher | `assets/js/offlinedb.js`, `assets/js/offline-app.js` | IndexedDB/localStorage, SW-Registrierung, Erfassung, Synchronisation |
 | PWA | `sw.js`, `manifest.webmanifest` | App-Shell-Cache, Offline-Start, Update-Erkennung, Installierbarkeit |
 | Mobile Werkstatt/Montage | `mobil.html`, `assets/css/mobil.css`, `assets/js/mobil-app.js` | Touch-Oberfläche über dem Offline-Kern: Timer/Maschine/Material/Stückzahl/Montage/Fotos, Sync-/Konfliktansicht, Terminalmodus, keine Preisdaten |
+| Qualitäts-UI (Desktop) | `assets/js/qualitaet-ui.js` | Seite „Qualität": Dashboard, Prüfpläne/Editor/Versionsvergleich, Prüfungsassistent, Abweichungen, Sperren, Nacharbeit, Ausschuss, Reklamationen, Maßnahmen, Prüfmittel, Abnahmen, Portalfreigaben, Berichte, Lernhinweise, PDFs |
 | Qualitätsmanagement | `assets/js/qualitaet.js` | Prüfpläne/Versionierung/Snapshot, zentrale Toleranzprüfung, Prüfaufträge, Wareneingangsprüfung, Abweichung/Sperre/Nacharbeit/Nachprüfung, Ausschuss, Sonderfreigabe, Reklamationen, Qualitätskosten, Prüfmittel, Audit, Offline |
 | Lager-UI (Desktop) | `assets/js/lager-ui.js` | Seite „Lager": Dashboard, Bestand, Struktur, Journal+Gegenbuchung, Wareneingangs-Assistent, Reservierung, Entnahme, Rückgabe, Umlagerung, Reststücke, Chargen/Rückverfolgung, Inventur, Bestellungen, QR/Etiketten, Berichte |
 | Lagerkern | `assets/js/lager.js` | Lagerstruktur, Artikel, Bewegungsjournal (unveränderbar), Bestand (verfügbar/reserviert/gesperrt/QS/bestellt), Wareneingang, Chargen + Rückverfolgung, Reservierung, Entnahme/Rückgabe, Reststücke, Bestellvorschlag, Bewertung, Idempotenz, Rechte |
