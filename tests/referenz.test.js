@@ -1793,5 +1793,35 @@ function qmPlan(s, extra) {
   });
 })();
 
+// =============================================================
+//  AUTOMATISCHE AKTUALISIERUNG (PWA)
+// =============================================================
+// Die Pages-Veröffentlichung stempelt die Cache-Version des Service Workers
+// mit der Build-Nummer. Bliebe die Konstante gleich, wäre sw.js nach einem
+// Deploy byte-identisch – der Browser erkennt dann kein Update, der
+// Aktualisieren-Hinweis erscheint nie und die neue Fassung käme erst still
+// beim übernächsten Laden. Diese Tests sichern die Form ab, auf die sich der
+// Workflow verlässt.
+(function () {
+  var ROOT = path.join(__dirname, "..");
+  var sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  var pages = fs.readFileSync(path.join(ROOT, ".github", "workflows", "pages.yml"), "utf8");
+  var offline = fs.readFileSync(path.join(DIR, "offline-app.js"), "utf8");
+  var appSrc2 = fs.readFileSync(path.join(DIR, "app.js"), "utf8");
+
+  // Genau diese Zeilenform ersetzt der Workflow per sed.
+  t("SW Cache-Konstante hat die vom Deploy erwartete Form", /^var CACHE = "[^"]+";$/m.test(sw));
+  t("SW Cache-Konstante kommt nur einmal vor", (sw.match(/^var CACHE = /gm) || []).length === 1);
+  t("Deploy stempelt die Cache-Version", /sed -i .*var CACHE/.test(pages));
+  t("Deploy prüft das Stempeln und bricht sonst ab", /grep -q "preisschmiede-shell-b\$\{BUILD\}"/.test(pages) && /exit 1/.test(pages));
+  t("Deploy erzeugt build-info.js", /window\.PSBUILD/.test(pages) && /_site\/assets\/build-info\.js/.test(pages));
+
+  // Kein automatisches skipWaiting: ein Update darf eine laufende Zeiterfassung
+  // nicht mitten im Speichern abschießen.
+  t("SW aktiviert Updates nur auf Zuruf", /SKIP_WAITING/.test(sw) && !/self\.skipWaiting\(\)\s*;?\s*\}\)/.test(sw.split("message")[0]));
+  t("PWA fragt von sich aus nach Updates", /reg\.update\(\)/.test(offline) && /visibilitychange/.test(offline));
+  t("Datei-Update nur in der Paket-App", /function istPaketApp/.test(appSrc2) && /if \(!istPaketApp\(\)\) return;/.test(appSrc2));
+})();
+
 console.log("\nReferenz-/Invarianten-/Migrationstests: " + pass + "/" + (pass + fail) + " bestanden");
 if (fail) { console.log("FEHLGESCHLAGEN:"); fails.forEach(function (f) { console.log("  - " + f); }); process.exit(1); }

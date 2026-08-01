@@ -5744,6 +5744,13 @@
 
   // Am PC (Electron) das Windows-Setup anbieten, am Handy die Android-APK.
   function istDesktop() { return !!(w.electronAPI && w.electronAPI.isDesktop); }
+  // Nur eine installierte Paket-App (Electron/Capacitor) laedt Updates als
+  // Datei nach. Im Browser – und damit auch in der als PWA installierten
+  // Version auf iOS – aktualisiert sich die App ueber den Service Worker
+  // selbst (offline-app.js). Dort waere ein APK-Download schlicht falsch.
+  function istPaketApp() {
+    return istDesktop() || !!(w.Capacitor && typeof w.Capacitor.isNativePlatform === "function" && w.Capacitor.isNativePlatform());
+  }
   function updateDownloadURL() { return istDesktop() ? UPDATE_EXE_URL : UPDATE_APK_URL; }
   function updateDownloadLabel() { return istDesktop() ? "Windows-Update laden" : "Jetzt aktualisieren"; }
 
@@ -5760,6 +5767,9 @@
   function pruefeUpdate() {
     // Eigene Version wird vom eingebetteten build-info.js gesetzt (window.PSBUILD).
     // Fehlt sie (z. B. Web-Vorschau), wird der Check still übersprungen.
+    // Im Browser/als PWA ebenfalls überspringen: dort erledigt der Service
+    // Worker das Update, ein Datei-Download waere der falsche Weg.
+    if (!istPaketApp()) return;
     var lokal = w.PSBUILD;
     if (!lokal || typeof lokal.build !== "number" || !w.fetch) return;
     var lokalV = versionTupel(lokal.version) || [1, 0, lokal.build];

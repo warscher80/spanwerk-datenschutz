@@ -198,6 +198,21 @@
           var neu = reg.installing; if (!neu) return;
           neu.addEventListener("statechange", function () { if (neu.state === "installed" && w.navigator.serviceWorker.controller) { _updateBereit = true; zeigeUpdateHinweis(reg); } });
         });
+        // Von sich aus prüft der Browser nur bei einer Navigation auf eine neue
+        // Version. Eine als App installierte PWA wird auf iOS aber tagelang
+        // nicht neu geladen – ohne aktives Nachfragen bliebe ein Update dort
+        // bis zum nächsten Kaltstart unbemerkt. Darum: beim Zurückholen in den
+        // Vordergrund und zusätzlich regelmäßig nachsehen, gedrosselt auf
+        // höchstens einmal alle 15 Minuten.
+        var letzteFrage = 0;
+        function frageNachUpdate() {
+          var jetzt = Date.now();
+          if (jetzt - letzteFrage < 15 * 60 * 1000) return;
+          letzteFrage = jetzt;
+          try { reg.update(); } catch (e) {}
+        }
+        d.addEventListener("visibilitychange", function () { if (!d.hidden) frageNachUpdate(); });
+        setInterval(frageNachUpdate, 30 * 60 * 1000);
       }).catch(function () {});
       var reloaded = false;
       w.navigator.serviceWorker.addEventListener("controllerchange", function () { if (reloaded) return; reloaded = true; w.location.reload(); });
