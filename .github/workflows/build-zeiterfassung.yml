@@ -1,0 +1,80 @@
+name: Zeiterfassung APK bauen
+
+# Baut die signierte Release-APK der Zeiterfassungs-App.
+# Manuell ausloesbar (Actions-Tab -> "Run workflow") oder automatisch beim
+# Pushen eines Tags wie  zeiterfassung-v1.0  -> erstellt ein GitHub-Release mit
+# der APK und aktualisiert zeiterfassung-version.json (damit Updates erscheinen).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'zeiterfassung-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zeiterfassung-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Release-APK bauen
+        run: gradle assembleRelease --no-daemon
+
+      - name: Version auslesen & APK benennen
+        id: ver
+        run: |
+          VN=$(grep 'versionName' app/build.gradle | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VC=$(grep 'versionCode' app/build.gradle | head -1 | grep -oE '[0-9]+')
+          echo "name=$VN" >> "$GITHUB_OUTPUT"
+          echo "code=$VC" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/release/app-release.apk "Zeiterfassung-$VN.apk"
+          ls -la "Zeiterfassung-$VN.apk"
+
+      - name: APK als Build-Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zeiterfassung-${{ steps.ver.outputs.name }}
+          path: zeiterfassung-android/Zeiterfassung-${{ steps.ver.outputs.name }}.apk
+
+      - name: APK + version.json auf main veroeffentlichen
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: .
+        run: |
+          VN="${{ steps.ver.outputs.name }}"
+          VC="${{ steps.ver.outputs.code }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          cp "zeiterfassung-android/Zeiterfassung-$VN.apk" "Zeiterfassung-$VN.apk"
+          cat > zeiterfassung-version.json <<EOF
+          {
+            "versionCode": $VC,
+            "versionName": "$VN",
+            "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/raw/main/Zeiterfassung-${VN}.apk",
+            "notes": "Neue Version $VN."
+          }
+          EOF
+          git add "Zeiterfassung-$VN.apk" zeiterfassung-version.json
+          git commit -m "Zeiterfassung $VN veroeffentlichen" || echo "nichts zu committen"
+          git push origin main
