@@ -169,6 +169,68 @@ class PredictionStore {
     }
   }
 
+  // ---- Vorberechnetes Modell ----
+  //
+  // Ein frisch installiertes Gerät müsste sonst je Liga zwei Saisons
+  // nachlernen – bei der Bundesliga 68 Spieltage. Stattdessen lädt es ein
+  // von der CI berechnetes Modell und lernt nur noch das Neuere dazu.
+  //
+  // Das ist möglich, weil das Modell keine persönlichen Daten enthält,
+  // sondern eine reine Berechnung aus öffentlichen Ergebnissen ist: dieselben
+  // Spiele in derselben Reihenfolge ergeben zwingend dieselben Werte. Genau
+  // dafür sortiert der Lerner die Spieltage vor dem Einspeisen.
+  static const _modellStandKey = 'footy_modell_stand_v1';
+
+  DateTime? get modellStand {
+    final s = _prefs?.getString(_modellStandKey);
+    return s == null ? null : DateTime.tryParse(s);
+  }
+
+  /// Nur für den Generator: der aktuelle Lernstand als einfache Listen.
+  List<String> get gelernteRunden => _learnedRounds.toList()..sort();
+  List<int> get verarbeiteteSpiele => _ingested.toList()..sort();
+
+  /// Ein vorberechnetes Modell übernehmen.
+  ///
+  /// Übernommen wird **vollständig** – Ratings, gelernte Spieltage und
+  /// verarbeitete Spiele –, nie teilweise. Ein halb übernommenes Modell wäre
+  /// aus zwei Rechenwegen zusammengesetzt und damit weder das eine noch das
+  /// andere. Lokal bereits Gelerntes, das der Stand nicht kennt, wird beim
+  /// nächsten Lauf ohnehin wieder mitgelernt.
+  ///
+  /// Die Treffsicherheits-Zähler bleiben unangetastet: sie messen, was dieses
+  /// Gerät miterlebt hat, und sind keine Eigenschaft des Modells.
+  ///
+  /// Gibt true zurück, wenn übernommen wurde.
+  Future<bool> spieleModellEin(Map<String, dynamic> daten) async {
+    if (daten['format'] != 1) return false;
+    final erstellt = DateTime.tryParse('${daten['erstellt']}');
+    if (erstellt == null) return false;
+
+    // Nicht erneut einspielen, wenn dieser Stand schon drin ist.
+    final bisher = modellStand;
+    if (bisher != null && !erstellt.isAfter(bisher)) return false;
+
+    final roh = daten['elo'];
+    if (roh is! Map || roh.isEmpty) return false;
+
+    elo
+      ..clear()
+      ..addAll(roh.map((k, v) => MapEntry('$k', (v as num).toDouble())));
+    _learnedRounds
+      ..clear()
+      ..addAll(((daten['gelernteRunden'] as List?) ?? const []).map((e) => '$e'));
+    _ingested
+      ..clear()
+      ..addAll(((daten['verarbeiteteSpiele'] as List?) ?? const [])
+          .map((e) => e is int ? e : int.tryParse('$e') ?? -1)
+          .where((e) => e >= 0));
+
+    await saveLearning();
+    await _prefs?.setString(_modellStandKey, erstellt.toIso8601String());
+    return true;
+  }
+
   // ---- Lern-Status ----
   bool isIngested(int matchId) => _ingested.contains(matchId);
   void markIngested(int matchId) => _ingested.add(matchId);

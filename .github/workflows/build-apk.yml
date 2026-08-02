@@ -98,6 +98,23 @@ jobs:
       # angemeldet und nur als ZIP herunterladen - am Handy unbrauchbar.
       # Ein Release-Asset hat eine feste, direkt anklickbare Adresse:
       # https://github.com/warscher80/spanwerk-datenschutz/releases/download/kickprophet-latest/KickProphet.apk
+      # Vorberechnetes Modell. Ein frisch installiertes Geraet muesste sonst je
+      # Liga zwei Saisons nachlernen - bei der Bundesliga 68 Spieltage. Mit der
+      # fertigen Datei ist es ein einziger Download, und alle Geraete starten
+      # vom identischen Stand.
+      #
+      # Der Generator nutzt bewusst dieselbe Lernlogik wie die App (deshalb
+      # laeuft er im Flutter-Test-Umfeld), sonst waere "ueberall derselbe
+      # Stand" eine Behauptung statt einer Eigenschaft.
+      #
+      # continue-on-error: eine Drosselung der Datenquelle darf den Build nicht
+      # kippen - dann bleibt eben das Modell des letzten Laufs bestehen.
+      - name: Vorberechnetes Modell erzeugen
+        if: github.ref_name == 'claude/football-betting-apk-m9fb1c'
+        continue-on-error: true
+        timeout-minutes: 40
+        run: flutter test test/werkzeuge/modell_erzeugen.dart
+
       - name: APK als Release bereitstellen
         if: github.ref_name == 'claude/football-betting-apk-m9fb1c'
         env:
@@ -106,12 +123,21 @@ jobs:
           set -e
           VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           cp build/app/outputs/flutter-apk/app-release.apk KickProphet.apk
+          # Modell nur mitliefern, wenn es erzeugt werden konnte.
+          DATEIEN="KickProphet.apk"
+          if [ -s build/modell.json ]; then
+            cp build/modell.json modell.json
+            DATEIEN="$DATEIEN modell.json"
+            echo "Modell: $(wc -c < modell.json) B"
+          else
+            echo "::warning::Kein modell.json erzeugt - das Release behaelt das bisherige."
+          fi
           if gh release view kickprophet-latest >/dev/null 2>&1; then
-            gh release upload kickprophet-latest KickProphet.apk --clobber
+            gh release upload kickprophet-latest $DATEIEN --clobber
             gh release edit kickprophet-latest \
               --notes "KickProphet ${VERSION} · Build ${{ github.run_number }} · Commit ${GITHUB_SHA::7}"
           else
-            gh release create kickprophet-latest KickProphet.apk \
+            gh release create kickprophet-latest $DATEIEN \
               --title "KickProphet – aktueller Build" \
               --notes "KickProphet ${VERSION} · Build ${{ github.run_number }} · Commit ${GITHUB_SHA::7}"
           fi

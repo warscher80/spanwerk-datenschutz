@@ -127,6 +127,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Gespeicherte Daten unlesbar, starte mit leerem Stand: $e');
     }
+    // Vorberechnetes Modell holen, bevor gelernt wird – sonst liefe der
+    // Lerner los und würde gleich darauf überschrieben. Schlägt es fehl,
+    // lernt die App wie bisher selbst; es ist eine Abkürzung, keine
+    // Voraussetzung.
+    try {
+      final fertig = await ladeFertigmodell();
+      if (fertig != null && await _store.spieleModellEin(fertig)) {
+        debugPrint('Vorberechnetes Modell übernommen: ${_store.elo.length} Teams');
+      }
+    } catch (e) {
+      debugPrint('Vorberechnetes Modell nicht verfügbar: $e');
+    }
+
     try {
       await Notifier.init();
       if (_store.remindersEnabled) await Notifier.requestPermission();

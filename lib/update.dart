@@ -25,6 +25,25 @@ const _releaseUrl = 'https://api.github.com/repos/$_repo/releases/tags/$_tag';
 const kApkUrl =
     'https://github.com/$_repo/releases/download/$_tag/KickProphet.apk';
 
+/// Vorberechnetes Modell, von der CI bei jedem Build neu erzeugt.
+const kModellUrl =
+    'https://github.com/$_repo/releases/download/$_tag/modell.json';
+
+/// Lädt das vorberechnete Modell. Gibt null zurück, wenn es nicht erreichbar
+/// oder unbrauchbar ist – die App lernt dann wie bisher selbst.
+Future<Map<String, dynamic>?> ladeFertigmodell() async {
+  try {
+    final res = await http
+        .get(Uri.parse(kModellUrl))
+        .timeout(const Duration(seconds: 20));
+    if (res.statusCode != 200) return null;
+    final j = jsonDecode(res.body);
+    return j is Map<String, dynamic> ? j : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 class UpdateInfo {
   final int versionCode;
   final String versionName;
