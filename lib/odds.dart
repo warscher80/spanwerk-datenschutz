@@ -268,27 +268,65 @@ class SeasonLearner {
     required bool evaluate,
     void Function(int done, int total)? onProgress,
   }) async {
+    // Bereits vollständig gelernte Spieltage kosten keine Anfrage.
+    final offen = <int>[];
     for (var r = 1; r <= league.maxRound; r++) {
-      if (_cancelled) return;
-      final key = '${league.id}|$season|$r';
-      if (store.roundLearned(key)) {
+      if (store.roundLearned('${league.id}|$season|$r')) {
         onProgress?.call(base + r, total);
-        continue;
+      } else {
+        offen.add(r);
       }
-      try {
-        final matches = await Api.round(league.id, season, r);
+    }
+    if (offen.isEmpty || _cancelled) return;
+
+    // WICHTIG: Laden darf gleichzeitig laufen, LERNEN nicht.
+    //
+    // Das Elo-Modell ist reihenfolgeabhängig – jedes Ergebnis verschiebt die
+    // Ratings, mit denen das nächste bewertet wird. Würden die Spieltage in
+    // der Reihenfolge ihres Eintreffens verarbeitet, käme je nach Netzlaune
+    // ein anderes Modell heraus, und die gemessene Treffsicherheit wäre
+    // nicht mehr reproduzierbar. Deshalb: in Wellen holen, danach streng
+    // nach Spieltag sortiert einspeisen.
+    //
+    // Vorher lief jede Runde einzeln mit 120 ms Pause dazwischen. Beim ersten
+    // Öffnen einer Liga sind das zwei Saisons à maxRound Spieltage – bei der
+    // Bundesliga 68 Anfragen nacheinander.
+    const wellenGroesse = 3;
+    for (var i = 0; i < offen.length; i += wellenGroesse) {
+      if (_cancelled) return;
+      final welle = offen.skip(i).take(wellenGroesse).toList();
+      final geladen = await Api.inWellen<({int runde, List<FootyMatch>? spiele})>(
+        welle
+            .map((r) => () async {
+                  try {
+                    return (runde: r, spiele: await Api.round(league.id, season, r));
+                  } catch (_) {
+                    // Einzelne Runde übersprungen – beim nächsten Lauf erneut
+                    // versucht. null heißt Fehlschlag, nicht „keine Spiele".
+                    return (runde: r, spiele: null);
+                  }
+                })
+            .toList(),
+        grenze: wellenGroesse,
+      );
+      if (_cancelled) return;
+
+      geladen.sort((a, b) => a.runde.compareTo(b.runde));
+      for (final g in geladen) {
+        final matches = g.spiele;
+        if (matches == null) {
+          onProgress?.call(base + g.runde, total);
+          continue;
+        }
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
           if (ingestMatch(store, model, m, evaluate: evaluate)) _changed = true;
           if (!m.finished) allFinished = false;
         }
         // Nur abgeschlossene Spieltage „fertig" markieren -> später kein Refetch.
-        if (allFinished) store.markRoundLearned(key);
-      } catch (_) {
-        // einzelne Runde übersprungen – beim nächsten Lauf erneut versucht
+        if (allFinished) store.markRoundLearned('${league.id}|$season|${g.runde}');
+        onProgress?.call(base + g.runde, total);
       }
-      onProgress?.call(base + r, total);
-      await Future.delayed(const Duration(milliseconds: 120)); // Server schonen
     }
   }
 }
