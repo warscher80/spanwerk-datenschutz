@@ -319,34 +319,11 @@ class Api {
   static String seasonFor(League league, DateTime now) =>
       league.seasonOverride ?? currentSeason(now);
 
-  /// Findet die tatsächlich vorhandenen Turnier-Runden (Gruppen + K.o.),
-  /// indem die möglichen Codes durchprobiert werden. So erscheinen K.o.-Runden
-  /// automatisch, sobald sie eingetragen sind.
-  static Future<List<CupStage>> discoverCupRounds(
-      String leagueId, String season, List<int> candidates) async {
-    final stages = <CupStage>[];
-    for (final c in candidates) {
-      try {
-        final ms = await round(leagueId, season, c);
-        if (ms.isNotEmpty) stages.add(CupStage(c, ms.length));
-      } catch (_) {
-        // Runde übersprungen
-      }
-      await Future.delayed(const Duration(milliseconds: 150));
-    }
-    // Fallback: sollte die Erkennung leer bleiben (z. B. Drosselung), die
-    // Gruppen-Spieltage 1–3 direkt erzwingen, damit Turniere nie leer wirken.
-    if (stages.isEmpty) {
-      for (final c in const [1, 2, 3]) {
-        try {
-          final ms = await round(leagueId, season, c);
-          if (ms.isNotEmpty) stages.add(CupStage(c, ms.length));
-        } catch (_) {}
-        await Future.delayed(const Duration(milliseconds: 200));
-      }
-    }
-    return stages;
-  }
+  // discoverCupRounds ist entfallen: die Erkennung der vorhandenen Runden
+  // erledigt jetzt allCupMatches selbst und meldet das Ergebnis über
+  // zuletztGefundeneRunden, damit der Aufrufer es dauerhaft merken kann.
+  // Die alte Funktion hatte seit dem Umbau auf "alle Runden auf einmal laden"
+  // keinen Aufrufer mehr.
 
   /// Nächster anstehender Spieltag (für „immer aktueller Stand"); null außerhalb der Saison.
   static Future<int?> nextRound(String leagueId) async {
@@ -573,22 +550,42 @@ class Api {
 
   /// Alle Spiele eines Turniers: probiert direkt alle möglichen Runden-Codes
   /// und nimmt jede Runde mit Spielen. Robust – ohne separate Erkennungsstufe.
+  /// Welche Runden-Codes beim letzten [allCupMatches] Spiele geliefert haben.
+  /// Der Aufrufer sichert das lokal, damit der nächste Start nur noch diese
+  /// Codes abfragt statt alle möglichen.
+  static List<int> zuletztGefundeneRunden = const [];
+
   static Future<List<FootyMatch>> allCupMatches(
-      String leagueId, String season, List<int> candidates) async {
-    final ergebnisse = await inWellen<List<FootyMatch>>(
-      candidates
+      String leagueId, String season, List<int> candidates,
+      {List<int> bekannteRunden = const []}) async {
+    // Sind die tatsächlich vorhandenen Runden bekannt, nur diese laden. Bei der
+    // WM sind von elf möglichen Codes meist nur drei bis vier belegt - der Rest
+    // kostet bei jedem Start eine Anfrage und liefert nichts.
+    final zuLaden = bekannteRunden.isNotEmpty
+        ? candidates.where(bekannteRunden.contains).toList()
+        : candidates;
+
+    final ergebnisse = await inWellen<({int code, List<FootyMatch> spiele})>(
+      zuLaden
           .map((c) => () async {
                 try {
-                  return await round(leagueId, season, c);
+                  return (code: c, spiele: await round(leagueId, season, c));
                 } catch (_) {
-                  return const <FootyMatch>[]; // einzelne Runde übersprungen
+                  return (code: c, spiele: const <FootyMatch>[]);
                 }
               })
           .toList(),
     );
+
+    // Merken, welche Codes wirklich Spiele hatten – der Aufrufer sichert das.
+    zuletztGefundeneRunden = [
+      for (final e in ergebnisse)
+        if (e.spiele.isNotEmpty) e.code
+    ];
+
     final byId = <int, FootyMatch>{};
-    for (final liste in ergebnisse) {
-      for (final m in liste) {
+    for (final e in ergebnisse) {
+      for (final m in e.spiele) {
         byId[m.id] = m;
       }
     }

@@ -214,8 +214,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<List<FootyMatch>> _fetchMatches() {
     if (_currentMode) return Api.currentMatches(kLeagues, DateTime.now());
-    if (_isCup) return Api.allCupMatches(_league.id, _season, _league.cupCandidates);
+    if (_isCup) return _fetchCup();
     return Api.round(_league.id, _season, _day);
+  }
+
+  /// Turnier laden und dabei lernen, welche Runden es überhaupt gibt.
+  ///
+  /// Beim ersten Mal werden alle möglichen Codes durchprobiert (bei der WM
+  /// elf). Danach genügen die tatsächlich belegten – meist drei bis vier.
+  /// In Abständen wird trotzdem wieder vollständig gesucht, weil im Verlauf
+  /// eines Turniers neue K.o.-Runden dazukommen.
+  Future<List<FootyMatch>> _fetchCup() async {
+    final vollstaendig = _store.cupSucheFaellig(_league.id, _season);
+    final bekannt = vollstaendig ? const <int>[] : _store.cupRunden(_league.id, _season);
+    final m = await Api.allCupMatches(
+      _league.id,
+      _season,
+      _league.cupCandidates,
+      bekannteRunden: bekannt,
+    );
+    final gefunden = Api.zuletztGefundeneRunden;
+    if (gefunden.isNotEmpty) {
+      await _store.merkeCupRunden(_league.id, _season, gefunden,
+          warVollstaendig: vollstaendig);
+    }
+    return m;
   }
 
   DateTime? _letzteUpdatePruefung;
@@ -365,6 +388,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() {
       _matches = [];
       if (_isCup) {
+        // clamp(0, -1) würde werfen. Derzeit unerreichbar, weil _canPrev und
+        // _canNext im Turnier-Modus beide false sind - aber eine Falle für
+        // den, der die Rundennavigation wieder einschaltet.
+        if (_stages.isEmpty) return;
         _stageIdx = (_stageIdx + delta).clamp(0, _stages.length - 1);
       } else {
         _day = (_day + delta).clamp(1, _league.maxRound);

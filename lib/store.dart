@@ -17,6 +17,14 @@ class PredictionStore {
 
   static const _resultsKey = 'footy_results_v1';
   static const _evalKey = 'footy_modeleval_v1';
+  static const _cupKey = 'footy_cup_runden_v1';
+
+  // Welche Runden-Codes es in einem Turnier wirklich gibt, samt Zeitpunkt der
+  // letzten vollständigen Suche. Ohne dieses Wissen probiert die App bei jedem
+  // Start alle möglichen Codes durch – bei der WM elf Stück, von denen die
+  // meisten nichts liefern.
+  final Map<String, List<int>> _cupRunden = {};
+  final Map<String, DateTime> _cupGeprueft = {};
 
   final Map<int, Prediction> _cache = {};
 
@@ -49,6 +57,7 @@ class PredictionStore {
       });
     }
     _loadLearning();
+    _loadCup();
     // Bei neuer Modell-Version Lerndaten einmalig zurücksetzen, damit die
     // verbesserten Start-Stärken (z. B. Nationalteams) wirken.
     const modelVer = 2;
@@ -84,6 +93,79 @@ class PredictionStore {
       final m = (jsonDecode(ev) as Map).cast<String, dynamic>();
       modelHits = (m['hits'] as num?)?.toInt() ?? 0;
       modelTotal = (m['total'] as num?)?.toInt() ?? 0;
+    }
+  }
+
+  // ---- Bekannte Turnier-Runden ----
+  //
+  // Ein Turnier hat viele mögliche Runden-Codes, aber nur wenige existieren
+  // tatsächlich. Sind sie einmal bekannt, genügt es, genau diese zu laden.
+  // Weil im Verlauf eines Turniers neue K.o.-Runden dazukommen, wird in
+  // Abständen trotzdem wieder vollständig gesucht.
+  static String _cupSchluessel(String leagueId, String season) => '$leagueId|$season';
+
+  List<int> cupRunden(String leagueId, String season) =>
+      List<int>.from(_cupRunden[_cupSchluessel(leagueId, season)] ?? const []);
+
+  /// Ist eine vollständige Suche nach neuen Runden fällig?
+  bool cupSucheFaellig(
+    String leagueId,
+    String season, {
+    Duration abstand = const Duration(hours: 6),
+    DateTime? now,
+  }) {
+    final k = _cupSchluessel(leagueId, season);
+    if ((_cupRunden[k] ?? const []).isEmpty) return true; // noch nichts bekannt
+    final zuletzt = _cupGeprueft[k];
+    if (zuletzt == null) return true;
+    return (now ?? DateTime.now()).difference(zuletzt) >= abstand;
+  }
+
+  Future<void> merkeCupRunden(
+    String leagueId,
+    String season,
+    List<int> codes, {
+    required bool warVollstaendig,
+    DateTime? now,
+  }) async {
+    final k = _cupSchluessel(leagueId, season);
+    if (codes.isNotEmpty) _cupRunden[k] = List<int>.from(codes);
+    // Nur eine vollständige Suche darf den Zeitstempel setzen – sonst
+    // verschiebt jeder schnelle Start die nächste Suche weiter nach hinten
+    // und neue K.o.-Runden würden nie gefunden.
+    if (warVollstaendig) _cupGeprueft[k] = now ?? DateTime.now();
+    await _persistCup();
+  }
+
+  Future<void> _persistCup() async {
+    final map = <String, dynamic>{};
+    _cupRunden.forEach((k, v) => map[k] = {
+          'codes': v,
+          'geprueft': _cupGeprueft[k]?.toIso8601String(),
+        });
+    await _prefs?.setString(_cupKey, jsonEncode(map));
+  }
+
+  void _loadCup() {
+    _cupRunden.clear();
+    _cupGeprueft.clear();
+    final raw = _prefs?.getString(_cupKey);
+    if (raw == null) return;
+    try {
+      (jsonDecode(raw) as Map).forEach((k, v) {
+        final m = (v as Map).cast<String, dynamic>();
+        final codes = (m['codes'] as List?)?.cast<int>();
+        if (codes != null && codes.isNotEmpty) _cupRunden['$k'] = codes;
+        final g = m['geprueft'];
+        if (g is String) {
+          final d = DateTime.tryParse(g);
+          if (d != null) _cupGeprueft['$k'] = d;
+        }
+      });
+    } catch (_) {
+      // Unlesbarer Stand: lieber wieder vollständig suchen als abstürzen.
+      _cupRunden.clear();
+      _cupGeprueft.clear();
     }
   }
 
