@@ -11,6 +11,7 @@
 // automatisch aktualisiert.
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -31,17 +32,28 @@ const kModellUrl =
 
 /// Lädt das vorberechnete Modell. Gibt null zurück, wenn es nicht erreichbar
 /// oder unbrauchbar ist – die App lernt dann wie bisher selbst.
+///
+/// Im Browser wird zuerst die Datei **neben der App** versucht. Grund: GitHub
+/// liefert Release-Dateien über einen Host ohne CORS-Header, ein Browser darf
+/// sie deshalb nicht von einer fremden Seite laden – der Abruf scheitert mit
+/// „Failed to fetch". In der installierten App gilt CORS nicht, dort ist die
+/// Release-Adresse der richtige Weg.
 Future<Map<String, dynamic>?> ladeFertigmodell() async {
-  try {
-    final res = await http
-        .get(Uri.parse(kModellUrl))
-        .timeout(const Duration(seconds: 20));
-    if (res.statusCode != 200) return null;
-    final j = jsonDecode(res.body);
-    return j is Map<String, dynamic> ? j : null;
-  } catch (_) {
-    return null;
+  final adressen = <Uri>[
+    if (kIsWeb) Uri.base.resolve('modell.json'),
+    Uri.parse(kModellUrl),
+  ];
+  for (final u in adressen) {
+    try {
+      final res = await http.get(u).timeout(const Duration(seconds: 20));
+      if (res.statusCode != 200) continue;
+      final j = jsonDecode(res.body);
+      if (j is Map<String, dynamic>) return j;
+    } catch (_) {
+      // nächste Adresse versuchen
+    }
   }
+  return null;
 }
 
 class UpdateInfo {
