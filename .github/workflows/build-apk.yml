@@ -43,8 +43,49 @@ jobs:
       - name: Tests
         run: flutter test
 
+      # Ohne festen Schluessel signiert Gradle mit dem Debug-Schluessel. Auf
+      # einem Runner wird der bei JEDEM Lauf neu erzeugt - jedes APK haette
+      # eine andere Signatur, und Android verweigert die Installation ueber
+      # eine bestehende App ("App nicht installiert"). Der Nutzer muesste vor
+      # jedem Update deinstallieren und verloere die gelernten Elo-Daten.
+      #
+      # Die erzeugten Dateien sind in .gitignore ausgeschlossen und werden
+      # nicht committet.
+      - name: Signaturschluessel einrichten (falls hinterlegt)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Kein Signaturschluessel hinterlegt - es wird mit dem Debug-Schluessel signiert."
+            echo "::warning::Solche APKs lassen sich nicht ueber eine anders signierte Installation legen."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
+          echo "Fester Signaturschluessel eingerichtet."
+
       - name: Release-APK bauen
         run: flutter build apk --release
+
+      - name: Signatur des APK protokollieren
+        run: |
+          set -e
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner 2>/dev/null | sort | tail -1)
+          if [ -n "$SIGNER" ]; then
+            "$SIGNER" verify --print-certs "$APK" | grep -i "signer #1 certificate SHA-256" || true
+          else
+            echo "apksigner nicht gefunden - Signatur nicht geprueft."
+          fi
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4

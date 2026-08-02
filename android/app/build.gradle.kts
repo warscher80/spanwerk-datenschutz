@@ -1,7 +1,29 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Fester Signaturschluessel, falls android/key.properties vorhanden ist.
+//
+// Ohne festen Schluessel signiert Gradle die Release-Fassung mit dem
+// Debug-Schluessel. Auf einem Entwicklerrechner ist der stabil, in der CI
+// aber nicht: dort erzeugen die Android-Werkzeuge bei jedem Lauf einen neuen,
+// zufaelligen. Jedes CI-APK bekaeme damit eine andere Signatur, und Android
+// verweigert die Installation ueber eine bestehende App mit abweichender
+// Signatur ("App nicht installiert"). Man muesste vor jedem Update
+// deinstallieren und verloere dabei die gelernten Elo-Daten.
+//
+// key.properties und die Keystore-Datei sind in .gitignore ausgeschlossen und
+// gehoeren NICHT ins Repository. In der CI werden sie aus Secrets erzeugt.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hatEigenenSchluessel = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hatEigenenSchluessel) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -27,11 +49,27 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hatEigenenSchluessel) {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Mit eigenem Schluessel signieren, sonst wie bisher mit dem
+            // Debug-Schluessel, damit `flutter run --release` ohne Einrichtung
+            // weiterhin funktioniert.
+            signingConfig = if (hatEigenenSchluessel) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
