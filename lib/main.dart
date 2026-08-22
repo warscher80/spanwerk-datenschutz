@@ -1,5 +1,6 @@
 // main.dart – KickProphet: datenbasierte Fußball-Prognosen (kein Echtgeld).
 import 'dart:async';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,6 +21,19 @@ const _accent = kAccent;
 // Nur für die visuelle Abnahme: mit --dart-define=DEMO=true rendert die App
 // Beispielkarten ohne Netz. Im normalen Build (Standard false) unerreichbar.
 const _demoMode = bool.fromEnvironment('DEMO');
+
+/// Erlaubt das Ziehen horizontaler Listen mit Maus/Trackpad zusätzlich zu Touch.
+/// Ohne das lässt sich die Chip-Leiste am PC nicht durch Ziehen scrollen.
+class _DragScrollBehavior extends MaterialScrollBehavior {
+  const _DragScrollBehavior();
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
 
 class FootyApp extends StatelessWidget {
   const FootyApp({super.key});
@@ -197,6 +211,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _autoTimer?.cancel();
     _learner?.cancel();
+    _chipCtrl.dispose();
     super.dispose();
   }
 
@@ -862,38 +877,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  final ScrollController _chipCtrl = ScrollController();
+
   /// Wettbewerbs-Auswahl als horizontale Chip-Leiste (mobil daumenfreundlich,
-  /// kein sperriges Dropdown). „Aktuell" führt die Liste an.
+  /// kein sperriges Dropdown). „Aktuell" führt die Liste an. Antippen über
+  /// InkWell (mit Feedback), horizontales Wischen per Touch UND Maus/Trackpad.
   Widget _leagueChips() {
     Widget chip(int idx, String label, {IconData? icon}) {
       final selected = _leagueIdx == idx;
       return Padding(
         padding: const EdgeInsets.only(right: 8),
-        child: GestureDetector(
-          onTap: () => _changeLeague(idx),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? kAccent : kSurfaceHi,
-              borderRadius: BorderRadius.circular(kRadiusPill),
-              border: Border.all(color: selected ? kAccent : kBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon,
-                      size: 14, color: selected ? kAccentInk : kLive),
-                  const SizedBox(width: 5),
+        child: Material(
+          color: selected ? kAccent : kSurfaceHi,
+          borderRadius: BorderRadius.circular(kRadiusPill),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(kRadiusPill),
+            onTap: () => _changeLeague(idx),
+            child: Container(
+              // Mindesthöhe ~44 px für sichere Touch-Bedienung.
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kRadiusPill),
+                border: Border.all(color: selected ? kAccent : kBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 14, color: selected ? kAccentInk : kLive),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(label,
+                      style: TextStyle(
+                        color: selected ? kAccentInk : kTextDim,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      )),
                 ],
-                Text(label,
-                    style: TextStyle(
-                      color: selected ? kAccentInk : kTextDim,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    )),
-              ],
+              ),
             ),
           ),
         ),
@@ -902,15 +924,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     return Container(
       color: kSurfaceTop,
-      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-      child: SizedBox(
-        height: 38,
-        child: ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      child: ScrollConfiguration(
+        // Auch mit Maus/Trackpad ziehbar (Desktop) – nicht nur Touch.
+        behavior: const _DragScrollBehavior(),
+        child: SingleChildScrollView(
+          controller: _chipCtrl,
           scrollDirection: Axis.horizontal,
-          children: [
-            chip(-1, 'Aktuell', icon: Icons.circle),
-            for (var i = 0; i < kLeagues.length; i++) chip(i, kLeagues[i].label),
-          ],
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              chip(-1, 'Aktuell', icon: Icons.circle),
+              for (var i = 0; i < kLeagues.length; i++) chip(i, kLeagues[i].label),
+            ],
+          ),
         ),
       ),
     );
