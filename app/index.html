@@ -3,9 +3,42 @@
 <head>
   <base href="/spanwerk-datenschutz/app/">
 
+  <!-- Immer die aktuelle Version laden.
+       Flutters Standard-ServiceWorker cacht die App-Hülle. In einer
+       Homescreen-PWA führt das dazu, dass Updates erst nach mehrmaligem
+       Öffnen (oder gar nicht) ankommen – der Nutzer sieht ewig die alte
+       Fassung. Diese App braucht keinen Offline-Modus (sie lädt Live-Spiele),
+       deshalb entfernen wir vorhandene ServiceWorker, leeren die Caches und
+       verhindern eine erneute Registrierung. So ist jeder Start frisch. -->
+  <script>
+    (function () {
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations()
+            .then(function (regs) { regs.forEach(function (r) { r.unregister(); }); })
+            .catch(function () {});
+          // Flutter-Bootstrap am Neu-Registrieren hindern.
+          try {
+            navigator.serviceWorker.register = function () {
+              return Promise.reject(new Error('service worker disabled'));
+            };
+          } catch (e) {}
+        }
+        if (window.caches && caches.keys) {
+          caches.keys()
+            .then(function (keys) { keys.forEach(function (k) { caches.delete(k); }); })
+            .catch(function () {});
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <!-- Kein viewport-fit=cover: sonst zeichnet die Homescreen-PWA unter die
+       Statusleiste, während Berührungen relativ zum Inhaltsbereich kommen –
+       das ergibt genau den kleinen Tipp-Versatz nach oben. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="description" content="Datenbasierte Fußball-Prognosen, Wahrscheinlichkeiten und Spielanalysen – übersichtlich auf einen Blick.">
   <meta name="theme-color" content="#0A1512">
   <meta name="color-scheme" content="dark">
@@ -23,7 +56,7 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="KickProphet">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -35,21 +68,16 @@
 
   <style>
     /* Ladehintergrund in Markenfarbe – kein weißes Aufblitzen vor dem Start. */
-    /* WICHTIG (Handy): Seite fest ans Sichtfenster koppeln. Ohne das kann der
-       <body> auf Mobilgeräten ein paar Pixel hinter der Flutter-Zeichenfläche
-       verrutschen – dann landen Berührungen versetzt („man muss über den
-       Button tippen"). Kein Seiten-Scroll, kein Gummiband-Effekt. */
+    /* Handy/PWA: Seite exakt aufs Sichtfenster begrenzen, kein Seiten-Scroll,
+       kein Gummiband. Bewusst OHNE position:fixed und ohne viewport-fit=cover –
+       beides kann in der Homescreen-PWA den Tipp-Versatz erst verursachen. */
     html, body {
       margin: 0; padding: 0;
+      width: 100%;
       height: 100%;
       background-color: #0A1512;
       overflow: hidden;
       overscroll-behavior: none;
-    }
-    body {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      width: 100%;
       /* Doppel-Tipp-Zoom / 300 ms-Verzögerung aus, saubere Tap-Ziele. */
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
