@@ -1392,20 +1392,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
     final now = DateTime.now();
+    final display = _orderedMatches();
     return RefreshIndicator(
       color: _accent,
       backgroundColor: kSurface,
       onRefresh: _loadDay,
       child: _maxW(ListView.builder(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-        itemCount: _matches.length + 1,
+        itemCount: display.length + 1,
         itemBuilder: (c, i) {
           if (i == 0) {
             return _currentMode
                 ? Column(children: [_topPrognosen(), _summaryStrip()])
                 : const SizedBox(height: 12);
           }
-          final m = _matches[i - 1];
+          final m = display[i - 1];
           final p = _cardProbs[m.id] ??
               _elo.probs(m.home.name, m.away.name, neutral: m.neutralVenue);
           final t = tippFromProbs(p);
@@ -1416,11 +1417,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             tip: t,
             topPadding: _currentMode ? 12 : 0,
             bet: _store.wette(m.id),
+            favHome: _store.istFavorit(m.home.name),
+            favAway: _store.istFavorit(m.away.name),
             onTap: () => _openMatchDetail(m, p, t),
           );
         },
       )),
     );
+  }
+
+  /// In der Ansicht „Aktuell" Spiele mit einem Lieblingsteam nach oben ziehen
+  /// (sonst unverändert, nach Anstoß sortiert) – „schneller auffindbar".
+  List<FootyMatch> _orderedMatches() {
+    if (!_currentMode || !_store.hatFavoriten) return _matches;
+    final fav = <FootyMatch>[];
+    final rest = <FootyMatch>[];
+    for (final m in _matches) {
+      if (_store.istFavorit(m.home.name) || _store.istFavorit(m.away.name)) {
+        fav.add(m);
+      } else {
+        rest.add(m);
+      }
+    }
+    return [...fav, ...rest];
   }
 
   /// Einheitliche, freundliche Leer-/Fehleransicht (mit optionaler Aktion).
@@ -1743,6 +1762,8 @@ class _MatchCard extends StatelessWidget {
   final double topPadding;
   final VoidCallback? onTap;
   final Wette? bet; // eigene Wette des Nutzers auf dieses Spiel (falls vorhanden)
+  final bool favHome;
+  final bool favAway;
 
   const _MatchCard({
     required this.match,
@@ -1752,6 +1773,8 @@ class _MatchCard extends StatelessWidget {
     this.topPadding = 0,
     this.onTap,
     this.bet,
+    this.favHome = false,
+    this.favAway = false,
   });
 
   // Läuft gerade (Zwischenstand vorhanden, noch nicht beendet).
@@ -1783,9 +1806,9 @@ class _MatchCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(child: _Crest(team: match.home, alignEnd: false)),
+                    Expanded(child: _Crest(team: match.home, alignEnd: false, fav: favHome)),
                     _center(),
-                    Expanded(child: _Crest(team: match.away, alignEnd: true)),
+                    Expanded(child: _Crest(team: match.away, alignEnd: true, fav: favAway)),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -2116,19 +2139,32 @@ class _MatchCard extends StatelessWidget {
 class _Crest extends StatelessWidget {
   final Team team;
   final bool alignEnd;
-  const _Crest({required this.team, required this.alignEnd});
+  final bool fav;
+  const _Crest({required this.team, required this.alignEnd, this.fav = false});
 
   @override
   Widget build(BuildContext context) {
     final logo = _logo();
+    final label = Text(
+      team.shortName,
+      textAlign: alignEnd ? TextAlign.right : TextAlign.left,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+          fontWeight: FontWeight.w700, fontSize: 13.5, color: kText, height: 1.15),
+    );
+    const star = Padding(
+      padding: EdgeInsets.symmetric(horizontal: 3),
+      child: Icon(Icons.star_rounded, size: 13, color: kWarn),
+    );
     final name = Flexible(
-      child: Text(
-        team.shortName,
-        textAlign: alignEnd ? TextAlign.right : TextAlign.left,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-            fontWeight: FontWeight.w700, fontSize: 13.5, color: kText, height: 1.15),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment:
+            alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: alignEnd
+            ? [Flexible(child: label), if (fav) star]
+            : [if (fav) star, Flexible(child: label)],
       ),
     );
     final children = alignEnd ? [name, const SizedBox(width: 10), logo]
@@ -2337,6 +2373,10 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
                   style: const TextStyle(color: kTextMute, fontSize: 11.5)),
             ),
           ],
+          if (widget.store != null) ...[
+            const SizedBox(height: 14),
+            _favRow(),
+          ],
           const SizedBox(height: 18),
           _scoreBlock(score, band, who),
           const SizedBox(height: 20),
@@ -2402,6 +2442,64 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
         ],
       ),
     );
+  }
+
+  /// Lieblingsteams an-/abwählen (lokal). Favorisierte Teams erscheinen in
+  /// „Aktuell" oben und tragen einen Stern auf der Karte.
+  Widget _favRow() {
+    final store = widget.store!;
+    // Schlüssel ist der VOLLE Teamname (wie in den Spieldaten), angezeigt wird
+    // der Kurzname – sonst würde der Stern auf der Karte nicht übereinstimmen.
+    Widget chip(String key, String label) {
+      final on = store.istFavorit(key);
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Material(
+            color: on ? kWarn.withValues(alpha: 0.16) : kSurfaceHi,
+            borderRadius: BorderRadius.circular(kRadiusSm),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(kRadiusSm),
+              onTap: () async {
+                await store.toggleFavorit(key);
+                if (mounted) setState(() {});
+                widget.onChanged?.call();
+              },
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(kRadiusSm),
+                  border: Border.all(color: on ? kWarn : kBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(on ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: 16, color: on ? kWarn : kTextDim),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: on ? kText : kTextDim,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      chip(widget.match.home.name, widget.match.home.shortName),
+      chip(widget.match.away.name, widget.match.away.shortName),
+    ]);
   }
 
   /// Prominenter KickProphet-Score mit sanfter Hochzähl-Animation.

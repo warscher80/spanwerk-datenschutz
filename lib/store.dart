@@ -595,6 +595,28 @@ class PredictionStore {
     await _prefs?.setInt('last_league', idx);
   }
 
+  // ---- Lieblingsteams (rein lokal, kein Konto) ----
+  static const _favKey = 'footy_fav_teams_v1';
+  Set<String>? _favTeams;
+  Set<String> get _favs =>
+      _favTeams ??= (_prefs?.getStringList(_favKey) ?? const []).toSet();
+
+  bool istFavorit(String team) => _favs.contains(team);
+  List<String> get favoriten => _favs.toList()..sort();
+  bool get hatFavoriten => _favs.isNotEmpty;
+
+  /// Team an-/abwählen. Gibt den neuen Zustand zurück (true = jetzt Favorit).
+  Future<bool> toggleFavorit(String team) async {
+    final jetzt = !_favs.contains(team);
+    if (jetzt) {
+      _favs.add(team);
+    } else {
+      _favs.remove(team);
+    }
+    await _prefs?.setStringList(_favKey, _favs.toList());
+    return jetzt;
+  }
+
   Prediction? get(int matchId) => _cache[matchId];
 
   Future<void> save(int matchId, int home, int away) async {
