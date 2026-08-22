@@ -171,6 +171,32 @@ class EloModel {
 
 }
 
+/// KickProphet Score (0–100): Wie klar ist die Tendenz der Prognose?
+///
+/// Vollständig aus Daten abgeleitet, nie zufällig oder dekorativ:
+///  1. Basis = Sicherheit des wahrscheinlichsten Ausgangs (aus dem Modell),
+///     linear abgebildet: 34 % (Zufall bei drei Ausgängen) → 0, 85 %+ → 100.
+///  2. [formZustimmung] (−1..+1) verschiebt den Wert um höchstens ±6 Punkte,
+///     je nachdem ob die jüngste Form die Tendenz stützt (+) oder ihr
+///     widerspricht (−). Ohne belastbare Formdaten ist sie 0.
+///
+/// Bänder (Vorgabe): 0–39 sehr unsicher · 40–59 ausgeglichen ·
+/// 60–79 gute Tendenz · 80–100 starke Tendenz.
+int kickProphetScore(MatchProbs p, {double formZustimmung = 0}) {
+  final conf = [p.home, p.draw, p.away].reduce((a, b) => a > b ? a : b);
+  final basis = ((conf - 0.34) / (0.85 - 0.34)).clamp(0.0, 1.0) * 100;
+  final score = basis + formZustimmung.clamp(-1.0, 1.0) * 6;
+  return score.clamp(0.0, 100.0).round();
+}
+
+/// Textband + Kurzhinweis zum Score.
+({String label, String hinweis}) kickProphetBand(int score) {
+  if (score < 40) return (label: 'sehr unsicher', hinweis: 'kaum Tendenz');
+  if (score < 60) return (label: 'ausgeglichen', hinweis: 'leichte Tendenz');
+  if (score < 80) return (label: 'gute Tendenz', hinweis: 'klarer Favorit');
+  return (label: 'starke Tendenz', hinweis: 'sehr klarer Favorit');
+}
+
 /// Ein K.o.-Spiel für die Turnier-Simulation (Sieger ggf. schon bekannt).
 class KoGame {
   final String a;

@@ -10,6 +10,7 @@ import 'api.dart';
 import 'engine.dart';
 import 'notify.dart';
 import 'odds.dart';
+import 'stats.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'update.dart';
@@ -1933,6 +1934,48 @@ class _MatchDetailSheet extends StatefulWidget {
 }
 
 class _MatchDetailSheetState extends State<_MatchDetailSheet> {
+  TeamForm? _formHeim;
+  TeamForm? _formGast;
+  bool _formLaedt = true;
+  bool _formFehler = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ladeForm();
+  }
+
+  Future<void> _ladeForm() async {
+    try {
+      final r = await Future.wait([
+        Api.teamForm(widget.match.home.id),
+        Api.teamForm(widget.match.away.id),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _formHeim = r[0];
+        _formGast = r[1];
+        _formLaedt = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _formLaedt = false;
+        _formFehler = true;
+      });
+    }
+  }
+
+  /// Zustimmung der jüngsten Form zur Modell-Tendenz (−1..+1) für den Score.
+  double _formZustimmung(int idx) {
+    final h = _formHeim, g = _formGast;
+    if (h == null || g == null || !h.genugDaten || !g.genugDaten) return 0;
+    final diff = (h.punkteProSpiel - g.punkteProSpiel) / 3.0; // −1..+1
+    if (idx == 0) return diff; // Heim vorhergesagt
+    if (idx == 2) return -diff; // Gast vorhergesagt
+    return -diff.abs() * 0.5; // Remis: klare Formdifferenz spricht dagegen
+  }
+
   @override
   Widget build(BuildContext context) {
     final match = widget.match;
@@ -1956,6 +1999,9 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
             : conf >= 58
                 ? ('mittel', kWarn)
                 : ('gering', kTextDim);
+
+    final score = kickProphetScore(probs, formZustimmung: _formZustimmung(idx));
+    final band = kickProphetBand(score);
 
     String head;
     Color headColor;
@@ -2033,6 +2079,8 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
                   style: const TextStyle(color: kTextMute, fontSize: 11.5)),
             ),
           ],
+          const SizedBox(height: 18),
+          _scoreBlock(score, band, who),
           const SizedBox(height: 20),
           const Text('KickProphet-Prognose',
               style: TextStyle(
@@ -2054,6 +2102,8 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
           row('Wahrscheinlichster Ausgang', who, vc: kAccent),
           row('KickProphet-Tipp', '${tip[0]}:${tip[1]}'),
           row('Prognosesicherheit', sLabel, vc: sColor),
+          const SizedBox(height: 18),
+          _analyseSection(idx),
           if (match.finished && match.hasResult) ...[
             const SizedBox(height: 8),
             Builder(builder: (_) {
@@ -2091,6 +2141,275 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
             'Keine Garantie – Fußball bleibt Fußball. 😉',
             style: TextStyle(color: kTextMute, fontSize: 11.5, height: 1.35),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Prominenter KickProphet-Score mit sanfter Hochzähl-Animation.
+  Widget _scoreBlock(
+      int score, ({String label, String hinweis}) band, String who) {
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final Color c = score >= 60 ? kAccent : (score >= 40 ? kWarn : kTextDim);
+    final emoji = score >= 80 ? '🔥 ' : '';
+    Widget zahl(String s) => Text(s,
+        style: TextStyle(
+            fontSize: 40, fontWeight: FontWeight.w900, color: c, height: 1));
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.18), kSurfaceHi],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: c.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 74,
+            child: reduce
+                ? zahl('$score')
+                : TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: score.toDouble()),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, v, child) => zahl('${v.round()}'),
+                  ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${emoji}KickProphet Score',
+                    style: const TextStyle(
+                        color: kTextDim,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(band.label,
+                    style: TextStyle(
+                        color: c, fontSize: 17, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text('$who · ${band.hinweis}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: kTextMute, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Analyse-Block: echte Form/Tore + „Warum diese Prognose".
+  /// Zeigt nur, was die Datenquelle wirklich liefert – nichts Erfundenes.
+  Widget _analyseSection(int idx) {
+    final h = _formHeim, g = _formGast;
+    const heading = Text('Analyse',
+        style:
+            TextStyle(color: kText, fontSize: 15, fontWeight: FontWeight.w800));
+
+    Widget inhalt;
+    if (_formLaedt) {
+      inhalt = _formSkeleton();
+    } else if (_formFehler) {
+      inhalt = _analyseHinweis('Formdaten konnten momentan nicht geladen werden.');
+    } else if ((h == null || !h.genugDaten) && (g == null || !g.genugDaten)) {
+      inhalt = _analyseHinweis(
+          'Für dieses Spiel stehen aktuell noch nicht genügend Formdaten zur Verfügung.');
+    } else {
+      inhalt = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _teamFormCard(widget.match.home.shortName, h)),
+              const SizedBox(width: 10),
+              Expanded(child: _teamFormCard(widget.match.away.shortName, g)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _warumSection(idx, h, g),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [heading, const SizedBox(height: 10), inhalt],
+    );
+  }
+
+  Widget _analyseHinweis(String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusSm),
+          border: Border.all(color: kBorder),
+        ),
+        child: Text(text,
+            style: const TextStyle(color: kTextMute, fontSize: 12.5, height: 1.3)),
+      );
+
+  Widget _formSkeleton() => Row(
+        children: [
+          for (var i = 0; i < 2; i++) ...[
+            Expanded(
+              child: Container(
+                height: 96,
+                decoration: BoxDecoration(
+                  color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusSm),
+                  border: Border.all(color: kBorder),
+                ),
+              ),
+            ),
+            if (i == 0) const SizedBox(width: 10),
+          ],
+        ],
+      );
+
+  /// Kleine Form-Karte eines Teams: Kürzel, Form-Punkte, Ø Tore/Gegentore.
+  Widget _teamFormCard(String name, TeamForm? f) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        border: Border.all(color: kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: kText, fontSize: 13, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (f == null || !f.genugDaten)
+            const Text('noch wenige Spiele',
+                style: TextStyle(color: kTextMute, fontSize: 11))
+          else ...[
+            _formDots(f),
+            const SizedBox(height: 8),
+            Text('Ø ${f.torProSpiel!.toStringAsFixed(1)} Tore',
+                style: const TextStyle(color: kTextDim, fontSize: 11.5)),
+            Text('Ø ${f.gegentorProSpiel!.toStringAsFixed(1)} Gegentore',
+                style: const TextStyle(color: kTextMute, fontSize: 11.5)),
+            const SizedBox(height: 4),
+            Text('${f.siege}S · ${f.remis}U · ${f.niederlagen}N',
+                style: const TextStyle(
+                    color: kTextDim, fontSize: 11, fontWeight: FontWeight.w700)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Form als farbige Punkte (neueste zuerst): S grün, U gelb, N rot.
+  Widget _formDots(TeamForm f) {
+    Color c(String a) =>
+        a == 'S' ? kAccent : (a == 'U' ? kWarn : kDanger);
+    return Row(
+      children: [
+        for (final a in f.formKette)
+          Container(
+            margin: const EdgeInsets.only(right: 5),
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(color: c(a), shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(a,
+                style: const TextStyle(
+                    color: kAccentInk, fontSize: 8, fontWeight: FontWeight.w900)),
+          ),
+      ],
+    );
+  }
+
+  /// „Warum diese Prognose?" – Begründungen ausschließlich aus echten Daten.
+  Widget _warumSection(int idx, TeamForm? h, TeamForm? g) {
+    final gruende = <String>[];
+    final probs = widget.probs;
+    final fav = idx == 0 ? h : (idx == 2 ? g : null);
+    final favName = idx == 0
+        ? widget.match.home.shortName
+        : (idx == 2 ? widget.match.away.shortName : null);
+    final gegner = idx == 0 ? g : (idx == 2 ? h : null);
+
+    if (idx == 1) {
+      gruende.add('Modell sieht die Teamstärken nah beieinander.');
+      if (h != null && g != null && h.genugDaten && g.genugDaten) {
+        gruende.add(
+            'Ähnliche Form: ${widget.match.home.shortName} ${h.punkteProSpiel.toStringAsFixed(1)} vs. '
+            '${widget.match.away.shortName} ${g.punkteProSpiel.toStringAsFixed(1)} Punkte/Spiel.');
+      }
+    } else {
+      final p = idx == 0 ? probs.home : probs.away;
+      gruende.add(
+          '$favName wird favorisiert (${(p * 100).round()} % Siegwahrscheinlichkeit laut Modell).');
+      if (idx == 0 && !widget.match.neutralVenue) {
+        gruende.add('Heimvorteil für ${widget.match.home.shortName}.');
+      }
+      if (fav != null && fav.genugDaten && fav.siege >= 3) {
+        gruende.add('${fav.siege} Siege aus den letzten ${fav.spiele} Spielen.');
+      }
+      if (fav != null && fav.genugDaten && (fav.torProSpiel ?? 0) >= 1.8) {
+        gruende.add(
+            'Ø ${fav.torProSpiel!.toStringAsFixed(1)} erzielte Tore pro Spiel.');
+      }
+      if (gegner != null &&
+          gegner.genugDaten &&
+          (gegner.gegentorProSpiel ?? 0) >= 1.6) {
+        gruende.add(
+            'Gegner kassiert Ø ${gegner.gegentorProSpiel!.toStringAsFixed(1)} Tore pro Spiel.');
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        border: Border.all(color: _accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Warum diese Prognose?',
+              style: TextStyle(
+                  color: kText, fontSize: 13.5, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          for (final grund in gruende)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.check_circle_rounded,
+                        size: 14, color: _accent),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(grund,
+                        style: const TextStyle(
+                            color: kTextDim, fontSize: 12, height: 1.35)),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

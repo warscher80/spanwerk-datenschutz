@@ -4,6 +4,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'stats.dart';
+
 /// Eine wählbare Liga oder ein Turnier.
 class League {
   final String id; // TheSportsDB idLeague
@@ -89,7 +91,8 @@ String cupStageLabel(int code, int count) {
 class Team {
   final String name;
   final String? badge;
-  const Team(this.name, this.badge);
+  final String? id; // TheSportsDB-Team-ID – nötig, um die Form nachzuladen
+  const Team(this.name, this.badge, {this.id});
 
   String get shortName {
     var n = name
@@ -306,8 +309,10 @@ class FootyMatch {
       id: int.parse(j['idEvent'].toString()),
       kickoff: kickoff,
       round: int.tryParse((j['intRound'] ?? '0').toString()) ?? 0,
-      home: Team((j['strHomeTeam'] ?? 'Heim').toString(), j['strHomeTeamBadge'] as String?),
-      away: Team((j['strAwayTeam'] ?? 'Gast').toString(), j['strAwayTeamBadge'] as String?),
+      home: Team((j['strHomeTeam'] ?? 'Heim').toString(), j['strHomeTeamBadge'] as String?,
+          id: j['idHomeTeam']?.toString()),
+      away: Team((j['strAwayTeam'] ?? 'Gast').toString(), j['strAwayTeamBadge'] as String?,
+          id: j['idAwayTeam']?.toString()),
       finished: finished,
       homeGoals: hg,
       awayGoals: ag,
@@ -501,6 +506,54 @@ class Api {
     } catch (_) {
       return const {};
     }
+  }
+
+  // Form ändert sich langsam -> länger cachen als normale Spieldaten.
+  static final TtlCache<TeamForm> _formCache =
+      TtlCache<TeamForm>(const Duration(minutes: 20));
+
+  /// Letzte Spiele eines Teams als verdichtete Form (nur echte Ergebnisse).
+  /// Liefert bei fehlender ID oder Fehler eine leere Form – nie einen Fehler,
+  /// damit die Detailansicht trotzdem funktioniert.
+  static Future<TeamForm> teamForm(String? teamId) async {
+    if (teamId == null || teamId.isEmpty) return TeamForm.leer;
+    final cached = _formCache.get(teamId);
+    if (cached != null) return cached;
+    try {
+      final body = await _getJson('eventslast.php?id=$teamId', retries: 2);
+      final raw = body['results'] ?? body['events'];
+      final list = raw is List ? raw : const [];
+      final games = <FormGame>[];
+      for (final e in list) {
+        if (e is! Map) continue;
+        final hg = int.tryParse('${e['intHomeScore']}');
+        final ag = int.tryParse('${e['intAwayScore']}');
+        if (hg == null || ag == null) continue; // nur gespielte Partien
+        final istHeim = '${e['idHomeTeam']}' == teamId;
+        games.add(FormGame(
+          heim: istHeim,
+          erzielt: istHeim ? hg : ag,
+          kassiert: istHeim ? ag : hg,
+          datum: _eventDatum(Map<String, dynamic>.from(e)),
+        ));
+      }
+      final form = formAus(games);
+      _formCache.set(teamId, form);
+      return form;
+    } catch (_) {
+      return TeamForm.leer;
+    }
+  }
+
+  /// Datum eines Roh-Events (strTimestamp, sonst dateEvent) als lokale Zeit.
+  static DateTime? _eventDatum(Map<String, dynamic> e) {
+    final ts = (e['strTimestamp'] as String?)?.trim();
+    if (ts != null && ts.isNotEmpty) {
+      final d = DateTime.tryParse(ts.endsWith('Z') ? ts : '${ts}Z');
+      if (d != null) return d.toLocal();
+    }
+    final de = (e['dateEvent'] as String?)?.trim();
+    return de == null || de.isEmpty ? null : DateTime.tryParse(de);
   }
 
   /// Reines Auswerten der livescore-Antwort (ohne Netz) – idEvent -> Minute.
