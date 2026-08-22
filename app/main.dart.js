@@ -75136,7 +75136,7 @@ case 15:s=1
 break
 case 18:h=o.d.cx
 g=h==null?null:A.kq(h.a.i(0,"last_league"))
-if(g==null)g=0
+if(g==null)g=-1
 if(g>=-1&&g<10)o.r=g
 h=o.r
 if(h>=0)o.x=h
