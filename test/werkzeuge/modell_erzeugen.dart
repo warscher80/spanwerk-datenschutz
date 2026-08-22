@@ -64,6 +64,7 @@ void main() {
       'erstellt': jetzt.toUtc().toIso8601String(),
       'ligen': ligen.map((l) => l.id).toList(),
       'elo': model.ratings,
+      'form': model.formExport(),
       'gelernteRunden': store.gelernteRunden,
       'verarbeiteteSpiele': store.verarbeiteteSpiele,
     };

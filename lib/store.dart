@@ -190,6 +190,7 @@ class WettBilanz {
 class PredictionStore {
   static const _key = 'footy_predictions_v1';
   static const _eloKey = 'footy_elo_v1';
+  static const _eloFormKey = 'footy_eloform_v1';
   static const _ingestedKey = 'footy_ingested_v1';
   static const _roundsKey = 'footy_learned_rounds_v1';
 
@@ -211,6 +212,9 @@ class PredictionStore {
 
   // Lerndaten des Quoten-Modells.
   final Map<String, double> elo = {};
+  // Form je Team (letzte Tordifferenzen) – gehört zum Modell, wird mitgelernt,
+  // mitgespeichert und mit dem vorberechneten Modell übernommen.
+  final Map<String, List<double>> eloForm = {};
   final Set<int> _ingested = {};
   final Set<String> _learnedRounds = {};
 
@@ -273,6 +277,7 @@ class PredictionStore {
     const modelVer = 3;
     if ((_prefs?.getInt('footy_model_ver') ?? 0) != modelVer) {
       elo.clear();
+      eloForm.clear();
       _ingested.clear();
       _learnedRounds.clear();
       _resetEval();
@@ -287,9 +292,19 @@ class PredictionStore {
 
   void _loadLearning() {
     elo.clear();
+    eloForm.clear();
     _ingested.clear();
     _learnedRounds.clear();
     _results.clear();
+    try {
+      final f = _prefs?.getString(_eloFormKey);
+      if (f != null) {
+        (jsonDecode(f) as Map).forEach((k, v) => eloForm['$k'] =
+            (v as List).map((e) => (e as num).toDouble()).toList());
+      }
+    } catch (_) {
+      eloForm.clear();
+    }
     try {
       final e = _prefs?.getString(_eloKey);
       if (e != null) {
@@ -551,6 +566,17 @@ class PredictionStore {
     elo
       ..clear()
       ..addAll(roh.map((k, v) => MapEntry('$k', (v as num).toDouble())));
+    // Form mitübernehmen, falls das Modell sie enthält (abwärtskompatibel:
+    // ältere Modelle ohne 'form' lassen die Form einfach leer -> Basisverhalten).
+    eloForm.clear();
+    final formRoh = daten['form'];
+    if (formRoh is Map) {
+      formRoh.forEach((k, v) {
+        if (v is List) {
+          eloForm['$k'] = v.map((e) => (e as num).toDouble()).toList();
+        }
+      });
+    }
     _learnedRounds
       ..clear()
       ..addAll(((daten['gelernteRunden'] as List?) ?? const []).map((e) => '$e'));
@@ -688,6 +714,7 @@ class PredictionStore {
 
   Future<void> saveLearning() async {
     await _prefs?.setString(_eloKey, jsonEncode(elo));
+    await _prefs?.setString(_eloFormKey, jsonEncode(eloForm));
     await _prefs?.setStringList(_ingestedKey, _ingested.map((e) => e.toString()).toList());
     await _prefs?.setStringList(_roundsKey, _learnedRounds.toList());
     await _prefs?.setString(_resultsKey,

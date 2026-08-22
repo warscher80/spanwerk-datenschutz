@@ -119,18 +119,50 @@ const kClubElo = <String, double>{
 
 class EloModel {
   final Map<String, double> ratings;
-  EloModel(this.ratings);
+
+  // Jüngste Tordifferenzen je Team (neueste zuletzt), aus Team-Sicht. Daraus
+  // entsteht eine kleine, begrenzte Form-Korrektur zusätzlich zum Elo-Rating –
+  // sie betont die aktuelle Verfassung, ohne das Rating zu ersetzen.
+  final Map<String, List<double>> form;
+  EloModel(this.ratings, {Map<String, List<double>>? form})
+      : form = form ?? <String, List<double>>{};
 
   // Per Walk-Forward-Backtest über 5 Ligen / 2 Saisons getunt
   // (LogLoss 1.066 -> 1.045, Trefferquote 45.9 % -> 47.3 %).
   static const base = 1500.0;
   static const homeAdvantage = 50.0;
   static const k = 16.0;
+  static const _formFenster = 5; // letzte Spiele
+  static const _formProTor = 10.0; // Elo je Tor Ø-Differenz
+  static const _formMax = 40.0; // harte Deckelung
 
   // Bekannte Stärke nutzen, sonst Nationalteam-Startwert, sonst Basis.
   double rating(String team) =>
       ratings[team] ?? kNationalElo[team] ?? kClubElo[team] ?? base;
   bool knows(String team) => ratings.containsKey(team);
+
+  /// Begrenzte Form-Korrektur (Elo-Punkte) aus den letzten Tordifferenzen.
+  /// Bewusst gedeckelt und bei wenigen Spielen abgeschwächt, damit sie nur
+  /// nuanciert – nie das Rating überstimmt. Leerdaten -> 0.
+  double formAdj(String team) {
+    final gd = form[team];
+    if (gd == null || gd.isEmpty) return 0;
+    final schnitt = gd.reduce((a, b) => a + b) / gd.length;
+    final roh = (schnitt * _formProTor).clamp(-_formMax, _formMax);
+    return roh * (gd.length.clamp(0, _formFenster) / _formFenster);
+  }
+
+  void _merkeForm(String team, double gd) {
+    final liste = form.putIfAbsent(team, () => <double>[]);
+    liste.add(gd);
+    if (liste.length > _formFenster) {
+      liste.removeRange(0, liste.length - _formFenster);
+    }
+  }
+
+  /// Form-Daten als serialisierbare Map (für das vorberechnete Modell).
+  Map<String, List<double>> formExport() =>
+      form.map((k, v) => MapEntry(k, List<double>.from(v)));
 
   /// Ein echtes Ergebnis ins Modell einarbeiten (nullsummen-symmetrisch).
   /// Bei [neutral] (z. B. WM/Turnier auf neutralem Platz) zählt kein Heimvorteil.
@@ -148,11 +180,17 @@ class EloModel {
     final delta = k * weight * (score - exp);
     ratings[home] = rating(home) + delta;
     ratings[away] = rating(away) - delta;
+    // Form NACH dem Rating fortschreiben (aus Team-Sicht). Weil probs() die
+    // Form VOR dem Lernen liest, fließt in eine Prognose nie das Spiel selbst
+    // ein – kein Data-Leakage.
+    final diff = (homeGoals - awayGoals).toDouble();
+    _merkeForm(home, diff);
+    _merkeForm(away, -diff);
   }
 
   MatchProbs probs(String home, String away, {bool neutral = false}) {
     final hfa = neutral ? 0.0 : homeAdvantage;
-    final dr = rating(home) + hfa - rating(away);
+    final dr = (rating(home) + formAdj(home)) + hfa - (rating(away) + formAdj(away));
     final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
     var pDraw = (0.30 * exp(-pow(dr / 260, 2))).toDouble().clamp(0.06, 0.42);
     var pHome = (e - pDraw / 2).clamp(0.02, 0.97);

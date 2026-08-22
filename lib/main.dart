@@ -181,7 +181,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final _store = PredictionStore();
-  late final EloModel _elo = EloModel(_store.elo);
+  late final EloModel _elo = EloModel(_store.elo, form: _store.eloForm);
   SeasonLearner? _learner;
 
   int _leagueIdx = 0;
