@@ -9,6 +9,104 @@ class Prediction {
   const Prediction(this.home, this.away);
 }
 
+/// Eine eigene Wette des Nutzers auf ein Spiel – rein lokal, ohne Konto.
+///
+/// Bewusst kein Login bei Wett-Anbietern: dafür müsste man ein fremdes
+/// Passwort in der App eingeben, das wäre unsicher. Stattdessen trägt der
+/// Nutzer seinen Tipp selbst ein; die App kennt das echte Ergebnis und rechnet
+/// selbst ab. `tipp` ist '1' (Heimsieg), 'X' (Unentschieden) oder '2'
+/// (Auswärtssieg). Team-Namen und Wettbewerb werden mitgespeichert, damit die
+/// Bilanz auch dann lesbar bleibt, wenn das Spiel längst aus der Liste ist.
+class Wette {
+  final int matchId;
+  final String tipp; // '1' | 'X' | '2'
+  final String heim;
+  final String gast;
+  final String? wettbewerb;
+  final DateTime? anpfiff;
+  final int? ergHeim; // gesetzt sobald abgerechnet
+  final int? ergGast;
+
+  const Wette({
+    required this.matchId,
+    required this.tipp,
+    required this.heim,
+    required this.gast,
+    this.wettbewerb,
+    this.anpfiff,
+    this.ergHeim,
+    this.ergGast,
+  });
+
+  bool get abgerechnet => ergHeim != null && ergGast != null;
+
+  /// Tendenz des echten Ergebnisses ('1'/'X'/'2') – null solange offen.
+  String? get echterAusgang {
+    if (!abgerechnet) return null;
+    if (ergHeim! > ergGast!) return '1';
+    if (ergHeim! < ergGast!) return '2';
+    return 'X';
+  }
+
+  /// true = gewonnen, false = verloren, null = noch offen.
+  bool? get gewonnen => abgerechnet ? tipp == echterAusgang : null;
+
+  String get tippText => switch (tipp) {
+        '1' => 'Heimsieg',
+        '2' => 'Auswärtssieg',
+        _ => 'Unentschieden',
+      };
+
+  Wette abgerechnetMit(int h, int a) => Wette(
+        matchId: matchId,
+        tipp: tipp,
+        heim: heim,
+        gast: gast,
+        wettbewerb: wettbewerb,
+        anpfiff: anpfiff,
+        ergHeim: h,
+        ergGast: a,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'tipp': tipp,
+        'heim': heim,
+        'gast': gast,
+        if (wettbewerb != null) 'wb': wettbewerb,
+        if (anpfiff != null) 'ts': anpfiff!.toIso8601String(),
+        if (ergHeim != null) 'eh': ergHeim,
+        if (ergGast != null) 'ea': ergGast,
+      };
+
+  static Wette? fromJson(int id, Map<String, dynamic> m) {
+    final tipp = m['tipp'];
+    if (tipp is! String || !(tipp == '1' || tipp == 'X' || tipp == '2')) {
+      return null;
+    }
+    return Wette(
+      matchId: id,
+      tipp: tipp,
+      heim: '${m['heim'] ?? ''}',
+      gast: '${m['gast'] ?? ''}',
+      wettbewerb: m['wb'] as String?,
+      anpfiff: m['ts'] is String ? DateTime.tryParse(m['ts'] as String) : null,
+      ergHeim: (m['eh'] as num?)?.toInt(),
+      ergGast: (m['ea'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// Zusammenfassung der eigenen Wett-Bilanz.
+class WettBilanz {
+  final int gesamt; // abgerechnete Wetten
+  final int gewonnen;
+  final int offen; // noch nicht abgerechnet
+  const WettBilanz(this.gesamt, this.gewonnen, this.offen);
+
+  int get verloren => gesamt - gewonnen;
+  double get quote => gesamt == 0 ? 0 : gewonnen / gesamt;
+}
+
 class PredictionStore {
   static const _key = 'footy_predictions_v1';
   static const _eloKey = 'footy_elo_v1';
@@ -18,6 +116,7 @@ class PredictionStore {
   static const _resultsKey = 'footy_results_v1';
   static const _evalKey = 'footy_modeleval_v1';
   static const _cupKey = 'footy_cup_runden_v1';
+  static const _wettenKey = 'footy_wetten_v1';
 
   // Welche Runden-Codes es in einem Turnier wirklich gibt, samt Zeitpunkt der
   // letzten vollständigen Suche. Ohne dieses Wissen probiert die App bei jedem
@@ -35,6 +134,9 @@ class PredictionStore {
 
   // Echte Ergebnisse getippter Spiele (für die Saison-Statistik).
   final Map<int, List<int>> _results = {};
+
+  // Eigene Wetten des Nutzers (matchId -> Wette).
+  final Map<int, Wette> _wetten = {};
 
   // Treffsicherheit des Modells (Vorhersage vor dem Lernen).
   int modelHits = 0;
@@ -66,6 +168,7 @@ class PredictionStore {
     }
     _loadLearning();
     _loadCup();
+    _loadWetten();
     // Bei neuer Modell-Version Lerndaten einmalig zurücksetzen, damit die
     // verbesserten Start-Stärken (z. B. Nationalteams/Vereine) wirken.
     const modelVer = 3;
@@ -197,6 +300,80 @@ class PredictionStore {
       _cupRunden.clear();
       _cupGeprueft.clear();
     }
+  }
+
+  // ---- Eigene Wetten ----
+  void _loadWetten() {
+    _wetten.clear();
+    try {
+      final raw = _prefs?.getString(_wettenKey);
+      if (raw == null) return;
+      (jsonDecode(raw) as Map).forEach((k, v) {
+        final id = int.tryParse('$k');
+        if (id == null) return;
+        final w = Wette.fromJson(id, (v as Map).cast<String, dynamic>());
+        if (w != null) _wetten[id] = w;
+      });
+    } catch (_) {
+      _wetten.clear();
+    }
+  }
+
+  Future<void> _persistWetten() async {
+    final map = _wetten.map((k, v) => MapEntry('$k', v.toJson()));
+    await _prefs?.setString(_wettenKey, jsonEncode(map));
+  }
+
+  Wette? wette(int matchId) => _wetten[matchId];
+  List<Wette> get wetten {
+    final list = _wetten.values.toList();
+    // Offene zuerst, dann nach Anpfiff (neueste zuerst).
+    list.sort((a, b) {
+      final ab = a.abgerechnet ? 1 : 0;
+      final bb = b.abgerechnet ? 1 : 0;
+      if (ab != bb) return ab - bb;
+      final at = a.anpfiff?.millisecondsSinceEpoch ?? 0;
+      final bt = b.anpfiff?.millisecondsSinceEpoch ?? 0;
+      return bt - at;
+    });
+    return list;
+  }
+
+  bool get hasWetten => _wetten.isNotEmpty;
+
+  WettBilanz get bilanz {
+    int ges = 0, gew = 0, off = 0;
+    for (final w in _wetten.values) {
+      if (w.abgerechnet) {
+        ges++;
+        if (w.gewonnen == true) gew++;
+      } else {
+        off++;
+      }
+    }
+    return WettBilanz(ges, gew, off);
+  }
+
+  /// Wette setzen/ändern. Ein bereits abgerechnetes Spiel bleibt unangetastet.
+  Future<void> setzeWette(Wette w) async {
+    final vorhanden = _wetten[w.matchId];
+    if (vorhanden != null && vorhanden.abgerechnet) return;
+    _wetten[w.matchId] = w;
+    await _persistWetten();
+  }
+
+  Future<void> entferneWette(int matchId) async {
+    if (_wetten.remove(matchId) != null) await _persistWetten();
+  }
+
+  /// Ein beendetes Spiel abrechnen (nur wenn eine offene Wette existiert).
+  /// Gibt true zurück, wenn dadurch etwas Neues gespeichert wurde.
+  Future<bool> rechneWetteAb(int matchId, int home, int away) async {
+    final w = _wetten[matchId];
+    if (w == null || w.abgerechnet) return false;
+    _wetten[matchId] = w.abgerechnetMit(home, away);
+    await _persistWetten();
+    return true;
   }
 
   // ---- Vorberechnetes Modell ----

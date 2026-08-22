@@ -505,6 +505,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _updatedAt = DateTime.now();
       });
       _scheduleReminders(m);
+      _settleWetten(m);
       for (final g in goals) {
         _goalAlert(g);
       }
@@ -605,7 +606,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       backgroundColor: kSurfaceTop,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (c) => _MatchDetailSheet(match: m, probs: p, tip: tip),
+      builder: (c) => _MatchDetailSheet(
+        match: m,
+        probs: p,
+        tip: tip,
+        store: _store,
+        onChanged: () { if (mounted) setState(() {}); },
+      ),
     );
   }
 
@@ -616,6 +623,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       showDragHandle: true,
       builder: (c) => _StatsSheet(store: _store),
     );
+  }
+
+  /// Eigene Wett-Bilanz (rein lokal, kein Konto).
+  void _openWetten() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kSurfaceTop,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => _WettenSheet(
+        store: _store,
+        onChanged: () { if (mounted) setState(() {}); },
+      ),
+    );
+  }
+
+  /// Beendete Spiele mit offener Wette abrechnen (✅/❌) und Bilanz aktualisieren.
+  Future<void> _settleWetten(List<FootyMatch> matches) async {
+    if (!_store.hasWetten) return;
+    var changed = false;
+    for (final m in matches) {
+      if (m.finished && m.hasResult && m.homeGoals != null && m.awayGoals != null) {
+        if (await _store.rechneWetteAb(m.id, m.homeGoals!, m.awayGoals!)) {
+          changed = true;
+        }
+      }
+    }
+    if (changed && mounted) setState(() {});
   }
 
   /// „Wer gewinnt die WM?" – Titelchancen aus tausenden Simulationen.
@@ -910,6 +945,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               onPressed: _openWinnerOdds,
               icon: const Icon(Icons.emoji_events_rounded),
             ),
+          IconButton(
+            tooltip: 'Meine Wetten',
+            onPressed: _openWetten,
+            icon: const Icon(Icons.receipt_long_rounded),
+          ),
           IconButton(
             tooltip: 'Trefferquote',
             onPressed: _openStats,
@@ -1271,6 +1311,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             probs: p,
             tip: t,
             topPadding: _currentMode ? 12 : 0,
+            bet: _store.wette(m.id),
             onTap: () => _openMatchDetail(m, p, t),
           );
         },
@@ -1422,6 +1463,7 @@ class _MatchCard extends StatelessWidget {
   final List<int> tip; // KickProphet-Tipp (erwartetes Ergebnis, tendenz-konsistent)
   final double topPadding;
   final VoidCallback? onTap;
+  final Wette? bet; // eigene Wette des Nutzers auf dieses Spiel (falls vorhanden)
 
   const _MatchCard({
     required this.match,
@@ -1430,6 +1472,7 @@ class _MatchCard extends StatelessWidget {
     required this.tip,
     this.topPadding = 0,
     this.onTap,
+    this.bet,
   });
 
   // Läuft gerade (Zwischenstand vorhanden, noch nicht beendet).
@@ -1472,6 +1515,10 @@ class _MatchCard extends StatelessWidget {
                 _probSection(),
                 const SizedBox(height: 10),
                 _footerRow(),
+                if (bet != null) ...[
+                  const SizedBox(height: 10),
+                  _betBadge(bet!),
+                ],
               ],
             ),
           ),
@@ -1626,6 +1673,37 @@ class _MatchCard extends StatelessWidget {
         Text(label,
             style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
       ],
+    );
+  }
+
+  /// Kleiner Hinweis auf der Karte, wenn der Nutzer selbst getippt hat.
+  /// Offen = neutral, gewonnen = grün ✅, verloren = rot ❌.
+  Widget _betBadge(Wette w) {
+    final won = w.gewonnen; // null = offen
+    final (Color c, IconData ic, String txt) = won == null
+        ? (kTextDim, Icons.how_to_vote_rounded, 'Deine Wette: ${w.tippText}')
+        : won
+            ? (kAccent, Icons.check_circle_rounded, 'Wette aufgegangen · ${w.tippText}')
+            : (kDanger, Icons.cancel_rounded, 'Wette daneben · ${w.tippText}');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        border: Border.all(color: c.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(ic, size: 15, color: c),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(txt,
+                style: TextStyle(
+                    color: c, fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1800,15 +1878,29 @@ class _Crest extends StatelessWidget {
 }
 
 /// Detailansicht einer Partie – erreichbar durch Antippen der Karte.
-class _MatchDetailSheet extends StatelessWidget {
+class _MatchDetailSheet extends StatefulWidget {
   final FootyMatch match;
   final MatchProbs probs;
   final List<int> tip;
+  final PredictionStore? store; // ohne Store (Demo) wird der Wett-Bereich ausgeblendet
+  final VoidCallback? onChanged;
   const _MatchDetailSheet(
-      {required this.match, required this.probs, required this.tip});
+      {required this.match,
+      required this.probs,
+      required this.tip,
+      this.store,
+      this.onChanged});
 
   @override
+  State<_MatchDetailSheet> createState() => _MatchDetailSheetState();
+}
+
+class _MatchDetailSheetState extends State<_MatchDetailSheet> {
+  @override
   Widget build(BuildContext context) {
+    final match = widget.match;
+    final probs = widget.probs;
+    final tip = widget.tip;
     final idx = switch (predictedTendency(probs)) {
       Tendency.home => 0,
       Tendency.draw => 1,
@@ -1939,6 +2031,10 @@ class _MatchDetailSheet extends StatelessWidget {
               );
             }),
           ],
+          if (widget.store != null) ...[
+            const Divider(height: 26, color: kBorder),
+            _wettSection(),
+          ],
           const SizedBox(height: 16),
           const Text(
             'Prognose aus statistischen Daten (Team-Stärke, Heimvorteil, Form). '
@@ -1950,10 +2046,296 @@ class _MatchDetailSheet extends StatelessWidget {
     );
   }
 
+  /// „Meine Wette" – der Nutzer tippt selbst 1/X/2. Rein lokal, kein Konto,
+  /// kein Passwort. Nach Abpfiff rechnet die App am echten Ergebnis ab.
+  Widget _wettSection() {
+    final store = widget.store!;
+    final m = widget.match;
+    final w = store.wette(m.id);
+    final beendet = m.finished && m.hasResult;
+
+    const header = Text('Meine Wette',
+        style: TextStyle(color: kText, fontSize: 15, fontWeight: FontWeight.w800));
+
+    if (beendet) {
+      // Nach Abpfiff: nur noch Ergebnis anzeigen, nicht mehr tippbar.
+      if (w == null) {
+        return const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            header,
+            SizedBox(height: 8),
+            Text('Für dieses Spiel hast du keinen Tipp abgegeben.',
+                style: TextStyle(color: kTextMute, fontSize: 12.5)),
+          ],
+        );
+      }
+      final won = w.gewonnen == true;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+              color: (won ? kAccent : kDanger).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(kRadiusSm),
+            ),
+            child: Row(children: [
+              Icon(won ? Icons.emoji_events_rounded : Icons.cancel_rounded,
+                  color: won ? kAccent : kDanger, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(won ? 'Deine Wette ist aufgegangen! 🎉' : 'Deine Wette lag daneben',
+                        style: TextStyle(
+                            color: won ? kAccent : kDanger,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text('Dein Tipp: ${w.tippText} · Endstand ${w.ergHeim}:${w.ergGast}',
+                        style: const TextStyle(color: kTextDim, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ],
+      );
+    }
+
+    // Vor/während des Spiels: 1 / X / 2 wählbar.
+    Widget opt(String code, String label) {
+      final sel = w?.tipp == code;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Material(
+            color: sel ? kAccent : kSurfaceHi,
+            borderRadius: BorderRadius.circular(kRadiusSm),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(kRadiusSm),
+              onTap: () => _setzeTipp(code),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 48),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(kRadiusSm),
+                  border: Border.all(color: sel ? kAccent : kBorder),
+                ),
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: sel ? kAccentInk : kTextDim,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5)),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        header,
+        const SizedBox(height: 4),
+        Text(
+          w == null
+              ? 'Tippe selbst – nach Abpfiff siehst du, ob deine Wette aufging.'
+              : 'Dein Tipp: ${w.tippText}. Nochmal tippen zum Ändern oder Entfernen.',
+          style: const TextStyle(color: kTextMute, fontSize: 12, height: 1.3),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          opt('1', m.home.shortName),
+          opt('X', 'Remis'),
+          opt('2', m.away.shortName),
+        ]),
+      ],
+    );
+  }
+
+  Future<void> _setzeTipp(String code) async {
+    final store = widget.store;
+    if (store == null) return;
+    final m = widget.match;
+    final existing = store.wette(m.id);
+    if (existing != null && existing.tipp == code) {
+      await store.entferneWette(m.id); // gleicher Tipp nochmal = abwählen
+    } else {
+      await store.setzeWette(Wette(
+        matchId: m.id,
+        tipp: code,
+        heim: m.home.shortName,
+        gast: m.away.shortName,
+        wettbewerb: m.competition,
+        anpfiff: m.kickoff,
+      ));
+    }
+    if (mounted) setState(() {});
+    widget.onChanged?.call();
+  }
+
   String _fmtFull(DateTime d) {
     const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     String two(int n) => n < 10 ? '0$n' : '$n';
     return '${wd[d.weekday - 1]} ${two(d.day)}.${two(d.month)}. · ${two(d.hour)}:${two(d.minute)} Uhr';
+  }
+}
+
+/// „Meine Wetten" – lokale Bilanz aller selbst getippten Spiele.
+/// Kein Konto, kein Passwort, kein Anbieter-Login: nur eigene Tipps, die die
+/// App am echten Ergebnis abrechnet.
+class _WettenSheet extends StatefulWidget {
+  final PredictionStore store;
+  final VoidCallback? onChanged;
+  const _WettenSheet({required this.store, this.onChanged});
+
+  @override
+  State<_WettenSheet> createState() => _WettenSheetState();
+}
+
+class _WettenSheetState extends State<_WettenSheet> {
+  @override
+  Widget build(BuildContext context) {
+    final store = widget.store;
+    final b = store.bilanz;
+    final list = store.wetten;
+
+    Widget stat(String label, String value, Color c) => Column(
+          children: [
+            Text(value,
+                style: TextStyle(
+                    color: c, fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: kTextMute, fontSize: 11.5)),
+          ],
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 26),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Meine Wetten',
+              style: TextStyle(
+                  color: kText, fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          const Text(
+            'Deine eigenen Tipps – gespeichert nur auf diesem Gerät. '
+            'Kein Konto, kein Login, keine Verbindung zu Wett-Anbietern.',
+            style: TextStyle(color: kTextMute, fontSize: 12, height: 1.35),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(kRadius),
+              border: Border.all(color: kBorder),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                stat('Gewonnen', '${b.gewonnen}', kAccent),
+                stat('Verloren', '${b.verloren}', kDanger),
+                stat('Offen', '${b.offen}', kTextDim),
+                stat('Trefferquote',
+                    b.gesamt == 0 ? '–' : '${(b.quote * 100).round()} %', kText),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (list.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 22),
+              child: Center(
+                child: Column(
+                  children: const [
+                    Icon(Icons.receipt_long_rounded, size: 40, color: kTextMute),
+                    SizedBox(height: 10),
+                    Text('Noch keine Wette abgegeben.',
+                        style: TextStyle(color: kTextDim, fontSize: 13.5,
+                            fontWeight: FontWeight.w700)),
+                    SizedBox(height: 4),
+                    Text('Öffne ein Spiel und tippe unter „Meine Wette".',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: kTextMute, fontSize: 12)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...list.map(_wetteRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _wetteRow(Wette w) {
+    final won = w.gewonnen; // null = offen
+    final (Color c, IconData ic, String status) = won == null
+        ? (kTextDim, Icons.schedule_rounded, 'offen')
+        : won
+            ? (kAccent, Icons.check_circle_rounded, 'gewonnen')
+            : (kDanger, Icons.cancel_rounded, 'verloren');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(ic, color: c, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${w.heim} – ${w.gast}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: kText, fontSize: 13.5, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                  'Tipp: ${w.tippText}'
+                  '${w.abgerechnet ? ' · Endstand ${w.ergHeim}:${w.ergGast}' : ''}'
+                  '${w.wettbewerb != null ? ' · ${w.wettbewerb}' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: kTextMute, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(status,
+              style: TextStyle(color: c, fontSize: 11.5, fontWeight: FontWeight.w800)),
+          IconButton(
+            tooltip: 'Wette entfernen',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close_rounded, size: 16, color: kTextMute),
+            onPressed: () async {
+              await widget.store.entferneWette(w.matchId);
+              if (mounted) setState(() {});
+              widget.onChanged?.call();
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
 
