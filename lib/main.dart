@@ -983,7 +983,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             icon: const Icon(Icons.receipt_long_rounded),
           ),
           IconButton(
-            tooltip: 'Trefferquote',
+            tooltip: 'Prophet Bilanz',
             onPressed: _openStats,
             icon: const Icon(Icons.insights_rounded),
           ),
@@ -3088,6 +3088,8 @@ class _StatsSheet extends StatelessWidget {
 
     final ligaB = store.ligaBilanz;
     final kal = store.kalibrierung;
+    final pb = store.prophetBilanz(tage: 30);
+    final recent = store.prophetLetzte(10);
 
     // Stärkste Teams laut Modell (gelernte Ratings).
     final ranking = store.elo.entries.toList()
@@ -3100,7 +3102,7 @@ class _StatsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Trefferquote',
+          const Text('Prophet Bilanz',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 14),
           Row(children: [
@@ -3113,6 +3115,29 @@ class _StatsSheet extends StatelessWidget {
                 sub: brierLabel, subColor: brierColor),
             _stat('${store.teamsLearned}', 'Teams gelernt'),
           ]),
+          if (pb.total > 0) ...[
+            const SizedBox(height: 20),
+            const Text('Letzte 30 Tage',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text('${pb.total} ausgewertete Prognosen',
+                style: const TextStyle(color: Colors.white54, fontSize: 11.5)),
+            const SizedBox(height: 10),
+            Row(children: [
+              _stat('${pb.tendenzPct} %', 'Tendenz richtig'),
+              _stat('${pb.ouPct} %', 'Über/Unter 2,5'),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              _stat('${pb.bttsPct} %', 'Beide treffen'),
+              _stat('${pb.exaktPct} %', 'Exaktes Ergebnis'),
+            ]),
+            const SizedBox(height: 16),
+            const Text('Letzte Prognosen',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 10),
+            for (final s in recent) _prophetRow(s),
+          ],
           const SizedBox(height: 18),
           Container(
             width: double.infinity,
@@ -3226,6 +3251,45 @@ class _StatsSheet extends StatelessWidget {
           ]),
         ],
       ),
+    );
+  }
+
+  /// Eine Zeile der Prophet-Bilanz: Prognose vs. echtes Ergebnis mit ✅/❌.
+  Widget _prophetRow(PropheStat s) {
+    final ok = s.tendenzOk;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(children: [
+        Icon(ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            color: ok ? _accent : kDanger, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${s.heim} – ${s.gast}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(
+                'Prognose ${s.predH}:${s.predA} · Ergebnis ${s.actH}:${s.actA}'
+                '${s.liga.isNotEmpty ? ' · ${s.liga}' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white54, fontSize: 11.5),
+              ),
+            ],
+          ),
+        ),
+      ]),
     );
   }
 

@@ -96,6 +96,86 @@ class Wette {
   }
 }
 
+/// Eine vergangene Modell-Prognose samt echtem Ergebnis (für die Prophet-Bilanz).
+/// Alles aus echten Daten: Tipp = tippFromProbs, Ergebnis = tatsächlich gespielt.
+class PropheStat {
+  final int datumMs;
+  final String heim;
+  final String gast;
+  final String liga;
+  final int predTend; // 0 Heim, 1 Remis, 2 Gast
+  final int predH; // getippte Tore Heim
+  final int predA; // getippte Tore Gast
+  final int actH; // echtes Ergebnis Heim
+  final int actA; // echtes Ergebnis Gast
+
+  const PropheStat({
+    required this.datumMs,
+    required this.heim,
+    required this.gast,
+    required this.liga,
+    required this.predTend,
+    required this.predH,
+    required this.predA,
+    required this.actH,
+    required this.actA,
+  });
+
+  int get actTend => actH > actA ? 0 : (actH == actA ? 1 : 2);
+  bool get tendenzOk => predTend == actTend;
+  bool get exaktOk => predH == actH && predA == actA;
+  // Über/Unter 2,5: 3+ Tore = über.
+  bool get ouOk => (predH + predA >= 3) == (actH + actA >= 3);
+  // Beide treffen (BTTS).
+  bool get bttsOk => (predH > 0 && predA > 0) == (actH > 0 && actA > 0);
+
+  Map<String, dynamic> toJson() => {
+        'd': datumMs,
+        'h': heim,
+        'g': gast,
+        'l': liga,
+        'pt': predTend,
+        'ph': predH,
+        'pa': predA,
+        'ah': actH,
+        'aa': actA,
+      };
+
+  static PropheStat? fromJson(Map<String, dynamic> m) {
+    try {
+      return PropheStat(
+        datumMs: (m['d'] as num).toInt(),
+        heim: '${m['h']}',
+        gast: '${m['g']}',
+        liga: '${m['l'] ?? ''}',
+        predTend: (m['pt'] as num).toInt(),
+        predH: (m['ph'] as num).toInt(),
+        predA: (m['pa'] as num).toInt(),
+        actH: (m['ah'] as num).toInt(),
+        actA: (m['aa'] as num).toInt(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// Aggregierte Prophet-Bilanz über einen Zeitraum.
+class ProphetBilanz {
+  final int total;
+  final int tendenz;
+  final int exakt;
+  final int ou;
+  final int btts;
+  const ProphetBilanz(this.total, this.tendenz, this.exakt, this.ou, this.btts);
+
+  int _pct(int treffer) => total == 0 ? 0 : (treffer / total * 100).round();
+  int get tendenzPct => _pct(tendenz);
+  int get exaktPct => _pct(exakt);
+  int get ouPct => _pct(ou);
+  int get bttsPct => _pct(btts);
+}
+
 /// Zusammenfassung der eigenen Wett-Bilanz.
 class WettBilanz {
   final int gesamt; // abgerechnete Wetten
@@ -117,6 +197,8 @@ class PredictionStore {
   static const _evalKey = 'footy_modeleval_v1';
   static const _cupKey = 'footy_cup_runden_v1';
   static const _wettenKey = 'footy_wetten_v1';
+  static const _prophetKey = 'footy_prophet_v1';
+  static const _prophetMax = 120; // gleitendes Fenster
 
   // Welche Runden-Codes es in einem Turnier wirklich gibt, samt Zeitpunkt der
   // letzten vollständigen Suche. Ohne dieses Wissen probiert die App bei jedem
@@ -137,6 +219,9 @@ class PredictionStore {
 
   // Eigene Wetten des Nutzers (matchId -> Wette).
   final Map<int, Wette> _wetten = {};
+
+  // Track-Record des Modells: vergangene Prognosen samt echtem Ergebnis.
+  final List<PropheStat> _prophet = [];
 
   // Treffsicherheit des Modells (Vorhersage vor dem Lernen).
   int modelHits = 0;
@@ -256,6 +341,18 @@ class PredictionStore {
       }
     } catch (_) {
       _resetEval();
+    }
+    _prophet.clear();
+    try {
+      final raw = _prefs?.getString(_prophetKey);
+      if (raw != null) {
+        for (final e in (jsonDecode(raw) as List)) {
+          final s = PropheStat.fromJson((e as Map).cast<String, dynamic>());
+          if (s != null) _prophet.add(s);
+        }
+      }
+    } catch (_) {
+      _prophet.clear();
     }
   }
 
@@ -555,6 +652,38 @@ class PredictionStore {
       _calHit[i] = 0;
       _calTot[i] = 0;
     }
+    _prophet.clear();
+  }
+
+  // ---- Prophet-Bilanz (Track-Record des Modells) ----
+  void addProphet(PropheStat s) {
+    _prophet.add(s);
+    if (_prophet.length > _prophetMax) {
+      _prophet.removeRange(0, _prophet.length - _prophetMax);
+    }
+  }
+
+  bool get hatProphet => _prophet.isNotEmpty;
+
+  /// Jüngste Prognosen zuerst (für die Liste).
+  List<PropheStat> prophetLetzte([int n = 12]) =>
+      _prophet.reversed.take(n).toList();
+
+  /// Bilanz über die letzten [tage] Tage (Standard 30).
+  ProphetBilanz prophetBilanz({int tage = 30, DateTime? now}) {
+    final grenze = (now ?? DateTime.now())
+        .subtract(Duration(days: tage))
+        .millisecondsSinceEpoch;
+    var t = 0, te = 0, ex = 0, ou = 0, bt = 0;
+    for (final s in _prophet) {
+      if (s.datumMs < grenze) continue;
+      t++;
+      if (s.tendenzOk) te++;
+      if (s.exaktOk) ex++;
+      if (s.ouOk) ou++;
+      if (s.bttsOk) bt++;
+    }
+    return ProphetBilanz(t, te, ex, ou, bt);
   }
 
   Future<void> saveLearning() async {
@@ -575,6 +704,8 @@ class PredictionStore {
           'calHit': _calHit,
           'calTot': _calTot,
         }));
+    await _prefs?.setString(
+        _prophetKey, jsonEncode(_prophet.map((s) => s.toJson()).toList()));
   }
 
   /// Zuletzt betrachteten Spieltag je Liga merken.

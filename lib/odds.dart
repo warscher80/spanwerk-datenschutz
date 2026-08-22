@@ -307,14 +307,30 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
     final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
     int idx(Tendency t) =>
         t == Tendency.home ? 0 : (t == Tendency.draw ? 1 : 2);
+    final ligaName = liga.isEmpty ? (m.competition ?? '') : liga;
     store.addModelEvalDetailed(
       pHome: p.home,
       pDraw: p.draw,
       pAway: p.away,
       predicted: idx(predicted),
       actual: idx(actual),
-      liga: liga.isEmpty ? (m.competition ?? '') : liga,
+      liga: ligaName,
     );
+    // Track-Record fürs Prophet-Bilanz-Fenster festhalten (echte Prognose vs.
+    // echtes Ergebnis). Getipptes Ergebnis aus derselben Prognose.
+    final tip = tippFromProbs(p);
+    store.addProphet(PropheStat(
+      datumMs: (m.kickoff ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .millisecondsSinceEpoch,
+      heim: m.home.shortName,
+      gast: m.away.shortName,
+      liga: ligaName,
+      predTend: idx(predicted),
+      predH: tip[0],
+      predA: tip[1],
+      actH: m.homeGoals!,
+      actA: m.awayGoals!,
+    ));
   }
 
   model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!, neutral: neutral);
