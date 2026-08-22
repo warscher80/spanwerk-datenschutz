@@ -1763,6 +1763,16 @@ class _MatchCard extends StatelessWidget {
       statusPill = const StatusPill('Termin offen', color: kTextMute);
     }
 
+    // Anstoßzeit auch dann zeigen, wenn die Kartenmitte den Spielstand
+    // darstellt (live/angepfiffen/beendet) – dort fiele die Uhrzeit sonst ganz
+    // weg, obwohl man gerade da gern sieht, wann das Spiel läuft/lief.
+    String? spielzeit;
+    if (match.kickoff != null &&
+        match.kickoffExact &&
+        (match.finished || live || locked)) {
+      spielzeit = '${_fmtDate(match.kickoff!)} · ${_fmtTime(match.kickoff!)}';
+    }
+
     final league = match.competition;
     // Bei Turnieren steht hier der Runden-Name (z. B. "Achtelfinale"); bei Ligen
     // der Spieltag aus der Runden-Nummer. Ohne das zeigten K.o.-Runden einen
@@ -1794,6 +1804,11 @@ class _MatchCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
+        if (spielzeit != null) ...[
+          Text(spielzeit,
+              style: const TextStyle(color: kTextMute, fontSize: 10.5)),
+          const SizedBox(width: 8),
+        ],
         statusPill,
       ],
     );
@@ -1983,6 +1998,17 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
             child: StatusPill(head,
                 color: headColor, filled: match.isLive),
           ),
+          // Bei laufenden/beendeten Spielen die Anstoßzeit zusätzlich zeigen –
+          // der Kopf oben nennt dann den Spielstand, nicht die Uhrzeit.
+          if ((match.isLive || (match.finished && match.hasResult)) &&
+              match.kickoff != null &&
+              match.kickoffExact) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: Text('Anpfiff ${_fmtFull(match.kickoff!)}',
+                  style: const TextStyle(color: kTextMute, fontSize: 11.5)),
+            ),
+          ],
           const SizedBox(height: 20),
           const Text('KickProphet-Prognose',
               style: TextStyle(
