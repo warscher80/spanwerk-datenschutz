@@ -1419,13 +1419,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _topPrognosen() {
     final cand = <({FootyMatch m, MatchProbs p, int idx, int conf})>[];
     for (final m in _matches) {
-      if (m.finished || m.isLive) continue; // nur bevorstehende
+      if (m.finished || m.isLive || m.istGestoert) continue; // nur reguläre, bevorstehende
+      // Datenbasis: nur Prognosen zeigen, deren beide Teams das Modell
+      // wirklich GELERNT hat (nicht bloß der Start-Schätzwert). Sonst stünde
+      // eine hohe Prozentzahl auf dünner Datenlage ganz oben.
+      if (!_elo.knows(m.home.name) || !_elo.knows(m.away.name)) continue;
       final p = _cardProbs[m.id] ??
           _elo.probs(m.home.name, m.away.name, neutral: m.neutralVenue);
       final t = predictedTendency(p);
       if (t == Tendency.draw) continue;
       final idx = t == Tendency.home ? 0 : 2;
-      final conf = ([p.home, p.draw, p.away][idx] * 100).round();
+      final (hp, dp, ap) = prozente100(p);
+      final conf = [hp, dp, ap][idx];
       if (conf < 65) continue;
       cand.add((m: m, p: p, idx: idx, conf: conf));
     }
@@ -2054,14 +2059,14 @@ class _MatchCard extends StatelessWidget {
 
   /// Klare Ansage: wer gewinnt – plus Sicherheit in %.
   Widget _predictionBanner() {
-    final values = [probs.home, probs.draw, probs.away];
     final idx = _predictedIdx();
     final who = idx == 0
         ? '${match.home.shortName} gewinnt'
         : idx == 2
             ? '${match.away.shortName} gewinnt'
             : 'Unentschieden';
-    final conf = (values[idx] * 100).round();
+    final (int ph, int pd, int pa) = prozente100(probs);
+    final conf = [ph, pd, pa][idx];
     final sure = idx != 1 && conf >= 65;
 
     Widget trailing = Column(
@@ -2185,14 +2190,16 @@ class _MatchCard extends StatelessWidget {
   }
 
   /// Die drei Wahrscheinlichkeiten unter dem Balken: Heim / Unentschieden / Gast.
+  /// Ganzzahlige Prozente über prozente100 -> Summe immer exakt 100 %.
   Widget _probRow() {
     final pick = _predictedIdx();
-    Widget cell(String label, double p, int i, CrossAxisAlignment align) {
+    final (ph, pd, pa) = prozente100(probs);
+    Widget cell(String label, int pct, int i, CrossAxisAlignment align) {
       final top = i == pick;
       return Column(
         crossAxisAlignment: align,
         children: [
-          Text('${(p * 100).round()} %',
+          Text('$pct %',
               style: TextStyle(
                 color: top ? _accent : kText,
                 fontWeight: FontWeight.w800,
@@ -2213,25 +2220,33 @@ class _MatchCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-            child: cell(match.home.shortName, probs.home, 0, CrossAxisAlignment.start)),
+            child: cell(match.home.shortName, ph, 0, CrossAxisAlignment.start)),
         Expanded(
             child: Center(
-                child: cell('Unent.', probs.draw, 1, CrossAxisAlignment.center))),
+                child: cell('Unent.', pd, 1, CrossAxisAlignment.center))),
         Expanded(
             child: Align(
                 alignment: Alignment.centerRight,
-                child: cell(match.away.shortName, probs.away, 2, CrossAxisAlignment.end))),
+                child: cell(match.away.shortName, pa, 2, CrossAxisAlignment.end))),
       ],
     );
   }
 
   Widget _topRow() {
-    // Rechts: Status als Pill – LIVE, Anpfiff, Beendet oder Datum.
+    // Rechts: Status als Pill – gestörte Spiele (verschoben/abgesagt/
+    // unterbrochen) zuerst und klar, sonst LIVE/Anpfiff/Beendet/Datum.
     Widget statusPill;
-    if (match.finished) {
+    if (match.istAbgesagt) {
+      statusPill = const StatusPill('Abgesagt', color: kDanger, filled: true);
+    } else if (match.istVerschoben) {
+      statusPill = const StatusPill('Verschoben', color: kWarn, filled: true);
+    } else if (match.istUnterbrochen) {
+      statusPill = const StatusPill('Unterbrochen', color: kWarn, filled: true);
+    } else if (match.finished) {
       statusPill = const StatusPill('Beendet', color: kTextMute);
     } else if (live) {
-      statusPill = const StatusPill('LIVE', color: kLive, filled: true, icon: Icons.circle);
+      statusPill = StatusPill(match.istHalbzeit ? 'HALBZEIT' : 'LIVE',
+          color: kLive, filled: true, icon: Icons.circle);
     } else if (locked) {
       statusPill = const StatusPill('Angepfiffen', color: kWarn, filled: true);
     } else if (match.kickoff != null) {
@@ -2433,6 +2448,22 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
     }
   }
 
+  /// Datengüte (0..1) für den Score: wie belastbar ist die Basis?
+  /// Beide Teams tatsächlich gelernt + aktuelle Form vorhanden = 1,0.
+  double _datenGuete() {
+    var g = 0.0;
+    final store = widget.store;
+    final h = widget.match.home.name, a = widget.match.away.name;
+    if (store != null) {
+      final kh = store.elo.containsKey(h), ka = store.elo.containsKey(a);
+      g += kh && ka ? 0.6 : (kh || ka ? 0.3 : 0.0);
+    }
+    final fh = _formHeim, fg = _formGast;
+    final bh = fh != null && fh.genugDaten, bg = fg != null && fg.genugDaten;
+    g += bh && bg ? 0.4 : (bh || bg ? 0.2 : 0.0);
+    return g.clamp(0.0, 1.0);
+  }
+
   /// Zustimmung der jüngsten Form zur Modell-Tendenz (−1..+1) für den Score.
   double _formZustimmung(int idx) {
     final h = _formHeim, g = _formGast;
@@ -2458,7 +2489,10 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
         : idx == 2
             ? '${match.away.shortName} gewinnt'
             : 'Unentschieden';
-    final conf = ([probs.home, probs.draw, probs.away][idx] * 100).round();
+    // Ganzzahlige Prozente, die exakt 100 ergeben – überall dieselbe Quelle.
+    final (int pph, int ppd, int ppa) = prozente100(probs);
+    final prozent = [pph, ppd, ppa];
+    final conf = prozent[idx];
     final (String sLabel, Color sColor) = idx == 1
         ? ('offen', kTextDim)
         : conf >= 70
@@ -2467,12 +2501,22 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
                 ? ('mittel', kWarn)
                 : ('gering', kTextDim);
 
-    final score = kickProphetScore(probs, formZustimmung: _formZustimmung(idx));
+    final score = kickProphetScore(probs,
+        formZustimmung: _formZustimmung(idx), datenGuete: _datenGuete());
     final band = kickProphetBand(score);
 
     String head;
     Color headColor;
-    if (match.isLive) {
+    if (match.istAbgesagt) {
+      head = 'Spiel abgesagt';
+      headColor = kDanger;
+    } else if (match.istVerschoben) {
+      head = 'Spiel verschoben';
+      headColor = kWarn;
+    } else if (match.istUnterbrochen) {
+      head = 'Spiel unterbrochen';
+      headColor = kWarn;
+    } else if (match.isLive) {
       final min = match.liveMinute;
       head = 'LÄUFT · ${match.homeGoals}:${match.awayGoals}'
           '${min != null ? ' · $min' : ''}';
@@ -2556,6 +2600,12 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
           const Text('KickProphet-Prognose',
               style: TextStyle(
                   color: kText, fontSize: 15, fontWeight: FontWeight.w800)),
+          if (!match.finished &&
+              (match.isLive || match.startedBy(DateTime.now()))) ...[
+            const SizedBox(height: 4),
+            const Text('Prognose von vor dem Anpfiff – das Spiel läuft bereits.',
+                style: TextStyle(color: kLive, fontSize: 11.5)),
+          ],
           const SizedBox(height: 12),
           ProbBar(
               home: probs.home,
@@ -2563,11 +2613,11 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
               away: probs.away,
               highlight: idx),
           const SizedBox(height: 14),
-          row('${match.home.shortName} gewinnt', '${(probs.home * 100).round()} %',
+          row('${match.home.shortName} gewinnt', '$pph %',
               vc: idx == 0 ? kAccent : kText),
-          row('Unentschieden', '${(probs.draw * 100).round()} %',
+          row('Unentschieden', '$ppd %',
               vc: idx == 1 ? kAccent : kText),
-          row('${match.away.shortName} gewinnt', '${(probs.away * 100).round()} %',
+          row('${match.away.shortName} gewinnt', '$ppa %',
               vc: idx == 2 ? kAccent : kText),
           const Divider(height: 26, color: kBorder),
           row('Wahrscheinlichster Ausgang', who, vc: kAccent),
@@ -2883,9 +2933,10 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
             '${widget.match.away.shortName} ${g.punkteProSpiel.toStringAsFixed(1)} Punkte/Spiel.');
       }
     } else {
-      final p = idx == 0 ? probs.home : probs.away;
+      final (ph, _, pa) = prozente100(probs);
+      final favPct = idx == 0 ? ph : pa;
       gruende.add(
-          '$favName wird favorisiert (${(p * 100).round()} % Siegwahrscheinlichkeit laut Modell).');
+          '$favName wird favorisiert ($favPct % Siegwahrscheinlichkeit laut Modell).');
       if (idx == 0 && !widget.match.neutralVenue) {
         gruende.add('Heimvorteil für ${widget.match.home.shortName}.');
       }
@@ -3305,6 +3356,8 @@ class _StatsSheet extends StatelessWidget {
               _stat('${pb.bttsPct} %', 'Beide treffen'),
               _stat('${pb.exaktPct} %', 'Exaktes Ergebnis'),
             ]),
+            const SizedBox(height: 12),
+            _tendenzZeitraeume(store),
             const SizedBox(height: 16),
             const Text('Letzte Prognosen',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -3424,6 +3477,42 @@ class _StatsSheet extends StatelessWidget {
           ]),
         ],
       ),
+    );
+  }
+
+  /// Tendenz-Trefferquote über mehrere Zeiträume (7 Tage · 30 Tage · gesamt).
+  Widget _tendenzZeitraeume(PredictionStore store) {
+    final b7 = store.prophetBilanz(tage: 7);
+    final b30 = store.prophetBilanz(tage: 30);
+    final ball = store.prophetBilanz(tage: 100000);
+    Widget spalte(String label, ProphetBilanz b) => Expanded(
+          child: Column(
+            children: [
+              Text(b.total == 0 ? '–' : '${b.tendenzPct} %',
+                  style: const TextStyle(
+                      color: _accent, fontSize: 15, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: const TextStyle(color: Colors.white60, fontSize: 10.5)),
+              Text('${b.total} Sp.',
+                  style: const TextStyle(color: Colors.white38, fontSize: 10)),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(children: [
+        spalte('7 Tage', b7),
+        Container(width: 1, height: 30, color: kBorder),
+        spalte('30 Tage', b30),
+        Container(width: 1, height: 30, color: kBorder),
+        spalte('Gesamt', ball),
+      ]),
     );
   }
 

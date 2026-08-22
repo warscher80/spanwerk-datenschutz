@@ -178,6 +178,35 @@ void main() {
     });
   });
 
+  group('Spielstatus (verschoben/abgesagt/unterbrochen)', () {
+    FootyMatch mitStatus(String s) => FootyMatch.fromJson({
+          'idEvent': '1',
+          'strStatus': s,
+          'intHomeScore': null,
+          'intAwayScore': null,
+          'strTimestamp': '2026-08-22T18:30:00',
+          'intRound': '1',
+          'strHomeTeam': 'A',
+          'strAwayTeam': 'B',
+        });
+
+    test('Statuskennzeichen werden erkannt', () {
+      expect(mitStatus('CANC').istAbgesagt, isTrue);
+      expect(mitStatus('PostP.').istVerschoben, isTrue);
+      expect(mitStatus('POSTP').istVerschoben, isTrue);
+      expect(mitStatus('SUSP').istUnterbrochen, isTrue);
+      expect(mitStatus('INT').istUnterbrochen, isTrue);
+      expect(mitStatus('CANC').istGestoert, isTrue);
+      expect(mitStatus('NS').istGestoert, isFalse);
+      expect(mitStatus('HT').istHalbzeit, isTrue);
+    });
+
+    test('gestörte Spiele gelten nicht als beendet', () {
+      expect(mitStatus('CANC').finished, isFalse);
+      expect(mitStatus('POSTP').finished, isFalse);
+    });
+  });
+
   group('parseLiveMinutes (livescore-Feed)', () {
     test('liest idEvent -> Minute und lässt leere/0-Werte weg', () {
       final map = Api.parseLiveMinutes({

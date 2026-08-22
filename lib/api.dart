@@ -150,6 +150,10 @@ class FootyMatch {
   // nachträglich zugespielt (Api.liveMinutes) und ist bewusst veränderbar.
   String? progress;
 
+  // Roher Status von TheSportsDB (strStatus), z. B. "NS", "PostP.", "CANC",
+  // "SUSP", "HT". Für die klare Kennzeichnung verschoben/abgesagt/unterbrochen.
+  final String status;
+
   FootyMatch({
     required this.id,
     required this.kickoff,
@@ -164,7 +168,22 @@ class FootyMatch {
     this.neutralVenue = false,
     this.kickoffExact = true,
     this.progress,
+    this.status = '',
   });
+
+  // Punkte/Leerzeichen entfernen, damit "PostP.", "Post." usw. sicher greifen.
+  String get _statusUp =>
+      status.trim().toUpperCase().replaceAll(RegExp(r'[.\s]'), '');
+  bool get istAbgesagt =>
+      _statusUp == 'CANC' || _statusUp == 'CANCELLED' || _statusUp == 'ABD';
+  bool get istVerschoben =>
+      _statusUp == 'POSTP' || _statusUp == 'PST' || _statusUp == 'POSTPONED';
+  bool get istUnterbrochen =>
+      _statusUp == 'SUSP' || _statusUp == 'INT' || _statusUp == 'SUSPENDED';
+  bool get istHalbzeit => _statusUp == 'HT';
+  /// Nicht regulär spielbar (verschoben/abgesagt/unterbrochen) – dann ist die
+  /// angezeigte Anstoßzeit keine verlässliche „kommt gleich"-Aussage mehr.
+  bool get istGestoert => istAbgesagt || istVerschoben || istUnterbrochen;
 
   /// Aufbereitete Spielminute für die Anzeige – nur bei laufenden Spielen.
   /// Gibt z. B. "67'", "45+2'" oder "Halbzeit" zurück, sonst null.
@@ -318,6 +337,7 @@ class FootyMatch {
       awayGoals: ag,
       kickoffExact: zeitGenau,
       progress: prog.isEmpty ? null : prog,
+      status: status,
     );
   }
 }

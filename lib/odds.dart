@@ -209,21 +209,43 @@ class EloModel {
 
 }
 
+/// Rundet die drei Wahrscheinlichkeiten auf ganze Prozent, die in Summe EXAKT
+/// 100 ergeben (Largest-Remainder-/Hare-Verfahren). Ohne das können drei
+/// getrennt gerundete Werte 99 % oder 101 % anzeigen. Reihenfolge (home,draw,away).
+(int home, int draw, int away) prozente100(MatchProbs p) {
+  final roh = [p.home * 100, p.draw * 100, p.away * 100];
+  final unten = roh.map((x) => x.floor()).toList();
+  final rest = 100 - unten.reduce((a, b) => a + b);
+  // Indizes nach größtem Nachkomma-Rest, um den fehlenden Rest fair zu verteilen.
+  final order = [0, 1, 2]
+    ..sort((a, b) => (roh[b] - unten[b]).compareTo(roh[a] - unten[a]));
+  final out = List<int>.from(unten);
+  for (var i = 0; i < rest && i < 3; i++) {
+    out[order[i]] += 1;
+  }
+  return (out[0], out[1], out[2]);
+}
+
 /// KickProphet Score (0–100): Wie klar ist die Tendenz der Prognose?
 ///
 /// Vollständig aus Daten abgeleitet, nie zufällig oder dekorativ:
 ///  1. Basis = Sicherheit des wahrscheinlichsten Ausgangs (aus dem Modell),
 ///     linear abgebildet: 34 % (Zufall bei drei Ausgängen) → 0, 85 %+ → 100.
-///  2. [formZustimmung] (−1..+1) verschiebt den Wert um höchstens ±6 Punkte,
-///     je nachdem ob die jüngste Form die Tendenz stützt (+) oder ihr
-///     widerspricht (−). Ohne belastbare Formdaten ist sie 0.
+///  2. [datenGuete] (0..1) dämpft die Basis, wenn die Datenlage dünn ist –
+///     eine hohe Prozentzahl auf schwacher Basis (unbekannte Teams, keine
+///     Form) ergibt so NICHT automatisch eine „starke Tendenz". Faktor
+///     0,6…1,0: bei fehlenden Daten höchstens 60 % des Basiswerts.
+///  3. [formZustimmung] (−1..+1) verschiebt um höchstens ±6 Punkte, je nachdem
+///     ob die jüngste Form die Tendenz stützt (+) oder ihr widerspricht (−).
 ///
 /// Bänder (Vorgabe): 0–39 sehr unsicher · 40–59 ausgeglichen ·
 /// 60–79 gute Tendenz · 80–100 starke Tendenz.
-int kickProphetScore(MatchProbs p, {double formZustimmung = 0}) {
+int kickProphetScore(MatchProbs p,
+    {double formZustimmung = 0, double datenGuete = 1}) {
   final conf = [p.home, p.draw, p.away].reduce((a, b) => a > b ? a : b);
   final basis = ((conf - 0.34) / (0.85 - 0.34)).clamp(0.0, 1.0) * 100;
-  final score = basis + formZustimmung.clamp(-1.0, 1.0) * 6;
+  final gedaempft = basis * (0.6 + 0.4 * datenGuete.clamp(0.0, 1.0));
+  final score = gedaempft + formZustimmung.clamp(-1.0, 1.0) * 6;
   return score.clamp(0.0, 100.0).round();
 }
 

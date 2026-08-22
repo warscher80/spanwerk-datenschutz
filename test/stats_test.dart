@@ -98,5 +98,21 @@ void main() {
       expect(kickProphetBand(70).label, 'gute Tendenz');
       expect(kickProphetBand(88).label, 'starke Tendenz');
     });
+
+    test('dünne Datenlage dämpft den Score', () {
+      const klar = MatchProbs(0.82, 0.10, 0.08); // hohe Sicherheit
+      final voll = kickProphetScore(klar, datenGuete: 1);
+      final duenn = kickProphetScore(klar, datenGuete: 0);
+      expect(duenn, lessThan(voll));
+      // Bei fehlenden Daten keine „starke Tendenz" allein aus einer hohen Zahl.
+      expect(duenn, lessThan(80));
+    });
+
+    test('knappe Prognose bleibt unsicher, auch bei voller Datenlage', () {
+      // Beispiel aus der Vorgabe: 51/27/22 darf nicht 90 ergeben.
+      const knapp = MatchProbs(0.51, 0.27, 0.22);
+      final s = kickProphetScore(knapp, datenGuete: 1);
+      expect(s, lessThan(50));
+    });
   });
 }
