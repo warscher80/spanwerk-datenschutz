@@ -10,16 +10,28 @@ void main() {
     expect(p.home + p.draw + p.away, closeTo(1.0, 1e-9));
   });
 
-  test('consistentScore passt das Ergebnis an die Tendenz an', () {
-    // Heimfavorit -> Tipp darf kein Remis/Auswärtssieg sein.
-    final heim = consistentScore([1, 1], const MatchProbs(0.55, 0.25, 0.20));
+  test('tippFromProbs: Sieger führt, Höhe steigt mit dem Favoriten', () {
+    // Heimfavorit -> Heim führt.
+    final heim = tippFromProbs(const MatchProbs(0.55, 0.25, 0.20));
     expect(heim[0], greaterThan(heim[1]));
-    // Auswärtsfavorit -> Auswärtstore müssen höher sein.
-    final gast = consistentScore([2, 2], const MatchProbs(0.20, 0.25, 0.55));
+    // Auswärtsfavorit -> Gast führt.
+    final gast = tippFromProbs(const MatchProbs(0.20, 0.25, 0.55));
     expect(gast[1], greaterThan(gast[0]));
-    // Ausgeglichen (gleiche gerundete Prozent) -> Remis.
-    final remis = consistentScore([2, 1], const MatchProbs(0.30, 0.40, 0.30));
+    // Unentschieden -> gleicher Stand.
+    final remis = tippFromProbs(const MatchProbs(0.30, 0.40, 0.30));
     expect(remis[0], equals(remis[1]));
+  });
+
+  test('tippFromProbs ist nicht immer 2:1 – Höhe variiert mit der Stärke', () {
+    final knapp = tippFromProbs(const MatchProbs(0.42, 0.33, 0.25)); // 1:0
+    final klar = tippFromProbs(const MatchProbs(0.62, 0.23, 0.15)); // 2:0/3:1
+    final dominant = tippFromProbs(const MatchProbs(0.80, 0.13, 0.07)); // 3:0
+    // Der Sieger schießt bei einem klaren Favoriten mehr als bei einem knappen.
+    expect(klar[0], greaterThan(knapp[0]));
+    expect(dominant[0], greaterThanOrEqualTo(klar[0]));
+    // Und eben nicht überall dasselbe Ergebnis.
+    final ergebnisse = {knapp.join(':'), klar.join(':'), dominant.join(':')};
+    expect(ergebnisse.length, greaterThan(1));
   });
 
   test('Stärkeres Heimteam hat niedrigere Quote', () {

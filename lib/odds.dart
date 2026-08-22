@@ -101,15 +101,6 @@ class EloModel {
     return MatchOdds(o(p.home), o(p.draw), o(p.away));
   }
 
-  /// Vom Modell erwartetes Ergebnis (für den Auto-Tipp).
-  List<int> expectedScore(String home, String away, {bool neutral = false}) {
-    final hfa = neutral ? 0.0 : homeAdvantage;
-    final dr = rating(home) + hfa - rating(away);
-    final e = 1 / (1 + pow(10, -dr / 400)); // erwarteter Punktanteil Heim
-    final gh = (1.35 + (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
-    final ga = (1.35 - (e - 0.5) * 2.4).clamp(0.0, 6.0).round();
-    return [gh, ga];
-  }
 }
 
 /// Ein K.o.-Spiel für die Turnier-Simulation (Sieger ggf. schon bekannt).
@@ -172,29 +163,34 @@ Tendency predictedTendency(MatchProbs p) {
   return idx == 0 ? Tendency.home : (idx == 1 ? Tendency.draw : Tendency.away);
 }
 
-/// Plausibles Tipp-Ergebnis, das garantiert zur angezeigten Prognose passt.
-///
-/// [roh] ist das vom Modell erwartete Ergebnis ([EloModel.expectedScore]); es
-/// kann bei knappen Spielen der Tendenz widersprechen (z. B. „1:1" trotz
-/// leichtem Heimfavoriten). Diese Funktion gleicht das an: die Tendenz bleibt
-/// führend, das Ergebnis wird nur so weit angepasst, dass es dazu passt.
-List<int> consistentScore(List<int> roh, MatchProbs p) {
-  var gh = roh.isNotEmpty ? roh[0] : 1;
-  var ga = roh.length > 1 ? roh[1] : 1;
-  switch (predictedTendency(p)) {
-    case Tendency.home:
-      if (gh <= ga) gh = ga + 1;
-      break;
-    case Tendency.away:
-      if (ga <= gh) ga = gh + 1;
-      break;
-    case Tendency.draw:
-      final m = ((gh + ga) / 2).round();
-      gh = m;
-      ga = m;
-      break;
+/// Plausibles Tipp-Ergebnis aus den Wahrscheinlichkeiten – bewusst variabel,
+/// nicht immer „2:1". Der prognostizierte Sieger bekommt das höhere Ergebnis;
+/// je klarer der Favorit, desto deutlicher (1:0 → 2:1 → 2:0 → 3:1 → 3:0).
+/// Unentschieden ergibt je nach erwartetem Torreichtum 0:0, 1:1 oder 2:2.
+List<int> tippFromProbs(MatchProbs p) {
+  final t = predictedTendency(p);
+  if (t == Tendency.draw) {
+    // Wie torreich? Grobe Schätzung aus der Remis-Wahrscheinlichkeit: ein sehr
+    // hoher Remis-Wert spricht für ein zähes, torarmes Spiel.
+    if (p.draw >= 0.34) return [0, 0];
+    if (p.draw >= 0.28) return [1, 1];
+    return [2, 2];
   }
-  return [gh, ga];
+  // Siegwahrscheinlichkeit des Favoriten bestimmt die Höhe des Sieges.
+  final pw = t == Tendency.home ? p.home : p.away;
+  final List<int> wl; // [Tore Sieger, Tore Verlierer]
+  if (pw < 0.45) {
+    wl = [1, 0];
+  } else if (pw < 0.55) {
+    wl = [2, 1];
+  } else if (pw < 0.65) {
+    wl = [2, 0];
+  } else if (pw < 0.75) {
+    wl = [3, 1];
+  } else {
+    wl = [3, 0];
+  }
+  return t == Tendency.home ? wl : [wl[1], wl[0]];
 }
 
 /// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,

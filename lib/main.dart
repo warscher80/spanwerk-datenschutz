@@ -93,7 +93,7 @@ class _DemoScreen extends StatelessWidget {
             DateTime(2026, 8, 28, 18, 30), 1, comp: '🇩🇪 1. Bundesliga'),
         now: now,
         probs: const MatchProbs(0.61, 0.23, 0.16),
-        tip: const [2, 1],
+        tip: tippFromProbs(const MatchProbs(0.61, 0.23, 0.16)),
         topPadding: 12,
       ),
       _MatchCard(
@@ -101,28 +101,28 @@ class _DemoScreen extends StatelessWidget {
             DateTime(2026, 8, 29, 15, 30), 1, comp: '🇩🇪 1. Bundesliga'),
         now: now,
         probs: const MatchProbs(0.38, 0.30, 0.32),
-        tip: const [1, 1],
+        tip: tippFromProbs(const MatchProbs(0.38, 0.30, 0.32)),
       ),
       _MatchCard(
         match: mk(3, 'Arsenal', 'Chelsea', DateTime(2026, 8, 30, 17, 30), 2,
             comp: '🏴 Premier League'),
         now: now,
         probs: const MatchProbs(0.44, 0.28, 0.28),
-        tip: const [2, 1],
+        tip: tippFromProbs(const MatchProbs(0.44, 0.28, 0.28)),
       ),
       _MatchCard(
         match: mk(4, 'Real Madrid', 'Barcelona', DateTime(2026, 8, 20, 21, 0), 1,
             finished: true, hg: 2, ag: 1, comp: '🇪🇸 La Liga'),
         now: now,
         probs: const MatchProbs(0.47, 0.26, 0.27),
-        tip: const [2, 1],
+        tip: tippFromProbs(const MatchProbs(0.47, 0.26, 0.27)),
       ),
       _MatchCard(
         match: mk(5, 'Frankreich', 'Argentinien', DateTime(2026, 8, 24, 20, 0),
             8, comp: '🏆 WM 2026', rl: 'Viertelfinale'),
         now: now,
         probs: const MatchProbs(0.34, 0.30, 0.36),
-        tip: const [1, 2],
+        tip: tippFromProbs(const MatchProbs(0.34, 0.30, 0.36)),
       ),
     ];
 
@@ -1197,13 +1197,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             return _currentMode ? _summaryStrip() : const SizedBox(height: 12);
           }
           final m = _matches[i - 1];
+          final p = _elo.probs(m.home.name, m.away.name, neutral: _isCup);
           return _MatchCard(
             match: m,
             now: now,
-            probs: _elo.probs(m.home.name, m.away.name, neutral: _isCup),
-            tip: consistentScore(
-                _elo.expectedScore(m.home.name, m.away.name, neutral: _isCup),
-                _elo.probs(m.home.name, m.away.name, neutral: _isCup)),
+            probs: p,
+            tip: tippFromProbs(p),
             topPadding: _currentMode ? 12 : 0,
           );
         },
