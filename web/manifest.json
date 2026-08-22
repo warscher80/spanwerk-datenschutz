@@ -3,9 +3,9 @@
     "short_name": "KickProphet",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Fußball-Prognosen: wer gewinnt, mit Quoten.",
+    "background_color": "#0A1512",
+    "theme_color": "#0A1512",
+    "description": "Datenbasierte Fußball-Prognosen, Wahrscheinlichkeiten und Spielanalysen auf einen Blick.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

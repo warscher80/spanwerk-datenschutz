@@ -172,6 +172,31 @@ Tendency predictedTendency(MatchProbs p) {
   return idx == 0 ? Tendency.home : (idx == 1 ? Tendency.draw : Tendency.away);
 }
 
+/// Plausibles Tipp-Ergebnis, das garantiert zur angezeigten Prognose passt.
+///
+/// [roh] ist das vom Modell erwartete Ergebnis ([EloModel.expectedScore]); es
+/// kann bei knappen Spielen der Tendenz widersprechen (z. B. „1:1" trotz
+/// leichtem Heimfavoriten). Diese Funktion gleicht das an: die Tendenz bleibt
+/// führend, das Ergebnis wird nur so weit angepasst, dass es dazu passt.
+List<int> consistentScore(List<int> roh, MatchProbs p) {
+  var gh = roh.isNotEmpty ? roh[0] : 1;
+  var ga = roh.length > 1 ? roh[1] : 1;
+  switch (predictedTendency(p)) {
+    case Tendency.home:
+      if (gh <= ga) gh = ga + 1;
+      break;
+    case Tendency.away:
+      if (ga <= gh) ga = gh + 1;
+      break;
+    case Tendency.draw:
+      final m = ((gh + ga) / 2).round();
+      gh = m;
+      ga = m;
+      break;
+  }
+  return [gh, ga];
+}
+
 /// Ein echtes, abgeschlossenes Spiel verarbeiten: Modell-Vorhersage bewerten,
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.

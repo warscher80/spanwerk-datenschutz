@@ -10,6 +10,18 @@ void main() {
     expect(p.home + p.draw + p.away, closeTo(1.0, 1e-9));
   });
 
+  test('consistentScore passt das Ergebnis an die Tendenz an', () {
+    // Heimfavorit -> Tipp darf kein Remis/Auswärtssieg sein.
+    final heim = consistentScore([1, 1], const MatchProbs(0.55, 0.25, 0.20));
+    expect(heim[0], greaterThan(heim[1]));
+    // Auswärtsfavorit -> Auswärtstore müssen höher sein.
+    final gast = consistentScore([2, 2], const MatchProbs(0.20, 0.25, 0.55));
+    expect(gast[1], greaterThan(gast[0]));
+    // Ausgeglichen (gleiche gerundete Prozent) -> Remis.
+    final remis = consistentScore([2, 1], const MatchProbs(0.30, 0.40, 0.30));
+    expect(remis[0], equals(remis[1]));
+  });
+
   test('Stärkeres Heimteam hat niedrigere Quote', () {
     final m = EloModel({'Stark': 1750, 'Schwach': 1350});
     final o = m.odds('Stark', 'Schwach');
