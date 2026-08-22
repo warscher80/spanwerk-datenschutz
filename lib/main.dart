@@ -1179,9 +1179,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       left = '${_store.teamsLearned} Teams gelernt$acc';
     }
     final u = _updatedAt;
+    String two(int n) => n.toString().padLeft(2, '0');
     final right = u == null
         ? ''
-        : 'aktualisiert ${u.hour.toString().padLeft(2, '0')}:${u.minute.toString().padLeft(2, '0')}';
+        : 'Stand ${two(u.day)}.${two(u.month)}.${u.year} · ${two(u.hour)}:${two(u.minute)} Uhr';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
@@ -1211,9 +1212,73 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ]),
           ),
           const SizedBox(width: 8),
-          Text(right, style: const TextStyle(color: kTextMute, fontSize: 11)),
+          Flexible(
+            child: Text(right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: const TextStyle(color: kTextMute, fontSize: 11)),
+          ),
         ],
       ),
+    );
+  }
+
+  /// „🔥 Top Prognosen heute" – die sichersten bevorstehenden Prognosen aus den
+  /// geladenen Spielen (nur echte Modellwerte, keine Erfindungen). Erscheint nur
+  /// bei ausreichend hoher Datensicherheit (≥ 65 %) und genügend Kandidaten.
+  Widget _topPrognosen() {
+    final cand = <({FootyMatch m, MatchProbs p, int idx, int conf})>[];
+    for (final m in _matches) {
+      if (m.finished || m.isLive) continue; // nur bevorstehende
+      final p = _cardProbs[m.id] ??
+          _elo.probs(m.home.name, m.away.name, neutral: m.neutralVenue);
+      final t = predictedTendency(p);
+      if (t == Tendency.draw) continue;
+      final idx = t == Tendency.home ? 0 : 2;
+      final conf = ([p.home, p.draw, p.away][idx] * 100).round();
+      if (conf < 65) continue;
+      cand.add((m: m, p: p, idx: idx, conf: conf));
+    }
+    if (cand.length < 2) return const SizedBox.shrink();
+    cand.sort((a, b) => b.conf.compareTo(a.conf));
+    final top = cand.take(6).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(14, 14, 14, 8),
+          child: Text('🔥 Top Prognosen heute',
+              style: TextStyle(
+                  color: kText, fontSize: 15, fontWeight: FontWeight.w800)),
+        ),
+        SizedBox(
+          height: 96,
+          child: ScrollConfiguration(
+            behavior: const _DragScrollBehavior(),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: top.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (c, i) {
+                final e = top[i];
+                final wer = e.idx == 0
+                    ? e.m.home.shortName
+                    : e.m.away.shortName;
+                final t = tippFromProbs(e.p);
+                return _TopPrognoseCard(
+                  liga: e.m.competition ?? '',
+                  wer: wer,
+                  conf: e.conf,
+                  onTap: () => _openMatchDetail(e.m, e.p, t),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1320,7 +1385,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         itemCount: _matches.length + 1,
         itemBuilder: (c, i) {
           if (i == 0) {
-            return _currentMode ? _summaryStrip() : const SizedBox(height: 12);
+            return _currentMode
+                ? Column(children: [_topPrognosen(), _summaryStrip()])
+                : const SizedBox(height: 12);
           }
           final m = _matches[i - 1];
           final p = _cardProbs[m.id] ??
@@ -1471,6 +1538,77 @@ class _SkeletonCardState extends State<_SkeletonCard>
             const SizedBox(height: 14),
             box(double.infinity, 34, r: 10),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Kleine Karte in „Top Prognosen heute": Favorit + Siegwahrscheinlichkeit.
+class _TopPrognoseCard extends StatelessWidget {
+  final String liga;
+  final String wer;
+  final int conf;
+  final VoidCallback onTap;
+  const _TopPrognoseCard(
+      {required this.liga,
+      required this.wer,
+      required this.conf,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: kSurface,
+      borderRadius: BorderRadius.circular(kRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(kRadius),
+        child: Container(
+          width: 178,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(kRadius),
+            border: Border.all(color: kAccent.withValues(alpha: 0.35)),
+            gradient: LinearGradient(
+              colors: [kAccent.withValues(alpha: 0.12), kSurface],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (liga.isNotEmpty)
+                Text(liga,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: kAccent, fontSize: 10.5, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              Text(wer,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: kText, fontSize: 15, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('$conf %',
+                      style: const TextStyle(
+                          color: kAccent, fontSize: 22, fontWeight: FontWeight.w900)),
+                  const SizedBox(width: 6),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 3),
+                    child: Text('Sieg',
+                        style: TextStyle(color: kTextMute, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
