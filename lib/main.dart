@@ -629,6 +629,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  /// Rechtliche Hinweise: Haftungsausschluss, Datenschutz, Impressum.
+  void _openRechtliches() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kSurfaceTop,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => const _LegalSheet(),
+    );
+  }
+
   /// Eigene Wett-Bilanz (rein lokal, kein Konto).
   void _openWetten() {
     showModalBottomSheet(
@@ -980,6 +991,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             color: kSurfaceHi,
             onSelected: (v) {
               if (v == 'reminders') _toggleReminders();
+              if (v == 'legal') _openRechtliches();
             },
             itemBuilder: (c) => [
               PopupMenuItem(
@@ -987,6 +999,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 child: Text(_store.remindersEnabled
                     ? 'Benachrichtigungen: an ✓'
                     : 'Benachrichtigungen: aus'),
+              ),
+              const PopupMenuItem(
+                value: 'legal',
+                child: Text('Rechtliches'),
               ),
             ],
           ),
@@ -1001,7 +1017,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (!_currentMode && !_isCup) _dayNav(),
             _statusBar(),
             Expanded(child: _body()),
-            const _DisclaimerBar(),
+            _DisclaimerBar(onTap: _openRechtliches),
           ],
         ),
       ),
@@ -1462,19 +1478,123 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 }
 
 /// Dezenter Disclaimer am unteren Rand: Prognosen sind statistisch, keine
-/// Garantie. Bewusst leise – informiert, ohne zu stören.
+/// Garantie. Antippen öffnet die rechtlichen Hinweise.
 class _DisclaimerBar extends StatelessWidget {
-  const _DisclaimerBar();
+  final VoidCallback? onTap;
+  const _DisclaimerBar({this.onTap});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return Material(
       color: kSurfaceTop,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-      child: const Text(
-        'Prognosen basieren auf statistischen Daten – keine Garantie für echte Ergebnisse. Keine Wetten, kein Echtgeld.',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: kTextMute, fontSize: 10.5, height: 1.3),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+          child: const Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text:
+                      'Statistische Prognosen zu Informations- und Unterhaltungszwecken – keine Garantie für echte Ergebnisse. Keine Wetten, kein Echtgeld.  '),
+              TextSpan(
+                  text: 'Rechtliches ›',
+                  style: TextStyle(color: kAccent, fontWeight: FontWeight.w700)),
+            ]),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: kTextMute, fontSize: 10.5, height: 1.3),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rechtliche Hinweise. Bewusst nüchtern und korrekt: keine Garantie-Versprechen,
+/// ehrliche Datenschutz-Angaben (lokale Speicherung, Drittquelle, GitHub-Hosting).
+class _LegalSheet extends StatelessWidget {
+  const _LegalSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget h(String t) => Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 8),
+          child: Text(t,
+              style: const TextStyle(
+                  color: kText, fontSize: 16, fontWeight: FontWeight.w800)),
+        );
+    Widget p(String t) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(t,
+              style: const TextStyle(color: kTextDim, fontSize: 12.5, height: 1.45)),
+        );
+    Widget bullet(String t) => Padding(
+          padding: const EdgeInsets.only(bottom: 6, left: 2),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('•  ', style: TextStyle(color: kAccent, fontSize: 12.5)),
+            Expanded(
+              child: Text(t,
+                  style: const TextStyle(color: kTextDim, fontSize: 12.5, height: 1.45)),
+            ),
+          ]),
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Rechtliches',
+              style: TextStyle(
+                  color: kText, fontSize: 20, fontWeight: FontWeight.w900)),
+          h('Haftungsausschluss'),
+          p('KickProphet stellt statistische Fußball-Prognosen bereit. Prognosen '
+              'dienen ausschließlich Informations- und Unterhaltungszwecken und '
+              'stellen keine Garantie für tatsächliche Spielergebnisse dar.'),
+          p('Es handelt sich um keine Aufforderung zur Teilnahme an Wetten oder '
+              'Glücksspielen. KickProphet bietet kein Echtgeld an und wickelt keine '
+              'Wetten ab. Für Richtigkeit, Vollständigkeit und Aktualität der '
+              'angezeigten Daten wird keine Gewähr übernommen; die Nutzung erfolgt '
+              'auf eigene Verantwortung.'),
+          h('Datenschutz'),
+          bullet('Keine Benutzerkonten, keine Registrierung, kein Login.'),
+          bullet('Einstellungen, der Lernstand des Modells und deine eigenen Tipps '
+              'werden ausschließlich lokal auf deinem Gerät gespeichert '
+              '(Browser-Speicher bzw. App-Speicher). Diese Daten verlassen dein '
+              'Gerät nicht und werden nicht an uns übertragen.'),
+          bullet('Kein Tracking, keine Analyse-Cookies, keine Werbung.'),
+          bullet('Fußballdaten stammen von TheSportsDB (thesportsdb.com). Beim Laden '
+              'werden Anfragen an deren Server gestellt; dabei ist technisch bedingt '
+              'deine IP-Adresse sichtbar. Es gilt deren Datenschutzerklärung.'),
+          bullet('Das Hosting erfolgt über GitHub Pages (GitHub, Inc., ein Unternehmen '
+              'von Microsoft). Beim Aufruf verarbeitet GitHub technisch notwendige '
+              'Server-Protokolle einschließlich der IP-Adresse. Es gilt die '
+              'Datenschutzerklärung von GitHub.'),
+          bullet('Rechtsgrundlage ist das berechtigte Interesse an einer sicheren, '
+              'funktionsfähigen Bereitstellung (Art. 6 Abs. 1 lit. f DSGVO).'),
+          bullet('Lokale Daten kannst du jederzeit selbst löschen – über die '
+              'Browser-Einstellungen bzw. durch Entfernen der App.'),
+          h('Impressum'),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kWarn.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(kRadiusSm),
+              border: Border.all(color: kWarn.withValues(alpha: 0.4)),
+            ),
+            child: const Text(
+              'Angaben gemäß § 5 TMG / § 5 ECG werden vom Betreiber ergänzt:\n\n'
+              '[Name / Verantwortliche Person]\n'
+              '[Anschrift]\n'
+              '[E-Mail-Adresse]\n\n'
+              'Hinweis: Diese Felder muss der Betreiber mit seinen echten Daten '
+              'ausfüllen, bevor die App öffentlich beworben wird.',
+              style: TextStyle(color: kTextDim, fontSize: 12, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
       ),
     );
   }
