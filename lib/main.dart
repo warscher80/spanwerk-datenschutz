@@ -1,5 +1,6 @@
 // main.dart – KickProphet: datenbasierte Fußball-Prognosen (kein Echtgeld).
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -378,6 +379,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// bekäme sonst nie mit, dass es eine neuere Fassung gibt. Höchstens
   /// einmal pro Stunde, das reicht für eine App ohne Store-Anbindung.
   void _pruefeUpdate() {
+    // Im Browser / als Home-Bildschirm-Lesezeichen (PWA) aktualisiert sich die
+    // App beim Neuladen von selbst. Ein APK-Update-Banner mit .apk-Download
+    // wäre dort sinnlos (und auf dem iPhone gar nicht installierbar).
+    if (kIsWeb) return;
     if (_update != null) return; // Hinweis steht schon
     final last = _letzteUpdatePruefung;
     if (last != null && DateTime.now().difference(last) < const Duration(hours: 1)) {
