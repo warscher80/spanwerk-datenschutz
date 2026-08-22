@@ -2,7 +2,7 @@ name: footy_predict
 description: "Footy Predict – Tippspiel auf echte Fußballspiele (Punkte, kein Echtgeld)."
 publish_to: 'none'
 
-version: 1.12.1+26
+version: 1.12.2+27
 
 environment:
   sdk: ^3.12.2
@@ -35,3 +35,9 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Vorberechnetes Modell als Beilage: garantiert auf jedem Gerät und in
+    # jedem Browser einen differenzierten Startstand. Die Online-Fassung im
+    # Release aktualisiert es nur noch, ist aber keine Voraussetzung mehr –
+    # ohne sie zeigten früher alle Spiele dieselbe Quote (leeres Modell).
+    - assets/modell.json

@@ -12,6 +12,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -52,6 +53,18 @@ Future<Map<String, dynamic>?> ladeFertigmodell() async {
     } catch (_) {
       // nächste Adresse versuchen
     }
+  }
+
+  // Fällt der Online-Abruf aus (im Browser blockiert die Release-Adresse per
+  // CORS, am Handy kann das Netz fehlen), greift das mitgelieferte Modell.
+  // Ohne diese Beilage zeigten dann alle Spiele dieselbe Quote, weil ein
+  // leeres Modell jedem Team denselben Startwert gibt.
+  try {
+    final roh = await rootBundle.loadString('assets/modell.json');
+    final j = jsonDecode(roh);
+    if (j is Map<String, dynamic>) return j;
+  } catch (_) {
+    // Keine Beilage vorhanden – App lernt selbst.
   }
   return null;
 }
