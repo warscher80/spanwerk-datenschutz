@@ -142,6 +142,20 @@ class PredictionStore {
   int modelHits = 0;
   int modelTotal = 0;
 
+  // Erweiterte Güte-Messung für „Prognose-Vertrauen":
+  //  - je Liga getrennt (wo ist das Modell stark/schwach?)
+  //  - Brier-Score: misst die QUALITÄT der Wahrscheinlichkeiten, nicht nur
+  //    Treffer/daneben. 0 = perfekt, ~0,66 = Raten. Kleiner ist besser.
+  //  - Kalibrierung in 5 Sicherheits-Körben: sagt das Modell „70 %", tritt es
+  //    dann auch in ~70 % der Fälle ein?
+  final Map<String, int> _ligaHits = {};
+  final Map<String, int> _ligaTotal = {};
+  double _brierSum = 0;
+  int _brierN = 0;
+  static const _calGrenzen = [0.5, 0.6, 0.7, 0.8]; // ergibt 5 Körbe
+  final List<int> _calHit = List<int>.filled(5, 0);
+  final List<int> _calTot = List<int>.filled(5, 0);
+
   SharedPreferences? _prefs;
 
   Map<int, Prediction> get predictions => _cache;
@@ -176,8 +190,7 @@ class PredictionStore {
       elo.clear();
       _ingested.clear();
       _learnedRounds.clear();
-      modelHits = 0;
-      modelTotal = 0;
+      _resetEval();
       // Auch den Stand des vorberechneten Modells vergessen, sonst lehnt
       // spieleModellEin die frische Fassung als "nicht neuer" ab und das Modell
       // bliebe leer (alle Teams beim Basiswert -> Einheitsquoten).
@@ -222,10 +235,27 @@ class PredictionStore {
         final m = (jsonDecode(ev) as Map).cast<String, dynamic>();
         modelHits = (m['hits'] as num?)?.toInt() ?? 0;
         modelTotal = (m['total'] as num?)?.toInt() ?? 0;
+        _brierSum = (m['brierSum'] as num?)?.toDouble() ?? 0;
+        _brierN = (m['brierN'] as num?)?.toInt() ?? 0;
+        final lh = m['ligaHits'];
+        if (lh is Map) {
+          lh.forEach((k, v) => _ligaHits['$k'] = (v as num).toInt());
+        }
+        final lt = m['ligaTotal'];
+        if (lt is Map) {
+          lt.forEach((k, v) => _ligaTotal['$k'] = (v as num).toInt());
+        }
+        final ch = m['calHit'];
+        final ct = m['calTot'];
+        if (ch is List && ct is List && ch.length == 5 && ct.length == 5) {
+          for (var i = 0; i < 5; i++) {
+            _calHit[i] = (ch[i] as num).toInt();
+            _calTot[i] = (ct[i] as num).toInt();
+          }
+        }
       }
     } catch (_) {
-      modelHits = 0;
-      modelTotal = 0;
+      _resetEval();
     }
   }
 
@@ -451,13 +481,100 @@ class PredictionStore {
     if (hit) modelHits++;
   }
 
+  /// Ausführliche Bewertung einer Prognose gegen das echte Ergebnis.
+  /// [predicted]/[actual]: 0 = Heim, 1 = Remis, 2 = Gast.
+  void addModelEvalDetailed({
+    required double pHome,
+    required double pDraw,
+    required double pAway,
+    required int predicted,
+    required int actual,
+    required String liga,
+  }) {
+    final hit = predicted == actual;
+    modelTotal++;
+    if (hit) modelHits++;
+
+    final key = liga.isEmpty ? 'Gesamt' : liga;
+    _ligaTotal[key] = (_ligaTotal[key] ?? 0) + 1;
+    if (hit) _ligaHits[key] = (_ligaHits[key] ?? 0) + 1;
+
+    // Brier-Score über die drei möglichen Ausgänge.
+    final p = [pHome, pDraw, pAway];
+    var b = 0.0;
+    for (var i = 0; i < 3; i++) {
+      final o = i == actual ? 1.0 : 0.0;
+      final d = p[i] - o;
+      b += d * d;
+    }
+    _brierSum += b;
+    _brierN++;
+
+    // Kalibrierung: Korb nach der Sicherheit des vorhergesagten Ausgangs.
+    final conf = p[predicted];
+    var bkt = 0;
+    while (bkt < _calGrenzen.length && conf >= _calGrenzen[bkt]) {
+      bkt++;
+    }
+    _calTot[bkt]++;
+    if (hit) _calHit[bkt]++;
+  }
+
+  /// Brier-Score (0 = perfekt, ~0,66 = Raten); null solange nichts gemessen.
+  double? get brierScore => _brierN == 0 ? null : _brierSum / _brierN;
+
+  /// Trefferquote je Liga, absteigend nach Anzahl bewerteter Spiele.
+  List<({String liga, int hits, int total})> get ligaBilanz {
+    final out = _ligaTotal.entries
+        .map((e) => (liga: e.key, hits: _ligaHits[e.key] ?? 0, total: e.value))
+        .toList()
+      ..sort((a, b) => b.total.compareTo(a.total));
+    return out;
+  }
+
+  /// Kalibrierungs-Körbe mit Daten: erwartete vs. tatsächliche Trefferquote.
+  List<({String label, int hits, int total})> get kalibrierung {
+    const labels = ['<50 %', '50–60 %', '60–70 %', '70–80 %', '80–100 %'];
+    final out = <({String label, int hits, int total})>[];
+    for (var i = 0; i < 5; i++) {
+      if (_calTot[i] > 0) {
+        out.add((label: labels[i], hits: _calHit[i], total: _calTot[i]));
+      }
+    }
+    return out;
+  }
+
+  void _resetEval() {
+    modelHits = 0;
+    modelTotal = 0;
+    _ligaHits.clear();
+    _ligaTotal.clear();
+    _brierSum = 0;
+    _brierN = 0;
+    for (var i = 0; i < 5; i++) {
+      _calHit[i] = 0;
+      _calTot[i] = 0;
+    }
+  }
+
   Future<void> saveLearning() async {
     await _prefs?.setString(_eloKey, jsonEncode(elo));
     await _prefs?.setStringList(_ingestedKey, _ingested.map((e) => e.toString()).toList());
     await _prefs?.setStringList(_roundsKey, _learnedRounds.toList());
     await _prefs?.setString(_resultsKey,
         jsonEncode(_results.map((k, v) => MapEntry(k.toString(), v))));
-    await _prefs?.setString(_evalKey, jsonEncode({'hits': modelHits, 'total': modelTotal}));
+    await _prefs?.setString(
+        _evalKey,
+        jsonEncode({
+          'hits': modelHits,
+          'total': modelTotal,
+          'brierSum': _brierSum,
+          'brierN': _brierN,
+          'ligaHits': _ligaHits,
+          'ligaTotal': _ligaTotal,
+          'calHit': _calHit,
+          'calTot': _calTot,
+        }));
   }
 
   /// Zuletzt betrachteten Spieltag je Liga merken.

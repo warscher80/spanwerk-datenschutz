@@ -265,7 +265,7 @@ List<int> tippFromProbs(MatchProbs p) {
 /// dann lernen, Ergebnis getippter Spiele merken. Gibt true zurück, wenn das
 /// Modell verändert wurde.
 bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
-    {bool evaluate = true, bool neutral = false}) {
+    {bool evaluate = true, bool neutral = false, String liga = ''}) {
   if (!(m.finished && m.hasResult)) return false;
   // Ergebnis getippter Spiele immer für die Statistik festhalten.
   if (store.predictions.containsKey(m.id)) {
@@ -279,7 +279,16 @@ bool ingestMatch(PredictionStore store, EloModel model, FootyMatch m,
     final p = model.probs(m.home.name, m.away.name, neutral: neutral);
     final predicted = predictedTendency(p);
     final actual = tendencyOf(m.homeGoals!, m.awayGoals!);
-    store.addModelEval(predicted == actual);
+    int idx(Tendency t) =>
+        t == Tendency.home ? 0 : (t == Tendency.draw ? 1 : 2);
+    store.addModelEvalDetailed(
+      pHome: p.home,
+      pDraw: p.draw,
+      pAway: p.away,
+      predicted: idx(predicted),
+      actual: idx(actual),
+      liga: liga.isEmpty ? (m.competition ?? '') : liga,
+    );
   }
 
   model.learn(m.home.name, m.away.name, m.homeGoals!, m.awayGoals!, neutral: neutral);
@@ -336,7 +345,9 @@ class SeasonLearner {
         final matches = await Api.round(league.id, season, code);
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (ingestMatch(store, model, m, neutral: true)) _changed = true;
+          if (ingestMatch(store, model, m, neutral: true, liga: league.label)) {
+            _changed = true;
+          }
           if (!m.finished) allFinished = false;
         }
         if (allFinished) store.markRoundLearned(key);
@@ -409,7 +420,9 @@ class SeasonLearner {
         }
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (ingestMatch(store, model, m, evaluate: evaluate)) _changed = true;
+          if (ingestMatch(store, model, m, evaluate: evaluate, liga: league.label)) {
+            _changed = true;
+          }
           if (!m.finished) allFinished = false;
         }
         // Nur abgeschlossene Spieltage „fertig" markieren -> später kein Refetch.

@@ -2398,6 +2398,22 @@ class _StatsSheet extends StatelessWidget {
     final modelPct =
         store.modelTotal == 0 ? null : (store.modelHits / store.modelTotal * 100).round();
 
+    // Brier-Score misst die Güte der Wahrscheinlichkeiten (0 = perfekt,
+    // ~0,67 = Raten). Als Note relativ zum Raten-Nullpunkt.
+    final brier = store.brierScore;
+    final (String brierLabel, Color brierColor) = brier == null
+        ? ('–', kTextDim)
+        : brier <= 0.58
+            ? ('sehr gut', kAccent)
+            : brier <= 0.62
+                ? ('gut', kAccent)
+                : brier <= 0.66
+                    ? ('solide', kWarn)
+                    : ('noch dünn', kTextDim);
+
+    final ligaB = store.ligaBilanz;
+    final kal = store.kalibrierung;
+
     // Stärkste Teams laut Modell (gelernte Ratings).
     final ranking = store.elo.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -2418,8 +2434,9 @@ class _StatsSheet extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           Row(children: [
+            _stat(brier == null ? '–' : brier.toStringAsFixed(2), 'Brier-Score',
+                sub: brierLabel, subColor: brierColor),
             _stat('${store.teamsLearned}', 'Teams gelernt'),
-            _stat('${store.modelHits}', 'Treffer'),
           ]),
           const SizedBox(height: 18),
           Container(
@@ -2441,13 +2458,32 @@ class _StatsSheet extends StatelessWidget {
               ]),
               const SizedBox(height: 6),
               const Text(
-                'Je höher die Sicherheit, desto öfter stimmt die Prognose: bei "75 %+" '
-                'liegt das Modell rund 3 von 4 Mal richtig. Es lernt aus jedem echten '
-                'Ergebnis weiter dazu. Garantien gibt es im Fußball aber nie. 😉',
+                'Der Brier-Score misst, wie gut die Wahrscheinlichkeiten sind '
+                '(0 = perfekt, ~0,67 = blindes Raten – kleiner ist besser). Die '
+                'Kalibrierung zeigt: sagt das Modell „70 %", tritt es dann auch in '
+                'rund 70 % der Fälle ein? Es lernt aus jedem Ergebnis weiter. '
+                'Garantien gibt es im Fußball nie. 😉',
                 style: TextStyle(color: Colors.white60, fontSize: 12),
               ),
             ]),
           ),
+          if (kal.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Kalibrierung (Prognose vs. Realität)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 4),
+            const Text('Wie oft trifft ein, was das Modell mit dieser Sicherheit ansagt.',
+                style: TextStyle(color: Colors.white54, fontSize: 11.5)),
+            const SizedBox(height: 10),
+            for (final k in kal) _kalRow(k.label, k.hits, k.total),
+          ],
+          if (ligaB.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Treffsicherheit je Liga',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+            const SizedBox(height: 10),
+            for (final l in ligaB) _ligaRow(l.liga, l.hits, l.total),
+          ],
           if (top.isNotEmpty) ...[
             const SizedBox(height: 20),
             const Text('Stärkste Teams (laut Modell)',
@@ -2477,7 +2513,67 @@ class _StatsSheet extends StatelessWidget {
     );
   }
 
-  Widget _stat(String value, String label) {
+  /// Eine Kalibrierungszeile: Sicherheits-Korb + tatsächliche Trefferquote,
+  /// mit Balken. Bei genügend Spielen zeigt der Balken, wie nah Prognose und
+  /// Realität beieinander liegen.
+  Widget _kalRow(String label, int hits, int total) {
+    final observed = total == 0 ? 0.0 : hits / total;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            SizedBox(
+              width: 84,
+              child: Text('Sagt $label',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+            ),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: observed.clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: kSurfaceHi,
+                  valueColor: const AlwaysStoppedAnimation(_accent),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 64,
+              child: Text('${(observed * 100).round()} % · $total×',
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _ligaRow(String liga, int hits, int total) {
+    final pct = total == 0 ? 0 : (hits / total * 100).round();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Expanded(
+          child: Text(liga,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        ),
+        Text('$pct %',
+            style: const TextStyle(color: _accent, fontWeight: FontWeight.w800)),
+        const SizedBox(width: 6),
+        Text('($total)', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      ]),
+    );
+  }
+
+  Widget _stat(String value, String label, {String? sub, Color? subColor}) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -2495,6 +2591,14 @@ class _StatsSheet extends StatelessWidget {
           Text(label,
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white60, fontSize: 11)),
+          if (sub != null) ...[
+            const SizedBox(height: 3),
+            Text(sub,
+                style: TextStyle(
+                    color: subColor ?? Colors.white60,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800)),
+          ],
         ]),
       ),
     );
