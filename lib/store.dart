@@ -747,8 +747,9 @@ class PredictionStore {
     await _prefs?.setBool('reminders', v);
   }
 
-  /// Zuletzt gewählte Liga (-1 = Aktuell, 0..n = Ligen). Standard: 0 (WM).
-  int get lastLeagueIdx => _prefs?.getInt('last_league') ?? 0;
+  /// Zuletzt gewählte Liga (-1 = Aktuell, 0..n = Ligen). Standard: -1 (Heute),
+  /// damit neue Nutzer auf dem „Heute"-Tab mit den aktuellen Spielen landen.
+  int get lastLeagueIdx => _prefs?.getInt('last_league') ?? -1;
   Future<void> setLastLeagueIdx(int idx) async {
     await _prefs?.setInt('last_league', idx);
   }
