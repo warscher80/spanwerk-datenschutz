@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Ausnahme: der bewusst mitgelieferte, feste Release-Keystore (nur gleichbleibende
+# Signatur, kein Geheimnis) muss ins Repo, damit jedes Build gleich signiert.
+!app/kickprophet-release.jks

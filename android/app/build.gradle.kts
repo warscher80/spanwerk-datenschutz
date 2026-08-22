@@ -1,4 +1,3 @@
-import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -6,25 +5,22 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Fester Signaturschluessel, falls android/key.properties vorhanden ist.
+// Fester, mitgelieferter Signaturschluessel.
 //
 // Ohne festen Schluessel signiert Gradle die Release-Fassung mit dem
-// Debug-Schluessel. Auf einem Entwicklerrechner ist der stabil, in der CI
-// aber nicht: dort erzeugen die Android-Werkzeuge bei jedem Lauf einen neuen,
-// zufaelligen. Jedes CI-APK bekaeme damit eine andere Signatur, und Android
-// verweigert die Installation ueber eine bestehende App mit abweichender
-// Signatur ("App nicht installiert"). Man muesste vor jedem Update
-// deinstallieren und verloere dabei die gelernten Elo-Daten.
+// Debug-Schluessel. In der CI wird der bei JEDEM Lauf neu und zufaellig
+// erzeugt - jedes APK bekaeme eine andere Signatur, und Android verweigert das
+// Update ueber eine bestehende Installation ("Paket in Konflikt mit einem
+// bestehenden Paket"). Man muesste vor jedem Update deinstallieren.
 //
-// key.properties und die Keystore-Datei sind in .gitignore ausgeschlossen und
-// gehoeren NICHT ins Repository. In der CI werden sie aus Secrets erzeugt.
-val keystorePropertiesFile = rootProject.file("key.properties")
-val hatEigenenSchluessel = keystorePropertiesFile.exists()
-val keystoreProperties = Properties().apply {
-    if (hatEigenenSchluessel) {
-        keystorePropertiesFile.inputStream().use { load(it) }
-    }
-}
+// Deshalb liegt ein eigener Release-Keystore fest im Projekt
+// (android/app/kickprophet-release.jks). Damit hat JEDES gebaute APK - lokal
+// wie in der CI - dieselbe Signatur, und Updates lassen sich problemlos
+// darueberlegen. Das Passwort steht bewusst im Klartext: der Keystore ist
+// oeffentlich, das Passwort schuetzt hier nichts. Es geht nur um eine
+// gleichbleibende Signatur, nicht um Geheimhaltung (Sideload-App, kein Store).
+val releaseKeystore = file("kickprophet-release.jks")
+val hatEigenenSchluessel = releaseKeystore.exists()
 
 android {
     namespace = "com.kickprophet.app"
@@ -52,19 +48,19 @@ android {
     signingConfigs {
         if (hatEigenenSchluessel) {
             create("release") {
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = releaseKeystore
+                storePassword = "kickprophet"
+                keyAlias = "kickprophet"
+                keyPassword = "kickprophet"
             }
         }
     }
 
     buildTypes {
         release {
-            // Mit eigenem Schluessel signieren, sonst wie bisher mit dem
-            // Debug-Schluessel, damit `flutter run --release` ohne Einrichtung
-            // weiterhin funktioniert.
+            // Mit dem festen Projekt-Schluessel signieren, sonst (nur falls die
+            // Keystore-Datei fehlt) mit dem Debug-Schluessel, damit
+            // `flutter run --release` ohne Einrichtung weiterhin funktioniert.
             signingConfig = if (hatEigenenSchluessel) {
                 signingConfigs.getByName("release")
             } else {

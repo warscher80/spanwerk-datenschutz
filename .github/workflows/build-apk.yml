@@ -43,36 +43,10 @@ jobs:
       - name: Tests
         run: flutter test
 
-      # Ohne festen Schluessel signiert Gradle mit dem Debug-Schluessel. Auf
-      # einem Runner wird der bei JEDEM Lauf neu erzeugt - jedes APK haette
-      # eine andere Signatur, und Android verweigert die Installation ueber
-      # eine bestehende App ("App nicht installiert"). Der Nutzer muesste vor
-      # jedem Update deinstallieren und verloere die gelernten Elo-Daten.
-      #
-      # Die erzeugten Dateien sind in .gitignore ausgeschlossen und werden
-      # nicht committet.
-      - name: Signaturschluessel einrichten (falls hinterlegt)
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -e
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::warning::Kein Signaturschluessel hinterlegt - es wird mit dem Debug-Schluessel signiert."
-            echo "::warning::Solche APKs lassen sich nicht ueber eine anders signierte Installation legen."
-            exit 0
-          fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
-          {
-            echo "storePassword=$KEYSTORE_PASSWORD"
-            echo "keyPassword=$KEY_PASSWORD"
-            echo "keyAlias=$KEY_ALIAS"
-            echo "storeFile=upload-keystore.jks"
-          } > android/key.properties
-          echo "Fester Signaturschluessel eingerichtet."
-
+      # Signiert wird mit dem fest im Projekt liegenden Release-Keystore
+      # (android/app/kickprophet-release.jks). Dadurch hat jedes APK - lokal
+      # wie hier - dieselbe Signatur, und Updates lassen sich problemlos ueber
+      # eine bestehende Installation legen. Keine Secrets noetig.
       - name: Release-APK bauen
         run: flutter build apk --release
 

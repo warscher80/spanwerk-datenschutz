@@ -28,3 +28,6 @@ captures/
 # (Actions -> APK bauen -> Artifacts).
 KickProphet.apk
 *.apk
+
+# Ausnahme: fester Release-Keystore fuer KickProphet (siehe android/.gitignore)
+!android/app/kickprophet-release.jks
