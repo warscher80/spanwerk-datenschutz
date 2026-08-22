@@ -178,6 +178,32 @@ void main() {
     });
   });
 
+  group('parseLiveMinutes (livescore-Feed)', () {
+    test('liest idEvent -> Minute und lässt leere/0-Werte weg', () {
+      final map = Api.parseLiveMinutes({
+        'livescore': [
+          {'idEvent': '111', 'strProgress': '67'},
+          {'idEvent': '222', 'strProgress': '45+2'},
+          {'idEvent': '333', 'strProgress': ''}, // ignorieren
+          {'idEvent': '444', 'strProgress': '0'}, // ignorieren
+          {'idEvent': '555', 'strStatus': '1H'}, // keine Minute -> ignorieren
+        ],
+      });
+      expect(map[111], '67');
+      expect(map[222], '45+2');
+      expect(map.containsKey(333), isFalse);
+      expect(map.containsKey(444), isFalse);
+      expect(map.containsKey(555), isFalse);
+      expect(map.length, 2);
+    });
+
+    test('unerwartete Form ergibt leere Karte, keinen Absturz', () {
+      expect(Api.parseLiveMinutes({}), isEmpty);
+      expect(Api.parseLiveMinutes({'livescore': null}), isEmpty);
+      expect(Api.parseLiveMinutes({'livescore': 'kaputt'}), isEmpty);
+    });
+  });
+
   // Der Kurzzeit-Cache ist die Bremse gegen die Drosselung: "Aktuell" fächert
   // über alle zehn Ligen aus und kam so auf ~26 Anfragen pro Minute.
   group('TtlCache', () {

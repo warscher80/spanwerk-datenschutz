@@ -141,9 +141,11 @@ class FootyMatch {
   bool neutralVenue;
 
   // Spielfortschritt bei laufenden Spielen, roh von TheSportsDB (strProgress):
-  // meist die Minute ("67", "45+2") oder "HT". Nur der Bezahl-Livefeed füllt
-  // das zuverlässig – beim Gratis-Key ist es oft leer, deshalb rein optional.
-  final String? progress;
+  // meist die Minute ("67", "45+2") oder "HT". Die normalen Feeds
+  // (eventsnextleague/eventsround) enthalten dieses Feld NICHT – nur der
+  // separate livescore.php-Feed führt es. Deshalb wird es nach dem Laden
+  // nachträglich zugespielt (Api.liveMinutes) und ist bewusst veränderbar.
+  String? progress;
 
   FootyMatch({
     required this.id,
@@ -484,6 +486,35 @@ class Api {
     }).toList()
       ..sort((a, b) => a.kickoff!.compareTo(b.kickoff!));
     return list;
+  }
+
+  /// Laufende Spielminuten, idEvent -> Fortschritt ("67", "45+2", "HT", …).
+  ///
+  /// Eigener Endpoint: eventsnextleague/eventsround kennen das Feld strProgress
+  /// gar nicht, nur livescore.php führt es – und zwar (anders als befürchtet)
+  /// auch mit dem Gratis-Key und für alle Ligen zugleich. Ein einziger Aufruf
+  /// deckt damit sämtliche angezeigten Spiele ab. Fehler sind unkritisch:
+  /// dann bleibt es bei „live" ohne Minute.
+  static Future<Map<int, String>> liveMinutes() async {
+    try {
+      return parseLiveMinutes(await _getJson('livescore.php?s=Soccer', retries: 2));
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Reines Auswerten der livescore-Antwort (ohne Netz) – idEvent -> Minute.
+  static Map<int, String> parseLiveMinutes(Map<String, dynamic> body) {
+    final raw = body['livescore'];
+    final list = raw is List ? raw : const [];
+    final out = <int, String>{};
+    for (final e in list) {
+      if (e is! Map) continue;
+      final id = int.tryParse('${e['idEvent']}');
+      final p = '${e['strProgress'] ?? ''}'.trim();
+      if (id != null && p.isNotEmpty && p != '0') out[id] = p;
+    }
+    return out;
   }
 
   /// Robuster GET mit Wiederholungen/Backoff. Wichtig am Gratis-Limit (429)

@@ -508,6 +508,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
       _scheduleReminders(m);
       _settleWetten(m);
+      _mergeLiveMinutes();
       for (final g in goals) {
         _goalAlert(g);
       }
@@ -639,6 +640,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         onChanged: () { if (mounted) setState(() {}); },
       ),
     );
+  }
+
+  /// Echte Spielminute nachladen und den laufenden Spielen zuspielen.
+  /// Die normalen Feeds liefern keine Minute – nur der separate livescore-Feed.
+  /// Ein Aufruf deckt alle Ligen ab; ohne Live-Spiel gar keine Anfrage.
+  Future<void> _mergeLiveMinutes() async {
+    if (!_matches.any((m) => m.isLive)) return;
+    final map = await Api.liveMinutes();
+    if (!mounted || map.isEmpty) return;
+    var any = false;
+    for (final m in _matches) {
+      if (m.isLive && map.containsKey(m.id) && m.progress != map[m.id]) {
+        m.progress = map[m.id];
+        any = true;
+      }
+    }
+    if (any) setState(() {});
   }
 
   /// Beendete Spiele mit offener Wette abrechnen (✅/❌) und Bilanz aktualisieren.
