@@ -34,6 +34,18 @@ void main() {
     expect(ergebnisse.length, greaterThan(1));
   });
 
+  test('Klub-Startstärken: kein flacher Standard, Favorit stimmt', () {
+    // Leeres Modell (noch nichts gelernt) -> greift auf kClubElo zurück.
+    final m = EloModel({});
+    // Napoli ist klar stärker als Genoa – auch als Gast muss Napoli führen.
+    final p = m.probs('Genoa', 'Napoli');
+    expect(p.away, greaterThan(p.home + 0.20),
+        reason: 'Napoli (Gast) muss klarer Favorit sein, nicht Genoa');
+    // Zwei bekannte Vereine ergeben keine 1/3-1/3-Verteilung (nicht flach).
+    final bayern = m.probs('Bayern Munich', 'Augsburg');
+    expect(bayern.home, greaterThan(0.55));
+  });
+
   test('Stärkeres Heimteam hat niedrigere Quote', () {
     final m = EloModel({'Stark': 1750, 'Schwach': 1350});
     final o = m.odds('Stark', 'Schwach');

@@ -135,6 +135,11 @@ class FootyMatch {
   // Turnieren [round] ein Runden-Code ist (32/16/8/4) und nicht der Spieltag.
   String? roundLabel;
 
+  // Neutraler Platz (Turnier/WM): kein Heimvorteil – für Anzeige UND Lernen.
+  // Pro Spiel gesetzt, damit ein Turnierspiel auch in der gemischten Ansicht
+  // „Aktuell" gleich bewertet wird wie im Turnier-Tab.
+  bool neutralVenue;
+
   FootyMatch({
     required this.id,
     required this.kickoff,
@@ -146,11 +151,15 @@ class FootyMatch {
     required this.awayGoals,
     this.competition,
     this.roundLabel,
+    this.neutralVenue = false,
     this.kickoffExact = true,
   });
 
   bool get hasResult => homeGoals != null && awayGoals != null;
   bool startedBy(DateTime now) => kickoff != null && !now.isBefore(kickoff!);
+
+  /// Läuft gerade: hat einen (Zwischen-)Stand, ist aber noch nicht beendet.
+  bool get isLive => hasResult && !finished;
 
   // Statuswerte, die ein ENDGUELTIGES Ergebnis bedeuten.
   static const _finishedStates = {
@@ -633,6 +642,7 @@ class Api {
     }
     for (final m in list) {
       m.roundLabel = cupStageLabel(m.round, proRunde[m.round] ?? 0);
+      m.neutralVenue = true; // Turnierspiele: kein Heimvorteil
     }
     return list;
   }

@@ -87,14 +87,38 @@ class _DemoScreen extends StatelessWidget {
       );
     }
 
+    Widget card(FootyMatch m, MatchProbs p, {double top = 0}) {
+      final t = tippFromProbs(p);
+      return _MatchCard(
+        match: m,
+        now: now,
+        probs: p,
+        tip: t,
+        topPadding: top,
+        onTap: () => showModalBottomSheet(
+          context: context,
+          backgroundColor: kSurfaceTop,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (_) => _MatchDetailSheet(match: m, probs: p, tip: t),
+        ),
+      );
+    }
+
     final cards = <Widget>[
+      // Live-Beispiel (läuft, Zwischenstand 1:0).
+      card(
+        mk(0, 'Inter Milan', 'AC Milan', DateTime(2026, 8, 22, 14, 0), 1,
+            hg: 1, ag: 0, comp: '🇮🇹 Serie A'),
+        const MatchProbs(0.45, 0.27, 0.28),
+        top: 12,
+      ),
       _MatchCard(
         match: mk(1, 'Bayern Munich', 'VfB Stuttgart',
             DateTime(2026, 8, 28, 18, 30), 1, comp: '🇩🇪 1. Bundesliga'),
         now: now,
         probs: const MatchProbs(0.61, 0.23, 0.16),
         tip: tippFromProbs(const MatchProbs(0.61, 0.23, 0.16)),
-        topPadding: 12,
       ),
       _MatchCard(
         match: mk(2, 'Borussia Dortmund', 'RB Leipzig',
@@ -164,6 +188,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _stageIdx = 0;
 
   List<FootyMatch> _matches = [];
+  // Prognose je Spiel, festgehalten VOR dem Einlernen der Ergebnisse – sonst
+  // verschöbe die frisch gelernte Stärke die Anzeige gegenüber der gewerteten
+  // Treffsicherheit (das ✓/✗ wäre geschönt).
+  Map<int, MatchProbs> _cardProbs = {};
   bool _loading = true;
   bool _loadInFlight = false;
   DateTime? _lastAutoLoad;
@@ -201,10 +229,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _season = Api.seasonFor(_league, DateTime.now());
-    // Immer am neuesten Stand, aber ohne den geteilten Gratis-Key zu erschöpfen.
-    _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoRefresh());
+    _starteAutoTimer();
     _boot();
     _pruefeUpdate();
+  }
+
+  /// Auto-Aktualisierung nur im Vordergrund. Der Timer weckt regelmäßig, aber
+  /// _autoRefresh selbst hält je nach Ansicht Abstand (spart Akku und Anfragen).
+  void _starteAutoTimer() {
+    _autoTimer?.cancel();
+    _autoTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoRefresh());
   }
 
   @override
@@ -218,11 +252,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Beim Zurückkehren in die App aktualisieren und neue Ergebnisse nachlernen.
     if (state == AppLifecycleState.resumed) {
+      // Zurück im Vordergrund: Timer wieder starten, aktualisieren (mit
+      // Abstand, kein sofortiges Voll-Laden) und neue Ergebnisse nachlernen.
+      _starteAutoTimer();
       _pruefeUpdate();
-      _loadDay(silent: true);
+      _autoRefresh();
       _startLearning();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      // Im Hintergrund nicht pollen – schont Akku und Datenverbrauch.
+      _autoTimer?.cancel();
     }
   }
 
@@ -424,7 +464,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       var m = await _fetchMatches();
       if (veraltet()) return;
       // Leerer Erstabruf ist meist nur Drosselung -> einmal nachfassen.
-      if (m.isEmpty && !silent) {
+      // In „Aktuell" NICHT nachfassen: dort wäre es ein zweiter Schwall über
+      // alle zehn Ligen (~26 Anfragen) und träfe die Drosselung nur härter.
+      if (m.isEmpty && !silent && !_currentMode) {
         await Future.delayed(const Duration(milliseconds: 1200));
         m = await _fetchMatches();
         if (veraltet()) return;
@@ -437,10 +479,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           x.competition = _league.label;
         }
       }
+      // Prognose je Spiel VOR dem Lernen festhalten (neutraler Platz je Spiel).
+      final probsById = <int, MatchProbs>{
+        for (final x in m)
+          x.id: _elo.probs(x.home.name, x.away.name, neutral: x.neutralVenue),
+      };
       // Frische Ergebnisse sofort ins Quoten-Modell einarbeiten.
       var learned = false;
       for (final x in m) {
-        if (ingestMatch(_store, _elo, x, neutral: _isCup)) learned = true;
+        if (ingestMatch(_store, _elo, x, neutral: x.neutralVenue)) learned = true;
       }
       if (learned) await _store.saveLearning();
       if (!mounted || veraltet()) return;
@@ -451,7 +498,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       final goals = _detectGoals(m);
-      setState(() { _matches = m; _loading = false; _updatedAt = DateTime.now(); });
+      setState(() {
+        _matches = m;
+        _cardProbs = probsById;
+        _loading = false;
+        _updatedAt = DateTime.now();
+      });
       _scheduleReminders(m);
       for (final g in goals) {
         _goalAlert(g);
@@ -542,6 +594,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
     _store.setLastLeagueIdx(idx);
     _selectLeague();
+  }
+
+  /// Detailansicht einer Partie (Tippen auf die Karte). Zeigt Status (auch
+  /// live), volle Wahrscheinlichkeiten, Tipp, Sicherheit und – bei beendeten
+  /// Spielen – Ergebnis und ob die Prognose stimmte.
+  void _openMatchDetail(FootyMatch m, MatchProbs p, List<int> tip) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kSurfaceTop,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => _MatchDetailSheet(match: m, probs: p, tip: tip),
+    );
   }
 
   void _openStats() {
@@ -1197,13 +1262,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             return _currentMode ? _summaryStrip() : const SizedBox(height: 12);
           }
           final m = _matches[i - 1];
-          final p = _elo.probs(m.home.name, m.away.name, neutral: _isCup);
+          final p = _cardProbs[m.id] ??
+              _elo.probs(m.home.name, m.away.name, neutral: m.neutralVenue);
+          final t = tippFromProbs(p);
           return _MatchCard(
             match: m,
             now: now,
             probs: p,
-            tip: tippFromProbs(p),
+            tip: t,
             topPadding: _currentMode ? 12 : 0,
+            onTap: () => _openMatchDetail(m, p, t),
           );
         },
       )),
@@ -1353,6 +1421,7 @@ class _MatchCard extends StatelessWidget {
   final MatchProbs probs;
   final List<int> tip; // KickProphet-Tipp (erwartetes Ergebnis, tendenz-konsistent)
   final double topPadding;
+  final VoidCallback? onTap;
 
   const _MatchCard({
     required this.match,
@@ -1360,56 +1429,74 @@ class _MatchCard extends StatelessWidget {
     required this.probs,
     required this.tip,
     this.topPadding = 0,
+    this.onTap,
   });
 
-  bool get locked => match.startedBy(now);
+  // Läuft gerade (Zwischenstand vorhanden, noch nicht beendet).
+  bool get live => match.isLive;
+  // Angepfiffen, aber (noch) ohne Stand – nur bei echter Anstoßzeit.
+  bool get locked => match.startedBy(now) && match.kickoffExact;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: topPadding),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: kSurface,
+      child: Material(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadius),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: kBorder),
-        ),
-        child: Column(
-          children: [
-            _topRow(),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(kRadius),
+              border: Border.all(color: live ? kLive.withValues(alpha: 0.5) : kBorder),
+            ),
+            child: Column(
               children: [
-                Expanded(child: _Crest(team: match.home, alignEnd: false)),
-                _center(),
-                Expanded(child: _Crest(team: match.away, alignEnd: true)),
+                _topRow(),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: _Crest(team: match.home, alignEnd: false)),
+                    _center(),
+                    Expanded(child: _Crest(team: match.away, alignEnd: true)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _predictionBanner(),
+                const SizedBox(height: 12),
+                _probSection(),
+                const SizedBox(height: 10),
+                _footerRow(),
               ],
             ),
-            const SizedBox(height: 14),
-            _predictionBanner(),
-            const SizedBox(height: 12),
-            _probSection(),
-            const SizedBox(height: 10),
-            _footerRow(),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// Mitte der Karte: Endstand (beendet) oder Anstoßzeit prominent (anstehend).
+  /// Mitte der Karte: Endstand (beendet), Live-Stand (läuft) oder Anstoßzeit.
   Widget _center() {
-    if (match.finished && match.hasResult) {
+    if (live || (match.finished && match.hasResult)) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('${match.homeGoals}:${match.awayGoals}',
-              style: const TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const Text('Endstand', style: TextStyle(color: kTextMute, fontSize: 10)),
+              style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: live ? kLive : kText)),
+          Text(live ? 'live' : 'Endstand',
+              style: TextStyle(
+                  color: live ? kLive : kTextMute,
+                  fontSize: 10,
+                  fontWeight: live ? FontWeight.w800 : FontWeight.w400)),
         ]),
       );
     }
@@ -1584,12 +1671,14 @@ class _MatchCard extends StatelessWidget {
   }
 
   Widget _topRow() {
-    // Rechts: Status als Pill – LIVE, Beendet oder Datum/Uhrzeit.
+    // Rechts: Status als Pill – LIVE, Anpfiff, Beendet oder Datum.
     Widget statusPill;
     if (match.finished) {
       statusPill = const StatusPill('Beendet', color: kTextMute);
-    } else if (locked) {
+    } else if (live) {
       statusPill = const StatusPill('LIVE', color: kLive, filled: true, icon: Icons.circle);
+    } else if (locked) {
+      statusPill = const StatusPill('Angepfiffen', color: kWarn, filled: true);
     } else if (match.kickoff != null) {
       statusPill = StatusPill(_fmtDate(match.kickoff!), color: kTextDim);
     } else {
@@ -1707,6 +1796,164 @@ class _Crest extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Detailansicht einer Partie – erreichbar durch Antippen der Karte.
+class _MatchDetailSheet extends StatelessWidget {
+  final FootyMatch match;
+  final MatchProbs probs;
+  final List<int> tip;
+  const _MatchDetailSheet(
+      {required this.match, required this.probs, required this.tip});
+
+  @override
+  Widget build(BuildContext context) {
+    final idx = switch (predictedTendency(probs)) {
+      Tendency.home => 0,
+      Tendency.draw => 1,
+      Tendency.away => 2,
+    };
+    final who = idx == 0
+        ? '${match.home.shortName} gewinnt'
+        : idx == 2
+            ? '${match.away.shortName} gewinnt'
+            : 'Unentschieden';
+    final conf = ([probs.home, probs.draw, probs.away][idx] * 100).round();
+    final (String sLabel, Color sColor) = idx == 1
+        ? ('offen', kTextDim)
+        : conf >= 70
+            ? ('hoch', kAccent)
+            : conf >= 58
+                ? ('mittel', kWarn)
+                : ('gering', kTextDim);
+
+    String head;
+    Color headColor;
+    if (match.isLive) {
+      head = 'LÄUFT · ${match.homeGoals}:${match.awayGoals}';
+      headColor = kLive;
+    } else if (match.finished && match.hasResult) {
+      head = 'Endstand · ${match.homeGoals}:${match.awayGoals}';
+      headColor = kTextDim;
+    } else if (match.kickoff != null && match.kickoffExact) {
+      head = 'Anstoß · ${_fmtFull(match.kickoff!)}';
+      headColor = kTextDim;
+    } else {
+      head = 'Termin noch offen';
+      headColor = kTextMute;
+    }
+
+    Widget row(String label, String value, {Color? vc}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(color: kTextDim, fontSize: 13)),
+              Text(value,
+                  style: TextStyle(
+                      color: vc ?? kText, fontSize: 13, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (match.competition != null)
+            Text(
+              '${match.competition}'
+              '${match.roundLabel != null ? ' · ${match.roundLabel}' : (match.round >= 1 && match.round < 100 ? ' · ${match.round}. Spieltag' : '')}',
+              style: const TextStyle(
+                  color: kAccent, fontSize: 12.5, fontWeight: FontWeight.w800),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _Crest(team: match.home, alignEnd: false)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                    match.hasResult ? '${match.homeGoals}:${match.awayGoals}' : 'vs',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: match.isLive ? kLive : kText)),
+              ),
+              Expanded(child: _Crest(team: match.away, alignEnd: true)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: StatusPill(head,
+                color: headColor, filled: match.isLive),
+          ),
+          const SizedBox(height: 20),
+          const Text('KickProphet-Prognose',
+              style: TextStyle(
+                  color: kText, fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          ProbBar(
+              home: probs.home,
+              draw: probs.draw,
+              away: probs.away,
+              highlight: idx),
+          const SizedBox(height: 14),
+          row('${match.home.shortName} gewinnt', '${(probs.home * 100).round()} %',
+              vc: idx == 0 ? kAccent : kText),
+          row('Unentschieden', '${(probs.draw * 100).round()} %',
+              vc: idx == 1 ? kAccent : kText),
+          row('${match.away.shortName} gewinnt', '${(probs.away * 100).round()} %',
+              vc: idx == 2 ? kAccent : kText),
+          const Divider(height: 26, color: kBorder),
+          row('Wahrscheinlichster Ausgang', who, vc: kAccent),
+          row('KickProphet-Tipp', '${tip[0]}:${tip[1]}'),
+          row('Prognosesicherheit', sLabel, vc: sColor),
+          if (match.finished && match.hasResult) ...[
+            const SizedBox(height: 8),
+            Builder(builder: (_) {
+              final actual = tendencyOf(match.homeGoals!, match.awayGoals!);
+              final predicted = idx == 0
+                  ? Tendency.home
+                  : (idx == 2 ? Tendency.away : Tendency.draw);
+              final hit = predicted == actual;
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: (hit ? kAccent : kDanger).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(kRadiusSm),
+                ),
+                child: Row(children: [
+                  Icon(hit ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      color: hit ? kAccent : kDanger, size: 18),
+                  const SizedBox(width: 8),
+                  Text(hit ? 'Prognose war richtig' : 'Prognose lag daneben',
+                      style: TextStyle(
+                          color: hit ? kAccent : kDanger,
+                          fontWeight: FontWeight.w800)),
+                ]),
+              );
+            }),
+          ],
+          const SizedBox(height: 16),
+          const Text(
+            'Prognose aus statistischen Daten (Team-Stärke, Heimvorteil, Form). '
+            'Keine Garantie – Fußball bleibt Fußball. 😉',
+            style: TextStyle(color: kTextMute, fontSize: 11.5, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtFull(DateTime d) {
+    const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${wd[d.weekday - 1]} ${two(d.day)}.${two(d.month)}. · ${two(d.hour)}:${two(d.minute)} Uhr';
   }
 }
 

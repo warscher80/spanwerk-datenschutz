@@ -49,7 +49,12 @@ Future<Map<String, dynamic>?> ladeFertigmodell() async {
       final res = await http.get(u).timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) continue;
       final j = jsonDecode(res.body);
-      if (j is Map<String, dynamic>) return j;
+      // Nur ein brauchbares Modell (mit gefüllten Ratings) akzeptieren. Sonst
+      // würde ein leer erzeugtes Online-Modell (z. B. CI-Drosselung) das gute
+      // mitgelieferte verdecken und alle Teams landeten beim Basiswert.
+      if (j is Map<String, dynamic> && j['elo'] is Map && (j['elo'] as Map).isNotEmpty) {
+        return j;
+      }
     } catch (_) {
       // nächste Adresse versuchen
     }

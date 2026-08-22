@@ -34,8 +34,10 @@ const kNationalElo = <String, double>{
   'USA': 1890, 'Mexico': 1890, 'United States': 1890, 'Denmark': 1895, 'Japan': 1885,
   'Senegal': 1880, 'Ecuador': 1860, 'Serbia': 1860, 'Korea Republic': 1855, 'South Korea': 1855,
   'Iran': 1850, 'Ukraine': 1850, 'Austria': 1875, 'Poland': 1845, 'Sweden': 1840,
-  'Australia': 1830, 'Wales': 1825, 'Turkey': 1860, 'Norway': 1865, 'Nigeria': 1840,
-  'Algeria': 1835, 'Egypt': 1830, 'Ivory Coast': 1825, 'Peru': 1820, 'Chile': 1825,
+  'Australia': 1830, 'Wales': 1825, 'Turkey': 1860, 'Türkiye': 1860, 'Turkiye': 1860,
+  'Norway': 1865, 'Nigeria': 1840,
+  'Algeria': 1835, 'Egypt': 1830, 'Ivory Coast': 1825, 'Cote d\'Ivoire': 1825,
+  'Côte d\'Ivoire': 1825, 'Peru': 1820, 'Chile': 1825,
   'Canada': 1840, 'Scotland': 1835, 'Greece': 1830, 'Hungary': 1830, 'Czech Republic': 1835,
   'Czechia': 1835, 'Romania': 1810, 'Slovakia': 1810, 'Slovenia': 1805,
   // Mittelfeld
@@ -50,6 +52,71 @@ const kNationalElo = <String, double>{
   'Trinidad and Tobago': 1690, 'Indonesia': 1680, 'Vietnam': 1700,
 };
 
+// Start-Stärken für Vereinsmannschaften (grobe, aber realistische Tiers je
+// Liga). Damit sind Prognosen ab dem ersten Spiel plausibel, auch bevor das
+// Modell ein Team gelernt hat - sonst landeten unbekannte Vereine alle beim
+// Basiswert und der Heimvorteil kuerte faelschlich den Schwaecheren zum
+// Favoriten (z. B. Genoa vor Napoli). Das Modell verfeinert diese Werte mit
+// jedem echten Ergebnis. Namen exakt wie bei TheSportsDB.
+const kClubElo = <String, double>{
+  'Bayern Munich': 1930, 'Manchester City': 1900, 'Paris Saint-Germain': 1900,
+  'Real Madrid': 1900, 'Barcelona': 1880, 'Liverpool': 1870,
+  'Arsenal': 1860, 'Inter Milan': 1860, 'Napoli': 1830,
+  'Atlético Madrid': 1800, 'Bayer Leverkusen': 1800, 'Atalanta': 1780,
+  'Juventus': 1780, 'AC Milan': 1770, 'Borussia Dortmund': 1760,
+  'Chelsea': 1740, 'Red Bull Salzburg': 1740, 'Newcastle United': 1730,
+  'RB Leipzig': 1730, 'Aston Villa': 1720, 'Marseille': 1720,
+  'Roma': 1720, 'Manchester United': 1710, 'Monaco': 1710,
+  'Tottenham Hotspur': 1710, 'Athletic Bilbao': 1700, 'Lazio': 1700,
+  'Bologna': 1680, 'Eintracht Frankfurt': 1680, 'Fiorentina': 1680,
+  'Lille': 1680, 'Real Sociedad': 1680, 'Villarreal': 1680,
+  'Stuttgart': 1670, 'Brighton and Hove Albion': 1660, 'Lyon': 1660,
+  'Nice': 1660, 'Real Betis': 1660, 'Sturm Graz': 1650,
+  'Crystal Palace': 1640, 'Lens': 1640, 'Nottingham Forest': 1640,
+  'Rennes': 1640, 'Sevilla': 1640, 'West Ham United': 1630,
+  'Bournemouth': 1620, 'Brentford': 1620, 'Freiburg': 1620,
+  'Fulham': 1620, 'Wolfsburg': 1620, 'Everton': 1600,
+  'Rapid Vienna': 1600, 'Torino': 1600, 'Wolverhampton Wanderers': 1600,
+  'Austria Vienna': 1580, 'Borussia Mönchengladbach': 1580, 'Brest': 1580,
+  'Celta Vigo': 1580, 'Como': 1580, 'LASK': 1580,
+  'Mainz': 1580, 'Strasbourg': 1580, 'Udinese': 1580,
+  'Valencia': 1580, 'Werder Bremen': 1580, 'Genoa': 1560,
+  'Getafe': 1560, 'Hoffenheim': 1560, 'Leeds United': 1560,
+  'Leicester City': 1560, 'Osasuna': 1560, 'Rayo Vallecano': 1560,
+  'Southampton': 1560, 'Toulouse': 1560, 'Union Berlin': 1560,
+  'Augsburg': 1540, 'Burnley': 1540, 'Ipswich Town': 1540,
+  'Monza': 1540, 'Wolfsberger AC': 1540, 'Auxerre': 1520,
+  'Cagliari': 1520, 'Deportivo Alavés': 1520, 'Espanyol': 1520,
+  'Heidenheim': 1520, 'Hertha': 1520, 'Köln': 1520,
+  'Lecce': 1520, 'Middlesbrough': 1520, 'Parma': 1520,
+  'Sassuolo': 1520, 'Sheffield United': 1520, 'St Pauli': 1520,
+  'Sunderland': 1520, 'West Bromwich Albion': 1520, 'Bochum': 1510,
+  'Norwich City': 1510, 'Angers': 1500, 'Coventry City': 1500,
+  'Hamburg': 1500, 'Hannover 96': 1500, 'Le Havre': 1500,
+  'Lorient': 1500, 'TSV Hartberg': 1500, 'Watford': 1500,
+  'Elche': 1490, 'Frosinone': 1490, 'Hull City': 1490,
+  'Kaiserslautern': 1490, 'Levante': 1490, 'Nürnberg': 1490,
+  'Paris FC': 1490, 'SCR Altach': 1490, 'Venezia': 1490,
+  'Birmingham City': 1480, 'Holstein Kiel': 1480, 'SV Ried': 1480,
+  'WSG Tirol': 1480, 'Blackburn Rovers': 1470, 'Bristol City': 1470,
+  'Darmstadt': 1470, 'Deportivo de A Coruña': 1470, 'Grazer AK': 1470,
+  'Karlsruhe': 1470, 'Racing de Santander': 1470, 'Schalke 04': 1470,
+  'Stoke City': 1470, 'Swansea City': 1470, 'Austria Lustenau': 1460,
+  'Magdeburg': 1460, 'Millwall': 1460, 'Preston North End': 1460,
+  'Cardiff City': 1450, 'Derby County': 1450, 'Greuther Fürth': 1450,
+  'Le Mans': 1450, 'Málaga': 1450, 'Queens Park Rangers': 1450,
+  'Troyes': 1450, 'Arminia Bielefeld': 1440, 'Blau-Weiß Linz': 1440,
+  'Elversberg': 1440, 'Paderborn': 1440, 'Portsmouth': 1440,
+  'Bolton Wanderers': 1430, 'Charlton Athletic': 1430, 'FC Liefering': 1430,
+  'Wrexham': 1430, 'Admira Wacker': 1420, 'Dynamo Dresden': 1420,
+  'Eintracht Braunschweig': 1420, 'SKN St. Polten': 1420, 'Osnabrück': 1410,
+  'Wacker Innsbruck': 1410, 'Energie Cottbus': 1400, 'First Vienna': 1400,
+  'Lincoln City': 1400, 'Austria Salzburg': 1390, 'Kapfenberger SV': 1390,
+  'Floridsdorfer AC': 1380, 'Rapid Wien II': 1380, 'Sturm Graz II': 1380,
+  'SKU Amstetten': 1370, 'Schwarz-Weiß Bregenz': 1370, 'Young Violets Austria Wien': 1370,
+  'Hertha Wels': 1360, 'Voitsberg': 1360,
+};
+
 class EloModel {
   final Map<String, double> ratings;
   EloModel(this.ratings);
@@ -61,7 +128,8 @@ class EloModel {
   static const k = 16.0;
 
   // Bekannte Stärke nutzen, sonst Nationalteam-Startwert, sonst Basis.
-  double rating(String team) => ratings[team] ?? kNationalElo[team] ?? base;
+  double rating(String team) =>
+      ratings[team] ?? kNationalElo[team] ?? kClubElo[team] ?? base;
   bool knows(String team) => ratings.containsKey(team);
 
   /// Ein echtes Ergebnis ins Modell einarbeiten (nullsummen-symmetrisch).

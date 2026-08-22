@@ -47,26 +47,38 @@ class PredictionStore {
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
-    final raw = _prefs!.getString(_key);
     _cache.clear();
-    if (raw != null) {
-      final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
-      map.forEach((id, v) {
-        final p = (v as Map).cast<String, dynamic>();
-        _cache[int.parse(id)] = Prediction(p['h'] as int, p['a'] as int);
-      });
+    // Jeder Speicherblock einzeln abgesichert: ein einziges beschädigtes Feld
+    // darf nicht das ganze Laden abbrechen. Sonst bliebe das Modell im
+    // Speicher leer und der erste Ingest würde die noch guten Lerndaten auf der
+    // Platte mit Leerem überschreiben – stiller, dauerhafter Verlust.
+    try {
+      final raw = _prefs!.getString(_key);
+      if (raw != null) {
+        final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
+        map.forEach((id, v) {
+          final p = (v as Map).cast<String, dynamic>();
+          _cache[int.parse(id)] = Prediction(p['h'] as int, p['a'] as int);
+        });
+      }
+    } catch (_) {
+      _cache.clear();
     }
     _loadLearning();
     _loadCup();
     // Bei neuer Modell-Version Lerndaten einmalig zurücksetzen, damit die
-    // verbesserten Start-Stärken (z. B. Nationalteams) wirken.
-    const modelVer = 2;
+    // verbesserten Start-Stärken (z. B. Nationalteams/Vereine) wirken.
+    const modelVer = 3;
     if ((_prefs?.getInt('footy_model_ver') ?? 0) != modelVer) {
       elo.clear();
       _ingested.clear();
       _learnedRounds.clear();
       modelHits = 0;
       modelTotal = 0;
+      // Auch den Stand des vorberechneten Modells vergessen, sonst lehnt
+      // spieleModellEin die frische Fassung als "nicht neuer" ab und das Modell
+      // bliebe leer (alle Teams beim Basiswert -> Einheitsquoten).
+      await _prefs?.remove(_modellStandKey);
       await _prefs?.setInt('footy_model_ver', modelVer);
       await saveLearning();
     }
@@ -77,22 +89,40 @@ class PredictionStore {
     _ingested.clear();
     _learnedRounds.clear();
     _results.clear();
-    final e = _prefs?.getString(_eloKey);
-    if (e != null) {
-      (jsonDecode(e) as Map).forEach((k, v) => elo[k as String] = (v as num).toDouble());
+    try {
+      final e = _prefs?.getString(_eloKey);
+      if (e != null) {
+        (jsonDecode(e) as Map)
+            .forEach((k, v) => elo[k as String] = (v as num).toDouble());
+      }
+    } catch (_) {
+      elo.clear();
     }
-    _ingested.addAll(_prefs?.getStringList(_ingestedKey)?.map(int.parse) ?? const []);
+    try {
+      _ingested.addAll(_prefs?.getStringList(_ingestedKey)?.map(int.parse) ?? const []);
+    } catch (_) {
+      _ingested.clear();
+    }
     _learnedRounds.addAll(_prefs?.getStringList(_roundsKey) ?? const []);
-    final r = _prefs?.getString(_resultsKey);
-    if (r != null) {
-      (jsonDecode(r) as Map).forEach(
-          (k, v) => _results[int.parse(k as String)] = (v as List).cast<int>());
+    try {
+      final r = _prefs?.getString(_resultsKey);
+      if (r != null) {
+        (jsonDecode(r) as Map).forEach(
+            (k, v) => _results[int.parse(k as String)] = (v as List).cast<int>());
+      }
+    } catch (_) {
+      _results.clear();
     }
-    final ev = _prefs?.getString(_evalKey);
-    if (ev != null) {
-      final m = (jsonDecode(ev) as Map).cast<String, dynamic>();
-      modelHits = (m['hits'] as num?)?.toInt() ?? 0;
-      modelTotal = (m['total'] as num?)?.toInt() ?? 0;
+    try {
+      final ev = _prefs?.getString(_evalKey);
+      if (ev != null) {
+        final m = (jsonDecode(ev) as Map).cast<String, dynamic>();
+        modelHits = (m['hits'] as num?)?.toInt() ?? 0;
+        modelTotal = (m['total'] as num?)?.toInt() ?? 0;
+      }
+    } catch (_) {
+      modelHits = 0;
+      modelTotal = 0;
     }
   }
 
