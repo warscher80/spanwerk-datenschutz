@@ -204,6 +204,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Liga/Turnier vorbereiten: Saison setzen, Startrunde bestimmen, laden, lernen.
   Future<void> _selectLeague() async {
+    // Welche Liga dieser Aufruf vorbereitet. Tippt der Nutzer eine andere Liga
+    // an, während die Startrunde noch geladen wird, darf die alte (langsamere)
+    // Antwort nicht den Spieltag der neuen Ansicht überschreiben.
+    final ligaBeimStart = _leagueIdx;
     setState(() { _loading = true; _error = null; _stages = []; _matches = []; });
     if (_currentMode) {
       await _loadDay();
@@ -211,8 +215,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     _season = Api.seasonFor(_league, DateTime.now());
     if (!_isCup) {
-      _day = await _resolveStartRound(_league);
+      final r = await _resolveStartRound(_league);
+      if (_leagueIdx != ligaBeimStart) return; // inzwischen umgeschaltet
+      _day = r;
     }
+    if (_leagueIdx != ligaBeimStart) return;
     await _loadDay();
     _startLearning();
   }
@@ -619,13 +626,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _bracketGame(FootyMatch m) {
     final p = _elo.probs(m.home.name, m.away.name, neutral: true);
     final finished = m.finished && m.hasResult;
-    // Sieger/Favorit bestimmen.
-    bool homeTop;
-    if (finished && m.homeGoals != m.awayGoals) {
-      homeTop = m.homeGoals! > m.awayGoals!;
-    } else {
-      homeTop = p.home >= p.away;
-    }
+    final unentschieden = finished && m.homeGoals == m.awayGoals;
+    // Bei entschiedenem Spiel den echten Sieger hervorheben, bei offenem den
+    // Favoriten. Endete ein K.o.-Spiel unentschieden (per Elfmeter entschieden),
+    // steht der Sieger nicht in den Daten – dann wird niemand markiert, statt
+    // fälschlich den Favoriten als weiter zu zeigen.
+    final bool? homeTop = unentschieden
+        ? null
+        : finished
+            ? m.homeGoals! > m.awayGoals!
+            : p.home >= p.away;
 
     Widget side(Team t, bool top, int? goals) {
       return Row(children: [
@@ -654,9 +664,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         border: Border.all(color: const Color(0xFF1C6A50)),
       ),
       child: Column(children: [
-        side(m.home, homeTop, finished ? m.homeGoals : null),
+        side(m.home, homeTop == true, finished ? m.homeGoals : null),
         const Divider(height: 10, color: Color(0xFF1C6A50)),
-        side(m.away, !homeTop, finished ? m.awayGoals : null),
+        side(m.away, homeTop == false, finished ? m.awayGoals : null),
         const SizedBox(height: 2),
         Align(
           alignment: Alignment.centerRight,
@@ -1139,7 +1149,11 @@ class _MatchCard extends StatelessWidget {
       status = 'Termin offen';
     }
     final league = match.competition;
-    final spieltag = (match.round >= 1 && match.round < 100) ? '${match.round}. Spieltag' : '';
+    // Bei Turnieren steht hier der Runden-Name (z. B. "Achtelfinale"); bei Ligen
+    // der Spieltag aus der Runden-Nummer. Ohne das zeigten K.o.-Runden einen
+    // sinnlosen "16. Spieltag" (16 ist dort der Runden-Code, kein Spieltag).
+    final spieltag = match.roundLabel ??
+        ((match.round >= 1 && match.round < 100) ? '${match.round}. Spieltag' : '');
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,

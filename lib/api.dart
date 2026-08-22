@@ -130,6 +130,11 @@ class FootyMatch {
   // zu welcher Liga ein Spiel gehört.
   String? competition;
 
+  // Anzeige-Name der Runde bei Turnieren (z. B. "Achtelfinale"). Bei Ligen
+  // null – dort zeigt die Karte den Spieltag aus [round]. Nötig, weil in
+  // Turnieren [round] ein Runden-Code ist (32/16/8/4) und nicht der Spieltag.
+  String? roundLabel;
+
   FootyMatch({
     required this.id,
     required this.kickoff,
@@ -140,6 +145,7 @@ class FootyMatch {
     required this.homeGoals,
     required this.awayGoals,
     this.competition,
+    this.roundLabel,
     this.kickoffExact = true,
   });
 
@@ -176,13 +182,22 @@ class FootyMatch {
     required bool hasScores,
     DateTime? kickoff,
     DateTime? now,
+    bool kickoffExact = true,
   }) {
     final s = status.trim().toUpperCase();
     if (_finishedStates.contains(s)) return true;
     if (_openStates.contains(s)) return false;
     if (!hasScores || kickoff == null) return false;
     final jetzt = now ?? DateTime.now();
-    return jetzt.difference(kickoff) >= const Duration(hours: 3, minutes: 30);
+    if (jetzt.difference(kickoff) >= const Duration(hours: 3, minutes: 30)) {
+      return true;
+    }
+    // Ist nur das Datum bekannt, wurde der Anstoß auf das Tagesende (23:59)
+    // geschätzt. Die Zeitregel oben griffe dann für ein Spiel, das heute früher
+    // lief, nie – es erschiene den ganzen Tag als "kommt noch". Liegt aber
+    // bereits ein Ergebnis vor und ist der Status nicht "läuft", ist es vorbei.
+    if (!kickoffExact) return true;
+    return false;
   }
 
   /// Wie [FootyMatch.fromJson], liefert aber null statt zu werfen.
@@ -242,6 +257,7 @@ class FootyMatch {
       status,
       hasScores: hg != null && ag != null,
       kickoff: kickoff,
+      kickoffExact: zeitGenau,
     );
 
     return FootyMatch(
@@ -565,17 +581,30 @@ class Api {
         ? candidates.where(bekannteRunden.contains).toList()
         : candidates;
 
-    final ergebnisse = await inWellen<({int code, List<FootyMatch> spiele})>(
+    final ergebnisse =
+        await inWellen<({int code, List<FootyMatch> spiele, bool ok})>(
       zuLaden
           .map((c) => () async {
                 try {
-                  return (code: c, spiele: await round(leagueId, season, c));
+                  return (
+                    code: c,
+                    spiele: await round(leagueId, season, c),
+                    ok: true
+                  );
                 } catch (_) {
-                  return (code: c, spiele: const <FootyMatch>[]);
+                  return (code: c, spiele: const <FootyMatch>[], ok: false);
                 }
               })
           .toList(),
     );
+
+    // Antwortete KEINE einzige Runde, ist das eine Störung und kein leeres
+    // Turnier. Ohne diese Unterscheidung meldete allCupMatches einen "Erfolg"
+    // mit leerer Liste; currentMatches hielt das für "keine Spiele" und konnte
+    // eine gute Liste bei Drosselung durch eine leere ersetzen.
+    if (zuLaden.isNotEmpty && !ergebnisse.any((e) => e.ok)) {
+      throw Exception('Turnier: keine Antwort vom Server');
+    }
 
     // Merken, welche Codes wirklich Spiele hatten – der Aufrufer sichert das.
     zuletztGefundeneRunden = [
@@ -595,6 +624,16 @@ class Api {
         if (ka == null || kb == null) return 0;
         return ka.compareTo(kb);
       });
+
+    // Runden-Namen setzen (z. B. "Achtelfinale"). Der Name der K.o.-Runde
+    // hängt von der Zahl ihrer Spiele ab – deshalb erst hier, wo alle vorliegen.
+    final proRunde = <int, int>{};
+    for (final m in list) {
+      proRunde[m.round] = (proRunde[m.round] ?? 0) + 1;
+    }
+    for (final m in list) {
+      m.roundLabel = cupStageLabel(m.round, proRunde[m.round] ?? 0);
+    }
     return list;
   }
 }

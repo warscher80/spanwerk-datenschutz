@@ -96,6 +96,32 @@ void main() {
     test('Leerer Status verhält sich wie ein unbekannter', () {
       expect(FootyMatch.matchIsFinished('', hasScores: true, kickoff: anpfiff, now: kurzDanach), isFalse);
     });
+
+    test('Nur-Datum-Anstoß mit Ergebnis gilt als beendet', () {
+      // Ohne Uhrzeit wird der Anstoß auf das Tagesende (23:59) geschätzt. Ein
+      // Spiel, das heute früher lief und ein Ergebnis hat, erschiene sonst den
+      // ganzen Tag als "kommt noch". kickoffExact:false behebt genau das.
+      final tagesende = DateTime(2026, 8, 22, 23, 59);
+      final nachmittag = DateTime(2026, 8, 22, 18, 0);
+      expect(
+        FootyMatch.matchIsFinished('', hasScores: true, kickoff: tagesende,
+            now: nachmittag, kickoffExact: false),
+        isTrue,
+        reason: 'Ergebnis vorhanden, Status nicht live -> vorbei',
+      );
+      // Läuft es gerade (Live-Status), bleibt es offen – auch bei Nur-Datum.
+      expect(
+        FootyMatch.matchIsFinished('1H', hasScores: true, kickoff: tagesende,
+            now: nachmittag, kickoffExact: false),
+        isFalse,
+      );
+      // Ohne Ergebnis (echtes Zukunftsspiel) bleibt es offen.
+      expect(
+        FootyMatch.matchIsFinished('', hasScores: false, kickoff: tagesende,
+            now: nachmittag, kickoffExact: false),
+        isFalse,
+      );
+    });
   });
 
   // Der Kurzzeit-Cache ist die Bremse gegen die Drosselung: "Aktuell" fächert
