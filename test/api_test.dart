@@ -124,6 +124,60 @@ void main() {
     });
   });
 
+  group('liveMinute (Spielminute)', () {
+    FootyMatch m({required bool finished, String? progress, int? hg = 1, int? ag = 0}) =>
+        FootyMatch(
+          id: 1,
+          kickoff: DateTime(2026, 5, 1, 18, 30),
+          round: 1,
+          home: Team('A', null),
+          away: Team('B', null),
+          finished: finished,
+          homeGoals: hg,
+          awayGoals: ag,
+          progress: progress,
+        );
+
+    test('reine Minute bekommt ein Minutenzeichen', () {
+      expect(m(finished: false, progress: '67').liveMinute, "67'");
+      expect(m(finished: false, progress: '45+2').liveMinute, "45+2'");
+    });
+
+    test('Sonderphasen werden ausgeschrieben', () {
+      expect(m(finished: false, progress: 'HT').liveMinute, 'Halbzeit');
+      expect(m(finished: false, progress: 'ET').liveMinute, 'Verläng.');
+    });
+
+    test('ohne oder mit leerem Fortschritt kein Minutenwert', () {
+      expect(m(finished: false, progress: null).liveMinute, isNull);
+      expect(m(finished: false, progress: '').liveMinute, isNull);
+      expect(m(finished: false, progress: '0').liveMinute, isNull);
+    });
+
+    test('nur laufende Spiele zeigen eine Minute', () {
+      // Beendet -> keine Minute, auch wenn ein Fortschritt gespeichert ist.
+      expect(m(finished: true, progress: '67').liveMinute, isNull);
+      // Kein Ergebnis -> nicht live -> keine Minute.
+      expect(m(finished: false, hg: null, ag: null, progress: '67').liveMinute, isNull);
+    });
+
+    test('fromJson liest strProgress bei laufendem Spiel', () {
+      final match = FootyMatch.fromJson({
+        'idEvent': '5',
+        'strStatus': '2H', // laufend -> nie als beendet eingestuft
+        'intHomeScore': 2,
+        'intAwayScore': 1,
+        'strTimestamp': '2026-05-01T18:30:00',
+        'intRound': '3',
+        'strHomeTeam': 'Heim',
+        'strAwayTeam': 'Gast',
+        'strProgress': '78',
+      });
+      expect(match.isLive, isTrue);
+      expect(match.liveMinute, "78'");
+    });
+  });
+
   // Der Kurzzeit-Cache ist die Bremse gegen die Drosselung: "Aktuell" fächert
   // über alle zehn Ligen aus und kam so auf ~26 Anfragen pro Minute.
   group('TtlCache', () {

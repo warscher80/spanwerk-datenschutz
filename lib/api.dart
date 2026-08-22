@@ -140,6 +140,11 @@ class FootyMatch {
   // „Aktuell" gleich bewertet wird wie im Turnier-Tab.
   bool neutralVenue;
 
+  // Spielfortschritt bei laufenden Spielen, roh von TheSportsDB (strProgress):
+  // meist die Minute ("67", "45+2") oder "HT". Nur der Bezahl-Livefeed füllt
+  // das zuverlässig – beim Gratis-Key ist es oft leer, deshalb rein optional.
+  final String? progress;
+
   FootyMatch({
     required this.id,
     required this.kickoff,
@@ -153,7 +158,24 @@ class FootyMatch {
     this.roundLabel,
     this.neutralVenue = false,
     this.kickoffExact = true,
+    this.progress,
   });
+
+  /// Aufbereitete Spielminute für die Anzeige – nur bei laufenden Spielen.
+  /// Gibt z. B. "67'", "45+2'" oder "Halbzeit" zurück, sonst null.
+  String? get liveMinute {
+    if (!isLive) return null;
+    final p = progress?.trim();
+    if (p == null || p.isEmpty || p == '0') return null;
+    final u = p.toUpperCase();
+    if (u == 'HT' || u == 'HALFTIME' || u == 'HALF TIME') return 'Halbzeit';
+    if (u == 'ET' || u == 'AET') return 'Verläng.';
+    if (u == 'BT' || u == 'BREAK') return 'Pause';
+    if (u == 'PEN' || u == 'P') return 'Elfmeter';
+    // Reine Minutenangabe (evtl. mit Nachspielzeit wie 45+2) -> Minuten-Zeichen.
+    if (RegExp(r'^\d{1,3}(\+\d{1,2})?$').hasMatch(p)) return "$p'";
+    return p; // unbekanntes Format unverändert zeigen
+  }
 
   bool get hasResult => homeGoals != null && awayGoals != null;
   bool startedBy(DateTime now) => kickoff != null && !now.isBefore(kickoff!);
@@ -269,6 +291,15 @@ class FootyMatch {
       kickoffExact: zeitGenau,
     );
 
+    // Spielminute: bevorzugt strProgress; manche Feeds tragen die Minute auch
+    // in strStatus (z. B. "67", "45+2"). Endstatus wie "FT"/"NS" ist keine
+    // Minute – die filtert liveMinute ohnehin über isLive heraus.
+    var prog = (j['strProgress'] ?? '').toString().trim();
+    if (prog.isEmpty || prog == '0') {
+      final st = status.trim();
+      if (RegExp(r'^\d{1,3}(\+\d{1,2})?$').hasMatch(st)) prog = st;
+    }
+
     return FootyMatch(
       id: int.parse(j['idEvent'].toString()),
       kickoff: kickoff,
@@ -279,6 +310,7 @@ class FootyMatch {
       homeGoals: hg,
       awayGoals: ag,
       kickoffExact: zeitGenau,
+      progress: prog.isEmpty ? null : prog,
     );
   }
 }

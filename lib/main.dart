@@ -71,7 +71,8 @@ class _DemoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime(2026, 8, 22, 15, 0);
     FootyMatch mk(int id, String h, String a, DateTime k, int round,
-        {bool finished = false, int? hg, int? ag, String? comp, String? rl}) {
+        {bool finished = false, int? hg, int? ag, String? comp, String? rl,
+        String? progress}) {
       return FootyMatch(
         id: id,
         kickoff: k,
@@ -84,6 +85,7 @@ class _DemoScreen extends StatelessWidget {
         kickoffExact: true,
         competition: comp,
         roundLabel: rl,
+        progress: progress,
       );
     }
 
@@ -109,7 +111,7 @@ class _DemoScreen extends StatelessWidget {
       // Live-Beispiel (läuft, Zwischenstand 1:0).
       card(
         mk(0, 'Inter Milan', 'AC Milan', DateTime(2026, 8, 22, 14, 0), 1,
-            hg: 1, ag: 0, comp: '🇮🇹 Serie A'),
+            hg: 1, ag: 0, comp: '🇮🇹 Serie A', progress: '67'),
         const MatchProbs(0.45, 0.27, 0.28),
         top: 12,
       ),
@@ -1539,7 +1541,9 @@ class _MatchCard extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
                   color: live ? kLive : kText)),
-          Text(live ? 'live' : 'Endstand',
+          // Bei laufenden Spielen die echte Spielminute (falls die Datenquelle
+          // sie liefert), sonst schlicht „live".
+          Text(live ? (match.liveMinute ?? 'live') : 'Endstand',
               style: TextStyle(
                   color: live ? kLive : kTextMute,
                   fontSize: 10,
@@ -1938,7 +1942,9 @@ class _MatchDetailSheetState extends State<_MatchDetailSheet> {
     String head;
     Color headColor;
     if (match.isLive) {
-      head = 'LÄUFT · ${match.homeGoals}:${match.awayGoals}';
+      final min = match.liveMinute;
+      head = 'LÄUFT · ${match.homeGoals}:${match.awayGoals}'
+          '${min != null ? ' · $min' : ''}';
       headColor = kLive;
     } else if (match.finished && match.hasResult) {
       head = 'Endstand · ${match.homeGoals}:${match.awayGoals}';
