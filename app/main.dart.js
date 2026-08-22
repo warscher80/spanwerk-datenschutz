@@ -73994,7 +73994,7 @@ case 4:return"Viertelfinale"
 case 2:return"Halbfinale"
 case 1:return"Finale"
 default:return"K.o."}},
-L(a){var s,r,q,p,o,n,m,l=this,k=null,j=t.p,i=A.cv(A.c([A.cs(B.a7,B.D_,B.q,k,k,new A.cb(B.E,k,k,A.eE(9),k,k,B.a4),k,28,k,k,k,k,28),B.LY,B.RO],j),B.z,B.v,B.bU),h=A.c([],j)
+L(a){var s,r,q,p,o,n,m,l=this,k=null,j=t.p,i=A.cv(A.c([A.cs(B.a7,B.D_,B.q,k,k,new A.cb(B.E,k,k,A.eE(9),k,k,B.a4),k,28,k,k,k,k,28),B.LY,B.RP],j),B.z,B.v,B.bU),h=A.c([],j)
 if(l.r>=0&&l.gbG().f)h.push(A.w7(k,k,k,B.CY,k,k,l.ga67(),k,k,k,"WM-Baum",k))
 if(l.r>=0&&l.gbG().f)h.push(A.w7(k,k,k,B.CZ,k,k,l.ga6b(),k,k,k,"Wer gewinnt die WM?",k))
 h.push(A.w7(k,k,k,B.CX,k,k,l.ga69(),k,k,k,"Trefferquote",k))
@@ -74029,7 +74029,7 @@ Ls(a,b){var s=null,r=b!=null,q=r?B.bN:B.I
 return A.l0(!1,B.N,!0,A.ZI(!1,s,!0,A.hP(A.n5(a,r?B.E:B.b3,s,s),44,44),B.hM,!0,s,s,s,s,s,s,b,s,s,s,s),B.q,q,0,s,s,B.hM,s,s,B.bv)},
 a8R(a){var s=null,r=t.p,q=A.c([A.bx("Update verf\xfcgbar: v"+a.b,s,s,B.Qs,s)],r),p=a.d
 if(p.length!==0)q.push(A.bx(p,1,B.as,B.R_,s))
-return A.l0(!1,B.N,!0,A.ZI(!1,s,!0,new A.bQ(B.BZ,A.cv(A.c([B.CW,B.e9,A.fx(A.eG(q,B.ao,B.v,B.A),1),new A.Kb(new A.aeV(this,a),s,s,s,A.aEe(s,s,B.bd,s,s,s,s,s,s,s,s,s,B.BY,s,s,s,s,s,s,s),s,s,!1,s,!0,s,B.RG,s),A.w7(s,s,s,B.CU,s,s,new A.aeW(this),s,s,s,s,B.xF)],r),B.z,B.v,B.A),s),s,!0,s,s,s,s,s,s,new A.aeX(this,a),s,s,s,s),B.q,B.E,0,s,s,s,s,s,B.bv)},
+return A.l0(!1,B.N,!0,A.ZI(!1,s,!0,new A.bQ(B.BZ,A.cv(A.c([B.CW,B.e9,A.fx(A.eG(q,B.ao,B.v,B.A),1),new A.Kb(new A.aeV(this,a),s,s,s,A.aEe(s,s,B.bd,s,s,s,s,s,s,s,s,s,B.BY,s,s,s,s,s,s,s),s,s,!1,s,!0,s,B.RH,s),A.w7(s,s,s,B.CU,s,s,new A.aeW(this),s,s,s,s,B.xF)],r),B.z,B.v,B.A),s),s,!0,s,s,s,s,s,s,new A.aeX(this,a),s,s,s,s),B.q,B.E,0,s,s,s,s,s,B.bv)},
 pQ(a){return this.a0Q(a)},
 a0Q(a){var s=0,r=A.J(t.H),q,p=this,o
 var $async$pQ=A.K(function(b,c){if(b===1)return A.G(c,r)
@@ -74342,7 +74342,7 @@ else f=h===2?m.gjf()+" gewinnt":"Unentschieden"
 e=B.d.an([j,i,k][h]*100)
 n=h===1
 d=!n&&e>=65
-c=A.eG(A.c([A.bx(""+e+" %",a7,a7,B.Nd,a7),B.RP],r),B.c5,B.v,B.A)
+c=A.eG(A.c([A.bx(""+e+" %",a7,a7,B.Nd,a7),B.RG],r),B.c5,B.v,B.A)
 if(b1&&b0.r!=null&&b0.w!=null){b1=b0.r
 b1.toString
 b0=b0.w
@@ -74372,9 +74372,9 @@ a5=a2
 n=a6.f
 return new A.bQ(new A.ag(0,a6.r,0,0),A.cs(a7,A.eG(A.c([q,B.jX,l,B.fU,b0,B.jX,b1,B.fT,A.cv(A.c([A.n5(B.CN,B.bp,a7,14),B.x2,A.bx("KickProphet-Tipp ",a7,a7,A.ev(a7,a7,B.bp,a7,a7,a7,a7,a7,a7,a7,a7,12,a7,a7,a7,a7,a7,!0,a7,a7,a7,a7,a7,a7,a7,a7),a7),A.bx(""+n[0]+":"+n[1],a7,a7,B.PN,a7),B.Mj,A.bx("Sicherheit: ",a7,a7,A.ev(a7,a7,B.b3,a7,a7,a7,a7,a7,a7,a7,a7,11.5,a7,a7,a7,a7,a7,!0,a7,a7,a7,a7,a7,a7,a7,a7),a7),A.bx(a5,a7,a7,A.ev(a7,a7,a3,a7,a7,a7,a7,a7,a7,a7,a7,11.5,a7,a7,B.aF,a7,a7,!0,a7,a7,a7,a7,a7,a7,a7,a7),a7)],r),B.z,B.v,B.A)],r),B.z,B.v,B.A),B.q,a7,a7,new A.cb(B.b2,a7,a9,a8,a7,a7,B.a4),a7,a7,B.lM,B.i6,a7,a7,a7),a7)},
 a_g(){var s,r=null,q=this.c
-if(q.f&&q.r!=null&&q.w!=null)return new A.bQ(B.BN,A.eG(A.c([A.bx(A.j(q.r)+":"+A.j(q.w),r,r,B.PG,r),B.RI],t.p),B.z,B.v,B.bU),r)
+if(q.f&&q.r!=null&&q.w!=null)return new A.bQ(B.BN,A.eG(A.c([A.bx(A.j(q.r)+":"+A.j(q.w),r,r,B.PG,r),B.RJ],t.p),B.z,B.v,B.bU),r)
 s=q.b
-return new A.bQ(B.lR,A.eG(A.c([A.bx(s!=null&&q.x?this.a1r(s):"\u2013",r,r,B.P9,r),B.RN],t.p),B.z,B.v,B.bU),r)},
+return new A.bQ(B.lR,A.eG(A.c([A.bx(s!=null&&q.x?this.a1r(s):"\u2013",r,r,B.P9,r),B.RO],t.p),B.z,B.v,B.bU),r)},
 uQ(){switch(A.akH(this.e).a){case 0:return 0
 case 1:return 1
 case 2:return 2}},
@@ -74427,8 +74427,8 @@ i=A.cv(A.c([k.v4(""+h.a,"Teams gelernt"),k.v4(""+i.w,"Treffer")],s),B.z,B.v,B.A)
 h=B.E.hH(0.12)
 o=A.eE(12)
 n=A.iZ(B.E.hH(0.4),1)
-o=A.c([B.RH,B.fU,p,B.fT,i,B.LZ,A.cs(j,A.eG(A.c([A.cv(B.EZ,B.z,B.v,B.A),B.M3,B.RM],s),B.ao,B.v,B.A),B.q,j,j,new A.cb(h,j,n,o,j,j,B.a4),j,j,j,B.i6,j,j,1/0)],s)
-if(q.length!==0){i=A.c([B.M0,B.RL,B.fT],s)
+o=A.c([B.RI,B.fU,p,B.fT,i,B.LZ,A.cs(j,A.eG(A.c([A.cv(B.EZ,B.z,B.v,B.A),B.M3,B.RN],s),B.ao,B.v,B.A),B.q,j,j,new A.cb(h,j,n,o,j,j,B.a4),j,j,j,B.i6,j,j,1/0)],s)
+if(q.length!==0){i=A.c([B.M0,B.RM,B.fT],s)
 for(m=0;m<q.length;m=l){l=m+1
 h=A.bx(""+l+".",j,j,B.Qm,j)
 p=q[m]
@@ -80279,8 +80279,8 @@ B.CR=new A.cf(985235,"MaterialIcons",!1)
 B.CV=new A.hx(B.CR,20,B.E,null,null)
 B.jW=new A.bV(8,null,null,null)
 B.Pb=new A.k(!0,B.j,null,null,null,null,null,B.aF,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RK=new A.dg("So liest du die Prognose",null,B.Pb,null,null,null,null)
-B.Cl=new A.kD(1,B.cB,B.RK,null)
+B.RL=new A.dg("So liest du die Prognose",null,B.Pb,null,null,null,null)
+B.Cl=new A.kD(1,B.cB,B.RL,null)
 B.EZ=s([B.CV,B.jW,B.Cl],t.p)
 B.F_=s(["Mo","Di","Mi","Do","Fr","Sa","So"],t.s)
 B.G3=new A.ni("en",null,"US")
@@ -81658,8 +81658,8 @@ B.Mc=new A.iC(5,"timeout")
 B.Md=new A.ra(null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.RB=new A.dg("Titelchancen gibt es ab dem Achtelfinale.",null,null,null,null,null,null)
 B.Me=new A.jL(B.RB,B.b2,null,null,null,null,null,null,null,null,null,null,null,B.i4,!1,null,null,null,B.a1,null)
-B.RJ=new A.dg("Konnte den Download nicht \xf6ffnen.",null,null,null,null,null,null)
-B.Mf=new A.jL(B.RJ,null,null,null,null,null,null,null,null,null,null,null,null,B.i4,!1,null,null,null,B.a1,null)
+B.RK=new A.dg("Konnte den Download nicht \xf6ffnen.",null,null,null,null,null,null)
+B.Mf=new A.jL(B.RK,null,null,null,null,null,null,null,null,null,null,null,null,B.i4,!1,null,null,null,B.a1,null)
 B.RA=new A.dg("Der Turnierbaum erscheint ab dem Achtelfinale.",null,null,null,null,null,null)
 B.Mg=new A.jL(B.RA,B.b2,null,null,null,null,null,null,null,null,null,null,null,B.i4,!1,null,null,null,B.a1,null)
 B.x7=new A.z4(0,"permissive")
@@ -82029,19 +82029,19 @@ B.RC=new A.dg("Sch\xe4tzung des lernenden Modells. Nach der ersten K.o.-Runde wi
 B.RD=new A.dg("\ud83c\udfc6 Wer gewinnt die WM?",null,B.k7,null,null,null,null)
 B.N3=new A.k(!0,B.b3,null,null,null,null,10.5,null,null,null,null,null,1.3,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.RF=new A.dg("Prognosen basieren auf statistischen Daten \u2013 keine Garantie f\xfcr echte Ergebnisse. Keine Wetten, kein Echtgeld.",null,B.N3,B.bZ,null,null,null)
-B.RG=new A.dg("Laden",null,B.k6,null,null,null,null)
-B.RH=new A.dg("Trefferquote",null,B.k7,null,null,null,null)
-B.xq=new A.k(!0,B.b3,null,null,null,null,10,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RI=new A.dg("Endstand",null,B.xq,null,null,null,null)
-B.R7=new A.k(!0,B.j,null,null,null,null,16,B.aj,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RL=new A.dg("St\xe4rkste Teams (laut Modell)",null,B.R7,null,null,null,null)
-B.O8=new A.k(!0,B.hW,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RM=new A.dg('Je h\xf6her die Sicherheit, desto \xf6fter stimmt die Prognose: bei "75 %+" liegt das Modell rund 3 von 4 Mal richtig. Es lernt aus jedem echten Ergebnis weiter dazu. Garantien gibt es im Fu\xdfball aber nie. \ud83d\ude09',null,B.O8,null,null,null,null)
-B.RN=new A.dg("Ansto\xdf",null,B.xq,null,null,null,null)
-B.Ps=new A.k(!0,null,null,null,null,null,19,B.aj,null,-0.3,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RO=new A.dg("KickProphet",null,B.Ps,null,null,null,null)
 B.Nv=new A.k(!0,B.b3,null,null,null,null,9.5,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.RP=new A.dg("Sicherheit",null,B.Nv,null,null,null,null)
+B.RG=new A.dg("Wahrsch.",null,B.Nv,null,null,null,null)
+B.RH=new A.dg("Laden",null,B.k6,null,null,null,null)
+B.RI=new A.dg("Trefferquote",null,B.k7,null,null,null,null)
+B.xq=new A.k(!0,B.b3,null,null,null,null,10,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.RJ=new A.dg("Endstand",null,B.xq,null,null,null,null)
+B.R7=new A.k(!0,B.j,null,null,null,null,16,B.aj,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.RM=new A.dg("St\xe4rkste Teams (laut Modell)",null,B.R7,null,null,null,null)
+B.O8=new A.k(!0,B.hW,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.RN=new A.dg('Je h\xf6her die Sicherheit, desto \xf6fter stimmt die Prognose: bei "75 %+" liegt das Modell rund 3 von 4 Mal richtig. Es lernt aus jedem echten Ergebnis weiter dazu. Garantien gibt es im Fu\xdfball aber nie. \ud83d\ude09',null,B.O8,null,null,null,null)
+B.RO=new A.dg("Ansto\xdf",null,B.xq,null,null,null,null)
+B.Ps=new A.k(!0,null,null,null,null,null,19,B.aj,null,-0.3,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.RP=new A.dg("KickProphet",null,B.Ps,null,null,null,null)
 B.UD=new A.aac(0,"system")
 B.Iu=new A.p(0.056,0.024)
 B.IE=new A.p(0.108,0.3085)
