@@ -1428,7 +1428,7 @@ class _MatchCard extends StatelessWidget {
         Text('$conf %',
             style: const TextStyle(
                 color: _accent, fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: -0.5)),
-        const Text('Sicherheit', style: TextStyle(color: kTextMute, fontSize: 9.5)),
+        const Text('Wahrsch.', style: TextStyle(color: kTextMute, fontSize: 9.5)),
       ],
     );
     if (match.finished && match.hasResult) {
