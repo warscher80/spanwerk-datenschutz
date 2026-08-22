@@ -185,6 +185,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   SeasonLearner? _learner;
 
   int _leagueIdx = 0;
+  int _tab = 0; // 0 Heute · 1 Ligen · 2 Bilanz · 3 Mehr
+  int _lastRealLeague = 0; // zuletzt gewählte echte Liga (für den Ligen-Tab)
   late String _season;
   int _day = 1;                // Liga-Modus: Spieltag-Nummer
   List<CupStage> _stages = []; // Turnier-Modus: gefundene Runden
@@ -301,6 +303,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Dort öffnen, wo der Nutzer zuletzt war.
     final saved = _store.lastLeagueIdx;
     if (saved >= -1 && saved < kLeagues.length) _leagueIdx = saved;
+    if (_leagueIdx >= 0) _lastRealLeague = _leagueIdx;
+    _tab = _leagueIdx < 0 ? 0 : 1; // Aktuell -> Heute, sonst -> Ligen
     _season = Api.seasonFor(_league, DateTime.now());
     try {
       await _selectLeague();
@@ -592,6 +596,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _changeLeague(int? idx) {
     if (idx == null || idx == _leagueIdx) return;
+    if (idx >= 0) _lastRealLeague = idx;
     setState(() {
       _leagueIdx = idx;
       _loading = true;
@@ -617,15 +622,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         store: _store,
         onChanged: () { if (mounted) setState(() {}); },
       ),
-    );
-  }
-
-  void _openStats() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: kSurfaceTop,
-      showDragHandle: true,
-      builder: (c) => _StatsSheet(store: _store),
     );
   }
 
@@ -965,13 +961,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ],
         ),
         actions: [
-          if (_isCup)
+          // Turnier-Extras nur im Ligen-Tab bei einem Pokal sichtbar.
+          if (_tab == 1 && _isCup)
             IconButton(
               tooltip: 'WM-Baum',
               onPressed: _openBracket,
               icon: const Icon(Icons.account_tree_rounded),
             ),
-          if (_isCup)
+          if (_tab == 1 && _isCup)
             IconButton(
               tooltip: 'Wer gewinnt die WM?',
               onPressed: _openWinnerOdds,
@@ -982,45 +979,221 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onPressed: _openWetten,
             icon: const Icon(Icons.receipt_long_rounded),
           ),
-          IconButton(
-            tooltip: 'Prophet Bilanz',
-            onPressed: _openStats,
-            icon: const Icon(Icons.insights_rounded),
-          ),
-          PopupMenuButton<String>(
-            color: kSurfaceHi,
-            onSelected: (v) {
-              if (v == 'reminders') _toggleReminders();
-              if (v == 'legal') _openRechtliches();
-            },
-            itemBuilder: (c) => [
-              PopupMenuItem(
-                value: 'reminders',
-                child: Text(_store.remindersEnabled
-                    ? 'Benachrichtigungen: an ✓'
-                    : 'Benachrichtigungen: aus'),
-              ),
-              const PopupMenuItem(
-                value: 'legal',
-                child: Text('Rechtliches'),
-              ),
-            ],
-          ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
+      body: SafeArea(top: false, child: _tabInhalt()),
+      bottomNavigationBar: _bottomNav(),
+    );
+  }
+
+  /// Inhalt je Tab. Heute/Ligen teilen sich die Spiele-Ansicht (nur der
+  /// Wettbewerb bzw. die Chip-Leiste unterscheidet sich), Bilanz und Mehr sind
+  /// eigenständige Vollbild-Ansichten. So bleiben alle Funktionen erhalten.
+  Widget _tabInhalt() {
+    switch (_tab) {
+      case 2:
+        return _maxW(_StatsSheet(store: _store));
+      case 3:
+        return _maxW(_mehrView());
+      case 1: // Ligen
+        return Column(
           children: [
             if (_update != null) _updateBanner(_update!),
-            _leagueChips(),
-            if (!_currentMode && !_isCup) _dayNav(),
+            _leagueChips(nurLigen: true),
+            if (!_isCup) _dayNav(),
             _statusBar(),
             Expanded(child: _body()),
-            _DisclaimerBar(onTap: _openRechtliches),
+            _DisclaimerBar(onTap: () => setState(() => _tab = 3)),
           ],
-        ),
+        );
+      default: // 0 Heute
+        return Column(
+          children: [
+            if (_update != null) _updateBanner(_update!),
+            _statusBar(),
+            Expanded(child: _body()),
+            _DisclaimerBar(onTap: () => setState(() => _tab = 3)),
+          ],
+        );
+    }
+  }
+
+  /// Moderne Bottom-Navigation. Aktiver Tab klar hervorgehoben.
+  Widget _bottomNav() {
+    return NavigationBarTheme(
+      data: NavigationBarThemeData(
+        backgroundColor: kSurfaceTop,
+        indicatorColor: kAccent.withValues(alpha: 0.18),
+        labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: s.contains(WidgetState.selected) ? kAccent : kTextMute,
+            )),
+        iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
+              size: 24,
+              color: s.contains(WidgetState.selected) ? kAccent : kTextMute,
+            )),
       ),
+      child: NavigationBar(
+        height: 64,
+        backgroundColor: kSurfaceTop,
+        surfaceTintColor: Colors.transparent,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        selectedIndex: _tab,
+        onDestinationSelected: _selectTab,
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.today_outlined),
+              selectedIcon: Icon(Icons.today_rounded),
+              label: 'Heute'),
+          NavigationDestination(
+              icon: Icon(Icons.emoji_events_outlined),
+              selectedIcon: Icon(Icons.emoji_events_rounded),
+              label: 'Ligen'),
+          NavigationDestination(
+              icon: Icon(Icons.insights_outlined),
+              selectedIcon: Icon(Icons.insights_rounded),
+              label: 'Bilanz'),
+          NavigationDestination(
+              icon: Icon(Icons.more_horiz_rounded),
+              selectedIcon: Icon(Icons.more_horiz_rounded),
+              label: 'Mehr'),
+        ],
+      ),
+    );
+  }
+
+  void _selectTab(int t) {
+    if (t == _tab) {
+      // Erneutes Antippen von „Heute" bringt die aktuellen Spiele frisch.
+      if (t == 0) _autoRefresh();
+      return;
+    }
+    setState(() => _tab = t);
+    // Heute = Aktuell, Ligen = zuletzt gewählte Liga (kein Doppel-Laden dank
+    // Guard in _changeLeague).
+    if (t == 0 && !_currentMode) {
+      _changeLeague(-1);
+    } else if (t == 1 && _currentMode) {
+      _changeLeague(_lastRealLeague);
+    }
+  }
+
+  /// „Mehr"-Tab: Einstellungen, eigene Wetten, Rechtliches, App-Info.
+  Widget _mehrView() {
+    Widget kachel({
+      required IconData icon,
+      required String titel,
+      String? unterzeile,
+      Widget? trailing,
+      VoidCallback? onTap,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadius),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(kRadius),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kRadius),
+                border: Border.all(color: kBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, size: 20, color: kAccent),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(titel,
+                            style: const TextStyle(
+                                color: kText,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700)),
+                        if (unterzeile != null) ...[
+                          const SizedBox(height: 2),
+                          Text(unterzeile,
+                              style: const TextStyle(
+                                  color: kTextMute, fontSize: 12)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  trailing ??
+                      const Icon(Icons.chevron_right_rounded, color: kTextMute),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
+      children: [
+        const Text('Mehr',
+            style: TextStyle(
+                color: kText, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 16),
+        kachel(
+          icon: Icons.notifications_active_rounded,
+          titel: 'Benachrichtigungen',
+          unterzeile: 'Erinnerung vor Anpfiff',
+          trailing: Switch(
+            value: _store.remindersEnabled,
+            activeThumbColor: kAccentInk,
+            activeTrackColor: kAccent,
+            onChanged: (_) => _toggleReminders(),
+          ),
+          onTap: _toggleReminders,
+        ),
+        kachel(
+          icon: Icons.receipt_long_rounded,
+          titel: 'Meine Wetten',
+          unterzeile: 'Deine eigenen Tipps & Bilanz',
+          onTap: _openWetten,
+        ),
+        kachel(
+          icon: Icons.insights_rounded,
+          titel: 'Prophet Bilanz',
+          unterzeile: 'Treffsicherheit des Modells',
+          onTap: () => setState(() => _tab = 2),
+        ),
+        if (_update != null)
+          kachel(
+            icon: Icons.system_update_rounded,
+            titel: 'App-Update verfügbar',
+            unterzeile: 'Neue Version v${_update!.versionName} laden',
+            onTap: () => _downloadUpdate(_update!),
+          ),
+        kachel(
+          icon: Icons.gavel_rounded,
+          titel: 'Rechtliches',
+          unterzeile: 'Datenschutz & Haftungsausschluss',
+          onTap: _openRechtliches,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: kSurfaceTop,
+            borderRadius: BorderRadius.circular(kRadius),
+            border: Border.all(color: kBorder),
+          ),
+          child: const Text(
+            'KickProphet · Datenbasierte Fußball-Prognosen.\n'
+            'Statistische Prognosen zu Informations- und Unterhaltungszwecken – '
+            'keine Garantie für echte Ergebnisse. Keine Wetten, kein Echtgeld.',
+            style: TextStyle(color: kTextMute, fontSize: 11.5, height: 1.4),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1029,7 +1202,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Wettbewerbs-Auswahl als horizontale Chip-Leiste (mobil daumenfreundlich,
   /// kein sperriges Dropdown). „Aktuell" führt die Liste an. Antippen über
   /// InkWell (mit Feedback), horizontales Wischen per Touch UND Maus/Trackpad.
-  Widget _leagueChips() {
+  Widget _leagueChips({bool nurLigen = false}) {
     Widget chip(int idx, String label, {IconData? icon}) {
       final selected = _leagueIdx == idx;
       return Padding(
@@ -1081,7 +1254,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              chip(-1, 'Aktuell', icon: Icons.circle),
+              if (!nurLigen) chip(-1, 'Aktuell', icon: Icons.circle),
               for (var i = 0; i < kLeagues.length; i++) chip(i, kLeagues[i].label),
             ],
           ),
