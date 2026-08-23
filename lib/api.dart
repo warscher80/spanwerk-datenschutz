@@ -16,6 +16,10 @@ class League {
   final bool isCup; // Turnier mit Gruppen + K.o. statt fortlaufender Spieltage
   final String? seasonOverride; // z. B. WM nutzt "2026" statt "2025-2026"
   final List<int> cupCandidates; // mögliche Runden-Codes (Gruppen + K.o.)
+  // Turnier-Art: 'wc' = WM-Format (alle Spiele auf neutralem Platz, WM-Baum),
+  // 'uefa' = Europapokal-Format (Hin-/Rückspiel mit Heimvorteil, nur das
+  // Finale neutral; eigene Runden-Namen: Ligaphase/Play-off/Achtel…/Finale).
+  final String cupKind;
   const League(
     this.id,
     this.name,
@@ -25,7 +29,10 @@ class League {
     this.isCup = false,
     this.seasonOverride,
     this.cupCandidates = const [],
+    this.cupKind = 'wc',
   });
+
+  bool get istWMFormat => cupKind == 'wc';
 
   String get label => '$flag $name';
   String get sub => country;
@@ -36,9 +43,18 @@ class League {
 // 4 = Halbfinale; 125/150/160/200 als Fallback für Halbfinale/Platz 3/Finale.
 const _wcCandidates = [1, 2, 3, 32, 16, 8, 4, 125, 150, 160, 200];
 
+// Europapokal (neues Format): 1–8 = Ligaphase, 32 = Play-off-Runde,
+// 16 = Achtelfinale, 125 = Viertel-, 150 = Halbfinale, 200 = Finale,
+// 400 = Qualifikation. Genau die Codes, die TheSportsDB tatsächlich liefert.
+const _uefaCandidates = [400, 1, 2, 3, 4, 5, 6, 7, 8, 32, 16, 125, 150, 160, 200];
+
 const kLeagues = <League>[
   League('4429', 'WM 2026', 'International', '🏆', 0,
       isCup: true, seasonOverride: '2026', cupCandidates: _wcCandidates),
+  League('4480', 'Champions League', 'Europa', '🏆', 0,
+      isCup: true, cupKind: 'uefa', cupCandidates: _uefaCandidates),
+  League('4481', 'Europa League', 'Europa', '🏆', 0,
+      isCup: true, cupKind: 'uefa', cupCandidates: _uefaCandidates),
   League('4331', '1. Bundesliga', 'Deutschland', '🇩🇪', 34),
   League('4399', '2. Bundesliga', 'Deutschland', '🇩🇪', 34),
   League('4621', 'Bundesliga', 'Österreich', '🇦🇹', 32),
@@ -58,7 +74,28 @@ class CupStage {
 }
 
 /// Beschriftung einer Turnier-Runde (Code bzw. nach Spielanzahl).
-String cupStageLabel(int code, int count) {
+/// [kind] 'uefa' nutzt die Namen des Europapokal-Formats.
+String cupStageLabel(int code, int count, {String kind = 'wc'}) {
+  if (kind == 'uefa') {
+    if (code >= 1 && code <= 8) return 'Ligaphase · $code. Spieltag';
+    switch (code) {
+      case 400:
+        return 'Qualifikation';
+      case 32:
+        return 'Play-off-Runde';
+      case 16:
+        return 'Achtelfinale';
+      case 125:
+        return 'Viertelfinale';
+      case 150:
+      case 160:
+      case 170:
+        return 'Halbfinale';
+      case 200:
+        return 'Finale';
+    }
+    return 'Runde $code';
+  }
   switch (code) {
     case 1:
     case 2:
@@ -452,12 +489,16 @@ class Api {
     for (final l in leagues) {
       final pool = <FootyMatch>[];
 
-      // Turniere: nur die K.o.-Runden laden (Gruppenphase ist gespielt; spart
-      // Anfragen und liefert genau die noch offenen Partien).
+      // Turniere: WM lädt nur K.o.-Runden (Gruppenphase ist gespielt). Der
+      // Europapokal hat eine laufende Ligaphase (Runden 1–8) + Qualifikation –
+      // dort alle Kandidaten laden, sonst fehlen genau die aktuellen Spiele.
       if (l.isCup) {
-        final ko = l.cupCandidates.where((c) => c > 3).toList();
+        final ko = l.istWMFormat
+            ? l.cupCandidates.where((c) => c > 3).toList()
+            : l.cupCandidates;
         try {
-          pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko));
+          pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko,
+              kind: l.cupKind));
           erfolge++;
         } catch (_) {
           // Turnier übersprungen – zählt nicht als Erfolg.
@@ -716,9 +757,15 @@ class Api {
   /// Codes abfragt statt alle möglichen.
   static List<int> zuletztGefundeneRunden = const [];
 
+  /// Ist ein Turnierspiel dieser Runde auf neutralem Platz (kein Heimvorteil)?
+  /// WM: immer. Europapokal: nur das Finale (200) – Hin-/Rückspiele sind
+  /// Heim/Auswärts, dort zählt der Heimvorteil.
+  static bool cupNeutral(String kind, int code) =>
+      kind == 'uefa' ? code == 200 : true;
+
   static Future<List<FootyMatch>> allCupMatches(
       String leagueId, String season, List<int> candidates,
-      {List<int> bekannteRunden = const []}) async {
+      {List<int> bekannteRunden = const [], String kind = 'wc'}) async {
     // Sind die tatsächlich vorhandenen Runden bekannt, nur diese laden. Bei der
     // WM sind von elf möglichen Codes meist nur drei bis vier belegt - der Rest
     // kostet bei jedem Start eine Anfrage und liefert nichts.
@@ -777,8 +824,8 @@ class Api {
       proRunde[m.round] = (proRunde[m.round] ?? 0) + 1;
     }
     for (final m in list) {
-      m.roundLabel = cupStageLabel(m.round, proRunde[m.round] ?? 0);
-      m.neutralVenue = true; // Turnierspiele: kein Heimvorteil
+      m.roundLabel = cupStageLabel(m.round, proRunde[m.round] ?? 0, kind: kind);
+      m.neutralVenue = cupNeutral(kind, m.round);
     }
     return list;
   }

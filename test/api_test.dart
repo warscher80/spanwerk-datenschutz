@@ -178,6 +178,34 @@ void main() {
     });
   });
 
+  group('Turnier-Runden: WM vs. Europapokal', () {
+    test('WM-Format behält seine Namen', () {
+      expect(cupStageLabel(1, 6), 'Gruppe · 1. Spieltag');
+      expect(cupStageLabel(125, 8), 'Viertelfinale');
+      expect(cupStageLabel(150, 4), 'Halbfinale');
+      expect(cupStageLabel(200, 1), 'Finale');
+    });
+
+    test('UEFA-Format: Ligaphase, Play-off, Achtel…, Finale', () {
+      expect(cupStageLabel(3, 18, kind: 'uefa'), 'Ligaphase · 3. Spieltag');
+      expect(cupStageLabel(8, 18, kind: 'uefa'), 'Ligaphase · 8. Spieltag');
+      expect(cupStageLabel(400, 50, kind: 'uefa'), 'Qualifikation');
+      expect(cupStageLabel(32, 16, kind: 'uefa'), 'Play-off-Runde');
+      expect(cupStageLabel(16, 16, kind: 'uefa'), 'Achtelfinale');
+      expect(cupStageLabel(125, 8, kind: 'uefa'), 'Viertelfinale');
+      expect(cupStageLabel(150, 4, kind: 'uefa'), 'Halbfinale');
+      expect(cupStageLabel(200, 1, kind: 'uefa'), 'Finale');
+    });
+
+    test('Neutraler Platz: WM immer, Europapokal nur das Finale', () {
+      expect(Api.cupNeutral('wc', 16), isTrue);
+      expect(Api.cupNeutral('wc', 200), isTrue);
+      expect(Api.cupNeutral('uefa', 16), isFalse); // Achtelfinale = Heim/Auswärts
+      expect(Api.cupNeutral('uefa', 8), isFalse);
+      expect(Api.cupNeutral('uefa', 200), isTrue); // nur Finale neutral
+    });
+  });
+
   group('Spielstatus (verschoben/abgesagt/unterbrochen)', () {
     FootyMatch mitStatus(String s) => FootyMatch.fromJson({
           'idEvent': '1',

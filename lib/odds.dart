@@ -445,9 +445,12 @@ class SeasonLearner {
       }
       try {
         final matches = await Api.round(league.id, season, code);
+        // WM: alle neutral. Europapokal: nur das Finale – Hin-/Rückspiele mit
+        // Heimvorteil, damit das Modell die Stärke korrekt lernt.
+        final neutral = Api.cupNeutral(league.cupKind, code);
         var allFinished = matches.isNotEmpty;
         for (final m in matches) {
-          if (ingestMatch(store, model, m, neutral: true, liga: league.label)) {
+          if (ingestMatch(store, model, m, neutral: neutral, liga: league.label)) {
             _changed = true;
           }
           if (!m.finished) allFinished = false;

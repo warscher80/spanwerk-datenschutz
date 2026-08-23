@@ -408,6 +408,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _season,
       _league.cupCandidates,
       bekannteRunden: bekannt,
+      kind: _league.cupKind,
     );
     final gefunden = Api.zuletztGefundeneRunden;
     if (gefunden.isNotEmpty) {
@@ -961,14 +962,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ],
         ),
         actions: [
-          // Turnier-Extras nur im Ligen-Tab bei einem Pokal sichtbar.
-          if (_tab == 1 && _isCup)
+          // WM-Extras (Baum + Titelchancen) nur beim WM-Format – für den
+          // Europapokal passt die Runden-/Bracket-Logik nicht.
+          if (_tab == 1 && _isCup && _league.istWMFormat)
             IconButton(
               tooltip: 'WM-Baum',
               onPressed: _openBracket,
               icon: const Icon(Icons.account_tree_rounded),
             ),
-          if (_tab == 1 && _isCup)
+          if (_tab == 1 && _isCup && _league.istWMFormat)
             IconButton(
               tooltip: 'Wer gewinnt die WM?',
               onPressed: _openWinnerOdds,
