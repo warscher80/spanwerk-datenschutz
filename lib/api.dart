@@ -83,8 +83,27 @@ class CupStage {
 /// [kind] 'uefa' nutzt die Namen des Europapokal-Formats.
 String cupStageLabel(int code, int count, {String kind = 'wc'}) {
   if (kind == 'dfb') {
-    // Reines K.o. Robust nach Spielanzahl beschriften, weil die Runden-Codes
-    // zwischen Saisons wechseln (mal 1/2, mal 64/32 für die ersten Runden).
+    // Reines K.o. Zuerst nach Code (funktioniert auch bei Teil-Listen wie in
+    // „Aktuell"), sonst nach Spielanzahl. Codes wechseln je Saison: mal 1/2,
+    // mal 64/32 für die ersten Runden – beide Varianten abdecken.
+    switch (code) {
+      case 1:
+      case 64:
+        return '1. Runde';
+      case 2:
+      case 32:
+        return '2. Runde';
+      case 16:
+        return 'Achtelfinale';
+      case 8:
+      case 125:
+        return 'Viertelfinale';
+      case 4:
+      case 150:
+        return 'Halbfinale';
+      case 200:
+        return 'Finale';
+    }
     if (count >= 24) return '1. Runde';
     if (count >= 12) return '2. Runde';
     if (count >= 6) return 'Achtelfinale';
@@ -506,25 +525,29 @@ class Api {
     for (final l in leagues) {
       final pool = <FootyMatch>[];
 
-      // Turniere: WM lädt nur K.o.-Runden (Gruppenphase ist gespielt). Der
-      // Europapokal hat eine laufende Ligaphase (Runden 1–8) + Qualifikation –
-      // dort alle Kandidaten laden, sonst fehlen genau die aktuellen Spiele.
+      // Turniere in „Aktuell": bewusst NUR die anstehenden Spiele über EINE
+      // Abfrage (eventsnextleague) holen – nicht alle Runden-Codes durchprobieren.
+      // Mit WM + CL + EL + DFB-Pokal wären das sonst Dutzende Anfragen pro
+      // Aktualisierung, der geteilte Gratis-Key drosselt, und die Liste bliebe
+      // leer/hängen. Die vollständige Turnieransicht liefert weiterhin der
+      // Ligen-Tab (_fetchCup). Runden-Name/Heimvorteil hier direkt setzen.
       if (l.isCup) {
-        final ko = l.istWMFormat
-            ? l.cupCandidates.where((c) => c > 3).toList()
-            : l.cupCandidates;
-        try {
-          pool.addAll(await allCupMatches(l.id, seasonFor(l, now), ko,
-              kind: l.cupKind));
-          erfolge++;
-        } catch (_) {
-          // Turnier übersprungen – zählt nicht als Erfolg.
-        }
-        for (final m in pool) {
-          m.competition = l.label;
-          byId[m.id] = m;
-        }
+        final ev = await _events('eventsnextleague.php?id=${l.id}');
         await Future.delayed(const Duration(milliseconds: 200));
+        if (ev != null) {
+          erfolge++;
+          final proRunde = <int, int>{};
+          for (final m in ev) {
+            proRunde[m.round] = (proRunde[m.round] ?? 0) + 1;
+          }
+          for (final m in ev) {
+            m.competition = l.label;
+            m.roundLabel =
+                cupStageLabel(m.round, proRunde[m.round] ?? 0, kind: l.cupKind);
+            m.neutralVenue = cupNeutral(l.cupKind, m.round);
+            byId[m.id] = m;
+          }
+        }
         continue;
       }
 
