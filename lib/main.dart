@@ -1002,6 +1002,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _leagueChips(nurLigen: true),
             if (!_isCup) _dayNav(),
             _statusBar(),
+            _nivoxBrand(),
             Expanded(child: _body()),
             _DisclaimerBar(onTap: () => setState(() => _tab = 3)),
           ],
@@ -1011,6 +1012,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           children: [
             if (_update != null) _updateBanner(_update!),
             _statusBar(),
+            _nivoxBrand(),
             Expanded(child: _body()),
             _DisclaimerBar(onTap: () => setState(() => _tab = 3)),
           ],
@@ -1059,6 +1061,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               selectedIcon: Icon(Icons.more_horiz_rounded),
               label: 'Mehr'),
         ],
+      ),
+    );
+  }
+
+  /// Dezente NIVOX-Markenzeile unter der Statusleiste (das Logo des Anbieters).
+  Widget _nivoxBrand() {
+    return Container(
+      width: double.infinity,
+      color: kBg,
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      alignment: Alignment.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.asset(
+          'assets/nivox_logo.jpg',
+          height: 28,
+          filterQuality: FilterQuality.medium,
+          // Falls das Asset fehlt: einfach nichts anzeigen, nie die App stören.
+          errorBuilder: (c, e, s) => const SizedBox.shrink(),
+        ),
       ),
     );
   }

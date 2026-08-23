@@ -2,7 +2,7 @@ name: footy_predict
 description: "Footy Predict – Tippspiel auf echte Fußballspiele (Punkte, kein Echtgeld)."
 publish_to: 'none'
 
-version: 1.24.0+46
+version: 1.24.1+47
 
 environment:
   sdk: ^3.12.2
@@ -41,3 +41,4 @@ flutter:
     # Release aktualisiert es nur noch, ist aber keine Voraussetzung mehr –
     # ohne sie zeigten früher alle Spiele dieselbe Quote (leeres Modell).
     - assets/modell.json
+    - assets/nivox_logo.jpg
