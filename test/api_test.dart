@@ -204,6 +204,21 @@ void main() {
       expect(Api.cupNeutral('uefa', 8), isFalse);
       expect(Api.cupNeutral('uefa', 200), isTrue); // nur Finale neutral
     });
+
+    test('DFB-Pokal: Namen nach Spielanzahl, nur Finale neutral', () {
+      // Code ist egal – die Anzahl bestimmt den Namen (Codes wechseln je Saison).
+      expect(cupStageLabel(1, 32, kind: 'dfb'), '1. Runde');
+      expect(cupStageLabel(64, 30, kind: 'dfb'), '1. Runde');
+      expect(cupStageLabel(2, 16, kind: 'dfb'), '2. Runde');
+      expect(cupStageLabel(16, 8, kind: 'dfb'), 'Achtelfinale');
+      expect(cupStageLabel(125, 4, kind: 'dfb'), 'Viertelfinale');
+      expect(cupStageLabel(150, 2, kind: 'dfb'), 'Halbfinale');
+      expect(cupStageLabel(200, 1, kind: 'dfb'), 'Finale');
+      // Nur das Finale (Berlin) ist neutral, sonst Heimrecht des gezogenen Teams.
+      expect(Api.cupNeutral('dfb', 16), isFalse);
+      expect(Api.cupNeutral('dfb', 125), isFalse);
+      expect(Api.cupNeutral('dfb', 200), isTrue);
+    });
   });
 
   group('Spielstatus (verschoben/abgesagt/unterbrochen)', () {

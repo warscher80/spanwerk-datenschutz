@@ -48,6 +48,10 @@ const _wcCandidates = [1, 2, 3, 32, 16, 8, 4, 125, 150, 160, 200];
 // 400 = Qualifikation. Genau die Codes, die TheSportsDB tatsächlich liefert.
 const _uefaCandidates = [400, 1, 2, 3, 4, 5, 6, 7, 8, 32, 16, 125, 150, 160, 200];
 
+// DFB-Pokal: reines K.o. Runden-Codes wechseln je Saison (1/2 bzw. 64/32 für
+// die ersten Runden), deshalb alle Varianten als Kandidaten.
+const _dfbCandidates = [1, 2, 64, 32, 16, 8, 125, 150, 200];
+
 const kLeagues = <League>[
   League('4429', 'WM 2026', 'International', '🏆', 0,
       isCup: true, seasonOverride: '2026', cupCandidates: _wcCandidates),
@@ -57,6 +61,8 @@ const kLeagues = <League>[
       isCup: true, cupKind: 'uefa', cupCandidates: _uefaCandidates),
   League('4331', '1. Bundesliga', 'Deutschland', '🇩🇪', 34),
   League('4399', '2. Bundesliga', 'Deutschland', '🇩🇪', 34),
+  League('4485', 'DFB-Pokal', 'Deutschland', '🇩🇪', 0,
+      isCup: true, cupKind: 'dfb', cupCandidates: _dfbCandidates),
   League('4621', 'Bundesliga', 'Österreich', '🇦🇹', 32),
   League('4796', '2. Liga', 'Österreich', '🇦🇹', 30),
   League('4328', 'Premier League', 'England', '🇬🇧', 38),
@@ -76,6 +82,17 @@ class CupStage {
 /// Beschriftung einer Turnier-Runde (Code bzw. nach Spielanzahl).
 /// [kind] 'uefa' nutzt die Namen des Europapokal-Formats.
 String cupStageLabel(int code, int count, {String kind = 'wc'}) {
+  if (kind == 'dfb') {
+    // Reines K.o. Robust nach Spielanzahl beschriften, weil die Runden-Codes
+    // zwischen Saisons wechseln (mal 1/2, mal 64/32 für die ersten Runden).
+    if (count >= 24) return '1. Runde';
+    if (count >= 12) return '2. Runde';
+    if (count >= 6) return 'Achtelfinale';
+    if (count >= 3) return 'Viertelfinale';
+    if (count == 2) return 'Halbfinale';
+    if (count == 1) return 'Finale';
+    return 'Pokal-Runde';
+  }
   if (kind == 'uefa') {
     if (code >= 1 && code <= 8) return 'Ligaphase · $code. Spieltag';
     switch (code) {
@@ -761,7 +778,7 @@ class Api {
   /// WM: immer. Europapokal: nur das Finale (200) – Hin-/Rückspiele sind
   /// Heim/Auswärts, dort zählt der Heimvorteil.
   static bool cupNeutral(String kind, int code) =>
-      kind == 'uefa' ? code == 200 : true;
+      (kind == 'uefa' || kind == 'dfb') ? code == 200 : true;
 
   static Future<List<FootyMatch>> allCupMatches(
       String leagueId, String season, List<int> candidates,
