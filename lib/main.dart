@@ -1065,22 +1065,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  /// Dezente NIVOX-Markenzeile unter der Statusleiste (das Logo des Anbieters).
+  /// Dezenter „powered by NIVOX"-Credit unter der Statusleiste.
   Widget _nivoxBrand() {
     return Container(
       width: double.infinity,
       color: kBg,
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      alignment: Alignment.center,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.asset(
-          'assets/nivox_logo.jpg',
-          height: 28,
-          filterQuality: FilterQuality.medium,
-          // Falls das Asset fehlt: einfach nichts anzeigen, nie die App stören.
-          errorBuilder: (c, e, s) => const SizedBox.shrink(),
-        ),
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 7),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('powered by',
+              style: TextStyle(
+                  color: kTextMute,
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.asset(
+              'assets/nivox_logo.jpg',
+              height: 26,
+              filterQuality: FilterQuality.medium,
+              // Falls das Asset fehlt: einfach nichts anzeigen, nie die App stören.
+              errorBuilder: (c, e, s) => const SizedBox.shrink(),
+            ),
+          ),
+        ],
       ),
     );
   }
