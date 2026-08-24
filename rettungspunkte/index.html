@@ -205,6 +205,25 @@
   .badge.grey{background:var(--muted2)}
   .fineprint{color:var(--muted2);font-size:11.5px;line-height:1.5}
 
+  /* ---- Lageplan ---- */
+  .planov{position:fixed;inset:0;z-index:80;background:var(--bg);display:none;flex-direction:column}
+  .planov.on{display:flex}
+  .planhead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;
+    border-bottom:1px solid var(--line);background:var(--bg2)}
+  .planhead > div:first-child{flex:1;min-width:0}
+  .plantitle{font-weight:800;font-size:18px}
+  .plansub{font-size:11.5px;color:var(--muted)}
+  #planCanvas{flex:1;width:100%;min-height:0;display:block;touch-action:none}
+  .planfoot{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:var(--bg2)}
+  .planfoot .btn{flex:1}
+  .planleg{display:flex;gap:14px;justify-content:center;padding:0 12px calc(12px + env(safe-area-inset-bottom));
+    background:var(--bg2);font-size:12px;color:var(--muted)}
+  .planleg span{display:flex;align-items:center;gap:5px}
+  .lg{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .lg.me{background:var(--blue)} .lg.rp{background:var(--accent)} .lg.ma{background:var(--muted2)}
+  .lg.we{background:var(--ok)}
+  .planleg{flex-wrap:wrap;row-gap:4px}
+
   /* ================= Antwort-Bildschirm =================
      Alles, was im Notfall zählt, ohne Lesen erfassbar:
      großer Pfeil, große Zahl, große Taste. */
@@ -557,6 +576,31 @@
   </button>
 </nav>
 
+<!-- Lageplan: gezeichnet aus den gespeicherten Punkten, ganz ohne Internet -->
+<div class="planov" id="planOv">
+  <div class="planhead">
+    <div>
+      <div class="plantitle">Lageplan</div>
+      <div class="plansub" id="planSub">ohne Internet · aus den gespeicherten Punkten</div>
+    </div>
+    <button class="iconbtn" onclick="planClose()" aria-label="Schließen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <canvas id="planCanvas"></canvas>
+  <div class="planfoot">
+    <button class="btn sm" onclick="planZoom(1/1.6)">Größer</button>
+    <button class="btn sm" onclick="planZoom(1.6)">Weiter weg</button>
+    <button class="btn sm ghost" onclick="planFit()">Zentrieren</button>
+  </div>
+  <div class="planleg">
+    <span><i class="lg me"></i> du</span>
+    <span><i class="lg rp"></i> Rettungspunkt</span>
+    <span><i class="lg ma"></i> Mast</span>
+    <span><i class="lg we"></i> Weg aus der Karte</span>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="ov" id="ov" onclick="if(event.target===this)closeOv()">
@@ -568,7 +612,7 @@
 /* daten-baustelle.js — mitgelieferte Baustellendaten.
    ERZEUGT von tools/kml-zu-daten.js, nicht von Hand bearbeiten.
    Quelle: Google-My-Maps-Karte aus dem QR-Code der Baustelle.
-   Inhalt: 16× rp, 130× mast, 2× lager, 3× klinik
+   Inhalt: 16× rp, 130× mast, 2× lager, 3× klinik, 3× Weg/Linie
    Aussortiert (liegen weit neben der Trasse, in der Karte zu prüfen):
      4225/0121  49.1660748, 6.1352811
      Punkt 90  51.0864309, 7.6170833
@@ -1638,6 +1682,1141 @@ var BAUSTELLE_DATEN = {
    "kind": "mast",
    "note": ""
   }
+ ],
+ "wege": [
+  {
+   "name": "Linie 96",
+   "art": "linie",
+   "laenge": 53446,
+   "punkte": [
+    [
+     50.459973,
+     7.455071
+    ],
+    [
+     50.529991,
+     7.25353
+    ],
+    [
+     50.223865,
+     7.120367
+    ],
+    [
+     50.226132,
+     7.125545
+    ],
+    [
+     50.224137,
+     7.121922
+    ],
+    [
+     50.224714,
+     7.118498
+    ],
+    [
+     50.221163,
+     7.112338
+    ],
+    [
+     50.219043,
+     7.113438
+    ]
+   ]
+  },
+  {
+   "name": "Linie 129",
+   "art": "linie",
+   "laenge": 232,
+   "punkte": [
+    [
+     50.22167,
+     7.267745
+    ],
+    [
+     50.220639,
+     7.264909
+    ]
+   ]
+  },
+  {
+   "name": "Direções de Jahnstraße 5, 56759 Kaisersesch, Alemanha para Straße Ohne Straßennamen, 56754 Brohl, Deutschland",
+   "art": "strasse",
+   "laenge": 58672,
+   "punkte": [
+    [
+     50.22948,
+     7.13377
+    ],
+    [
+     50.22939,
+     7.13313
+    ],
+    [
+     50.22835,
+     7.13379
+    ],
+    [
+     50.22792,
+     7.13446
+    ],
+    [
+     50.22902,
+     7.13743
+    ],
+    [
+     50.22955,
+     7.1394
+    ],
+    [
+     50.22943,
+     7.1405
+    ],
+    [
+     50.22986,
+     7.14116
+    ],
+    [
+     50.22947,
+     7.14262
+    ],
+    [
+     50.22856,
+     7.14375
+    ],
+    [
+     50.22827,
+     7.14511
+    ],
+    [
+     50.22774,
+     7.14658
+    ],
+    [
+     50.22754,
+     7.14795
+    ],
+    [
+     50.22753,
+     7.1493
+    ],
+    [
+     50.22788,
+     7.15253
+    ],
+    [
+     50.22782,
+     7.15492
+    ],
+    [
+     50.22816,
+     7.15833
+    ],
+    [
+     50.22747,
+     7.16122
+    ],
+    [
+     50.22688,
+     7.16922
+    ],
+    [
+     50.22698,
+     7.17123
+    ],
+    [
+     50.22741,
+     7.17398
+    ],
+    [
+     50.2298,
+     7.1838
+    ],
+    [
+     50.23105,
+     7.18825
+    ],
+    [
+     50.22314,
+     7.19297
+    ],
+    [
+     50.22213,
+     7.1934
+    ],
+    [
+     50.22152,
+     7.19438
+    ],
+    [
+     50.22011,
+     7.19995
+    ],
+    [
+     50.21958,
+     7.20841
+    ],
+    [
+     50.21918,
+     7.21149
+    ],
+    [
+     50.21884,
+     7.21314
+    ],
+    [
+     50.21671,
+     7.22066
+    ],
+    [
+     50.21633,
+     7.22272
+    ],
+    [
+     50.21521,
+     7.22591
+    ],
+    [
+     50.21479,
+     7.22951
+    ],
+    [
+     50.21406,
+     7.2331
+    ],
+    [
+     50.21379,
+     7.23709
+    ],
+    [
+     50.2122,
+     7.24334
+    ],
+    [
+     50.21032,
+     7.24791
+    ],
+    [
+     50.20937,
+     7.2498
+    ],
+    [
+     50.20842,
+     7.25083
+    ],
+    [
+     50.20785,
+     7.25114
+    ],
+    [
+     50.20643,
+     7.25248
+    ],
+    [
+     50.20555,
+     7.25406
+    ],
+    [
+     50.20525,
+     7.25497
+    ],
+    [
+     50.20546,
+     7.25882
+    ],
+    [
+     50.20524,
+     7.26324
+    ],
+    [
+     50.2063,
+     7.26774
+    ],
+    [
+     50.20802,
+     7.27011
+    ],
+    [
+     50.2083,
+     7.27096
+    ],
+    [
+     50.20844,
+     7.27779
+    ],
+    [
+     50.21041,
+     7.27721
+    ],
+    [
+     50.2118,
+     7.27736
+    ],
+    [
+     50.21289,
+     7.277
+    ],
+    [
+     50.21464,
+     7.27805
+    ],
+    [
+     50.21606,
+     7.27858
+    ],
+    [
+     50.21696,
+     7.27927
+    ],
+    [
+     50.21848,
+     7.27849
+    ],
+    [
+     50.21889,
+     7.27799
+    ],
+    [
+     50.21774,
+     7.27514
+    ],
+    [
+     50.2157,
+     7.27113
+    ],
+    [
+     50.21546,
+     7.26885
+    ],
+    [
+     50.21565,
+     7.26769
+    ],
+    [
+     50.21772,
+     7.26417
+    ],
+    [
+     50.21753,
+     7.26234
+    ],
+    [
+     50.21813,
+     7.25523
+    ],
+    [
+     50.21839,
+     7.25386
+    ],
+    [
+     50.2183,
+     7.25206
+    ],
+    [
+     50.21779,
+     7.25076
+    ],
+    [
+     50.217,
+     7.25094
+    ],
+    [
+     50.2123,
+     7.2495
+    ],
+    [
+     50.2099,
+     7.24954
+    ],
+    [
+     50.20969,
+     7.24936
+    ],
+    [
+     50.21215,
+     7.24352
+    ],
+    [
+     50.21356,
+     7.23821
+    ],
+    [
+     50.21379,
+     7.23709
+    ],
+    [
+     50.21406,
+     7.2331
+    ],
+    [
+     50.21479,
+     7.22951
+    ],
+    [
+     50.21521,
+     7.22591
+    ],
+    [
+     50.21633,
+     7.22272
+    ],
+    [
+     50.21671,
+     7.22066
+    ],
+    [
+     50.21884,
+     7.21314
+    ],
+    [
+     50.21918,
+     7.21149
+    ],
+    [
+     50.21958,
+     7.20841
+    ],
+    [
+     50.22,
+     7.20165
+    ],
+    [
+     50.21468,
+     7.20251
+    ],
+    [
+     50.21212,
+     7.20147
+    ],
+    [
+     50.21007,
+     7.19999
+    ],
+    [
+     50.20905,
+     7.19899
+    ],
+    [
+     50.20769,
+     7.19842
+    ],
+    [
+     50.20656,
+     7.19927
+    ],
+    [
+     50.20539,
+     7.20142
+    ],
+    [
+     50.20441,
+     7.20238
+    ],
+    [
+     50.20195,
+     7.20558
+    ],
+    [
+     50.20138,
+     7.20595
+    ],
+    [
+     50.19979,
+     7.20604
+    ],
+    [
+     50.19804,
+     7.20574
+    ],
+    [
+     50.19674,
+     7.20503
+    ],
+    [
+     50.19585,
+     7.20511
+    ],
+    [
+     50.19537,
+     7.2045
+    ],
+    [
+     50.19372,
+     7.20403
+    ],
+    [
+     50.19171,
+     7.20286
+    ],
+    [
+     50.19013,
+     7.20297
+    ],
+    [
+     50.19055,
+     7.20791
+    ],
+    [
+     50.19081,
+     7.21604
+    ],
+    [
+     50.19066,
+     7.21842
+    ],
+    [
+     50.18739,
+     7.22792
+    ],
+    [
+     50.1855,
+     7.23281
+    ],
+    [
+     50.18536,
+     7.23596
+    ],
+    [
+     50.18457,
+     7.23837
+    ],
+    [
+     50.18355,
+     7.23822
+    ],
+    [
+     50.18353,
+     7.23961
+    ],
+    [
+     50.18323,
+     7.2406
+    ],
+    [
+     50.18333,
+     7.24118
+    ],
+    [
+     50.18413,
+     7.24057
+    ],
+    [
+     50.18467,
+     7.23794
+    ],
+    [
+     50.18536,
+     7.23596
+    ],
+    [
+     50.1855,
+     7.23281
+    ],
+    [
+     50.18739,
+     7.22792
+    ],
+    [
+     50.19066,
+     7.21842
+    ],
+    [
+     50.19081,
+     7.21604
+    ],
+    [
+     50.19055,
+     7.20791
+    ],
+    [
+     50.19013,
+     7.20297
+    ],
+    [
+     50.19171,
+     7.20286
+    ],
+    [
+     50.19372,
+     7.20403
+    ],
+    [
+     50.19537,
+     7.2045
+    ],
+    [
+     50.19585,
+     7.20511
+    ],
+    [
+     50.19674,
+     7.20503
+    ],
+    [
+     50.19804,
+     7.20574
+    ],
+    [
+     50.19979,
+     7.20604
+    ],
+    [
+     50.20138,
+     7.20595
+    ],
+    [
+     50.20195,
+     7.20558
+    ],
+    [
+     50.20441,
+     7.20238
+    ],
+    [
+     50.20539,
+     7.20142
+    ],
+    [
+     50.20656,
+     7.19927
+    ],
+    [
+     50.20769,
+     7.19842
+    ],
+    [
+     50.20905,
+     7.19899
+    ],
+    [
+     50.21007,
+     7.19999
+    ],
+    [
+     50.21212,
+     7.20147
+    ],
+    [
+     50.21468,
+     7.20251
+    ],
+    [
+     50.21997,
+     7.20165
+    ],
+    [
+     50.21958,
+     7.20841
+    ],
+    [
+     50.21918,
+     7.21149
+    ],
+    [
+     50.21884,
+     7.21314
+    ],
+    [
+     50.21671,
+     7.22066
+    ],
+    [
+     50.21633,
+     7.22272
+    ],
+    [
+     50.21521,
+     7.22591
+    ],
+    [
+     50.21479,
+     7.22951
+    ],
+    [
+     50.21406,
+     7.2331
+    ],
+    [
+     50.21379,
+     7.23709
+    ],
+    [
+     50.21356,
+     7.23821
+    ],
+    [
+     50.21215,
+     7.24352
+    ],
+    [
+     50.20998,
+     7.24867
+    ],
+    [
+     50.20949,
+     7.24937
+    ],
+    [
+     50.20957,
+     7.24958
+    ],
+    [
+     50.2123,
+     7.2495
+    ],
+    [
+     50.21549,
+     7.25034
+    ],
+    [
+     50.21673,
+     7.25089
+    ],
+    [
+     50.21779,
+     7.25076
+    ],
+    [
+     50.2183,
+     7.25206
+    ],
+    [
+     50.21839,
+     7.25386
+    ],
+    [
+     50.21813,
+     7.25523
+    ],
+    [
+     50.21753,
+     7.26234
+    ],
+    [
+     50.21772,
+     7.26417
+    ],
+    [
+     50.21565,
+     7.26769
+    ],
+    [
+     50.21546,
+     7.26885
+    ],
+    [
+     50.2157,
+     7.27113
+    ],
+    [
+     50.21774,
+     7.27514
+    ],
+    [
+     50.21889,
+     7.27799
+    ],
+    [
+     50.21848,
+     7.27849
+    ],
+    [
+     50.21696,
+     7.27927
+    ],
+    [
+     50.21606,
+     7.27858
+    ],
+    [
+     50.21464,
+     7.27805
+    ],
+    [
+     50.21294,
+     7.27701
+    ],
+    [
+     50.2118,
+     7.27736
+    ],
+    [
+     50.21112,
+     7.27715
+    ],
+    [
+     50.20977,
+     7.27734
+    ],
+    [
+     50.20844,
+     7.27779
+    ],
+    [
+     50.20733,
+     7.27903
+    ],
+    [
+     50.20123,
+     7.28049
+    ],
+    [
+     50.19784,
+     7.28212
+    ],
+    [
+     50.1922,
+     7.28545
+    ],
+    [
+     50.19137,
+     7.28704
+    ],
+    [
+     50.18875,
+     7.28798
+    ],
+    [
+     50.18818,
+     7.28887
+    ],
+    [
+     50.18801,
+     7.28924
+    ],
+    [
+     50.18797,
+     7.29035
+    ],
+    [
+     50.1875,
+     7.29154
+    ],
+    [
+     50.18768,
+     7.29394
+    ],
+    [
+     50.18716,
+     7.29454
+    ],
+    [
+     50.18643,
+     7.29483
+    ],
+    [
+     50.18609,
+     7.29529
+    ],
+    [
+     50.18569,
+     7.29636
+    ],
+    [
+     50.18506,
+     7.29736
+    ],
+    [
+     50.18494,
+     7.29967
+    ],
+    [
+     50.18377,
+     7.30203
+    ],
+    [
+     50.18341,
+     7.30166
+    ],
+    [
+     50.18367,
+     7.30087
+    ],
+    [
+     50.18411,
+     7.3013
+    ],
+    [
+     50.18494,
+     7.29967
+    ],
+    [
+     50.18506,
+     7.29736
+    ],
+    [
+     50.18569,
+     7.29636
+    ],
+    [
+     50.18609,
+     7.29529
+    ],
+    [
+     50.18643,
+     7.29483
+    ],
+    [
+     50.18716,
+     7.29454
+    ],
+    [
+     50.18765,
+     7.29402
+    ],
+    [
+     50.1875,
+     7.29154
+    ],
+    [
+     50.18797,
+     7.29035
+    ],
+    [
+     50.18805,
+     7.28911
+    ],
+    [
+     50.18868,
+     7.28803
+    ],
+    [
+     50.19118,
+     7.28719
+    ],
+    [
+     50.19157,
+     7.28681
+    ],
+    [
+     50.19184,
+     7.28595
+    ],
+    [
+     50.1922,
+     7.28545
+    ],
+    [
+     50.19784,
+     7.28212
+    ],
+    [
+     50.20123,
+     7.28049
+    ],
+    [
+     50.20733,
+     7.27903
+    ],
+    [
+     50.20844,
+     7.27779
+    ],
+    [
+     50.20888,
+     7.27759
+    ],
+    [
+     50.21083,
+     7.27715
+    ],
+    [
+     50.2118,
+     7.27736
+    ],
+    [
+     50.21289,
+     7.277
+    ],
+    [
+     50.21464,
+     7.27805
+    ],
+    [
+     50.21606,
+     7.27858
+    ],
+    [
+     50.21696,
+     7.27927
+    ],
+    [
+     50.21848,
+     7.27849
+    ],
+    [
+     50.21938,
+     7.27771
+    ],
+    [
+     50.21983,
+     7.27769
+    ],
+    [
+     50.22023,
+     7.27829
+    ],
+    [
+     50.22066,
+     7.27838
+    ],
+    [
+     50.22068,
+     7.27997
+    ],
+    [
+     50.22017,
+     7.28114
+    ],
+    [
+     50.22054,
+     7.28151
+    ],
+    [
+     50.22046,
+     7.28229
+    ],
+    [
+     50.22094,
+     7.28309
+    ],
+    [
+     50.22227,
+     7.28699
+    ],
+    [
+     50.21966,
+     7.29079
+    ],
+    [
+     50.21813,
+     7.29203
+    ],
+    [
+     50.21514,
+     7.29234
+    ],
+    [
+     50.21119,
+     7.29404
+    ],
+    [
+     50.21041,
+     7.29245
+    ],
+    [
+     50.21119,
+     7.29404
+    ],
+    [
+     50.21514,
+     7.29234
+    ],
+    [
+     50.21813,
+     7.29203
+    ],
+    [
+     50.21966,
+     7.29079
+    ],
+    [
+     50.22227,
+     7.28699
+    ],
+    [
+     50.22263,
+     7.28893
+    ],
+    [
+     50.22304,
+     7.29295
+    ],
+    [
+     50.22175,
+     7.29784
+    ],
+    [
+     50.22223,
+     7.29929
+    ],
+    [
+     50.22255,
+     7.30091
+    ],
+    [
+     50.22342,
+     7.30172
+    ],
+    [
+     50.22396,
+     7.30191
+    ],
+    [
+     50.22491,
+     7.2996
+    ],
+    [
+     50.22426,
+     7.29588
+    ],
+    [
+     50.22506,
+     7.29332
+    ],
+    [
+     50.22863,
+     7.29087
+    ],
+    [
+     50.23024,
+     7.29045
+    ],
+    [
+     50.23022,
+     7.29024
+    ],
+    [
+     50.23126,
+     7.28952
+    ],
+    [
+     50.23175,
+     7.28859
+    ],
+    [
+     50.23247,
+     7.28574
+    ],
+    [
+     50.23146,
+     7.28312
+    ],
+    [
+     50.23041,
+     7.28102
+    ],
+    [
+     50.22793,
+     7.27893
+    ],
+    [
+     50.22442,
+     7.27861
+    ],
+    [
+     50.223,
+     7.27806
+    ],
+    [
+     50.22462,
+     7.28038
+    ],
+    [
+     50.22681,
+     7.28244
+    ]
+   ]
+  }
  ]
 };
 
@@ -1946,7 +3125,7 @@ var SpieGeo = (function () {
   // Ausgewertet werden nur <Placemark> mit <Point>; Linien und Flächen
   // (Routen, Trassen) werden übersprungen.
   function parseKml(text) {
-    var out = { points: [], errors: [], title: '' };
+    var out = { points: [], lines: [], errors: [], title: '' };
     var titleM = text.match(/<Document>[\s\S]*?<name>([\s\S]*?)<\/name>/);
     if (titleM) out.title = clean(titleM[1]);
 
@@ -1968,8 +3147,26 @@ var SpieGeo = (function () {
       var pre = /<Placemark[\s\S]*?<\/Placemark>/g, pm;
       while ((pm = pre.exec(f.body)) !== null) {
         var block = pm[0];
+        var nameEarly = block.match(/<name>([\s\S]*?)<\/name>/);
+
+        // Linien (gespeicherte Routen, Trassenzüge) mitnehmen — das sind die
+        // einzigen echten Wege, die die Karte hergibt.
+        var lineM = block.match(/<LineString>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/);
+        if (lineM) {
+          var punkte = [];
+          clean(lineM[1]).split(/\s+/).forEach(function (paar) {
+            var t = paar.split(',');
+            var lo = parseFloat(t[0]), la = parseFloat(t[1]);
+            if (inRange(la, lo)) punkte.push([la, lo]);
+          });
+          if (punkte.length >= 2) {
+            out.lines.push({ name: nameEarly ? clean(nameEarly[1]) : 'Weg', punkte: punkte, folder: f.name });
+          }
+          continue;
+        }
+
         var coordM = block.match(/<Point>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/);
-        if (!coordM) continue;                       // Linie/Fläche → überspringen
+        if (!coordM) continue;                       // Fläche → überspringen
         var parts = clean(coordM[1]).split(',');
         var lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
         if (!inRange(lat, lon)) { out.errors.push('Punkt ohne gültige Koordinaten übersprungen.'); continue; }
@@ -2017,7 +3214,7 @@ var SpieGeo = (function () {
   // Erkennt JSON-Array, GeoJSON-FeatureCollection und CSV/Semikolon-Listen.
   // Liefert { points: [...], errors: [...] } — nie eine Exception.
   function parsePoints(text) {
-    var out = { points: [], errors: [] };
+    var out = { points: [], lines: [], errors: [] };
     if (!text || !String(text).trim()) { out.errors.push('Datei ist leer.'); return out; }
     var raw = String(text).replace(/^﻿/, '').trim();
 
@@ -2144,6 +3341,39 @@ var SpieGeo = (function () {
 
   function str(v) { return v == null ? '' : String(v).trim(); }
 
+  // Linienzug ausdünnen (Douglas-Peucker). 2099 Stützpunkte einer Route
+  // brauchen wir nicht — auf 10 m genau reicht für einen Lageplan völlig.
+  function simplify(punkte, toleranzMeter) {
+    if (!punkte || punkte.length < 3) return punkte || [];
+    var tol = (toleranzMeter || 10);
+    var behalten = new Array(punkte.length);
+    behalten[0] = behalten[punkte.length - 1] = true;
+
+    function abstandZurLinie(p, a, b) {
+      // grob in Meter, reicht für die Ausdünnung
+      var mLat = 110540, mLon = 111320 * Math.cos(a[0] * Math.PI / 180);
+      var px = (p[1] - a[1]) * mLon, py = (p[0] - a[0]) * mLat;
+      var bx = (b[1] - a[1]) * mLon, by = (b[0] - a[0]) * mLat;
+      var len2 = bx * bx + by * by;
+      if (!len2) return Math.sqrt(px * px + py * py);
+      var t = Math.max(0, Math.min(1, (px * bx + py * by) / len2));
+      var dx = px - t * bx, dy = py - t * by;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    (function teile(i, j) {
+      if (j <= i + 1) return;
+      var maxD = -1, maxI = -1;
+      for (var k = i + 1; k < j; k++) {
+        var d = abstandZurLinie(punkte[k], punkte[i], punkte[j]);
+        if (d > maxD) { maxD = d; maxI = k; }
+      }
+      if (maxD > tol) { behalten[maxI] = true; teile(i, maxI); teile(maxI, j); }
+    })(0, punkte.length - 1);
+
+    return punkte.filter(function (_, i) { return behalten[i]; });
+  }
+
   /* ---------- Nächste Punkte ---------- */
 
   // Punkte um die Position anreichern und nach Entfernung sortieren.
@@ -2249,6 +3479,7 @@ var SpieGeo = (function () {
     parseCoords: parseCoords,
     parsePoints: parsePoints,
     parseKml: parseKml,
+    simplify: simplify,
     classify: classify,
     myMapsKmlUrl: myMapsKmlUrl,
     normalizePoint: normalizePoint,
@@ -2640,6 +3871,7 @@ function onOrient(e) {
   if (h == null) return;
   state.heading = h;
   updateArrow();
+  if (plan.offen) planDraw();
 }
 function askCompass(silent) {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -2720,8 +3952,8 @@ function renderHero() {
     mastLine() +
     (n.note ? '<div class="bignote">' + esc(n.note) + '</div>' : '') +
     '<div class="btnrow">' +
-      '<button class="btn blue" onclick="openMap(' + n.lat + ',' + n.lon + ',\'' + esc(kurz).replace(/'/g, '') + '\')">Karte öffnen</button>' +
-      '<button class="btn" onclick="copyText(\'' + esc(kurz).replace(/'/g, '') + (amtlich ? ' (' + esc(amtlich).replace(/'/g, '') + ')' : '') + '\',\'Name kopiert\')">Name kopieren</button>' +
+      '<button class="btn blue" onclick="planOpen()">Lageplan</button>' +
+      '<button class="btn" onclick="openMap(' + n.lat + ',' + n.lon + ',\'' + esc(kurz).replace(/'/g, '') + '\')">Weg in Karten-App</button>' +
     '</div>';
   updateArrow();
   renderKlinik();
@@ -2851,6 +4083,239 @@ function renderMessage() {
     mast: nearestMast(),
     time: nowText()
   });
+}
+
+/* =========================================================================
+   Lageplan — gezeichnet aus den gespeicherten Punkten, ohne Kartendienst.
+   Zeigt: eigene Position, Rettungspunkte mit Nummer, Masten als kleine
+   Punkte, Entfernungsringe, Norden und einen Maßstab.
+   ========================================================================= */
+
+var plan = { spanne: 1200, offen: false };   // Spanne = Breite des Ausschnitts in Metern
+
+function planOpen() {
+  if (!state.pos) { toast('Erst den Standort einschalten'); return; }
+  plan.offen = true;
+  $('planOv').classList.add('on');
+  planFit();
+  window.addEventListener('resize', planDraw);
+}
+
+function planClose() {
+  plan.offen = false;
+  $('planOv').classList.remove('on');
+  window.removeEventListener('resize', planDraw);
+}
+
+function planZoom(f) {
+  plan.spanne = Math.max(120, Math.min(60000, plan.spanne * f));
+  planDraw();
+}
+
+// Ausschnitt so wählen, dass der nächste Rettungspunkt sicher drin ist.
+function planFit() {
+  var n = heroTarget();
+  var d = n ? n.dist : 500;
+  plan.spanne = Math.max(300, Math.min(20000, d * 2.6));
+  planDraw();
+}
+
+function planDraw() {
+  if (!plan.offen || !state.pos) return;
+  var c = $('planCanvas');
+  var dpr = window.devicePixelRatio || 1;
+  var b = c.getBoundingClientRect();
+  c.width = Math.round(b.width * dpr);
+  c.height = Math.round(b.height * dpr);
+  var g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var W = b.width, H = b.height;
+
+  var stil = getComputedStyle(document.body);
+  var farbe = function (n, f) { return (stil.getPropertyValue(n) || f).trim() || f; };
+  var cBg = farbe('--bg', '#101418'), cLine = farbe('--line', '#2b3743');
+  var cTxt = farbe('--txt', '#e9eef3'), cMuted = farbe('--muted', '#8c9aa8');
+  var cRot = farbe('--accent', '#e2001a'), cBlau = farbe('--blue', '#3d8bff');
+
+  g.fillStyle = cBg; g.fillRect(0, 0, W, H);
+
+  // Beschriftungen sollen lesbar bleiben: nicht aus dem Bild laufen, sich nicht
+  // gegenseitig überdecken und lange Namen abschneiden statt überlappen.
+  var belegt = [];
+  function beschrifte(text, x, y, farbeText, groesse) {
+    g.font = (groesse || 11) + 'px -apple-system, Roboto, sans-serif';
+    var t = String(text);
+    while (t.length > 6 && g.measureText(t).width > 150) t = t.slice(0, -2);
+    if (t !== String(text)) t += '…';
+    var br = g.measureText(t).width;
+    var lx = x + 8, ly = y + 4;
+    if (lx + br > W - 6) lx = x - 8 - br;          // an den linken Rand klappen
+    if (lx < 4) lx = 4;
+    if (ly < 12) ly = 12; if (ly > H - 6) ly = H - 6;
+    for (var i = 0; i < belegt.length; i++) {      // Kollision → Zeile tiefer
+      var b = belegt[i];
+      if (lx < b.x + b.w + 4 && lx + br + 4 > b.x && Math.abs(ly - b.y) < 13) { ly = b.y + 14; i = -1; }
+    }
+    if (ly > H - 6) return;                        // kein Platz mehr
+    belegt.push({ x: lx, y: ly, w: br });
+    g.fillStyle = farbeText;
+    g.fillText(t, lx, ly);
+  }
+
+  // Meter → Bildpunkte, Norden oben
+  var mid = Math.min(W, H);
+  var px = mid / plan.spanne;
+  var lat0 = state.pos.lat, lon0 = state.pos.lon;
+  var mProLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+  var xy = function (lat, lon) {
+    return [W / 2 + (lon - lon0) * mProLon * px, H / 2 - (lat - lat0) * 110540 * px];
+  };
+
+  // Entfernungsringe in runden Schritten
+  var schritt = ringSchritt(plan.spanne);
+  g.strokeStyle = cLine; g.lineWidth = 1;
+  g.font = '11px -apple-system, Roboto, sans-serif'; g.fillStyle = cMuted;
+  for (var r = schritt; r <= plan.spanne; r += schritt) {
+    g.beginPath(); g.arc(W / 2, H / 2, r * px, 0, Math.PI * 2); g.stroke();
+    g.fillText(G.formatDistance(r), W / 2 + 4, H / 2 - r * px - 4);
+  }
+
+  // Wege aus der Karte: durchgezogen, wenn sie aus einer Routenberechnung
+  // stammen (folgen echten Straßen), dünn gestrichelt, wenn jemand sie grob
+  // von Hand gezogen hat. Nichts davon wird als Weg ausgegeben, was keiner ist.
+  var wege = (typeof BAUSTELLE_DATEN !== 'undefined' && BAUSTELLE_DATEN.wege) || [];
+  wege.forEach(function (w) {
+    var sichtbar = false, letzte = null;
+    g.beginPath();
+    w.punkte.forEach(function (q) {
+      var pt = xy(q[0], q[1]);
+      if (Math.abs(pt[0] - W / 2) < W * 2 && Math.abs(pt[1] - H / 2) < H * 2) sichtbar = true;
+      if (!letzte) g.moveTo(pt[0], pt[1]); else g.lineTo(pt[0], pt[1]);
+      letzte = pt;
+    });
+    if (!sichtbar) return;
+    if (w.art === 'strasse') {
+      g.strokeStyle = farbe('--ok', '#2fc27a'); g.lineWidth = 4; g.globalAlpha = .8; g.setLineDash([]);
+    } else {
+      g.strokeStyle = cMuted; g.lineWidth = 2; g.globalAlpha = .5; g.setLineDash([4, 6]);
+    }
+    g.stroke();
+    g.setLineDash([]); g.globalAlpha = 1;
+  });
+
+  // Masten zuerst (Hintergrund)
+  var sicht = plan.spanne * 0.75;
+  state.points.forEach(function (p) {
+    if (kindOf(p) !== 'mast') return;
+    var d = G.distance(lat0, lon0, p.lat, p.lon);
+    if (d > sicht) return;
+    var q = xy(p.lat, p.lon);
+    g.fillStyle = cMuted; g.globalAlpha = .55;
+    g.beginPath(); g.arc(q[0], q[1], 3, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+    if (plan.spanne < 900) beschrifte(p.name, q[0], q[1], cMuted, 10);
+  });
+
+  // Kliniken und Baulager
+  state.points.forEach(function (p) {
+    var k = kindOf(p);
+    if (k !== 'klinik' && k !== 'lager') return;
+    var d = G.distance(lat0, lon0, p.lat, p.lon);
+    if (d > sicht) return;
+    var q = xy(p.lat, p.lon);
+    g.fillStyle = farbe('--ok', '#2fc27a');
+    g.beginPath(); g.arc(q[0], q[1], 6, 0, Math.PI * 2); g.fill();
+    if (plan.spanne < 25000) beschrifte(p.name, q[0], q[1], cTxt, 11);
+  });
+
+  // Weg vom Standpunkt zum nächsten Rettungspunkt — gestrichelt, mit Entfernung.
+  // Das ist die Luftlinie; einen Weg über Straßen kann die App offline nicht kennen.
+  var ziel = heroTarget();
+  if (ziel) {
+    var z = xy(ziel.lat, ziel.lon);
+    g.strokeStyle = cRot; g.lineWidth = 3.5; g.setLineDash([9, 7]);
+    g.beginPath(); g.moveTo(W / 2, H / 2); g.lineTo(z[0], z[1]); g.stroke();
+    g.setLineDash([]);
+    var mx = (W / 2 + z[0]) / 2, my = (H / 2 + z[1]) / 2;
+    var beschriftung = G.formatDistance(ziel.dist) + ' Luftlinie — kein Weg';
+    g.font = '700 12px -apple-system, Roboto, sans-serif';
+    var bw = g.measureText(beschriftung).width + 12;
+    g.fillStyle = cBg; g.globalAlpha = .85;
+    g.fillRect(mx - bw / 2, my - 10, bw, 20);
+    g.globalAlpha = 1;
+    g.fillStyle = cRot; g.textAlign = 'center';
+    g.fillText(beschriftung, mx, my + 4);
+    g.textAlign = 'start';
+  }
+
+  // Rettungspunkte — groß, mit Nummer
+  var liste = G.nearest(ofKind('rp'), lat0, lon0);
+  liste.forEach(function (p, i) {
+    if (p.dist > sicht && i > 0) return;
+    var q = xy(p.lat, p.lon);
+    var naechster = (i === 0);
+    g.fillStyle = cRot;
+    g.beginPath(); g.arc(q[0], q[1], naechster ? 15 : 11, 0, Math.PI * 2); g.fill();
+    if (naechster) { g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.stroke(); }
+    var nr = G.rpNumber(p);
+    g.fillStyle = '#fff';
+    g.font = '700 ' + (naechster ? 15 : 12) + 'px -apple-system, Roboto, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(nr != null ? nr : '•', q[0], q[1] + 0.5);
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+    if (naechster) beschrifte(G.shortLabel(p) + ' · ' + G.formatDistance(p.dist), q[0] + 14, q[1], cTxt, 13);
+  });
+
+  // Eigene Position
+  var acc = state.pos.accuracy;
+  if (acc && acc * px > 6) {
+    g.fillStyle = cBlau; g.globalAlpha = .16;
+    g.beginPath(); g.arc(W / 2, H / 2, acc * px, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  }
+  g.fillStyle = cBlau;
+  g.beginPath(); g.arc(W / 2, H / 2, 9, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.stroke();
+
+  // Blickrichtung, falls Kompass oder Bewegung bekannt
+  var h = heading();
+  if (h != null) {
+    var a = (h - 90) * Math.PI / 180;
+    g.strokeStyle = cBlau; g.lineWidth = 3.5; g.beginPath();
+    g.moveTo(W / 2, H / 2);
+    g.lineTo(W / 2 + Math.cos(a) * 26, H / 2 + Math.sin(a) * 26);
+    g.stroke();
+  }
+
+  // Norden: Pfeil nach oben mit „N" darüber
+  var nx = W - 24, ny = 22;
+  g.strokeStyle = cTxt; g.lineWidth = 2; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(nx, ny + 30); g.lineTo(nx, ny + 8);
+  g.moveTo(nx - 6, ny + 15); g.lineTo(nx, ny + 8); g.lineTo(nx + 6, ny + 15);
+  g.stroke();
+  g.fillStyle = cTxt; g.font = '700 13px -apple-system, Roboto, sans-serif';
+  g.textAlign = 'center'; g.fillText('N', nx, ny); g.textAlign = 'start';
+
+  var balken = ringSchritt(plan.spanne);
+  var bpx = balken * px;
+  g.strokeStyle = cTxt; g.lineWidth = 2.5;
+  g.beginPath(); g.moveTo(16, H - 22); g.lineTo(16 + bpx, H - 22); g.stroke();
+  g.beginPath(); g.moveTo(16, H - 27); g.lineTo(16, H - 17);
+  g.moveTo(16 + bpx, H - 27); g.lineTo(16 + bpx, H - 17); g.stroke();
+  g.fillStyle = cTxt; g.font = '12px -apple-system, Roboto, sans-serif';
+  g.fillText(G.formatDistance(balken), 16, H - 32);
+
+  $('planSub').textContent = 'ohne Internet · Ausschnitt ' + G.formatDistance(plan.spanne) +
+    ' · rote Linie = Luftlinie, kein Weg';
+}
+
+// Runde Schrittweite für Ringe und Maßstab
+function ringSchritt(spanne) {
+  var roh = spanne / 4;
+  var stufen = [50, 100, 200, 250, 500, 1000, 2000, 5000, 10000];
+  for (var i = 0; i < stufen.length; i++) if (roh <= stufen[i]) return stufen[i];
+  return 20000;
 }
 
 /* =========================================================================
@@ -3219,13 +4684,15 @@ function call(number) {
   window.location.href = 'tel:' + n;
 }
 
+// Führt in der Karten-App zum Punkt — zu Fuß, weil man auf der Trasse läuft.
+// Braucht Internet; der Lageplan in der App geht auch ohne.
 function openMap(lat, lon, label) {
   var p = platform();
   var name = encodeURIComponent(label || 'Rettungspunkt');
   var url;
-  if (p === 'ios') url = 'maps://?ll=' + lat + ',' + lon + '&q=' + name;
-  else if (p === 'android') url = 'geo:' + lat + ',' + lon + '?q=' + lat + ',' + lon + '(' + name + ')';
-  else url = 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon + '#map=16/' + lat + '/' + lon;
+  if (p === 'ios') url = 'maps://?daddr=' + lat + ',' + lon + '&dirflg=w';
+  else if (p === 'android') url = 'google.navigation:q=' + lat + ',' + lon + '&mode=w';
+  else url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon + '&travelmode=walking';
   try { window.open(url, '_system') || (window.location.href = url); }
   catch (e) { window.location.href = url; }
 }
