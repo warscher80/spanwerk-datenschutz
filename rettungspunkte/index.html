@@ -146,6 +146,9 @@
   .dot.warn{background:var(--warn);box-shadow:0 0 12px rgba(255,191,61,.6)}
   .dot.bad{background:var(--bad);box-shadow:0 0 12px rgba(255,93,93,.7)}
   .dot.pulse{animation:pulse 1.1s ease-in-out infinite}
+  /* Läuft die App im Hintergrund, hält jede Animation an. Ein pulsierender
+     Punkt, den niemand sieht, kostet trotzdem Strom. */
+  body.ruht *,body.ruht *::before,body.ruht *::after{animation-play-state:paused !important}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
   .statustitle{font-weight:800;font-size:calc(16px * var(--gross))}
   .statussub{color:var(--muted);font-size:12.5px;margin-top:1px}
@@ -518,6 +521,9 @@
       </details>
     </div>
 
+    <!-- Sparmodus: nur sichtbar, wenn er wirklich läuft -->
+    <div class="card" id="sparBox" style="display:none;margin-top:10px"></div>
+
     <!-- Letzter bekannter Standort: nur sichtbar, wenn kein frischer Fix da ist -->
     <div class="card" id="letztePosBox" style="display:none;margin-top:10px"></div>
 
@@ -677,6 +683,18 @@
         </ol>
       </div>
     </div>
+    <div class="card">
+      <h3>Akku</h3>
+      <div id="akkuBox" class="hint" style="font-size:13.5px"></div>
+      <div class="statusline" style="margin-top:10px">
+        <div class="cinfo">
+          <div class="statustitle">Bildschirm anlassen</div>
+          <div class="statussub" id="wachSub">Automatisch: beim Suchen an, danach noch 5 Minuten.</div>
+        </div>
+        <button class="chip" id="wachBtn" onclick="wachModusWeiter()">Automatisch</button>
+      </div>
+    </div>
+
     <div class="card">
       <h3>Anzeige</h3>
       <div class="statusline">
@@ -874,14 +892,15 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.6.1';
+var VERSION = '0.7.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
     K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_PAKET = 'spie_paket',
     K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin',
     K_NOTRUF_GESETZT = 'spie_notruf_gesetzt', K_GEO_OK = 'spie_geo_schon_erlaubt',
-    K_GROSS = 'spie_grosse_schrift', K_LETZTE_POS = 'spie_letzte_position';
+    K_GROSS = 'spie_grosse_schrift', K_LETZTE_POS = 'spie_letzte_position',
+    K_WACH = 'spie_bildschirm_wach';
 
 var P = window.SpiePruefung;
 
@@ -1356,6 +1375,7 @@ function setGeoState(kind, extraSub) {
   renderHero();
   renderMessage();
   letztePositionAnbieten();
+  wachPruefen();
 }
 
 // In der installierten App läuft die Ortung über das Capacitor-Plugin:
@@ -1590,7 +1610,8 @@ function requestLocation() {
   geoVersuch++;
   // Beim zweiten Versuch ohne „hohe Genauigkeit": Manche iPhones liefern damit
   // minutenlang nichts, mit der groben Ortung dagegen sofort.
-  var opts = (geoVersuch === 1)
+  // Im Sparmodus grundsätzlich der sparsame Weg: gröber, dafür seltener Funk.
+  var opts = (geoVersuch === 1 && !sparmodus)
     ? { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     : { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 };
   geoAnfrageZeit = Date.now();
@@ -1631,14 +1652,32 @@ function onPos(p) {
     state.gpsHeading = p.coords.heading;
     state.gpsHeadingTs = Date.now();
   }
+  var vorher = state.pos;
   state.pos = {
     lat: p.coords.latitude,
     lon: p.coords.longitude,
     accuracy: p.coords.accuracy,
     ts: p.timestamp || Date.now()
   };
+
+  /* Das GPS meldet ungefähr jede Sekunde — auch wenn man stillsteht. Die ganze
+     Ansicht samt Meldungstext dafür neu aufzubauen, kostet Strom für nichts.
+     Neu gezeichnet wird deshalb nur, wenn sich wirklich etwas geändert hat:
+     der erste Fix, ein Sprung von mehr als einem Meter, eine merklich andere
+     Genauigkeit — oder spätestens alle zehn Sekunden, damit die Altersangabe
+     stimmt. */
+  if (!brauchtNeuzeichnung(vorher, state.pos)) return;
+  posZuletztGezeichnet = Date.now();
   renderCoords();
   setGeoState('ok', accuracySub());
+}
+
+var posZuletztGezeichnet = 0;
+function brauchtNeuzeichnung(alt, neu) {
+  if (!alt || state.geo !== 'ok') return true;               // erster Fix oder Zustandswechsel
+  if (Date.now() - posZuletztGezeichnet > 10000) return true;  // Altersangabe auffrischen
+  if (Math.abs((alt.accuracy || 0) - (neu.accuracy || 0)) >= 3) return true;
+  return G.distance(alt.lat, alt.lon, neu.lat, neu.lon) >= 1;
 }
 
 function accuracySub() {
@@ -1810,12 +1849,30 @@ function attachCompass() {
   window.addEventListener('deviceorientationabsolute', onOrient, true);
   window.addEventListener('deviceorientation', onOrient, true);
 }
+/* Der Kompass meldet bis zu 60-mal in der Sekunde. Jedes Mal den Pfeil und den
+   Lageplan neu zu zeichnen kostet spürbar Strom und bringt nichts: Kein Mensch
+   sieht mehr als etwa zehn Änderungen je Sekunde, und ein Grad Unterschied ist
+   auf dem Bildschirm unsichtbar. */
+var KOMPASS_MIN_MS = 100;      // höchstens zehnmal je Sekunde zeichnen
+var KOMPASS_MIN_GRAD = 1;      // kleinere Änderungen gar nicht erst
+var kompassZuletzt = 0;
+
 function onOrient(e) {
   var h = null;
   if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;      // iOS: bereits rechtweisend
   else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
   if (h == null) return;
+
+  var vorher = state.heading;
   state.heading = h;
+
+  var jetzt = Date.now();
+  if (vorher != null) {
+    var diff = Math.abs(((h - vorher + 540) % 360) - 180);   // kürzester Winkel
+    if (diff < KOMPASS_MIN_GRAD) return;
+    if (jetzt - kompassZuletzt < KOMPASS_MIN_MS) return;
+  }
+  kompassZuletzt = jetzt;
   updateArrow();
   if (plan.offen) planDraw();
 }
@@ -3207,18 +3264,199 @@ function toggleTheme() {
 // wird die erste Berührung irgendwo im Bild dafür genutzt — einmalig.
 // Wer zum Rettungspunkt läuft, soll nicht auf einen dunklen Bildschirm schauen.
 var wakeLock = null;
+
+/* =========================================================================
+   Sparmodus
+
+   Geht der Akku zur Neige, zählt nur noch eines: dass die App im Notfall
+   überhaupt noch läuft. Dann wird der Bildschirm nicht mehr wachgehalten und
+   die Ortung auf den sparsamen Modus umgestellt (gröber, seltener).
+
+   Wichtig für eine Notfall-App: Der Sparmodus ist mit einem Tipp abschaltbar,
+   und Genauigkeit wird nie vorgetäuscht — die angezeigte Genauigkeit kommt
+   weiterhin vom Gerät.
+
+   Den Ladestand kennt nur Android/Chrome. Am iPhone gibt es die Schnittstelle
+   nicht; dort bleibt der Sparmodus aus und die App sagt das im Reiter Info,
+   statt etwas zu behaupten.
+   ========================================================================= */
+
+var SPAR_GRENZE = 0.15;        // ab 15 Prozent Restladung
+var sparmodus = false;
+var sparHandAus = false;       // vom Nutzer bewusst abgeschaltet
+var akku = null;               // letzter bekannter Ladestand
+
+function akkuBeobachten() {
+  if (!navigator.getBattery) { akkuAnzeigen(); return; }
+  navigator.getBattery().then(function (b) {
+    akku = b;
+    var pruefe = function () { sparPruefen(); akkuAnzeigen(); };
+    b.addEventListener('levelchange', pruefe);
+    b.addEventListener('chargingchange', pruefe);
+    pruefe();
+  }).catch(function () { akkuAnzeigen(); });
+}
+
+function sparPruefen() {
+  if (!akku || sparHandAus) return;
+  var knapp = (akku.level <= SPAR_GRENZE && !akku.charging);
+  if (knapp === sparmodus) return;
+  sparmodus = knapp;
+  diagnose('Sparmodus ' + (knapp ? 'an' : 'aus') +
+           ' (Akku ' + Math.round(akku.level * 100) + ' %, ' +
+           (akku.charging ? 'lädt' : 'lädt nicht') + ')');
+  wachPruefen();
+  // Ortung im neuen Modus neu aufsetzen — nur wenn sie gerade läuft.
+  if (state.watchId != null) { stopWatch(); requestLocation(); }
+  akkuAnzeigen();
+  if (knapp) toast('Sparmodus an — Akku unter ' + Math.round(SPAR_GRENZE * 100) + ' %');
+}
+
+var WACH_TEXT = {
+  auto:  { name: 'Automatisch', sub: 'Beim Suchen an, danach noch 5 Minuten. Jede Berührung verlängert.' },
+  immer: { name: 'Immer an',    sub: 'Bildschirm bleibt an, solange die App offen ist. Braucht am meisten Strom.' },
+  nie:   { name: 'Aus',         sub: 'Der Bildschirm geht nach der normalen Zeit des Handys aus.' }
+};
+
+function wachModusWeiter() {
+  var reihe = ['auto', 'immer', 'nie'];
+  var neu = reihe[(reihe.indexOf(wachModus()) + 1) % reihe.length];
+  save(K_WACH, neu);
+  wachVerlaengern();
+  wachAnzeigen();
+  toast('Bildschirm anlassen: ' + WACH_TEXT[neu].name);
+}
+
+function wachAnzeigen() {
+  var t = WACH_TEXT[wachModus()] || WACH_TEXT.auto;
+  var b = $('wachBtn'), sub = $('wachSub');
+  if (b) { b.textContent = t.name; b.classList.toggle('red', wachModus() === 'immer'); }
+  if (sub) sub.textContent = t.sub;
+}
+
+/* Was die App gerade fürs Sparen tut — ohne Behauptungen über Dinge, die das
+   Gerät nicht hergibt. */
+function akkuAnzeigen() {
+  var box = $('akkuBox');
+  if (box) {
+    var z = [];
+    if (akku) {
+      z.push('Ladestand: <b>' + Math.round(akku.level * 100) + ' %</b>' +
+             (akku.charging ? ' (lädt)' : ''));
+      z.push('Sparmodus ab ' + Math.round(SPAR_GRENZE * 100) + ' % — derzeit <b>' +
+             (sparmodus ? 'an' : 'aus') + '</b>' + (sparHandAus ? ' (von Hand abgeschaltet)' : ''));
+    } else {
+      z.push('Den Ladestand gibt dieses Gerät nicht heraus (am iPhone gibt es die ' +
+             'Schnittstelle nicht). Der Sparmodus schaltet sich deshalb <b>nicht</b> ' +
+             'von allein ein.');
+    }
+    z.push('Im Hintergrund läuft nichts: Ortung und Bildschirmsperre werden nach ' +
+           '30 Sekunden angehalten. Deshalb braucht die App <b>keine Ausnahme von der ' +
+           'Akku-Optimierung</b> und keinen Hintergrund-Standort.');
+    box.innerHTML = z.join('<br>');
+  }
+  var spar = $('sparBox');
+  if (!spar) return;
+  if (!sparmodus) { spar.style.display = 'none'; spar.innerHTML = ''; return; }
+  spar.style.display = 'block';
+  spar.innerHTML =
+    '<div class="statusline"><span class="dot warn"></span>' +
+    '<div class="cinfo"><div class="statustitle">Sparmodus</div>' +
+    '<div class="statussub">Akku unter ' + Math.round(SPAR_GRENZE * 100) + ' %. Bildschirm geht ' +
+    'normal aus, Ortung arbeitet gröber — damit die App im Notfall noch läuft.</div></div></div>' +
+    '<div class="btnrow"><button class="btn blue sm" onclick="sparAbschalten()">' +
+    'Volle Genauigkeit trotzdem</button></div>';
+}
+
+function sparAbschalten() {
+  sparHandAus = true;
+  sparmodus = false;
+  diagnose('Sparmodus vom Nutzer abgeschaltet');
+  wachVerlaengern();
+  if (state.watchId != null) { stopWatch(); requestLocation(); }
+  akkuAnzeigen();
+  toast('Sparmodus aus — volle Genauigkeit');
+}
+/* =========================================================================
+   Bildschirm wachhalten — mit Maß
+
+   Ein dauerhaft leuchtender Bildschirm ist der mit Abstand größte
+   Stromverbraucher, größer als das GPS. Bisher lief er, solange die App offen
+   war. Jetzt gilt:
+
+   - Solange die App SUCHT, bleibt der Bildschirm an. Wer wartet, soll nicht
+     ins Dunkle schauen.
+   - Steht der Standort, bleibt er noch fünf Minuten an und geht dann aus.
+     Ein Tippen verlängert wieder um fünf Minuten.
+   - „Immer" und „Nie" lassen sich im Reiter Info fest einstellen.
+
+   Der Bildschirm geht dabei nie mitten im Notfall aus: Jede Berührung, jeder
+   neue Standort und jeder Notruf setzen die fünf Minuten neu.
+   ========================================================================= */
+
+var WACH_MINUTEN = 5;
+var wachBis = 0;              // bis wann der Bildschirm anbleiben soll
+var wachTimer = null;
+
+function wachModus() { return load(K_WACH, 'auto'); }   // auto | immer | nie
+
 function keepAwake() {
+  wachVerlaengern();
+}
+
+/* Setzt die Frist neu und schaltet die Sperre entsprechend. */
+function wachVerlaengern() {
+  wachBis = Date.now() + WACH_MINUTEN * 60000;
+  wachPruefen();
+}
+
+function wachPruefen() {
+  var modus = wachModus();
+  var suchend = (state.geo === 'requesting' || state.geo === 'init' || state.geo === 'tippen');
+  // „Immer" bleibt auch im Sparmodus an: Wer das bewusst einstellt, hat einen
+  // Grund. „Automatisch" tritt bei schwachem Akku zurück.
+  var soll = (modus === 'immer') ||
+             (modus === 'auto' && !sparmodus && (suchend || Date.now() < wachBis));
+
+  if (soll) wachAn(); else wachAus();
+
+  clearTimeout(wachTimer);
+  if (soll && modus === 'auto' && !suchend) {
+    var rest = Math.max(1000, wachBis - Date.now());
+    wachTimer = setTimeout(wachPruefen, rest);
+  }
+}
+
+function wachAn() {
   if (!navigator.wakeLock || wakeLock) return;
   navigator.wakeLock.request('screen').then(function (l) {
     wakeLock = l;
     l.addEventListener('release', function () { wakeLock = null; });
   }).catch(function () { /* nicht kritisch */ });
 }
+
+function wachAus() {
+  if (!wakeLock) return;
+  try { wakeLock.release(); } catch (e) { /* egal */ }
+  wakeLock = null;
+}
+
+/* Jede Berührung verlängert die Frist — aber höchstens einmal je Sekunde,
+   sonst kostet das Zählen selbst wieder Strom. */
+var letzteBeruehrung = 0;
+function beruehrungGemerkt() {
+  var jetzt = Date.now();
+  if (jetzt - letzteBeruehrung < 1000) return;
+  letzteBeruehrung = jetzt;
+  if (wachModus() === 'auto') wachVerlaengern();
+}
+document.addEventListener('pointerdown', beruehrungGemerkt, { passive: true });
 /* Akku: Dauerortung mit hoher Genauigkeit ist der größte Stromfresser.
    Sobald die App im Hintergrund ist, wird die Ortung angehalten und beim
    Zurückkommen sofort wieder gestartet. Im Hintergrund läuft nichts —
    die App braucht deshalb auch keine Ausnahme von der Akku-Optimierung. */
 document.addEventListener('visibilitychange', function () {
+  document.body.classList.toggle('ruht', document.visibilityState !== 'visible');
   if (document.visibilityState === 'visible') {
     clearTimeout(hintergrundTimer);
     keepAwake();
@@ -3232,7 +3470,7 @@ document.addEventListener('visibilitychange', function () {
     hintergrundTimer = setTimeout(function () {
       if (document.visibilityState === 'visible') return;
       if (state.watchId != null) { stopWatch(); state.pausiert = true; diagnose('Ortung pausiert (Hintergrund)'); }
-      if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+      wachAus();
     }, 30000);
   }
 });
@@ -3384,6 +3622,8 @@ function boot() {
   renderPoints(); renderContacts(); renderMessage(); renderPaket();
   renderMigration(); renderAdmin(); renderApp(); renderOffeneFragen();
 
+  wachAnzeigen();
+  akkuBeobachten();
   armCompassOnFirstTouch();
   teilenAnbieten();
   initServiceWorker();

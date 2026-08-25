@@ -1,6 +1,6 @@
 {
-  "versionCode": 12,
-  "versionName": "0.6.1",
+  "versionCode": 13,
+  "versionName": "0.7.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Die Standort-Meldung sagt jetzt nicht mehr „in Safari öffnen“, wenn Safari bereits läuft. Steht die Ursache nicht fest, nennt die App beide möglichen Schalter (Website-Freigabe über „Aa“ und Ortungsdienste), statt eine Ursache zu behaupten. Der erkannte Browser steht sichtbar in der Meldung."
+  "notes": "Akku: Der Bildschirm bleibt nur noch so lange an, wie er gebraucht wird (einstellbar unter Info → Akku). Anzeige und Kompass zeichnen nur noch bei echten Änderungen. Unter 15 % Akku schaltet sich ein Sparmodus ein — sichtbar und mit einem Tipp abschaltbar."
 }
