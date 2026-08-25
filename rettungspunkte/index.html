@@ -727,7 +727,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.2.2';
+var VERSION = '0.2.3';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -752,6 +752,7 @@ var state = {
   editContact: null,
   demo: false,        // Vorschau mit Beispielstandort
   pausiert: false,    // Ortung im Hintergrund angehalten (Akku)
+  letzterFehler: null, // rohe Meldung des Browsers, für die Fehlersuche
   paket: null,        // Infos zum geladenen Baustellen-Paket
   migration: null,    // Ergebnis der letzten Datenmigration
   admin: false,       // Verwaltungsmodus (Bearbeiten/Import/Löschen)
@@ -944,7 +945,10 @@ function howtoHtml(kind) {
     // und dem von Safari selbst.
     if (p === 'ios' && !isNative()) {
       var vomHomescreen = (window.navigator.standalone === true);
-      return '<b>Standort in Safari freigeben</b>' +
+      return '<b>Wichtig: Safari fragt nur EINMAL</b>' +
+        '<div class="warnbox" style="margin:8px 0">Wurde die Frage einmal abgelehnt oder ' +
+        'weggetippt, fragt Safari <b>nie wieder</b> — die Freigabe muss von Hand zurückgesetzt ' +
+        'werden. Das ist der häufigste Grund, wenn „nichts passiert".</div>' +
         (vomHomescreen
           ? '<div class="warnbox" style="margin:8px 0">Diese App läuft vom Home-Bildschirm. ' +
             'Wenn hier keine Frage nach dem Standort kommt: die Adresse einmal in <b>Safari</b> ' +
@@ -1026,7 +1030,13 @@ function setGeoState(kind, extraSub) {
     var searching = (kind === 'requesting' || kind === 'init');
     $('geoBig').className = 'bigblock' + (searching ? ' searching' : '');
     $('geoTitle').textContent = t.title;
-    $('geoSub').textContent = extraSub || t.sub;
+    var rohText = '';
+    if (state.letzterFehler && kind !== 'requesting') {
+      var FEHLERWORT = { 1: 'abgelehnt', 2: 'nicht verfügbar', 3: 'Zeitüberschreitung' };
+      rohText = ' · Handy meldet: Fehler ' + state.letzterFehler.code +
+                ' (' + (FEHLERWORT[state.letzterFehler.code] || 'unbekannt') + ')';
+    }
+    $('geoSub').textContent = (extraSub || t.sub) + rohText;
     $('geoBtn').textContent = t.btn;
     var html = howtoHtml(kind);
     $('geoHowto').innerHTML = html;
@@ -1178,6 +1188,7 @@ function accuracySub() {
 }
 
 function onGeoError(err) {
+  state.letzterFehler = err ? { code: err.code, message: err.message || '' } : null;
   diagnose('Ortungsfehler ' + (err && err.code) + ': ' + (err && err.message || ''));
   if (err && err.code === 1) clearTimeout(geoWachhund);
   // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
