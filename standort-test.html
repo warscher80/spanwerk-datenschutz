@@ -67,7 +67,7 @@ function umgebungZeigen(){
 try {
   if (navigator.permissions && navigator.permissions.query) {
     var v = navigator.permissions.query({ name: 'geolocation' });
-    if (v && v.then) v.then(function(r){ log('Freigabe-Zustand laut Browser: ' + r.state); })
+    if (v && v.then) v.then(function(r){ window.__freigabe = r.state; log('Freigabe-Zustand laut Browser: ' + r.state); })
                       .catch(function(e){ log('Freigabe-Zustand nicht abfragbar'); });
   } else { log('Freigabe-Abfrage vom Browser nicht angeboten'); }
 } catch (e) { log('Freigabe-Abfrage wirft sofort: ' + (e && e.message)); }
@@ -108,15 +108,28 @@ function abfragen(quelle, fertig){
     log(quelle + ': FEHLER ' + e.code + ' — ' + (e.message || ''));
     // Der automatische Versuch darf die Anzeige nicht zumüllen, wenn danach
     // die Taste noch hilft.
-    if (quelle === 'auto') {
+    if (quelle === 'auto' && !(e.code === 1 && window.__freigabe === 'granted')) {
       det.textContent = 'Automatischer Versuch fehlgeschlagen (Fehler ' + e.code +
                         '). Jetzt bitte den roten Knopf drücken.';
       if (fertig) fertig(false);
       return;
     }
     erg.className = 'gross bad';
-    erg.textContent = 'Fehler ' + e.code;
-    det.textContent = (FEHLER[e.code] || 'Unbekannter Fehler') + '\n\nMeldung: ' + (e.message || '(keine)');
+    if (e.code === 1 && window.__freigabe === 'granted') {
+      // Die Website ist freigegeben, die Ortung wird trotzdem verweigert:
+      // typisch für den eingebauten Browser von WhatsApp, Instagram, Mail.
+      erg.textContent = 'Falscher Browser';
+      det.innerHTML = '<b>Die Seite darf orten — der Browser, in dem sie läuft, nicht.</b><br><br>' +
+        'Das passiert, wenn der Link aus WhatsApp, Instagram oder einer Mail geöffnet wurde: ' +
+        'Dann läuft er im eingebauten Browser DIESER App.<br><br>' +
+        '<b>So geht es:</b> unten rechts auf <b>…</b> tippen → <b>„In Safari öffnen"</b>, ' +
+        'dann hier nochmal auf den roten Knopf.<br><br>' +
+        'Browser sagt: <code>granted</code> · Ortung meldet: <code>' + (e.message || 'denied') + '</code>';
+      log('WIDERSPRUCH: Freigabe granted, Ortung Fehler 1 → eingebauter Browser');
+    } else {
+      erg.textContent = 'Fehler ' + e.code;
+      det.textContent = (FEHLER[e.code] || 'Unbekannter Fehler') + '\n\nMeldung: ' + (e.message || '(keine)');
+    }
     if (fertig) fertig(false);
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }

@@ -802,7 +802,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.4.0';
+var VERSION = '0.4.1';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -828,6 +828,7 @@ var state = {
   demo: false,        // Vorschau mit Beispielstandort
   pausiert: false,    // Ortung im Hintergrund angehalten (Akku)
   letzterFehler: null, // rohe Meldung des Browsers, für die Fehlersuche
+  freigabe: null,     // was die Permissions-API sagt (granted/denied/prompt)
   paket: null,        // Infos zum geladenen Baustellen-Paket
   migration: null,    // Ergebnis der letzten Datenmigration
   admin: false,       // Verwaltungsmodus (Bearbeiten/Import/Löschen)
@@ -1014,11 +1015,27 @@ var GEO_TEXT = {
   unavailable: { title: 'GPS ist aus',            sub: 'Bitte GPS am Handy einschalten.',                  btn: 'Nochmal versuchen' },
   timeout:     { title: 'GPS sucht noch',         sub: 'Geh nach draußen und warte kurz.',                 btn: 'Nochmal versuchen' },
   unsupported: { title: 'Geht auf diesem Gerät nicht', sub: 'Das Gerät kann den Standort nicht finden.',   btn: 'Nochmal versuchen' },
-  insecure:    { title: 'Standort blockiert',     sub: 'Der Standort geht nur über eine sichere Adresse (https).', btn: 'Nochmal versuchen' }
+  insecure:    { title: 'Standort blockiert',     sub: 'Der Standort geht nur über eine sichere Adresse (https).', btn: 'Nochmal versuchen' },
+  inapp:       { title: 'Bitte in Safari öffnen',  sub: 'Diese Seite darf orten — der Browser, in dem sie gerade läuft, nicht.', btn: 'Nochmal versuchen' }
 };
 
 function howtoHtml(kind) {
   var p = platform();
+  if (kind === 'inapp') {
+    return '<b>Die Seite läuft in einem eingebauten Browser</b>' +
+      '<div class="warnbox" style="margin:8px 0">Wenn du den Link aus <b>WhatsApp</b>, ' +
+      'Instagram, Facebook oder einer Mail geöffnet hast, läuft er im Browser DIESER App. ' +
+      'Der darf oft nicht orten — auch wenn die Seite selbst freigegeben ist.</div>' +
+      '<ol>' +
+      '<li>Unten rechts auf <b>…</b> (drei Punkte) tippen → <b>„In Safari öffnen"</b></li>' +
+      '<li>Dort nochmal auf <b>Standort einschalten</b> tippen</li>' +
+      '<li>Danach am besten über <b>Teilen → Zum Home-Bildschirm</b> ablegen — ' +
+      'so startet die App künftig direkt richtig</li>' +
+      '</ol>' +
+      '<div class="hint">Alternativ: iPhone-<b>Einstellungen → WhatsApp → Standort</b> ' +
+      'auf „Beim Verwenden der App" stellen.</div>';
+  }
+
   if (kind === 'denied') {
     // Safari am iPhone: der Standort hängt an zwei Schaltern — dem der Website
     // und dem von Safari selbst.
@@ -1272,7 +1289,19 @@ function onGeoError(err) {
   diagnose('Ortungsfehler ' + (err && err.code) + ': ' + (err && err.message || ''));
   if (err && err.code === 1) clearTimeout(geoWachhund);
   // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
-  if (err && err.code === 1) { setGeoState('denied'); return; }
+  if (err && err.code === 1) {
+    /* Widerspruch: Der Browser meldet die Website als freigegeben, verweigert
+       die Ortung aber trotzdem. Das passiert in den eingebauten Browsern von
+       WhatsApp, Instagram, Mail & Co.: Dort entscheidet die Berechtigung der
+       UMGEBENDEN App, nicht die der Website. In Safari selbst geht es. */
+    if (state.freigabe === 'granted') {
+      diagnose('Widerspruch: Freigabe „granted", Ortung trotzdem abgelehnt → In-App-Browser');
+      setGeoState('inapp');
+      return;
+    }
+    setGeoState('denied');
+    return;
+  }
   if (err && err.code === 3) {
     // Echter Zeitfehler: Jetzt ist kein Dialog mehr offen, ein zweiter Versuch
     // mit grober Ortung ist sicher — viele iPhones liefern erst so etwas.
@@ -1295,38 +1324,48 @@ function initLocation() {
      wartet man vor einer Anzeige, in der nichts passiert. Deshalb beim ersten
      Mal auf das Antippen warten. Sobald einmal ein Standort kam, startet die
      App wieder von allein (Safari fragt dann nicht mehr). */
-  if (platform() === 'ios' && !isNative() && !load(K_GEO_OK, false)) {
+  var wartenAufTippen = (platform() === 'ios' && !isNative() && !load(K_GEO_OK, false));
+
+  // Den Freigabe-Zustand IMMER erfragen — auch wenn wir auf das Antippen
+  // warten. Nur so lässt sich später der Widerspruch erkennen, dass die Seite
+  // freigegeben ist und die Ortung trotzdem abgelehnt wird.
+  var abgefragt = freigabeAbfragen(function (zustand) {
+    if (zustand === 'denied') { setGeoState('denied'); return; }
+    if (!wartenAufTippen) requestLocation();
+  });
+
+  if (wartenAufTippen) {
     diagnose('iPhone, erster Start: warte auf Antippen (Safari fragt sonst evtl. nicht)');
     setGeoState('tippen');
     return;
   }
+  if (!abgefragt) requestLocation();
+}
 
-  // Safari wirft bei permissions.query({name:'geolocation'}) je nach Version
-  // SOFORT einen Fehler — nicht als abgelehntes Versprechen. Ohne try/catch
-  // wäre die Ortung dann nie gestartet und es würde nichts passieren.
-  var gestartet = false;
+/* Fragt den Browser, ob die Seite orten darf. Safari wirft hier je nach
+   Version SOFORT einen Fehler statt ein abgelehntes Versprechen zu liefern —
+   deshalb try/catch. Rückgabe: true, wenn eine Antwort kommt. */
+function freigabeAbfragen(dann) {
   try {
-    if (navigator.permissions && navigator.permissions.query) {
-      var versprechen = navigator.permissions.query({ name: 'geolocation' });
-      if (versprechen && versprechen.then) {
-        gestartet = true;
-        versprechen.then(function (res) {
-          diagnose('Freigabe-Zustand: ' + res.state);
-          if (res.state === 'denied') { setGeoState('denied'); return; }
-          requestLocation();
-          res.onchange = function () {
-            diagnose('Freigabe geändert: ' + res.state);
-            if (res.state === 'granted') requestLocation();
-            else if (res.state === 'denied') setGeoState('denied');
-          };
-        }).catch(function () { requestLocation(); });
-      }
-    }
+    if (!navigator.permissions || !navigator.permissions.query) return false;
+    var versprechen = navigator.permissions.query({ name: 'geolocation' });
+    if (!versprechen || !versprechen.then) return false;
+    versprechen.then(function (res) {
+      state.freigabe = res.state;
+      diagnose('Freigabe-Zustand: ' + res.state);
+      res.onchange = function () {
+        state.freigabe = res.state;
+        diagnose('Freigabe geändert: ' + res.state);
+        if (res.state === 'granted') requestLocation();
+        else if (res.state === 'denied') setGeoState('denied');
+      };
+      if (dann) dann(res.state);
+    }).catch(function () { if (dann) dann(null); });
+    return true;
   } catch (e) {
     diagnose('permissions.query nicht nutzbar: ' + (e && e.message || e));
-    gestartet = false;
+    return false;
   }
-  if (!gestartet) requestLocation();
 }
 
 /* Kurzprotokoll für die Fehlersuche auf fremden Geräten. Steht im Reiter
@@ -1349,6 +1388,10 @@ function diagnoseText() {
   z.push('Sicherer Kontext: ' + (window.isSecureContext ? 'ja' : 'NEIN'));
   z.push('Ortung im Browser: ' + (navigator.geolocation ? 'vorhanden' : 'FEHLT'));
   z.push('Standort-Zustand: ' + state.geo + (state.pos ? ' · Fix vorhanden' : ' · kein Fix'));
+  z.push('Freigabe laut Browser: ' + (state.freigabe || 'nicht abfragbar'));
+  if (state.letzterFehler) {
+    z.push('Letzter Fehler: ' + state.letzterFehler.code + ' — ' + state.letzterFehler.message);
+  }
   if (state.pos) z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m');
   z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv'));
   z.push('Offline-Zustand: ' + state.offline);
