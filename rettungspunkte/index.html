@@ -934,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.0';
+var VERSION = '0.9.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -2031,6 +2031,11 @@ var geoVersuch = 0;
 var geoAnfrageZeit = 0;   // wann ging die letzte Anforderung raus?
 
 function requestLocation() {
+  /* Der Kompass hängt nicht an der Ortung und muss in BEIDEN Wegen starten.
+     Vorher stand der Aufruf erst hinter dieser Abzweigung — in der
+     installierten App wurde er deshalb nie erreicht und der Kompass war dort
+     überhaupt nicht abonniert. */
+  startCompass();
   var NG = nativeGeo();
   if (NG) { requestLocationNative(NG); return; }
   if (!navigator.geolocation) { setGeoState('unsupported'); return; }
@@ -2055,7 +2060,6 @@ function requestLocation() {
      Freigabedialog ab: Man tippt „Erlauben" und nichts passiert. watchPosition
      allein liefert die erste Position genauso und aktualisiert danach weiter. */
   state.watchId = navigator.geolocation.watchPosition(onPos, onGeoError, opts);
-  startCompass();
 
   /* Wachhund: Kommt weder Erfolg noch Fehler, bliebe die App ewig bei „Ich
      suche dich". Er fordert die Ortung aber NICHT neu an — das würde einen
@@ -2249,7 +2253,11 @@ function diagnoseText() {
     z.push('Letzter Fehler: ' + state.letzterFehler.code + ' — ' + state.letzterFehler.message);
   }
   if (state.pos) z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m');
-  z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv'));
+  z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv') +
+         ' · abonniert: ' + (compassAttached ? 'ja' : 'NEIN') +
+         ' · Meldungen: ' + kompassMeldungen + ' · brauchbar: ' + kompassBrauchbar +
+         (kompassLetzterGrund ? ' · ' + kompassLetzterGrund : '') +
+         ' · Bildschirmdrehung: ' + bildschirmDrehung() + '°');
   z.push('Offline-Zustand: ' + state.offline);
   z.push('Punkte: ' + state.points.length);
   z.push('');
@@ -2288,11 +2296,46 @@ var KOMPASS_MIN_MS = 100;      // höchstens zehnmal je Sekunde zeichnen
 var KOMPASS_MIN_GRAD = 1;      // kleinere Änderungen gar nicht erst
 var kompassZuletzt = 0;
 
+/* Wie viel ist der Bildschirminhalt gegenüber dem Gerät gedreht? Im Hochformat
+   0 — dort ändert dieser Ausgleich also nichts. Im Querformat zeigte der Pfeil
+   ohne ihn 90 Grad daneben. */
+function bildschirmDrehung() {
+  if (window.screen && screen.orientation && typeof screen.orientation.angle === 'number') {
+    return screen.orientation.angle;
+  }
+  if (typeof window.orientation === 'number') return (window.orientation + 360) % 360;
+  return 0;
+}
+
+var kompassMeldungen = 0;      // wie viele Ereignisse kamen an?
+var kompassBrauchbar = 0;      // und wie viele davon mit verwertbarem Wert?
+var kompassLetzterGrund = '';  // warum ein Wert verworfen wurde
+
 function onOrient(e) {
+  kompassMeldungen++;
   var h = null;
-  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;      // iOS: bereits rechtweisend
-  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
-  if (h == null) return;
+  if (e.webkitCompassHeading != null) {
+    h = e.webkitCompassHeading;                       // iOS: bereits rechtweisend
+  } else if (e.alpha != null) {
+    /* „deviceorientationabsolute" ist schon dem Namen nach auf Norden bezogen —
+       das Merkmal e.absolute darf hier nicht entscheiden. Android meldet es
+       beim gewöhnlichen Ereignis als false, und genau daran scheiterte der
+       Kompass, sobald die Ereignisse überhaupt ankamen. */
+    if (e.type === 'deviceorientationabsolute' || e.absolute === true) {
+      h = 360 - e.alpha;
+    } else {
+      kompassLetzterGrund = 'alpha ohne Nordbezug (absolute=false)';
+    }
+  } else if (!kompassLetzterGrund) {
+    // Ein leeres Ereignis darf einen aussagekräftigeren Grund nicht überschreiben.
+    kompassLetzterGrund = 'kein alpha im Ereignis';
+  }
+  if (h == null) { kompassAnzeigePruefen(); return; }
+
+  // Querformat ausgleichen (im Hochformat ist die Drehung 0).
+  h = (h + bildschirmDrehung() + 360) % 360;
+  kompassBrauchbar++;
+  kompassLetzterGrund = '';
 
   var vorher = state.heading;
   state.heading = h;
@@ -2305,16 +2348,45 @@ function onOrient(e) {
   }
   kompassZuletzt = jetzt;
   updateArrow();
+  kompassAnzeigePruefen();
   if (plan.offen) planDraw();
 }
+
+/* updateArrow() dreht nur den Pfeil. Der Satz darunter („Kompass aktiv" /
+   „Kein Kompass") gehört zur Hero-Anzeige und wurde nie aufgefrischt — er blieb
+   deshalb bei „Kein Kompass" stehen, obwohl der Kompass längst lief.
+   Neu gezeichnet wird nur, wenn sich der Satz tatsächlich ändert. */
+var kompassAnzeigeStand = '';
+function kompassAnzeigePruefen() {
+  var jetzt = (state.heading != null ? 'an' : 'aus') + '|' + kompassLetzterGrund +
+              '|' + (compassAttached ? 'a' : '-') + '|' + (kompassMeldungen ? 'm' : '-');
+  if (jetzt === kompassAnzeigeStand) return;
+  kompassAnzeigeStand = jetzt;
+  renderHero();
+}
 function askCompass(silent) {
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
+  if (typeof DeviceOrientationEvent === 'undefined') {
+    if (!silent) toast('Dieses Gerät hat keinen Kompass');
+    return;
+  }
+  // iPhone: eigene Freigabe nötig.
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(function (r) {
       if (r === 'granted') { attachCompass(); if (!silent) toast('Kompass aktiv'); }
       else if (!silent) toast('Kompass nicht freigegeben');
     }).catch(function () { if (!silent) toast('Kompass nicht verfügbar'); });
+    return;
   }
+  /* Android und installierte App: einfach abonnieren. Kommt danach nichts an,
+     sagt der Hinweis unter dem Pfeil, woran es liegt. */
+  attachCompass();
+  if (silent) return;
+  var vorher = kompassMeldungen;
+  setTimeout(function () {
+    if (kompassMeldungen > vorher) toast('Kompass aktiv');
+    else toast('Kompass meldet nichts — Handy einmal in einer Acht bewegen');
+    renderHero();
+  }, 1500);
 }
 
 /* =========================================================================
@@ -2481,10 +2553,17 @@ function kompassHinweis() {
   if (heading() != null) {
     return '<div class="kompass ok">Richtung aus der Bewegung — beim Gehen zeigt der Pfeil den Weg</div>';
   }
-  var kannFragen = (typeof DeviceOrientationEvent !== 'undefined' &&
-                    typeof DeviceOrientationEvent.requestPermission === 'function');
+  /* Ohne Kompasswert wird das ehrlich gesagt — und zwar mit dem Grund, soweit
+     er bekannt ist. Ein Knopf zum erneuten Versuch gibt es auf JEDEM Gerät:
+     Vorher bekam nur das iPhone einen, obwohl auch in der Android-App etwas
+     schiefgehen kann. */
+  var grund = '';
+  if (!compassAttached) grund = 'noch nicht gestartet';
+  else if (kompassMeldungen === 0) grund = 'das Gerät meldet nichts';
+  else if (kompassBrauchbar === 0) grund = kompassLetzterGrund || 'Werte ohne Nordbezug';
   return '<div class="kompass">Kein Kompass — <b>Norden ist oben</b>, der Pfeil ist keine Laufrichtung' +
-         (kannFragen ? ' <button class="chip" onclick="askCompass()">Kompass einschalten</button>' : '') +
+         (grund ? ' <span style="opacity:.75">(' + esc(grund) + ')</span>' : '') +
+         ' <button class="chip" onclick="askCompass()">Kompass einschalten</button>' +
          '</div>';
 }
 
