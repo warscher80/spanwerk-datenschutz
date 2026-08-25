@@ -392,6 +392,8 @@
       <div class="bigtext" id="geoSub">Die App muss wissen, wo du bist.</div>
       <button class="btn primary huge" id="geoBtn" onclick="requestLocation()">Standort einschalten</button>
       <button class="btn ghost sm" style="margin-top:9px" onclick="demoStart()">Nur ansehen (Vorschau)</button>
+      <button class="btn ghost sm" style="margin-top:7px"
+              onclick="copyText(diagnoseText(),'Diagnose kopiert — bitte schicken')">Diagnose kopieren</button>
       <details class="howdet" id="geoHowDet"><summary>Wie geht das?</summary>
         <div class="howto" id="geoHowto"></div>
       </details>
@@ -725,7 +727,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.2.1';
+var VERSION = '0.2.2';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -941,7 +943,14 @@ function howtoHtml(kind) {
     // Safari am iPhone: der Standort hängt an zwei Schaltern — dem der Website
     // und dem von Safari selbst.
     if (p === 'ios' && !isNative()) {
+      var vomHomescreen = (window.navigator.standalone === true);
       return '<b>Standort in Safari freigeben</b>' +
+        (vomHomescreen
+          ? '<div class="warnbox" style="margin:8px 0">Diese App läuft vom Home-Bildschirm. ' +
+            'Wenn hier keine Frage nach dem Standort kommt: die Adresse einmal in <b>Safari</b> ' +
+            'öffnen, dort den Standort erlauben, danach das Symbol vom Home-Bildschirm löschen ' +
+            'und neu hinzufügen.</div>'
+          : '') +
         '<ol><li>In der Adressleiste auf <b>„Aa"</b> tippen → <b>Website-Einstellungen</b> → ' +
         '<b>Standort</b> auf <b>Erlauben</b></li>' +
         '<li>Falls das nicht reicht: <b>Einstellungen → Apps → Safari → Standort</b> → <b>Fragen</b> oder <b>Erlauben</b></li>' +
@@ -1117,27 +1126,24 @@ function requestLocation() {
   diagnose('Ortung angefordert (Versuch ' + geoVersuch + ', hohe Genauigkeit: ' +
            opts.enableHighAccuracy + ')');
 
-  // Erst ein schneller Einzelabruf (auch grobe Position hilft sofort),
-  // danach dauerhaft beobachten, damit die Anzeige mitläuft.
-  navigator.geolocation.getCurrentPosition(onPos, onGeoError, opts);
+  /* GENAU EINE Anforderung. Früher liefen getCurrentPosition und watchPosition
+     parallel — auf dem iPhone bricht der zweite Aufruf den offenen
+     Freigabedialog ab: Man tippt „Erlauben" und nichts passiert. watchPosition
+     allein liefert die erste Position genauso und aktualisiert danach weiter. */
   state.watchId = navigator.geolocation.watchPosition(onPos, onGeoError, opts);
   startCompass();
 
-  /* Wachhund: Wenn weder Erfolg noch Fehler kommt — auf iPhones passiert das,
-     wenn ein Systemdialog dazwischenfunkt —, bliebe die App ewig bei „Ich suche
-     dich". Nach 8 Sekunden wird einmal anders angesetzt, nach 16 Sekunden
-     bekommt der Nutzer eine klare Ansage statt einer Endlosanzeige. */
+  /* Wachhund: Kommt weder Erfolg noch Fehler, bliebe die App ewig bei „Ich
+     suche dich". Er fordert die Ortung aber NICHT neu an — das würde einen
+     offenen Systemdialog abschießen. Er sagt nur, was zu tun ist. */
   clearTimeout(geoWachhund);
   geoWachhund = setTimeout(function () {
     if (state.pos || state.geo !== 'requesting') return;
-    diagnose('Keine Antwort nach 8 s');
-    if (geoVersuch < 2) { stopWatch(); requestLocation(); return; }
-    geoWachhund = setTimeout(function () {
-      if (state.pos || state.geo !== 'requesting') return;
-      diagnose('Keine Antwort nach 25 s — Nutzerhinweis');
-      setGeoState('timeout', 'Das Handy meldet keinen Standort zurück. Bitte nochmal versuchen.');
-    }, 8000);
-  }, 8000);
+    diagnose('Keine Antwort nach 12 s — Hinweis angezeigt (kein neuer Aufruf)');
+    setGeoState('requesting',
+      'Wenn eine Frage „Standort verwenden?" offen ist: auf ERLAUBEN tippen. ' +
+      'Kommt keine Frage, unten auf „Nochmal versuchen".');
+  }, 12000);
 }
 
 function onPos(p) {
@@ -1175,9 +1181,15 @@ function onGeoError(err) {
   diagnose('Ortungsfehler ' + (err && err.code) + ': ' + (err && err.message || ''));
   if (err && err.code === 1) clearTimeout(geoWachhund);
   // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
-  if (err && err.code === 1) setGeoState('denied');
-  else if (err && err.code === 3) setGeoState(state.pos ? 'ok' : 'timeout', state.pos ? accuracySub() : '');
-  else setGeoState('unavailable');
+  if (err && err.code === 1) { setGeoState('denied'); return; }
+  if (err && err.code === 3) {
+    // Echter Zeitfehler: Jetzt ist kein Dialog mehr offen, ein zweiter Versuch
+    // mit grober Ortung ist sicher — viele iPhones liefern erst so etwas.
+    if (!state.pos && geoVersuch < 2) { stopWatch(); requestLocation(); return; }
+    setGeoState(state.pos ? 'ok' : 'timeout', state.pos ? accuracySub() : '');
+    return;
+  }
+  setGeoState(state.pos ? 'ok' : 'unavailable', state.pos ? accuracySub() : '');
 }
 
 // Beim Start prüfen, ob die Freigabe schon erteilt/verweigert ist —

@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "0.2.1",
+  "versionCode": 4,
+  "versionName": "0.2.2",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Behebt: Standortfreigabe wurde auf dem iPhone verschluckt. Dazu Wachhund gegen Endlossuche und Standort-Diagnose im Info-Reiter."
+  "notes": "Standort auf dem iPhone repariert: Die App fordert die Ortung nur noch einmal an, sonst brach iOS den Freigabedialog ab."
 }
