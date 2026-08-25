@@ -57,6 +57,7 @@ function umgebungZeigen(){
   z.push('Ortung im Browser vorhanden: ' + (navigator.geolocation ? 'ja' : 'NEIN'));
   z.push('Vom Home-Bildschirm gestartet: ' + (window.navigator.standalone === true ? 'ja' : 'nein'));
   z.push('Service Worker aktiv: ' + (('serviceWorker' in navigator) && navigator.serviceWorker.controller ? 'ja' : 'nein'));
+  z.push('Browser-App: ' + browserName());
   z.push('Browser: ' + navigator.userAgent);
   z.push('');
   z.push(protokoll.join('\n') || '(noch keine Meldungen)');
@@ -79,6 +80,19 @@ var FEHLER = { 1: 'ABGELEHNT — das Handy erlaubt der Seite den Standort nicht'
 /* Zwei Messungen: einmal automatisch beim Öffnen (so macht es die App),
    einmal auf Tastendruck. Wenn nur die zweite klappt, ist das der Beweis,
    dass Safari die Frage beim Seitenaufbau verschluckt. */
+/* Am iPhone hat jeder Browser eine eigene Standort-Freigabe in den
+   iOS-Einstellungen. Für die Anleitung muss der richtige Name her. */
+function browserName() {
+  var ua = navigator.userAgent || '';
+  if (/CriOS\//.test(ua))  return 'Chrome';
+  if (/FxiOS\//.test(ua))  return 'Firefox';
+  if (/EdgiOS\//.test(ua)) return 'Edge';
+  if (/OPT\//.test(ua))    return 'Opera';
+  if (/GSA\//.test(ua))    return 'Google-App';
+  if (/FBAN|FBAV|Instagram/i.test(ua)) return 'Facebook/Instagram';
+  if (/iPhone|iPad/i.test(ua) && !/Version\//.test(ua)) return 'eingebauter Browser einer App';
+  return 'Safari';
+}
 function abfragen(quelle, fertig){
   var erg = document.getElementById('ergebnis'), det = document.getElementById('details');
   if (quelle === 'taste') {
@@ -108,24 +122,40 @@ function abfragen(quelle, fertig){
     log(quelle + ': FEHLER ' + e.code + ' — ' + (e.message || ''));
     // Der automatische Versuch darf die Anzeige nicht zumüllen, wenn danach
     // die Taste noch hilft.
-    if (quelle === 'auto' && !(e.code === 1 && window.__freigabe === 'granted')) {
+    var ms = Date.now() - start;
+    var iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    /* Fehler 1 hat zwei Ursachen. Kam die Absage in unter 1,5 s, kann niemand
+       einen Dialog beantwortet haben — dann hat das Handy den Browser selbst
+       gesperrt, nicht der Nutzer die Seite. */
+    var browserGesperrt = (e.code === 1) && (window.__freigabe === 'granted' ||
+      (iOS && window.__freigabe !== 'denied' && ms < 1500));
+    if (quelle === 'auto' && !browserGesperrt) {
       det.textContent = 'Automatischer Versuch fehlgeschlagen (Fehler ' + e.code +
                         '). Jetzt bitte den roten Knopf drücken.';
       if (fertig) fertig(false);
       return;
     }
     erg.className = 'gross bad';
-    if (e.code === 1 && window.__freigabe === 'granted') {
-      // Die Website ist freigegeben, die Ortung wird trotzdem verweigert:
-      // typisch für den eingebauten Browser von WhatsApp, Instagram, Mail.
-      erg.textContent = 'Falscher Browser';
-      det.innerHTML = '<b>Die Seite darf orten — der Browser, in dem sie läuft, nicht.</b><br><br>' +
-        'Das passiert, wenn der Link aus WhatsApp, Instagram oder einer Mail geöffnet wurde: ' +
-        'Dann läuft er im eingebauten Browser DIESER App.<br><br>' +
-        '<b>So geht es:</b> unten rechts auf <b>…</b> tippen → <b>„In Safari öffnen"</b>, ' +
-        'dann hier nochmal auf den roten Knopf.<br><br>' +
-        'Browser sagt: <code>granted</code> · Ortung meldet: <code>' + (e.message || 'denied') + '</code>';
-      log('WIDERSPRUCH: Freigabe granted, Ortung Fehler 1 → eingebauter Browser');
+    if (browserGesperrt) {
+      var b = browserName();
+      var bekannt = (b !== 'Safari' && b !== 'eingebauter Browser einer App' &&
+                     b !== 'Facebook/Instagram');
+      erg.textContent = 'Browser gesperrt';
+      det.innerHTML = '<b>Nicht die Seite ist schuld — dieser Browser darf am Handy nicht orten.</b><br><br>' +
+        (bekannt
+          ? 'Am iPhone hat <b>jeder</b> Browser seine eigene Standort-Freigabe. Die von <b>' +
+            b + '</b> ist aus, deshalb kam gar keine Frage.<br><br>' +
+            '<b>So geht es:</b> Einstellungen → <b>' + b + '</b> → <b>Standort</b> → ' +
+            '„Beim Verwenden der App". Oder die Adresse einfach in <b>Safari</b> öffnen.'
+          : 'Das passiert, wenn der Link aus WhatsApp, Instagram oder einer Mail geöffnet wurde: ' +
+            'Dann läuft er im eingebauten Browser DIESER App.<br><br>' +
+            '<b>So geht es:</b> unten rechts auf <b>…</b> tippen → <b>„In Safari öffnen"</b>, ' +
+            'dann hier nochmal auf den roten Knopf.') +
+        '<br><br>Browser-App: <code>' + b + '</code> · Freigabe: <code>' +
+        (window.__freigabe || 'unbekannt') + '</code> · Absage nach <code>' + ms +
+        ' ms</code> · Meldung: <code>' + (e.message || 'denied') + '</code>';
+      log('GESPERRT: ' + b + ', Freigabe ' + (window.__freigabe || '?') +
+          ', Absage nach ' + ms + ' ms → Browser darf nicht orten');
     } else {
       erg.textContent = 'Fehler ' + e.code;
       det.textContent = (FEHLER[e.code] || 'Unbekannter Fehler') + '\n\nMeldung: ' + (e.message || '(keine)');

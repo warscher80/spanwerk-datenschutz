@@ -802,7 +802,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.4.1';
+var VERSION = '0.4.2';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -863,6 +863,23 @@ function platform() {
   if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
   if (/Android/i.test(ua)) return 'android';
   return 'web';
+}
+/* Welcher Browser umgibt die Seite? Am iPhone hat JEDER Browser eine eigene
+   Standort-Freigabe in den iOS-Einstellungen. Ist die aus, lehnt das Handy die
+   Ortung ab, ohne den Nutzer überhaupt zu fragen — die Website kann daran
+   nichts ändern. Deshalb muss die Anleitung den richtigen Namen nennen. */
+function browserApp() {
+  var ua = navigator.userAgent || '';
+  if (/CriOS\//.test(ua))  return { key: 'chrome',  name: 'Chrome' };
+  if (/FxiOS\//.test(ua))  return { key: 'firefox', name: 'Firefox' };
+  if (/EdgiOS\//.test(ua)) return { key: 'edge',    name: 'Edge' };
+  if (/OPT\//.test(ua))    return { key: 'opera',   name: 'Opera' };
+  if (/GSA\//.test(ua))    return { key: 'google',  name: 'Google-App' };
+  if (/FBAN|FBAV|Instagram/i.test(ua)) return { key: 'meta', name: 'Facebook/Instagram' };
+  // Safari trägt immer „Version/xx" im Kennzeichen. Fehlt das am iPhone, läuft
+  // die Seite im eingebauten Browser einer anderen App.
+  if (platform() === 'ios' && !/Version\//.test(ua)) return { key: 'eingebaut', name: '' };
+  return { key: 'safari', name: 'Safari' };
 }
 function nowText() {
   return new Date().toLocaleString('de-DE',
@@ -1016,12 +1033,38 @@ var GEO_TEXT = {
   timeout:     { title: 'GPS sucht noch',         sub: 'Geh nach draußen und warte kurz.',                 btn: 'Nochmal versuchen' },
   unsupported: { title: 'Geht auf diesem Gerät nicht', sub: 'Das Gerät kann den Standort nicht finden.',   btn: 'Nochmal versuchen' },
   insecure:    { title: 'Standort blockiert',     sub: 'Der Standort geht nur über eine sichere Adresse (https).', btn: 'Nochmal versuchen' },
-  inapp:       { title: 'Bitte in Safari öffnen',  sub: 'Diese Seite darf orten — der Browser, in dem sie gerade läuft, nicht.', btn: 'Nochmal versuchen' }
+  inapp:       { title: 'Bitte in Safari öffnen',  sub: 'Das Handy erlaubt DIESEM Browser das Orten nicht. An der Seite liegt es nicht.', btn: 'Nochmal versuchen' }
 };
 
 function howtoHtml(kind) {
   var p = platform();
   if (kind === 'inapp') {
+    var b = browserApp();
+
+    // Ein bekannter Browser mit eigenem Eintrag in den iOS-Einstellungen.
+    if (b.key === 'chrome' || b.key === 'firefox' || b.key === 'edge' ||
+        b.key === 'opera'  || b.key === 'google') {
+      return '<b>' + esc(b.name) + ' darf am Handy nicht orten</b>' +
+        '<div class="warnbox" style="margin:8px 0">Am iPhone hat <b>jeder</b> Browser ' +
+        'seine eigene Standort-Freigabe. Die von ' + esc(b.name) + ' ist aus — deshalb ' +
+        'kommt gar keine Frage, sondern sofort eine Absage. Die Seite selbst kann daran ' +
+        'nichts ändern.</div>' +
+        '<ol>' +
+        '<li><b>Einstellungen</b> öffnen (das graue Zahnrad)</li>' +
+        '<li>Nach unten zu <b>' + esc(b.name) + '</b> tippen</li>' +
+        '<li><b>Standort</b> → <b>Beim Verwenden der App</b></li>' +
+        '<li>Zurück hierher, Seite neu laden, <b>Standort einschalten</b></li>' +
+        '</ol>' +
+        '<div class="hint"><b>Schneller geht es in Safari.</b> Die Adresse in Safari öffnen — ' +
+        'dort fragt das Handy normal nach. Nur in Safari funktioniert die App außerdem ' +
+        '<b>ohne Netz</b> und lässt sich über <b>Teilen → Zum Home-Bildschirm</b> ablegen.</div>' +
+        '<div class="hint">Kommt in Safari die Frage auch nicht: ' +
+        '<b>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</b> muss an sein.</div>' +
+        '<div class="hint">Hast du die Frage gerade selbst weggetippt? Dann Seite neu laden ' +
+        'und beim zweiten Mal auf <b>Erlauben</b> tippen.</div>';
+    }
+
+    // Eingebauter Browser einer anderen App (WhatsApp, Instagram, Mail …).
     return '<b>Die Seite läuft in einem eingebauten Browser</b>' +
       '<div class="warnbox" style="margin:8px 0">Wenn du den Link aus <b>WhatsApp</b>, ' +
       'Instagram, Facebook oder einer Mail geöffnet hast, läuft er im Browser DIESER App. ' +
@@ -1128,7 +1171,11 @@ function setGeoState(kind, extraSub) {
     $('geoTitle').textContent = t.title;
     var rohText = '';
     if (state.letzterFehler && kind !== 'requesting') {
-      var FEHLERWORT = { 1: 'abgelehnt', 2: 'nicht verfügbar', 3: 'Zeitüberschreitung' };
+      // Bei „inapp" hat niemand etwas abgelehnt — das Handy hat den Browser
+      // gesperrt. Derselbe Fehlercode, ein anderer Sachverhalt.
+      var FEHLERWORT = (kind === 'inapp')
+        ? { 1: 'Browser gesperrt' }
+        : { 1: 'abgelehnt', 2: 'nicht verfügbar', 3: 'Zeitüberschreitung' };
       rohText = ' · Handy meldet: Fehler ' + state.letzterFehler.code +
                 ' (' + (FEHLERWORT[state.letzterFehler.code] || 'unbekannt') + ')';
     }
@@ -1213,6 +1260,7 @@ function demoStop() {
 
 var geoWachhund = null;
 var geoVersuch = 0;
+var geoAnfrageZeit = 0;   // wann ging die letzte Anforderung raus?
 
 function requestLocation() {
   var NG = nativeGeo();
@@ -1229,6 +1277,7 @@ function requestLocation() {
   var opts = (geoVersuch === 1)
     ? { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     : { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 };
+  geoAnfrageZeit = Date.now();
   diagnose('Ortung angefordert (Versuch ' + geoVersuch + ', hohe Genauigkeit: ' +
            opts.enableHighAccuracy + ')');
 
@@ -1290,12 +1339,25 @@ function onGeoError(err) {
   if (err && err.code === 1) clearTimeout(geoWachhund);
   // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
   if (err && err.code === 1) {
-    /* Widerspruch: Der Browser meldet die Website als freigegeben, verweigert
-       die Ortung aber trotzdem. Das passiert in den eingebauten Browsern von
-       WhatsApp, Instagram, Mail & Co.: Dort entscheidet die Berechtigung der
-       UMGEBENDEN App, nicht die der Website. In Safari selbst geht es. */
-    if (state.freigabe === 'granted') {
-      diagnose('Widerspruch: Freigabe „granted", Ortung trotzdem abgelehnt → In-App-Browser');
+    /* „Abgelehnt" hat am iPhone zwei ganz verschiedene Ursachen, und sie
+       brauchen entgegengesetzte Anleitungen:
+
+       a) Der Nutzer hat die Frage wirklich abgelehnt → Website-Freigabe.
+       b) Der BROWSER selbst darf nicht orten (Chrome, Firefox, Edge oder der
+          eingebaute Browser von WhatsApp & Co.). Dann kommt gar keine Frage,
+          der Fehler steht sofort da, und keine Einstellung an der Website
+          hilft — nur die iOS-Freigabe dieser App oder Safari.
+
+       Zwei Anzeichen für (b): Der Browser meldet die Seite als freigegeben und
+       verweigert trotzdem — oder die Absage kommt so schnell, dass niemand
+       einen Dialog beantwortet haben kann. */
+    var msSeitAnfrage = geoAnfrageZeit ? (Date.now() - geoAnfrageZeit) : -1;
+    var vielZuSchnell = (msSeitAnfrage >= 0 && msSeitAnfrage < 1500);
+    var browserGesperrt = (state.freigabe === 'granted') ||
+      (platform() === 'ios' && state.freigabe !== 'denied' && vielZuSchnell);
+    if (browserGesperrt) {
+      diagnose('Abgelehnt ohne Rückfrage (' + msSeitAnfrage + ' ms, Freigabe: ' +
+               (state.freigabe || 'unbekannt') + ') → der Browser selbst darf nicht orten');
       setGeoState('inapp');
       return;
     }
@@ -1384,6 +1446,11 @@ function diagnoseText() {
   var z = [];
   z.push('App-Version: ' + VERSION);
   z.push('Gerät: ' + platform() + (isNative() ? ' (installierte App)' : ' (Browser)'));
+  if (!isNative()) {
+    var ba = browserApp();
+    z.push('Browser-App: ' + (ba.name || 'eingebauter Browser einer anderen App') +
+           ' (' + ba.key + ')');
+  }
   z.push('Adresse: ' + location.href);
   z.push('Sicherer Kontext: ' + (window.isSecureContext ? 'ja' : 'NEIN'));
   z.push('Ortung im Browser: ' + (navigator.geolocation ? 'vorhanden' : 'FEHLT'));
@@ -2865,7 +2932,14 @@ function offlineStatusSetzen(zustand, text) {
 function initServiceWorker() {
   if (isNative()) { offlineStatusSetzen('nativ', 'Alle Dateien und Daten liegen im Gerät.'); return; }
   if (!('serviceWorker' in navigator)) {
-    offlineStatusSetzen('keins', 'Dieser Browser unterstützt keinen Offline-Betrieb.');
+    /* Am iPhone kann das NUR Safari. Chrome, Firefox und Edge sind dort innen
+       auch Safari, dürfen aber keinen Offline-Speicher anlegen. Für eine
+       Notfall-App ist das wichtig genug, um den Weg zu nennen. */
+    offlineStatusSetzen('keins', platform() === 'ios'
+      ? 'Dieser Browser kann am iPhone nichts offline speichern. Die Adresse in ' +
+        'Safari öffnen und über „Teilen → Zum Home-Bildschirm" ablegen — dann ' +
+        'läuft die App auch ohne Netz.'
+      : 'Dieser Browser unterstützt keinen Offline-Betrieb.');
     return;
   }
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') {

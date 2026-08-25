@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "0.4.1",
+  "versionCode": 9,
+  "versionName": "0.4.2",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Die App erkennt jetzt, wenn sie im eingebauten Browser einer anderen App (WhatsApp, Instagram, Facebook, Teams) läuft. Dort verweigert das Handy die Ortung, obwohl die Freigabe erteilt ist — die App sagt nun, wie man die Seite in Safari öffnet."
+  "notes": "Erkennt jetzt, wenn nicht die Seite, sondern der Browser selbst nicht orten darf (Chrome, Firefox, Edge oder der eingebaute Browser von WhatsApp am iPhone). Statt „Standort abgelehnt“ nennt die App den Browser beim Namen und den Weg über die iPhone-Einstellungen."
 }
