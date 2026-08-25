@@ -25,7 +25,9 @@
 <body>
 <h1>Standort-Test</h1>
 <p class="sub">Diese Seite macht nur eines: den Standort abfragen und zeigen, was das Handy
-antwortet. Keine App, kein Zwischenspeicher.</p>
+antwortet. Keine App, kein Zwischenspeicher.<br>
+Sie versucht es <b>einmal automatisch</b> beim Öffnen und einmal, wenn du auf den roten Knopf tippst.
+Schick mir bitte, was danach oben steht.</p>
 
 <button id="knopf">STANDORT ABFRAGEN</button>
 
@@ -74,28 +76,56 @@ var FEHLER = { 1: 'ABGELEHNT — das Handy erlaubt der Seite den Standort nicht'
                2: 'NICHT VERFÜGBAR — Ortung aus oder kein Empfang',
                3: 'ZEITÜBERSCHREITUNG — keine Antwort in 30 Sekunden' };
 
-document.getElementById('knopf').onclick = function(){
+/* Zwei Messungen: einmal automatisch beim Öffnen (so macht es die App),
+   einmal auf Tastendruck. Wenn nur die zweite klappt, ist das der Beweis,
+   dass Safari die Frage beim Seitenaufbau verschluckt. */
+function abfragen(quelle, fertig){
   var erg = document.getElementById('ergebnis'), det = document.getElementById('details');
-  erg.className = 'gross warte';
-  erg.textContent = 'Frage an … (bitte ERLAUBEN antippen)';
-  det.textContent = 'Wenn keine Frage erscheint, ist die Freigabe schon vergeben oder gesperrt.';
-  log('Abfrage gestartet');
-  var start = Date.now();
+  if (quelle === 'taste') {
+    erg.className = 'gross warte';
+    erg.textContent = 'Frage läuft … (bitte ERLAUBEN antippen)';
+    det.textContent = 'Wenn keine Frage erscheint, ist die Freigabe schon vergeben oder gesperrt.';
+  }
+  log(quelle === 'auto' ? 'Automatischer Versuch beim Öffnen gestartet' : 'Abfrage per Taste gestartet');
+  var start = Date.now(), beantwortet = false;
+  setTimeout(function(){
+    if (!beantwortet) log(quelle + ': nach 20 s keine Antwort — das Handy meldet sich nicht');
+  }, 20000);
   navigator.geolocation.getCurrentPosition(function(p){
-    var s = Math.round((Date.now() - start) / 100) / 10;
+    beantwortet = true;
+    var s = Math.round((Date.now()-start)/100)/10;
+    log(quelle + ': ERFOLG nach ' + s + ' s, Genauigkeit ±' + Math.round(p.coords.accuracy) + ' m');
     erg.className = 'gross ok';
     erg.textContent = 'GEHT! Standort da';
     det.innerHTML = 'Breite: <b>' + p.coords.latitude.toFixed(6) + '</b><br>' +
                     'Länge: <b>' + p.coords.longitude.toFixed(6) + '</b><br>' +
                     'Genauigkeit: <b>±' + Math.round(p.coords.accuracy) + ' m</b><br>' +
-                    'Gedauert: ' + s + ' s';
-    log('ERFOLG nach ' + s + ' s, Genauigkeit ±' + Math.round(p.coords.accuracy) + ' m');
+                    'Gedauert: ' + s + ' s · ausgelöst ' +
+                    (quelle === 'auto' ? 'automatisch beim Öffnen' : 'per Taste');
+    if (fertig) fertig(true);
   }, function(e){
+    beantwortet = true;
+    log(quelle + ': FEHLER ' + e.code + ' — ' + (e.message || ''));
+    // Der automatische Versuch darf die Anzeige nicht zumüllen, wenn danach
+    // die Taste noch hilft.
+    if (quelle === 'auto') {
+      det.textContent = 'Automatischer Versuch fehlgeschlagen (Fehler ' + e.code +
+                        '). Jetzt bitte den roten Knopf drücken.';
+      if (fertig) fertig(false);
+      return;
+    }
     erg.className = 'gross bad';
     erg.textContent = 'Fehler ' + e.code;
     det.textContent = (FEHLER[e.code] || 'Unbekannter Fehler') + '\n\nMeldung: ' + (e.message || '(keine)');
-    log('FEHLER ' + e.code + ': ' + (e.message || ''));
-  }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+    if (fertig) fertig(false);
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+}
+
+// Automatischer Versuch, sobald die Seite steht
+setTimeout(function(){ abfragen('auto'); }, 600);
+
+document.getElementById('knopf').onclick = function(){
+  abfragen('taste');
 };
 
 document.getElementById('kopieren').onclick = function(){
