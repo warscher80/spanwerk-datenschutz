@@ -1,6 +1,6 @@
 {
-  "versionCode": 18,
-  "versionName": "0.9.2",
+  "versionCode": 19,
+  "versionName": "0.9.3",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "GPS genauer: Die App holt keine alten Positionen mehr aus dem Zwischenspeicher, hält beim Stillstehen die beste Messung statt der neuesten, und kehrt nach einer Zeitüberschreitung aus der groben Ortung wieder zur hohen Genauigkeit zurück. Die angezeigte Genauigkeit bleibt die vom Gerät gemeldete — geschönt wird nichts."
+  "notes": "Drei Fehler aus einem systematischen Durchgang behoben: Eine als zu schlecht verworfene GPS-Messung wurde trotzdem als letzte bekannte Position gespeichert. Bei einem von Hand gewählten Standpunkt behauptete die Diagnose eine Genauigkeit von ±0 m. Und bei vollem Speicher zeigte die Liste Punkte, die das Gerät gar nicht behalten hatte — die Warnung bleibt jetzt stehen."
 }

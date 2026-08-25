@@ -934,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.2';
+var VERSION = '0.9.3';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1012,8 +1012,21 @@ function load(key, fallback) {
   try { var v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); }
   catch (e) { return fallback; }
 }
+/* Gibt zurück, ob wirklich gespeichert wurde. Ohne diese Rückmeldung wich der
+   Arbeitsspeicher stillschweigend vom Gerät ab: Die Liste zeigte einen Punkt,
+   den das Handy nie behalten hat — und nach dem Neustart war er weg. Die
+   einzige Warnung war eine Meldung, die nach zwei Sekunden verschwand. */
+var speicherProblem = '';
 function save(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { toast('Speichern fehlgeschlagen'); }
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+    speicherProblem = '';
+    return true;
+  } catch (e) {
+    speicherProblem = String((e && e.name) || 'Fehler');
+    toast('Speichern fehlgeschlagen');
+    return false;
+  }
 }
 var toastTimer = null;
 function toast(msg) {
@@ -2005,7 +2018,8 @@ function letztePositionAnbieten() {
     '<div class="statusline"><span class="dot warn"></span>' +
     '<div class="cinfo"><div class="statustitle">Letzter bekannter Standort</div>' +
     '<div class="statussub">Gemessen ' + esc(alterText(Math.round((Date.now() - l.ts) / 1000))) +
-    ' · ±' + Math.round(l.accuracy || 0) + ' m. Nur nehmen, wenn du dich seitdem nicht bewegt hast.</div></div></div>' +
+    (typeof l.accuracy === 'number' ? ' · ±' + Math.round(l.accuracy) + ' m' : '') +
+    '. Nur nehmen, wenn du dich seitdem nicht bewegt hast.</div></div></div>' +
     '<div class="btnrow"><button class="btn blue sm" onclick="letztePositionNehmen()">Diesen Standort verwenden</button></div>';
 }
 
@@ -2084,7 +2098,6 @@ function onPos(p) {
   if (!load(K_GEO_OK, false)) save(K_GEO_OK, true);   // beim nächsten Start automatisch
   if (state.demo) { state.demo = false; toast('Echter Standort gefunden'); }
   if (state.manuell) { state.manuell = null; toast('Echter Standort gefunden — Handeingabe aufgehoben'); }
-  letztePositionMerken(p);
   state.alt = 0;
   // Beim Gehen liefert das GPS eine Bewegungsrichtung — die ersetzt den Kompass,
   // falls das Gerät keinen hat.
@@ -2107,8 +2120,13 @@ function onPos(p) {
 
      Die schlechtere Messung wird deshalb verworfen — aber nur unter Bedingungen,
      die ein echtes Weitergehen niemals verschlucken. */
+  /* Erst prüfen, dann merken. Vorher wurde JEDE Messung als „letzte bekannte
+     Position" gespeichert — auch eine, die die App im selben Atemzug als zu
+     schlecht verworfen hat. Nach einem Neustart hätte sie dann genau die
+     Position angeboten, die sie zuvor für unbrauchbar hielt. */
   if (!bessereMessung(vorher, neu)) return;
   state.pos = neu;
+  letztePositionMerken(p);
   hoheGenauigkeitPruefen(neu);
 
   /* Das GPS meldet ungefähr jede Sekunde — auch wenn man stillsteht. Die ganze
@@ -2317,8 +2335,13 @@ function diagnoseText() {
     z.push('Letzter Fehler: ' + state.letzterFehler.code + ' — ' + state.letzterFehler.message);
   }
   if (state.pos) {
-    z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m' +
-           (letzteOptsGrob ? ' (grobe Ortung)' : ' (hohe Genauigkeit)'));
+    /* Math.round(null) ergibt 0 — ohne diese Abfrage stand bei einem von Hand
+       gewählten Standpunkt „Genauigkeit: ±0 m". Eine nicht gemessene Position
+       darf keine Genauigkeit behaupten, schon gar keine perfekte. */
+    z.push(typeof state.pos.accuracy === 'number'
+      ? 'Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m' +
+        (letzteOptsGrob ? ' (grobe Ortung)' : ' (hohe Genauigkeit)')
+      : 'Genauigkeit: nicht gemessen (Standort von Hand gewählt)');
     z.push('Verworfene schlechtere Messungen: ' + verworfeneMessungen);
   }
   z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv') +
@@ -3080,12 +3103,12 @@ function renderPoints() {
   if (list.length > 60) { gekuerzt = list.length - 60; list = list.slice(0, 60); }
 
   if (!list.length) {
-    $('ptList').innerHTML = '<div class="empty">' +
+    $('ptList').innerHTML = speicherWarnung() + '<div class="empty">' +
       (state.points.length ? 'Nichts gefunden.' : 'Noch keine Rettungspunkte hinterlegt.') + '</div>';
     return;
   }
 
-  $('ptList').innerHTML = (gekuerzt ? '<div class="hint" style="margin:0 0 8px">Die ' + list.length +
+  $('ptList').innerHTML = speicherWarnung() + (gekuerzt ? '<div class="hint" style="margin:0 0 8px">Die ' + list.length +
       ' nächsten werden gezeigt, ' + gekuerzt + ' weitere sind gespeichert. Zum Finden die Suche benutzen.</div>' : '') +
     list.map(function (p) {
     var dist = (p.dist != null) ? '<div class="pdist"><b>' + G.formatDistance(p.dist) + '</b><span>' + p.compass + '</span></div>' : '';
@@ -3134,6 +3157,16 @@ function deletePoint(id) {
 function persistPoints() {
   save(K_POINTS, state.points);
   renderPoints(); renderHero(); renderMessage(); renderPaket();
+}
+
+/* Bleibt stehen, bis wieder gespeichert werden kann — im Gegensatz zur
+   flüchtigen Meldung. */
+function speicherWarnung() {
+  if (!speicherProblem) return '';
+  return '<div class="warnbox" style="margin:0 0 10px">' +
+    '<b>Nicht gespeichert!</b> Das Gerät konnte die Änderung nicht behalten (' +
+    esc(speicherProblem) + '). Was hier steht, ist nach einem Neustart weg. ' +
+    'Speicherplatz am Handy schaffen und die Änderung wiederholen.</div>';
 }
 
 function addHere() {
