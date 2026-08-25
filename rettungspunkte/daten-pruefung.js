@@ -22,7 +22,7 @@ var SpiePruefung = (function () {
     'mastnummer-fehlt':      'Keine Mastnummer — als Mast nicht verwendbar',
     'name-generisch':        'Automatisch vergebener Name ohne Bedeutung',
     'dublette':              'Doppelter Eintrag am selben Ort',
-    'nummer-widerspruch':    'Dieselbe Mastnummer an verschiedenen Orten',
+    'nummer-widerspruch':    'Dieselbe Mastnummer an unterschiedlichen Positionen',
     'art-unbekannt':         'Art des Punktes nicht bestimmbar',
     'rp-nummer-doppelt':     'Rettungspunkt-Nummer kommt mehrfach vor',
     'abseits':               'Liegt weit abseits der übrigen Punkte',

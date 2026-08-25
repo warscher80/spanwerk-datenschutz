@@ -1,7 +1,7 @@
 /* daten-baustelle.js — mitgelieferte Baustellendaten.
    ERZEUGT von tools/kml-zu-daten.js, nicht von Hand bearbeiten.
    Quelle: Google-My-Maps-Karte aus dem QR-Code der Baustelle.
-   Stand: 2026-08-24 · Paketversion: 2
+   Stand: 2026-08-25 · Paketversion: 2
 
    Geprüft:    90 Punkte (für Notfallberechnungen freigegeben)
    Ungeprüft:  51 Punkte (nur Anzeige, nie in Berechnungen)
@@ -13,7 +13,7 @@ var BAUSTELLE_DATEN = {
  "titel": "Neubau Pkt. Pillig – Wengerohr",
  "quelle": "Google My Maps (QR-Code der Baustelle)",
  "mid": "1q8TKyz5C5vTGaeKKrlBd67CTEtHHhfw",
- "stand": "2026-08-24",
+ "stand": "2026-08-25",
  "pruefbericht": {
   "gesamt": 141,
   "geprueft": 90,

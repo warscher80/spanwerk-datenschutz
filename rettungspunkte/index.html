@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="theme-color" content="#101418">
+<meta name="theme-color" content="#101820">
 <!-- Zum Home-Bildschirm hinzufügen (iPhone/Android) -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,18 +15,37 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23e2001a'/%3E%3Cpath d='M12 20s5.5-4.6 5.5-9a5.5 5.5 0 1 0-11 0c0 4.4 5.5 9 5.5 9z' fill='none' stroke='white' stroke-width='1.8'/%3E%3Cpath d='M12 7.6v5M9.5 10h5' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
 <title>Rettungspunkte</title>
 <style>
+  /* ================= SPIE-Farbsystem =================
+     Ein Satz Variablen für beide Modi. Rot ist Marke UND Notruf — damit der
+     Notruf trotzdem heraussticht, ist er der einzige große, vollflächig rote
+     Knopf; Markenakzente bleiben schmal (Linien, Zahlen, Symbole). */
   :root{
-    --bg:#101418; --bg2:#171d24; --card:#1b232c; --card2:#212b36;
-    --line:#2b3743; --txt:#e9eef3; --muted:#9aa8b6; --muted2:#8794a3;
-    --accent:#e2001a; --accent2:#ff4d5e;      /* Notfall-Rot */
-    --blue:#3d8bff; --ok:#2fc27a; --warn:#ffbf3d; --bad:#ff5d5d;
-    --r:14px;
+    --spie-red:#e2001a;
+    --spie-red-hover:#c90017;
+    --spie-dark:#101820;
+    --spie-card:#19232d;
+    --spie-line:#303c47;
+    --spie-white:#ffffff;
+    --spie-text:#eaf0f4;
+    --spie-muted:#9eabb6;
+
+    --bg:var(--spie-dark); --bg2:#141d26;
+    --card:var(--spie-card); --card2:#1f2a35;
+    --line:var(--spie-line); --txt:var(--spie-text);
+    --muted:var(--spie-muted); --muted2:#8b98a3;
+    --accent:var(--spie-red); --accent2:#ff5064;
+    --notruf:var(--spie-red); --notruf2:#f4001d;
+    --blue:#4c95ff; --ok:#2fc27a; --warn:#ffbf3d; --bad:#ff5d5d;
+    --r:12px;
+    --navhoehe:56px;
   }
   body.light{
-    --bg:#eef1f5; --bg2:#e3e8ee; --card:#ffffff; --card2:#f2f5f9;
-    --line:#d3dae2; --txt:#16202a; --muted:#51606e; --muted2:#5d6b78;
-    --accent:#c9000f; --accent2:#e2001a;
-    --blue:#1264d8; --ok:#12844f; --warn:#a56a00; --bad:#c62828;
+    --bg:#eef2f6; --bg2:#e4eaf0; --card:var(--spie-white); --card2:#f4f7fa;
+    --line:#c9d3dc; --txt:var(--spie-dark);
+    --muted:#4d5a66; --muted2:#5b6874;
+    --accent:var(--spie-red-hover); --accent2:var(--spie-red);
+    --notruf:var(--spie-red); --notruf2:#c90017;
+    --blue:#0f5fd0; --ok:#10794a; --warn:#93610a; --bad:#c1121f;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   :focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:6px}
@@ -35,50 +54,58 @@
   }
   html,body{margin:0;padding:0}
   body{
-    background:
-      radial-gradient(130% 70% at 50% -12%, rgba(226,0,26,.12) 0%, rgba(226,0,26,0) 44%),
-      linear-gradient(180deg,#19212a 0%, var(--bg) 46%);
-    background-attachment:fixed;
+    background:var(--bg);
     color:var(--txt);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     font-size:16px;line-height:1.4;
-    padding-bottom:calc(84px + env(safe-area-inset-bottom));
+    padding-bottom:0;
     -webkit-user-select:none;user-select:none;
   }
-  body.light{background:linear-gradient(180deg,#dfe5ec 0%, var(--bg) 40%);background-attachment:fixed}
+  body.light{background:var(--bg)}
 
   header{
     position:sticky;top:0;z-index:30;
-    background:linear-gradient(180deg,#1a222b,#141a21);
-    border-bottom:1px solid rgba(226,0,26,.28);
-    box-shadow:0 2px 14px rgba(0,0,0,.42);
-    padding:calc(10px + env(safe-area-inset-top)) 12px 11px;
-    display:flex;align-items:center;gap:9px;
+    background:var(--bg2);
+    border-bottom:3px solid var(--spie-red);      /* SPIE-Akzentlinie */
+    padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+    display:flex;align-items:center;gap:10px;
   }
-  body.light header{background:linear-gradient(180deg,#fff,#f2f5f9);box-shadow:0 2px 10px rgba(0,0,0,.10)}
-  .logo{width:38px;height:38px;border-radius:11px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(160deg,#e2001a,#8d0010);box-shadow:0 4px 14px rgba(226,0,26,.35), inset 0 1px 0 rgba(255,255,255,.22)}
-  .logo svg{width:23px;height:23px;display:block}
-  .brand{font-weight:800;font-size:19px;letter-spacing:.2px;line-height:1.15;margin:0}
+  body.light header{background:var(--spie-white)}
+  .logo{width:40px;height:40px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    background:var(--spie-red)}
+  .logo svg{width:24px;height:24px;display:block}
+  .brand{font-weight:800;font-size:19px;letter-spacing:-.2px;line-height:1.1;margin:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brand small{color:var(--accent2);font-weight:800;font-size:19px}
-  .tag{color:var(--muted);font-size:11px;margin-top:-1px}
+  body.light .brand small{color:var(--spie-red)}
+  .tag{color:var(--muted);font-size:11.5px;margin-top:1px;line-height:1.25;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (max-width:360px){
+    .brand{font-size:17px} .brand small{font-size:17px}
+    .tag{font-size:10.5px} .logo{width:34px;height:34px}
+  }
   .hgrow{flex:1;min-width:0}
   .iconbtn{width:44px;height:44px;flex:0 0 auto;border-radius:11px;border:1px solid var(--line);
     background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
   .iconbtn svg{width:18px;height:18px}
 
   main{padding:12px 12px 0}
+  /* Die Navigation liegt fest am unteren Rand — der Inhalt braucht darunter
+     Platz, sonst ist der letzte Eintrag nicht erreichbar. */
+  main, .tabpane{padding-bottom:calc(var(--navhoehe) + 24px + env(safe-area-inset-bottom))}
+  .tabpane{padding-bottom:0}
+  main{padding-bottom:calc(var(--navhoehe) + 24px + env(safe-area-inset-bottom))}
   .tabpane{display:none}
   .tabpane.on{display:block;animation:fade .18s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-  .card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 8px 22px rgba(0,0,0,.30)}
-  body.light .card{box-shadow:0 4px 14px rgba(20,30,45,.08)}
+  .card{background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r);padding:14px;margin-bottom:12px}
+  body.light .card{box-shadow:0 1px 3px rgba(16,24,32,.06)}
   .card h3{margin:0 0 10px;font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;
     letter-spacing:.9px;display:flex;align-items:center;gap:8px}
-  .card h3::before{content:"";width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,var(--accent2),var(--accent));flex:0 0 auto}
-  .card.alarm{border-color:rgba(226,0,26,.55);background:linear-gradient(180deg,rgba(226,0,26,.16),var(--card))}
+  .card h3::before{content:"";width:3px;height:14px;border-radius:0;background:var(--spie-red);flex:0 0 auto}
+  .card.alarm{border-color:var(--spie-red);border-width:2px;background:var(--card)}
   .card.good{border-color:rgba(47,194,122,.42)}
 
   /* ---- Standort-Status ---- */
@@ -116,11 +143,27 @@
     display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
     background:var(--card2);color:var(--txt);border:1px solid var(--line);width:100%}
   .btn:active{transform:translateY(1px)}
-  .btn.primary{background:linear-gradient(180deg,#f21528,var(--accent));color:#fff;border-color:transparent;
-    box-shadow:0 6px 18px rgba(226,0,26,.36)}
-  .btn.blue{background:linear-gradient(180deg,#4f97ff,#2f7ae5);color:#fff;border-color:transparent}
+  .btn.primary{background:var(--spie-red);color:var(--spie-white);border-color:var(--spie-red)}
+  .btn.primary:active{background:var(--spie-red-hover);border-color:var(--spie-red-hover)}
+  /* Hauptaktion: deutlich hervorgehoben, aber nicht vollflächig rot —
+     die rote Fläche bleibt dem Notruf vorbehalten. */
+  .btn.haupt{background:transparent;color:var(--accent2);border:2px solid var(--spie-red);font-weight:800}
+  .btn.haupt:active{background:var(--spie-red);color:var(--spie-white)}
+  body.light .btn.haupt{color:var(--spie-red-hover)}
+  .btn.blue{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.blue:active{background:var(--card2)}
   .btn.ghost{background:transparent}
-  .btn.sos{font-size:23px;padding:20px 14px;letter-spacing:1px}
+  /* Notruf: der einzige groß-flächig rote Knopf, deutlich höher als alles
+     andere und mit eigener Beschriftung darüber. */
+  .btn.sos{font-size:24px;padding:0 14px;min-height:66px;letter-spacing:.5px;
+    background:var(--notruf);color:var(--spie-white);border:2px solid var(--spie-white);
+    text-transform:uppercase}
+  body.light .btn.sos{border-color:var(--spie-red-hover)}
+  .btn.sos:active{background:var(--notruf2)}
+  .notrufblock{margin:16px 0 12px}
+  .notruflabel{font-size:11.5px;font-weight:800;letter-spacing:1.4px;color:var(--muted);
+    text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:7px}
+  .notruflabel::before{content:"";width:22px;height:2px;background:var(--spie-red)}
   .btn.sm{padding:10px 11px;font-size:13.5px}
   .btnrow{display:flex;gap:8px;margin-top:10px}
   .btnrow .btn{flex:1}
@@ -152,7 +195,9 @@
   .pact{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
   .filterrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .filterrow .chip{padding:8px 11px;font-size:12.5px}
-  .filterrow .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .filterrow .chip.on{background:var(--spie-red);color:var(--spie-white);border-color:var(--spie-red)}
+  .filterrow .chip.warnchip{border-color:var(--warn);color:var(--warn)}
+  .filterrow .chip.warnchip.on{background:var(--warn);color:#1a1109;border-color:var(--warn)}
   .pitem.ungeprueft{opacity:.92}
   .pitem.ungeprueft .ptitle{color:var(--warn)}
   .badge.warn{background:var(--warn);color:#1a1109}
@@ -160,8 +205,8 @@
   .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;
     padding:0 12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;
     font-size:12.5px;font-weight:800;cursor:pointer}
-  .chip.red{color:var(--accent2);border-color:rgba(226,0,26,.4)}
-  .chip.blue{color:var(--blue);border-color:rgba(61,139,255,.4)}
+  .chip.red{color:var(--accent2);border-color:var(--spie-red)}
+  .chip.blue{color:var(--txt);border-color:var(--line)}
 
   /* ---- Formulare ---- */
   input,select,textarea{width:100%;background:var(--card);color:var(--txt);border:1px solid var(--line);
@@ -190,15 +235,17 @@
 
   /* ---- Navigation ---- */
   nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
-    background:linear-gradient(180deg,#1a222b,#12181f);border-top:1px solid var(--line);
+    background:var(--bg2);border-top:1px solid var(--line);
     padding-bottom:env(safe-area-inset-bottom)}
-  body.light nav{background:linear-gradient(180deg,#fff,#f0f3f7)}
+  body.light nav{background:var(--spie-white)}
   nav button{flex:1;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:800;
     padding:9px 2px 8px;min-height:52px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;gap:3px}
   nav button svg{width:21px;height:21px}
   nav button.on{color:var(--accent2)}
-  nav button.on::before{content:"";position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;
-    background:var(--accent)}
+  nav button.on::before{content:"";position:absolute;top:0;left:16%;right:16%;height:3px;
+    background:var(--spie-red)}
+  nav button.on{color:var(--accent2)}
+  body.light nav button.on{color:var(--spie-red-hover)}
 
   /* ---- Toast & Overlay ---- */
   .toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(12px);
@@ -251,38 +298,40 @@
   /* ================= Antwort-Bildschirm =================
      Alles, was im Notfall zählt, ohne Lesen erfassbar:
      großer Pfeil, große Zahl, große Taste. */
-  .bigblock{background:linear-gradient(180deg,rgba(226,0,26,.22),var(--card));
-    border:2px solid var(--accent);border-radius:20px;padding:20px 16px;margin-bottom:12px;text-align:center}
+  .bigblock{background:var(--card);border:2px solid var(--spie-red);
+    border-radius:var(--r);padding:20px 16px;margin-bottom:12px;text-align:center}
   .bigicon{width:64px;height:64px;margin:0 auto 10px}
   .bigicon svg{width:64px;height:64px;stroke:var(--accent2)}
   .bigtitle{font-size:26px;font-weight:800;line-height:1.15}
   .bigtext{font-size:16px;color:var(--txt);opacity:.85;margin:8px 0 16px;line-height:1.35}
   .btn.huge{font-size:21px;padding:20px 14px;border-radius:14px}
 
-  .strip{display:flex;align-items:center;gap:9px;padding:9px 13px;margin-bottom:11px;
-    border:1px solid rgba(47,194,122,.42);border-radius:12px;background:rgba(47,194,122,.10)}
-  .strip.warn{border-color:rgba(255,191,61,.55);background:rgba(255,191,61,.12)}
-  .strip.demo{border-color:rgba(255,191,61,.75);background:rgba(255,191,61,.16)}
+  .strip{display:flex;align-items:center;gap:9px;padding:10px 13px;margin-bottom:11px;
+    border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:var(--r);
+    background:var(--card)}
+  .strip.warn{border-left-color:var(--warn)}
+  .strip.demo{border-left-color:var(--warn);background:var(--card2)}
   .strip.demo .striptxt{color:var(--warn);letter-spacing:.4px}
-  .netzstrip{padding:10px 13px;margin-bottom:11px;border-radius:12px;font-size:13.5px;line-height:1.45;
-    border:1px solid rgba(61,139,255,.45);background:rgba(61,139,255,.10)}
+  .netzstrip{padding:10px 13px;margin-bottom:11px;border-radius:var(--r);font-size:13.5px;line-height:1.45;
+    border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--card)}
   .striptxt{flex:1;font-weight:800;font-size:14px}
   .stripacc{font-size:13px;color:var(--muted);font-weight:700}
 
-  .hero{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:20px;padding:16px 14px 16px;margin-bottom:12px;text-align:center;
-    box-shadow:0 8px 22px rgba(0,0,0,.30)}
+  .hero{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--spie-red);
+    border-radius:var(--r);padding:16px 14px;margin-bottom:12px;text-align:center}
   .herolab{font-size:12px;letter-spacing:1.1px;font-weight:800;color:var(--muted);text-transform:uppercase}
   .bigarrow{width:min(50vw,182px);height:min(50vw,182px);margin:10px auto 6px;border-radius:50%;
-    border:3px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(circle at 50% 45%, rgba(226,0,26,.22), transparent 72%)}
-  .bigarrow svg{width:56%;height:56%;transition:transform .3s ease;filter:drop-shadow(0 4px 12px rgba(226,0,26,.45))}
+    border:2px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;
+    background:var(--card2)}
+  body.light .bigarrow{background:#eef2f6}
+  .bigarrow svg{width:56%;height:56%;transition:transform .3s ease}
   .bigarrow .ntop{position:absolute;top:7px;font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.6px}
   .bigdist{font-size:58px;line-height:1;font-weight:800;color:var(--accent2);letter-spacing:-1px}
   .rpnamebig{margin-top:10px;font-weight:800;line-height:1.02;display:flex;align-items:baseline;
     justify-content:center;gap:10px;flex-wrap:wrap}
   .rpword{font-size:27px}
-  .rpnum{font-size:62px;color:var(--accent2);letter-spacing:-1px;text-shadow:0 0 26px rgba(226,0,26,.35)}
+  .rpnum{font-size:62px;color:var(--accent2);letter-spacing:-2px}
+  body.light .rpnum{color:var(--spie-red)}
   .rpplain{color:var(--accent2);line-height:1.1}
   .rpofficial{font-size:13px;color:var(--muted);margin-top:6px}
   .rpmeta{font-size:16px;margin-top:9px;color:var(--txt);opacity:.92}
@@ -293,8 +342,9 @@
   .gpszeile{margin-top:10px;font-size:13.5px;color:var(--muted);
     border-top:1px solid var(--line);padding-top:9px}
   .gpszeile.warn{color:var(--warn);font-weight:700}
-  .warnbox{margin-top:8px;padding:10px 12px;border-radius:11px;font-size:13.5px;line-height:1.45;
-    border:1px solid rgba(255,191,61,.6);background:rgba(255,191,61,.14);color:var(--txt);text-align:left}
+  .warnbox{margin-top:8px;padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.45;
+    border:1px solid var(--line);border-left:3px solid var(--warn);background:var(--card2);
+    color:var(--txt);text-align:left}
   .kompass{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.5}
   .kompass.ok{color:var(--ok)}
   .kompass .chip{margin-left:6px}
@@ -303,7 +353,7 @@
   .bignote{margin-top:10px;font-size:14px;color:var(--warn);line-height:1.35}
   .soshint{text-align:center;font-size:12.5px;color:var(--muted);margin:7px 0 13px}
 
-  details.det{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:11px;overflow:hidden}
+  details.det{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:11px;overflow:hidden}
   details.det > summary{list-style:none;cursor:pointer;padding:15px 14px;min-height:44px;font-weight:800;font-size:14.5px;
     display:flex;align-items:center;gap:8px}
   details.det > summary::-webkit-details-marker{display:none}
@@ -327,12 +377,20 @@
     .rpofficial{margin-top:4px}
     .rpmeta{font-size:15px;margin-top:7px}
     .bigmast{margin-top:7px;font-size:13.5px}
-    .btn.sos{font-size:21px;padding:16px 12px}
-    .soshint{margin:6px 0 10px}
+    .btn.sos{font-size:21px;min-height:56px;padding:0 12px}
+    .notrufblock{margin:10px 0 8px}
+    .notruflabel{margin-bottom:4px;font-size:11px}
+    .soshint{margin:6px 0 8px}
     .btn{padding:12px 12px}
-    .gpszeile{margin-top:8px;padding-top:7px;font-size:12.5px}
-    .rpnamebig{margin-top:6px}
-    .rpmeta{margin-top:6px}
+    .gpszeile{margin-top:7px;padding-top:6px;font-size:12.5px}
+    .rpnamebig{margin-top:5px}
+    .rpmeta{margin-top:5px}
+    .rpofficial{margin-top:3px}
+    .bigmast{margin-top:5px}
+    .strip{padding:8px 12px;margin-bottom:7px}
+    .btnrow{margin-top:6px}
+    /* Kurzschreibweise würde den unteren Abstand für die Navigation löschen */
+    main{padding-top:8px;padding-left:10px;padding-right:10px}
   }
 
   /* Sehr kleine Handys (320er Breite): Meta-Zeile darf nicht umbrechen,
@@ -347,10 +405,13 @@
     .rpmeta{font-size:13.5px}
     .rpofficial{font-size:12px}
     .bigmast{font-size:12.5px}
-    .btn.sos{font-size:19px;padding:14px 10px}
+    .btn.sos{font-size:19px;min-height:52px;padding:0 10px}
     .herolab{font-size:10px}
+    .notrufblock{margin:8px 0 6px}
+    .soshint{font-size:11.5px;margin:5px 0 6px}
+    .hero{padding:8px 10px}
   }
-  .bigblock.searching{border-color:var(--line);background:linear-gradient(180deg,var(--card2),var(--card))}
+  .bigblock.searching{border-color:var(--line);border-width:1px;background:var(--card)}
   .bigblock.searching .bigicon svg{stroke:var(--muted)}
 </style>
 </head>
@@ -410,13 +471,17 @@
     <div class="netzstrip" id="netzStrip" style="display:none">
       <b>Kein Netz.</b> Rettungspunkt, Pfeil und Koordinaten gehen trotzdem — alles ist im Handy
       gespeichert. <b>112</b> wird über jedes verfügbare Netz versucht, auch über fremde Anbieter.
+      Karten-App und „Teilen" können jetzt fehlen.
     </div>
 
     <!-- DIE ANTWORT: Wo ist der nächste Rettungspunkt? -->
     <div class="hero" id="hero"></div>
 
-    <button class="btn primary sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 ANRUFEN</button>
-    <div class="soshint">Feuerwehr und Rettung. Sag zuerst den Namen vom Rettungspunkt.</div>
+    <div class="notrufblock">
+      <div class="notruflabel">Notruf</div>
+      <button class="btn sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 anrufen</button>
+      <div class="soshint">Feuerwehr und Rettung. Sag zuerst den Namen vom Rettungspunkt.</div>
+    </div>
     <div id="kompassBox"></div>
 
     <details class="det" id="quickDet">
@@ -482,7 +547,7 @@
   <section class="tabpane" id="tab-punkte">
     <h2 class="nurvorleser">Punkte verwalten</h2>
     <div class="card">
-      <h3>Rettungspunkte <span class="badge grey" id="ptCount">0</span></h3>
+      <h3>Punkte im Gerät <span class="badge grey" id="ptCount">0</span></h3>
       <input id="ptSearch" type="search" aria-label="Punkte durchsuchen" placeholder="Suchen (Name, Nummer, Hinweis)" oninput="renderPoints()">
       <div class="filterrow" id="ptFilter"></div>
       <div id="adminTools" hidden>
@@ -513,7 +578,7 @@
     <h2 class="nurvorleser">Nummern</h2>
     <div class="card alarm">
       <h3>Notruf</h3>
-      <button class="btn primary sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 ANRUFEN</button>
+      <button class="btn sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 anrufen</button>
     </div>
     <div class="card">
       <h3>Baustelle</h3>
@@ -585,6 +650,14 @@
       <div class="btnrow" id="appBtns"></div>
     </div>
 
+    <div class="card" id="offeneKarte" hidden>
+      <h3>Offene Datenprüfungen</h3>
+      <div class="hint" style="font-size:13px">Diese Einträge sind gesperrt: Sie werden weder für
+        „Nächster Rettungspunkt" noch für „Nächster Mast" noch in der Meldung verwendet, bis sie
+        anhand der offiziellen Unterlagen geklärt sind. Gelöscht wird nichts.</div>
+      <div class="plist" id="offeneListe"></div>
+    </div>
+
     <div class="card">
       <h3>Verwaltung</h3>
       <label class="schalter">
@@ -610,20 +683,22 @@
       <div class="howto">
         <b>Die App braucht kein Mobilfunknetz.</b>
         <ol>
-          <li>Der <b>Standort kommt vom Satelliten</b> (GPS), nicht aus dem Mobilfunknetz.
-              Er funktioniert auch mit null Balken.</li>
+          <li>Das Handy bestimmt den Standort über <b>GPS, WLAN und Mobilfunk</b>. Im Freien
+              arbeitet es meist mit GPS und kann dann grundsätzlich auch <b>ohne mobile Daten</b>
+              funktionieren.</li>
           <li><b>Rettungspunkte, Masten und Nummern sind im Handy gespeichert.</b>
               Pfeil, Entfernung und Meldung gehen offline genauso.</li>
-          <li>Ohne Netz dauert der <b>erste GPS-Fix länger</b> (oft 30–60 Sekunden), weil die
-              Starthilfe aus dem Mobilfunknetz fehlt. Ins Freie gehen und kurz warten.</li>
+          <li>Ohne Netz dauert der <b>erste genaue Standort länger</b> (oft 30–60 Sekunden), weil
+              die Starthilfe aus dem Mobilfunknetz fehlt. Ins Freie gehen und kurz warten.</li>
           <li><b>112 geht über jedes verfügbare Netz</b> — auch über einen fremden Anbieter,
               bei dem du sonst keinen Empfang hast. Immer erst 112 versuchen.</li>
           <li>Geht gar nichts: zum <b>Rettungspunkt oder auf freie Höhe</b> gehen, dort ist meist
               Empfang — oder jemanden schicken. Den Namen des Rettungspunkts mitgeben!</li>
         </ol>
       </div>
-      <div class="hint">Was ohne Netz <b>nicht</b> geht: die Karten-App zeigt keine Kartenbilder
-        (Pfeil und Entfernung in dieser App funktionieren aber), und „Teilen" braucht Netz.</div>
+      <div class="hint">Ohne Netz <b>möglicherweise nicht verfügbar</b>: Kartenbilder in der
+        Karten-App und „Teilen". Pfeil, Entfernung, Lageplan und Meldung dieser App funktionieren
+        auch ohne Netz.</div>
     </div>
     <div class="card">
       <h3>Standort-Genauigkeit</h3>
@@ -727,7 +802,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.3.0';
+var VERSION = '0.4.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -795,10 +870,13 @@ function nowText() {
 
 /* ---------- Punktarten ---------- */
 // 'rp' Rettungspunkt · 'mast' Mast · 'klinik' Arzt/Krankenhaus · 'lager' Baulager
+/* Beschriftungen der Kategorien. „Gültige Masten" statt „Masten": Gezählt
+   werden nur Einträge, die auch als Mast verwendet werden dürfen. */
 var KIND_LABEL = {
-  rp: 'Rettungspunkte', mast: 'Masten', klinik: 'Ärzte & Kliniken',
-  lager: 'Baulager', unknown: 'Ungeprüfte Punkte', sonstiges: 'Sonstige'
+  rp: 'Rettungspunkte', mast: 'Gültige Masten', klinik: 'Ärzte & Kliniken',
+  lager: 'Baulager', unknown: 'Ohne Zuordnung', sonstiges: 'Sonstige'
 };
+var FILTER_UNGEPRUEFT = 'ungeprueft';
 function kindOf(p) { return p.kind || 'rp'; }
 
 // Nur geprüfte Punkte dürfen in Notfallberechnungen und in die Meldung.
@@ -1390,8 +1468,8 @@ function renderHero() {
     gpsZeile() +
     (n.note ? '<div class="bignote">' + esc(n.note) + '</div>' : '') +
     '<div class="btnrow">' +
-      '<button class="btn blue" onclick="planOpen()">Lageplan</button>' +
-      '<button class="btn" onclick="openMap(' + n.lat + ',' + n.lon + ',\'' + esc(kurz).replace(/'/g, '') + '\')">Weg in Karten-App</button>' +
+      '<button class="btn haupt" onclick="planOpen()">Lageplan</button>' +
+      '<button class="btn" onclick="openMap(' + n.lat + ',' + n.lon + ',\'' + esc(kurz).replace(/'/g, '') + '\')">Karten-App</button>' +
     '</div>';
   updateArrow();
   var kb = $('kompassBox'); if (kb) kb.innerHTML = kompassHinweis();
@@ -1876,29 +1954,44 @@ function renderPoints() {
   var q = ($('ptSearch').value || '').trim().toLowerCase();
   $('ptCount').textContent = state.points.length;
 
-  // Filterleiste nur mit den Arten, die es auch gibt
-  var counts = {};
-  state.points.forEach(function (p) { var k = kindOf(p); counts[k] = (counts[k] || 0) + 1; });
-  var kinds = Object.keys(counts);
-  if (kinds.length > 1) {
-    if (!counts[state.ptFilter] && state.ptFilter !== 'alle') state.ptFilter = 'alle';
-    $('ptFilter').innerHTML = ['alle'].concat(kinds).map(function (k) {
-      var lab = (k === 'alle') ? 'Alle' : (KIND_LABEL[k] || k);
-      var n = (k === 'alle') ? state.points.length : counts[k];
-      return '<button class="chip' + (state.ptFilter === k ? ' on' : '') + '" onclick="setPtFilter(\'' + k + '\')">' +
-             lab + ' ' + n + '</button>';
-    }).join('');
-  } else {
-    $('ptFilter').innerHTML = '';
-    state.ptFilter = 'alle';
+  /* Filterleiste. Die Zahlen kommen aus den Daten und dürfen keine falsche
+     Sicherheit vermitteln: In den Art-Kategorien stehen ausschließlich
+     GEPRÜFTE Punkte, alles Ungeprüfte sammelt sich in einer eigenen Gruppe —
+     egal ob Mast ohne Nummer, Widerspruch oder unbestätigte Klinik.
+     Summe der Kategorien + ungeprüft = Gesamtzahl. */
+  var geprueftNachArt = {}, anzahlUngeprueft = 0;
+  state.points.forEach(function (p) {
+    if (istGeprueft(p)) {
+      var k = kindOf(p);
+      geprueftNachArt[k] = (geprueftNachArt[k] || 0) + 1;
+    } else {
+      anzahlUngeprueft++;
+    }
+  });
+  var arten = Object.keys(geprueftNachArt);
+  var gruppen = [{ id: 'alle', text: 'Alle', zahl: state.points.length, warn: false }];
+  arten.forEach(function (k) {
+    gruppen.push({ id: k, text: KIND_LABEL[k] || k, zahl: geprueftNachArt[k], warn: false });
+  });
+  if (anzahlUngeprueft) {
+    gruppen.push({ id: FILTER_UNGEPRUEFT, text: 'Ungeprüfte Punkte', zahl: anzahlUngeprueft, warn: true });
   }
+  var gueltigeAuswahl = gruppen.some(function (g) { return g.id === state.ptFilter; });
+  if (!gueltigeAuswahl) state.ptFilter = 'alle';
+  $('ptFilter').innerHTML = (gruppen.length > 1) ? gruppen.map(function (g) {
+    return '<button class="chip' + (state.ptFilter === g.id ? ' on' : '') + (g.warn ? ' warnchip' : '') +
+           '" onclick="setPtFilter(\'' + g.id + '\')">' + esc(g.text) + ' ' + g.zahl + '</button>';
+  }).join('') : '';
 
   var list = state.pos
     ? G.nearest(state.points, state.pos.lat, state.pos.lon)
     : state.points.slice().sort(function (a, b) { return G.pointLabel(a).localeCompare(G.pointLabel(b), 'de'); });
 
-  if (state.ptFilter && state.ptFilter !== 'alle') {
-    list = list.filter(function (p) { return kindOf(p) === state.ptFilter; });
+  if (state.ptFilter === FILTER_UNGEPRUEFT) {
+    list = list.filter(function (p) { return !istGeprueft(p); });
+  } else if (state.ptFilter && state.ptFilter !== 'alle') {
+    // Eine Art-Kategorie zeigt nur, was auch verwendet werden darf.
+    list = list.filter(function (p) { return kindOf(p) === state.ptFilter && istGeprueft(p); });
   }
   if (q) {
     // Alle Suchwörter müssen vorkommen — „rettungspunkt 2" findet auch
@@ -2568,6 +2661,41 @@ function renderApp() {
   }
 }
 
+/* Was in den Daten ungeklärt ist, gehört sichtbar aufgelistet — nicht in
+   eine Fußnote. Die Liste kommt aus den Daten, nichts ist fest verdrahtet. */
+function renderOffeneFragen() {
+  var karte = $('offeneKarte'), box = $('offeneListe');
+  if (!karte || !box) return;
+  var WICHTIG = ['nummer-widerspruch', 'abseits', 'rp-nummer-doppelt', 'koordinaten-ungueltig'];
+  var faelle = state.points.filter(function (p) {
+    return !istGeprueft(p) && (p.issues || []).some(function (i) { return WICHTIG.indexOf(i) >= 0; });
+  });
+  if (!faelle.length) { karte.hidden = true; return; }
+  karte.hidden = false;
+
+  // Nach Grund gruppieren, damit zusammengehörige Fälle beieinanderstehen.
+  var nachGrund = {};
+  faelle.forEach(function (p) {
+    (p.issues || []).forEach(function (i) {
+      if (WICHTIG.indexOf(i) < 0) return;
+      (nachGrund[i] = nachGrund[i] || []).push(p);
+    });
+  });
+
+  box.innerHTML = Object.keys(nachGrund).map(function (grund) {
+    var liste = nachGrund[grund];
+    return '<div class="pitem ungeprueft"><div class="pmain">' +
+      '<div class="ptitle">' + esc(problemText(grund)) +
+        ' <span class="badge warn">' + liste.length + '</span></div>' +
+      liste.map(function (p) {
+        return '<div class="psub" style="font-family:inherit">' + esc(p.name) + ' — ' +
+               G.formatDec(p.lat, p.lon) + '</div>';
+      }).join('') +
+      '<div class="psub warnhinweis">Gesperrt für Notfallberechnungen und Meldung</div>' +
+      '</div></div>';
+  }).join('');
+}
+
 function renderMigration() {
   var box = $('migrationBox'); if (!box) return;
   var m = state.migration || load(K_MIGRATION, null);
@@ -2617,7 +2745,7 @@ function toggleTheme() {
   var light = document.body.classList.contains('light');
   save(K_THEME, light ? 'light' : 'dark');
   var meta = document.querySelector('meta[name=theme-color]');
-  if (meta) meta.setAttribute('content', light ? '#ffffff' : '#101418');
+  if (meta) meta.setAttribute('content', light ? '#ffffff' : '#101820');
 }
 
 // iOS verlangt für den Kompass eine Nutzeraktion. Statt den Nutzer suchen zu lassen,
@@ -2791,7 +2919,7 @@ function boot() {
   $('siteInput').value = state.site;
   $('verOut').textContent = VERSION;
   renderPoints(); renderContacts(); renderMessage(); renderPaket();
-  renderMigration(); renderAdmin(); renderApp();
+  renderMigration(); renderAdmin(); renderApp(); renderOffeneFragen();
 
   armCompassOnFirstTouch();
   teilenAnbieten();

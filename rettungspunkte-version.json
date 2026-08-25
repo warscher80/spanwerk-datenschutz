@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "0.3.0",
+  "versionCode": 7,
+  "versionName": "0.4.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Update direkt aus der App heraus. Am iPhone startet die Ortung jetzt auf Tastendruck — Safari fragt dann zuverlässig."
+  "notes": "Neues Erscheinungsbild im SPIE-Stil. Kategorien zählen jetzt nur geprüfte Punkte; gesperrte Einträge stehen unter „Ungeprüfte Punkte“."
 }
