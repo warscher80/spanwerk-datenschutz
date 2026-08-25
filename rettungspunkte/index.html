@@ -113,6 +113,7 @@
 
   /* ---- Buttons ---- */
   .btn{border:0;border-radius:12px;padding:13px 14px;font-size:15px;font-weight:800;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
     background:var(--card2);color:var(--txt);border:1px solid var(--line);width:100%}
   .btn:active{transform:translateY(1px)}
   .btn.primary{background:linear-gradient(180deg,#f21528,var(--accent));color:#fff;border-color:transparent;
@@ -558,6 +559,27 @@
     </div>
 
     <div class="card">
+      <h3>Akku</h3>
+      <div class="hint" style="font-size:13px">
+        Die App ortet nur, <b>solange sie offen und sichtbar ist</b>. Wechselst du zu einer anderen
+        App oder sperrst das Handy, wird die Ortung angehalten — im Hintergrund läuft nichts.
+        Deshalb braucht sie auch <b>keine Ausnahme von der Akku-Optimierung</b> und keine
+        Hintergrund-Berechtigung.<br><br>
+        Solange die App offen ist, bleibt der Bildschirm an, damit man auf dem Weg zum
+        Rettungspunkt nicht ständig entsperren muss. Das kostet Strom — deshalb: App zumachen,
+        wenn sie nicht gebraucht wird. Alle Daten bleiben gespeichert.
+      </div>
+    </div>
+
+    <div class="card alarm" id="updateBox" hidden></div>
+
+    <div class="card" id="appKarte">
+      <h3>App aufs Handy</h3>
+      <div class="hint" style="font-size:13px" id="appHinweis"></div>
+      <div class="btnrow" id="appBtns"></div>
+    </div>
+
+    <div class="card">
       <h3>Verwaltung</h3>
       <label class="schalter">
         <input type="checkbox" id="adminSchalter" role="switch" onchange="setAdmin(this.checked)">
@@ -686,7 +708,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.1.0';
+var VERSION = '0.2.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -709,6 +731,7 @@ var state = {
   editPoint: null,
   editContact: null,
   demo: false,        // Vorschau mit Beispielstandort
+  pausiert: false,    // Ortung im Hintergrund angehalten (Akku)
   paket: null,        // Infos zum geladenen Baustellen-Paket
   migration: null,    // Ergebnis der letzten Datenmigration
   admin: false,       // Verwaltungsmodus (Bearbeiten/Import/Löschen)
@@ -2288,6 +2311,66 @@ function setTab(name) {
   if (name === 'kontakte') renderContacts();
 }
 
+/* Installationswege: Android-App zum Herunterladen, iPhone über
+   „Zum Home-Bildschirm". In der installierten App entfällt der Abschnitt. */
+var APK_URL = '../Rettungspunkte.apk';
+
+/* Update-Prüfung für die installierte App.
+   Android installiert eine neue Version ÜBER die alte, solange sie mit
+   demselben Schlüssel signiert ist — nichts muss gelöscht werden, alle
+   gespeicherten Punkte bleiben. Die Prüfung braucht kurz Internet und
+   passiert nur beim Start; ohne Netz passiert einfach nichts. */
+var VERSION_URL = 'https://warscher80.github.io/spanwerk-datenschutz/rettungspunkte-version.json';
+
+function updatePruefen() {
+  if (!isNative()) return;                       // Web-Version aktualisiert der Service Worker
+  if (navigator.onLine === false) return;
+  httpGet(VERSION_URL).then(function (txt) {
+    var v = JSON.parse(txt);
+    if (!v || !v.versionName) return;
+    if (v.versionName === VERSION) return;       // aktuell
+    zeigeUpdate(v);
+  }).catch(function () { /* kein Netz, kein Problem */ });
+}
+
+function zeigeUpdate(v) {
+  var box = $('updateBox');
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML =
+    '<b>Neue Version ' + esc(v.versionName) + ' verfügbar</b>' +
+    (v.notes ? '<div class="hint" style="margin-top:4px">' + esc(v.notes) + '</div>' : '') +
+    '<div class="hint" style="margin-top:6px">Die neue Version wird über die alte installiert — ' +
+    'nichts löschen, die gespeicherten Punkte bleiben.</div>' +
+    '<div class="btnrow"><a class="btn primary" href="' + esc(v.apkUrl) + '">Update herunterladen</a></div>';
+}
+
+function renderApp() {
+  var hinweis = $('appHinweis'), btns = $('appBtns');
+  if (!hinweis || !btns) return;
+  if (isNative()) {
+    $('appKarte').hidden = true;
+    return;
+  }
+  var p = platform();
+  if (p === 'ios') {
+    hinweis.innerHTML = 'Am iPhone: unten auf <b>Teilen</b> tippen und <b>„Zum Home-Bildschirm"</b> ' +
+      'wählen. Danach startet die App mit eigenem Symbol und ohne Safari-Leisten — auch ohne Netz.';
+    btns.innerHTML = '';
+  } else if (p === 'android') {
+    hinweis.innerHTML = 'Für Android gibt es die App zum Installieren. Beim Öffnen der Datei fragt ' +
+      'Android nach der Erlaubnis, Apps aus dieser Quelle zu installieren.<br>' +
+      '<b>Updates:</b> Eine neuere Version wird einfach über die alte installiert — ' +
+      'die App muss nicht gelöscht werden, gespeicherte Punkte bleiben erhalten.<br>' +
+      'Alternativ: Browser-Menü → <b>„Zum Startbildschirm hinzufügen"</b>.';
+    btns.innerHTML = '<a class="btn primary" href="' + APK_URL + '" download>Android-App herunterladen</a>';
+  } else {
+    hinweis.innerHTML = 'Am Handy öffnen: Android bekommt die App zum Installieren, ' +
+      'am iPhone geht sie über „Teilen → Zum Home-Bildschirm".';
+    btns.innerHTML = '<a class="btn" href="' + APK_URL + '" download>Android-App herunterladen</a>';
+  }
+}
+
 function renderMigration() {
   var box = $('migrationBox'); if (!box) return;
   var m = state.migration || load(K_MIGRATION, null);
@@ -2351,8 +2434,18 @@ function keepAwake() {
     l.addEventListener('release', function () { wakeLock = null; });
   }).catch(function () { /* nicht kritisch */ });
 }
+/* Akku: Dauerortung mit hoher Genauigkeit ist der größte Stromfresser.
+   Sobald die App im Hintergrund ist, wird die Ortung angehalten und beim
+   Zurückkommen sofort wieder gestartet. Im Hintergrund läuft nichts —
+   die App braucht deshalb auch keine Ausnahme von der Akku-Optimierung. */
 document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'visible') { keepAwake(); }
+  if (document.visibilityState === 'visible') {
+    keepAwake();
+    if (state.pausiert) { state.pausiert = false; requestLocation(); }
+  } else {
+    if (state.watchId != null) { stopWatch(); state.pausiert = true; }
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
 });
 
 function armCompassOnFirstTouch() {
@@ -2485,12 +2578,13 @@ function boot() {
   $('siteInput').value = state.site;
   $('verOut').textContent = VERSION;
   renderPoints(); renderContacts(); renderMessage(); renderPaket();
-  renderMigration(); renderAdmin();
+  renderMigration(); renderAdmin(); renderApp();
 
   armCompassOnFirstTouch();
   teilenAnbieten();
   initServiceWorker();
   detailsBeschriften();
+  updatePruefen();
   updateNetz();
   initLocation();
   setInterval(function () { if (state.geo === 'ok') { $('geoSub').textContent = accuracySub(); renderMessage(); } }, 30000);
