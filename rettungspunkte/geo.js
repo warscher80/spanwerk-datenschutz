@@ -557,6 +557,11 @@ var SpieGeo = (function () {
       // gewählter Punkt ist gut genug zum Anfahren, aber er ist nicht gemessen.
       L.push('*** STANDORT VON HAND ANGEGEBEN — NICHT VOM GPS GEMESSEN ***');
       L.push('');
+    } else if (opts.veraltet) {
+      // Ein alter Standort ist besser als keiner — aber nur mit Uhrzeit dabei.
+      L.push('*** ACHTUNG: LETZTER BEKANNTER STANDORT VON ' + opts.veraltet +
+             ' — NICHT AKTUELL ***');
+      L.push('');
     }
     L.push('NOTFALL — Standortmeldung');
     if (opts.site) L.push('Baustelle: ' + opts.site);
@@ -589,6 +594,9 @@ var SpieGeo = (function () {
       L.push('  UTM:         ' + toUTM(pos.lat, pos.lon).text);
       if (opts.manuell) {
         L.push('  Herkunft:    von Hand gewählt (' + opts.manuell + '), GPS war nicht verfügbar');
+      } else if (opts.veraltet) {
+        L.push('  Herkunft:    letzte GPS-Messung um ' + opts.veraltet + ' — Person kann sich bewegt haben');
+        if (pos.accuracy != null) L.push('  Genauigkeit: ' + formatAccuracy(pos.accuracy) + ' (damals)');
       } else if (pos.accuracy != null) {
         L.push('  Genauigkeit: ' + formatAccuracy(pos.accuracy));
       }

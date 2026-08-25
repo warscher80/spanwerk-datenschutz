@@ -36,9 +36,21 @@
     --accent:var(--spie-red); --accent2:#ff5064;
     --notruf:var(--spie-red); --notruf2:#f4001d;
     --blue:#4c95ff; --ok:#2fc27a; --warn:#ffbf3d; --bad:#ff5d5d;
-    --r:12px;
-    --navhoehe:56px;
+    /* Radien in einer Reihe statt drei zufälliger Werte */
+    --r-s:10px; --r:14px; --r-l:20px; --r-xl:26px;
+    /* Tiefe: eine weiche Wolke, keine harte Kante */
+    --schatten-s:0 1px 2px rgba(0,0,0,.28);
+    --schatten:0 6px 20px -8px rgba(0,0,0,.55);
+    --schatten-l:0 18px 44px -18px rgba(0,0,0,.7);
+    --kante:inset 0 1px 0 rgba(255,255,255,.055);
+    --navhoehe:60px;
+
+    /* Handschuh-Modus: EIN Faktor, mit dem alles Wichtige mitwächst. Die
+       Regeln für kleine Bildschirme weiter unten setzen weiter ihre eigenen
+       Grundgrößen — der Faktor multipliziert nur. */
+    --gross:1;
   }
+  body.gross{ --gross:1.18 }
   body.light{
     --bg:#eef2f6; --bg2:#e4eaf0; --card:var(--spie-white); --card2:#f4f7fa;
     --line:#c9d3dc; --txt:var(--spie-dark);
@@ -56,21 +68,38 @@
   body{
     background:var(--bg);
     color:var(--txt);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:16px;line-height:1.4;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable",
+                "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:calc(16px * var(--gross));line-height:1.45;
+    letter-spacing:-.01em;
+    text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:antialiased;
+    /* Ziffern in gleicher Breite: Entfernungen springen beim Gehen nicht hin und her */
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;
     padding-bottom:0;
     -webkit-user-select:none;user-select:none;
   }
+  /* Ein sehr leiser Lichtschein oben — gibt der Seite Tiefe, ohne zu leuchten. */
+  body::before{
+    content:"";position:fixed;inset:0 0 auto;height:340px;z-index:-1;pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 0%, rgba(226,0,26,.13) 0%, rgba(226,0,26,0) 62%);
+  }
   body.light{background:var(--bg)}
+  body.light::before{background:radial-gradient(120% 100% at 50% 0%, rgba(226,0,26,.09) 0%, rgba(226,0,26,0) 60%)}
 
   header{
     position:sticky;top:0;z-index:30;
-    background:var(--bg2);
+    /* Milchglas in schlichtem rgba: jeder Browser versteht es, und der
+       Kontrast bleibt nachmessbar. */
+    background:rgba(20,29,38,.985);
+    -webkit-backdrop-filter:saturate(1.6) blur(14px);
+    backdrop-filter:saturate(1.6) blur(14px);
     border-bottom:3px solid var(--spie-red);      /* SPIE-Akzentlinie */
-    padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
-    display:flex;align-items:center;gap:10px;
+    padding:calc(8px + env(safe-area-inset-top)) 12px 9px;
+    display:flex;align-items:center;gap:11px;
   }
-  body.light header{background:var(--spie-white)}
+  body.light header{background:rgba(255,255,255,.985)}
   .logo{width:40px;height:40px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
     background:var(--spie-red)}
   .logo svg{width:24px;height:24px;display:block}
@@ -85,7 +114,8 @@
     .tag{font-size:10.5px} .logo{width:34px;height:34px}
   }
   .hgrow{flex:1;min-width:0}
-  .iconbtn{width:44px;height:44px;flex:0 0 auto;border-radius:11px;border:1px solid var(--line);
+  .iconbtn{width:44px;height:44px;flex:0 0 auto;border-radius:var(--r);border:1px solid var(--line);
+    transition:transform .12s ease, background .15s ease;
     background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
   .iconbtn svg{width:18px;height:18px}
 
@@ -99,7 +129,8 @@
   .tabpane.on{display:block;animation:fade .18s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-  .card{background:var(--card);border:1px solid var(--line);
+  .card{background:linear-gradient(180deg, var(--card2) 0%, var(--card) 46%);
+    border:1px solid var(--line);box-shadow:var(--schatten-s),var(--kante);
     border-radius:var(--r);padding:14px;margin-bottom:12px}
   body.light .card{box-shadow:0 1px 3px rgba(16,24,32,.06)}
   .card h3{margin:0 0 10px;font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;
@@ -116,7 +147,7 @@
   .dot.bad{background:var(--bad);box-shadow:0 0 12px rgba(255,93,93,.7)}
   .dot.pulse{animation:pulse 1.1s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  .statustitle{font-weight:800;font-size:16px}
+  .statustitle{font-weight:800;font-size:calc(16px * var(--gross))}
   .statussub{color:var(--muted);font-size:12.5px;margin-top:1px}
   .howto{margin:11px 0 0;padding:11px 12px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid var(--line);
     font-size:13px;color:var(--txt)}
@@ -139,11 +170,13 @@
   .copy:active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
   /* ---- Buttons ---- */
-  .btn{border:0;border-radius:12px;padding:13px 14px;font-size:15px;font-weight:800;cursor:pointer;
+  .btn{border:0;border-radius:var(--r);padding:13px 15px;font-size:calc(15px * var(--gross));font-weight:800;cursor:pointer;
+    transition:transform .12s cubic-bezier(.2,.8,.3,1), background .15s ease, box-shadow .15s ease;
     display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
     background:var(--card2);color:var(--txt);border:1px solid var(--line);width:100%}
-  .btn:active{transform:translateY(1px)}
-  .btn.primary{background:var(--spie-red);color:var(--spie-white);border-color:var(--spie-red)}
+  .btn:active{transform:scale(.975)}
+  .btn.primary{background:linear-gradient(180deg,#f11a31,var(--spie-red));color:var(--spie-white);
+    border-color:var(--spie-red);box-shadow:0 6px 18px -8px rgba(226,0,26,.9)}
   .btn.primary:active{background:var(--spie-red-hover);border-color:var(--spie-red-hover)}
   /* Hauptaktion: deutlich hervorgehoben, aber nicht vollflächig rot —
      die rote Fläche bleibt dem Notruf vorbehalten. */
@@ -155,7 +188,8 @@
   .btn.ghost{background:transparent}
   /* Notruf: der einzige groß-flächig rote Knopf, deutlich höher als alles
      andere und mit eigener Beschriftung darüber. */
-  .btn.sos{font-size:24px;padding:0 14px;min-height:66px;letter-spacing:.5px;
+  .btn.sos{font-size:calc(25px * var(--gross));padding:0 14px;min-height:66px;letter-spacing:.6px;border-radius:var(--r-l);
+    box-shadow:0 10px 30px -12px rgba(226,0,26,.95), var(--kante);
     background:var(--notruf);color:var(--spie-white);border:2px solid var(--spie-white);
     text-transform:uppercase}
   body.light .btn.sos{border-color:var(--spie-red-hover)}
@@ -170,14 +204,16 @@
 
   /* ---- Nächster Punkt ---- */
   .rpmain{display:flex;align-items:center;gap:14px}
-  .arrow{width:78px;height:78px;flex:0 0 auto;border-radius:50%;border:2px solid var(--line);
+  .arrow{width:84px;height:84px;flex:0 0 auto;border-radius:50%;border:2px solid var(--line);
+    box-shadow:var(--schatten-s), inset 0 0 26px -12px rgba(226,0,26,.55);
     background:radial-gradient(circle at 50% 40%, rgba(226,0,26,.18), transparent 70%);
     display:flex;align-items:center;justify-content:center;position:relative}
-  .arrow svg{width:44px;height:44px;transition:transform .28s ease}
+  .arrow svg{width:46px;height:46px;transition:transform .34s cubic-bezier(.25,.9,.25,1)}
   .arrow .nlab{position:absolute;top:3px;font-size:9px;font-weight:800;color:var(--muted2)}
   .rpinfo{flex:1;min-width:0}
-  .rpname{font-weight:800;font-size:18px;line-height:1.2;word-break:break-word}
-  .rpdist{font-size:30px;font-weight:800;color:var(--accent2);line-height:1.1;margin-top:3px}
+  .rpname{font-weight:800;font-size:calc(18px * var(--gross));line-height:1.18;word-break:break-word;letter-spacing:-.015em}
+  .rpdist{font-size:calc(30px * var(--gross));font-weight:800;color:var(--accent2);line-height:1.05;margin-top:4px;
+    letter-spacing:-.03em;font-variant-numeric:tabular-nums}
   .rpdir{color:var(--muted);font-size:13px}
   .rpnote{margin-top:9px;font-size:13px;color:var(--warn)}
   .empty{color:var(--muted);font-size:14px;text-align:center;padding:16px 8px}
@@ -187,7 +223,7 @@
   .pitem{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
   .pitem:last-child{border-bottom:0}
   .pmain{flex:1;min-width:0}
-  .ptitle{font-weight:800;font-size:15px;word-break:break-word}
+  .ptitle{font-weight:800;font-size:calc(15px * var(--gross));word-break:break-word}
   .psub{color:var(--muted);font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;-webkit-user-select:text;user-select:text}
   .pdist{flex:0 0 auto;text-align:right}
   .pdist b{display:block;font-size:15px;color:var(--accent2)}
@@ -202,7 +238,8 @@
   .pitem.ungeprueft .ptitle{color:var(--warn)}
   .badge.warn{background:var(--warn);color:#1a1109}
   .warnhinweis{color:var(--warn) !important;font-family:inherit !important}
-  .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;
+  .chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:var(--r-s);
+    transition:transform .12s ease, background .15s ease, color .15s ease;
     padding:0 12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;
     font-size:12.5px;font-weight:800;cursor:pointer}
   .chip.red{color:var(--accent2);border-color:var(--spie-red)}
@@ -210,10 +247,11 @@
 
   /* ---- Formulare ---- */
   input,select,textarea{width:100%;background:var(--card);color:var(--txt);border:1px solid var(--line);
-    border-radius:10px;padding:11px 12px;font-size:16px;font-weight:600;outline:none;
+    border-radius:var(--r);padding:12px 13px;font-size:16px;font-weight:600;outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease;
     font-family:inherit;-webkit-user-select:text;user-select:text}
   textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-weight:500;line-height:1.45;resize:vertical}
-  input:focus,textarea:focus{border-color:var(--accent)}
+  input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(226,0,26,.16)}
   input::placeholder,textarea::placeholder{color:var(--muted2);font-weight:500}
   label{display:block;font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;
     letter-spacing:.5px;margin:0 0 5px}
@@ -235,15 +273,23 @@
 
   /* ---- Navigation ---- */
   nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
-    background:var(--bg2);border-top:1px solid var(--line);
+    background:rgba(20,29,38,.985);
+    -webkit-backdrop-filter:saturate(1.6) blur(16px);
+    backdrop-filter:saturate(1.6) blur(16px);
+    border-top:1px solid var(--line);
+    box-shadow:0 -8px 26px -18px rgba(0,0,0,.85);
     padding-bottom:env(safe-area-inset-bottom)}
-  body.light nav{background:var(--spie-white)}
+  body.light nav{background:rgba(255,255,255,.985)}
   nav button{flex:1;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:800;
-    padding:9px 2px 8px;min-height:52px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;gap:3px}
-  nav button svg{width:21px;height:21px}
+    padding:9px 2px 8px;min-height:56px;cursor:pointer;position:relative;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    transition:color .16s ease}
+  nav button svg{width:22px;height:22px;transition:transform .18s cubic-bezier(.2,.8,.3,1)}
   nav button.on{color:var(--accent2)}
-  nav button.on::before{content:"";position:absolute;top:0;left:16%;right:16%;height:3px;
-    background:var(--spie-red)}
+  nav button.on svg{transform:translateY(-1px) scale(1.06)}
+  /* Der Strich sitzt jetzt unter dem Symbol und ist rund — weniger Balken, mehr Marke. */
+  nav button.on::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:34px;height:3px;border-radius:0 0 3px 3px;background:var(--spie-red)}
   nav button.on{color:var(--accent2)}
   body.light nav button.on{color:var(--spie-red-hover)}
 
@@ -314,30 +360,41 @@
   .strip.demo .striptxt{color:var(--warn);letter-spacing:.4px}
   .netzstrip{padding:10px 13px;margin-bottom:11px;border-radius:var(--r);font-size:13.5px;line-height:1.45;
     border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--card)}
-  .striptxt{flex:1;font-weight:800;font-size:14px}
+  .striptxt{flex:1;font-weight:800;font-size:calc(14px * var(--gross))}
   .stripacc{font-size:13px;color:var(--muted);font-weight:700}
 
-  .hero{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--spie-red);
-    border-radius:var(--r);padding:16px 14px;margin-bottom:12px;text-align:center}
+  .hero{background:linear-gradient(180deg, var(--card2) 0%, var(--card) 52%);
+    border:1px solid var(--line);border-top:3px solid var(--spie-red);
+    border-radius:var(--r-l);padding:16px 14px;margin-bottom:12px;text-align:center;
+    box-shadow:var(--schatten),var(--kante)}
   .herolab{font-size:12px;letter-spacing:1.1px;font-weight:800;color:var(--muted);text-transform:uppercase}
   .bigarrow{width:min(50vw,182px);height:min(50vw,182px);margin:10px auto 6px;border-radius:50%;
     border:2px solid var(--line);position:relative;display:flex;align-items:center;justify-content:center;
-    background:var(--card2)}
+    background:radial-gradient(circle at 50% 42%, var(--card2) 0%, var(--card) 74%);
+    box-shadow:inset 0 0 42px -18px rgba(226,0,26,.75), var(--schatten-s)}
   body.light .bigarrow{background:#eef2f6}
-  .bigarrow svg{width:56%;height:56%;transition:transform .3s ease}
+  .bigarrow svg{width:56%;height:56%;transition:transform .38s cubic-bezier(.25,.9,.25,1);
+    filter:drop-shadow(0 2px 6px rgba(226,0,26,.28))}
+  /* Auf Weiß wirkt derselbe Schein wie ein verwischter Druck — dort nur eine
+     zarte Kante statt Leuchten. */
+  body.light .bigarrow{background:radial-gradient(circle at 50% 42%, #ffffff 0%, #eef2f6 78%);
+    box-shadow:inset 0 0 0 1px rgba(16,24,32,.06), var(--schatten-s)}
+  body.light .bigarrow svg{filter:none}
+  body.light .btn.sos{box-shadow:0 8px 22px -14px rgba(226,0,26,.7), var(--kante)}
+  body.light .btn.primary{box-shadow:0 5px 14px -9px rgba(226,0,26,.6)}
   .bigarrow .ntop{position:absolute;top:7px;font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.6px}
   .bigdist{font-size:58px;line-height:1;font-weight:800;color:var(--accent2);letter-spacing:-1px}
   .rpnamebig{margin-top:10px;font-weight:800;line-height:1.02;display:flex;align-items:baseline;
     justify-content:center;gap:10px;flex-wrap:wrap}
-  .rpword{font-size:27px}
-  .rpnum{font-size:62px;color:var(--accent2);letter-spacing:-2px}
+  .rpword{font-size:calc(27px * var(--gross))}
+  .rpnum{font-size:calc(62px * var(--gross));color:var(--accent2);letter-spacing:-2px}
   body.light .rpnum{color:var(--spie-red)}
   .rpplain{color:var(--accent2);line-height:1.1}
   .rpofficial{font-size:13px;color:var(--muted);margin-top:6px}
-  .rpmeta{font-size:16px;margin-top:9px;color:var(--txt);opacity:.92}
-  .rpmeta b{color:var(--accent2);font-size:18px}
-  .bigname{font-size:20px;font-weight:800;margin-top:8px;line-height:1.2;word-break:break-word}
-  .bigdir{font-size:15.5px;color:var(--muted);margin-top:5px;font-weight:700}
+  .rpmeta{font-size:calc(16px * var(--gross));margin-top:9px;color:var(--txt);opacity:.92}
+  .rpmeta b{color:var(--accent2);font-size:calc(18px * var(--gross))}
+  .bigname{font-size:calc(20px * var(--gross));font-weight:800;margin-top:8px;line-height:1.2;word-break:break-word}
+  .bigdir{font-size:calc(15.5px * var(--gross));color:var(--muted);margin-top:5px;font-weight:700}
   .bigwalk{font-size:14.5px;color:var(--muted2);margin-top:2px}
   .gpszeile{margin-top:10px;font-size:13.5px;color:var(--muted);
     border-top:1px solid var(--line);padding-top:9px}
@@ -348,7 +405,7 @@
   .kompass{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.5}
   .kompass.ok{color:var(--ok)}
   .kompass .chip{margin-left:6px}
-  .bigmast{margin-top:9px;font-size:14.5px;color:var(--txt);opacity:.9}
+  .bigmast{margin-top:9px;font-size:calc(14.5px * var(--gross));color:var(--txt);opacity:.9}
   .bigmast b{color:var(--blue)}
   .bignote{margin-top:10px;font-size:14px;color:var(--warn);line-height:1.35}
   .soshint{text-align:center;font-size:12.5px;color:var(--muted);margin:7px 0 13px}
@@ -372,12 +429,12 @@
     .strip{padding:7px 12px;margin-bottom:9px}
     .hero{padding:12px 12px}
     .bigarrow{width:min(38vw,132px);height:min(38vw,132px);margin:6px auto 4px;border-width:2px}
-    .rpword{font-size:22px}
-    .rpnum{font-size:48px}
+    .rpword{font-size:calc(22px * var(--gross))}
+    .rpnum{font-size:calc(48px * var(--gross))}
     .rpofficial{margin-top:4px}
-    .rpmeta{font-size:15px;margin-top:7px}
+    .rpmeta{font-size:calc(15px * var(--gross));margin-top:7px}
     .bigmast{margin-top:7px;font-size:13.5px}
-    .btn.sos{font-size:21px;min-height:56px;padding:0 12px}
+    .btn.sos{font-size:calc(21px * var(--gross));min-height:56px;padding:0 12px}
     .notrufblock{margin:10px 0 8px}
     .notruflabel{margin-bottom:4px;font-size:11px}
     .soshint{margin:6px 0 8px}
@@ -400,12 +457,12 @@
     .hero{padding:10px 10px}
     .gpszeile{margin-top:6px;padding-top:6px;font-size:12px}
     .btnrow{margin-top:7px}
-    .rpword{font-size:19px}
-    .rpnum{font-size:42px}
-    .rpmeta{font-size:13.5px}
+    .rpword{font-size:calc(19px * var(--gross))}
+    .rpnum{font-size:calc(42px * var(--gross))}
+    .rpmeta{font-size:calc(13.5px * var(--gross))}
     .rpofficial{font-size:12px}
     .bigmast{font-size:12.5px}
-    .btn.sos{font-size:19px;min-height:52px;padding:0 10px}
+    .btn.sos{font-size:calc(19px * var(--gross));min-height:52px;padding:0 10px}
     .herolab{font-size:10px}
     .notrufblock{margin:8px 0 6px}
     .soshint{font-size:11.5px;margin:5px 0 6px}
@@ -460,6 +517,9 @@
         <div class="howto" id="geoHowto"></div>
       </details>
     </div>
+
+    <!-- Letzter bekannter Standort: nur sichtbar, wenn kein frischer Fix da ist -->
+    <div class="card" id="letztePosBox" style="display:none;margin-top:10px"></div>
 
     <!-- Standort da: nur noch ein schmaler Streifen -->
     <div class="strip" id="geoStrip" style="display:none">
@@ -617,6 +677,17 @@
         </ol>
       </div>
     </div>
+    <div class="card">
+      <h3>Anzeige</h3>
+      <div class="statusline">
+        <div class="cinfo">
+          <div class="statustitle">Große Schrift</div>
+          <div class="statussub">Für Handschuhe, Sonne und müde Augen — alles Wichtige eine Stufe größer.</div>
+        </div>
+        <button class="chip" id="grossBtn" onclick="grossUmschalten()" aria-pressed="false">Aus</button>
+      </div>
+    </div>
+
     <div class="card">
       <h3>Offline-Bereitschaft</h3>
       <div id="offlineBox"></div>
@@ -803,13 +874,14 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.5.0';
+var VERSION = '0.6.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
     K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_PAKET = 'spie_paket',
     K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin',
-    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt', K_GEO_OK = 'spie_geo_schon_erlaubt';
+    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt', K_GEO_OK = 'spie_geo_schon_erlaubt',
+    K_GROSS = 'spie_grosse_schrift', K_LETZTE_POS = 'spie_letzte_position';
 
 var P = window.SpiePruefung;
 
@@ -828,6 +900,7 @@ var state = {
   editContact: null,
   demo: false,        // Vorschau mit Beispielstandort
   manuell: null,      // von Hand gewählter Standpunkt (geprüfter Punkt), wenn die Ortung versagt
+  alt: 0,             // Zeitstempel, falls ein alter Standort bewusst übernommen wurde
   pausiert: false,    // Ortung im Hintergrund angehalten (Akku)
   letzterFehler: null, // rohe Meldung des Browsers, für die Fehlersuche
   freigabe: null,     // was die Permissions-API sagt (granted/denied/prompt)
@@ -1160,6 +1233,17 @@ function setGeoState(kind, extraSub) {
   $('geoStrip').style.display = ok ? 'flex' : 'none';
   $('geoBig').style.display = ok ? 'none' : 'block';
 
+  if (ok && state.alt) {
+    // Übernommener Alt-Standort: gelb, mit Alter, jederzeit ersetzbar.
+    var altS = Math.round((Date.now() - state.alt) / 1000);
+    $('geoDot').className = 'dot warn';
+    $('geoStrip').className = 'strip warn';
+    $('stripTxt').textContent = 'Letzter bekannter Standort · ' + alterText(altS);
+    $('stripAcc').innerHTML = '<button class="chip" onclick="requestLocation()">Neu suchen</button>';
+    renderHero(); renderMessage();
+    return;
+  }
+
   if (ok && state.manuell) {
     // Nie grün: Der Standort ist nicht gemessen, sondern angegeben.
     $('geoDot').className = 'dot warn';
@@ -1204,6 +1288,7 @@ function setGeoState(kind, extraSub) {
 
   renderHero();
   renderMessage();
+  letztePositionAnbieten();
 }
 
 // In der installierten App läuft die Ortung über das Capacitor-Plugin:
@@ -1360,6 +1445,61 @@ function standpunktSetzen(uid) {
   toast('Standpunkt: ' + G.shortLabel(p));
 }
 
+/* =========================================================================
+   Letzter bekannter Standort
+
+   Auf der Baustelle reißt die Ortung ab: Handy im Rucksack, Akku leer und
+   wieder an, App neu gestartet. Dann ist die letzte gemessene Position immer
+   noch die beste vorhandene Information — aber nur, wenn dabei steht, WIE ALT
+   sie ist. Deshalb: merken, aber nie stillschweigend als aktuellen Standort
+   ausgeben. Der Nutzer muss sie bewusst übernehmen.
+   ========================================================================= */
+
+var LETZTE_POS_MAX_H = 12;   // älter als das ist auf einer Baustelle wertlos
+
+function letztePositionMerken(p) {
+  try {
+    save(K_LETZTE_POS, {
+      lat: p.coords.latitude, lon: p.coords.longitude,
+      accuracy: p.coords.accuracy, ts: Date.now()
+    });
+  } catch (e) { /* voller Speicher darf die Ortung nicht stören */ }
+}
+
+function letztePosition() {
+  var l = load(K_LETZTE_POS, null);
+  if (!l || typeof l.lat !== 'number' || typeof l.lon !== 'number') return null;
+  var alterH = (Date.now() - (l.ts || 0)) / 3600000;
+  if (!(alterH >= 0) || alterH > LETZTE_POS_MAX_H) return null;
+  return l;
+}
+
+function letztePositionAnbieten() {
+  var box = $('letztePosBox'); if (!box) return;
+  var l = (!state.pos && !state.demo) ? letztePosition() : null;
+  if (!l) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML =
+    '<div class="statusline"><span class="dot warn"></span>' +
+    '<div class="cinfo"><div class="statustitle">Letzter bekannter Standort</div>' +
+    '<div class="statussub">Gemessen ' + esc(alterText(Math.round((Date.now() - l.ts) / 1000))) +
+    ' · ±' + Math.round(l.accuracy || 0) + ' m. Nur nehmen, wenn du dich seitdem nicht bewegt hast.</div></div></div>' +
+    '<div class="btnrow"><button class="btn blue sm" onclick="letztePositionNehmen()">Diesen Standort verwenden</button></div>';
+}
+
+function letztePositionNehmen() {
+  var l = letztePosition();
+  if (!l) { toast('Kein brauchbarer letzter Standort'); return; }
+  state.demo = false;
+  state.manuell = null;
+  state.alt = l.ts;                 // Merker: diese Position ist nicht frisch
+  state.pos = { lat: l.lat, lon: l.lon, accuracy: l.accuracy, ts: l.ts };
+  renderCoords();
+  setGeoState('ok');
+  diagnose('Letzter bekannter Standort übernommen (' + new Date(l.ts).toLocaleTimeString('de-DE') + ')');
+  toast('Letzter bekannter Standort übernommen');
+}
+
 function standpunktLoeschen() {
   state.manuell = null;
   state.pos = null;
@@ -1416,6 +1556,8 @@ function onPos(p) {
   if (!load(K_GEO_OK, false)) save(K_GEO_OK, true);   // beim nächsten Start automatisch
   if (state.demo) { state.demo = false; toast('Echter Standort gefunden'); }
   if (state.manuell) { state.manuell = null; toast('Echter Standort gefunden — Handeingabe aufgehoben'); }
+  letztePositionMerken(p);
+  state.alt = 0;
   // Beim Gehen liefert das GPS eine Bewegungsrichtung — die ersetzt den Kompass,
   // falls das Gerät keinen hat.
   if (p.coords.heading != null && !isNaN(p.coords.heading) && p.coords.speed > 0.7) {
@@ -1744,6 +1886,10 @@ function gpsZeile() {
   var schlecht = (acc != null && acc > 50);
   var alt = alterS > 120;
   var klasse = (schlecht || alt) ? 'gpszeile warn' : 'gpszeile';
+  if (state.alt) {
+    return '<div class="gpszeile warn">Letzter bekannter Standort · gemessen ' +
+      esc(alterText(Math.round((Date.now() - state.alt) / 1000))) + ' · nicht aktuell</div>';
+  }
   if (state.manuell) {
     return '<div class="gpszeile warn">Standpunkt von Hand gewählt: ' +
       esc(G.shortLabel(state.manuell)) + ' · nicht gemessen</div>';
@@ -1883,6 +2029,8 @@ function renderMessage() {
   $('msgBox').value = G.emergencyText(state.pos, n, {
     vorschau: state.demo,
     manuell: state.manuell ? G.shortLabel(state.manuell) : '',
+    veraltet: state.alt ? new Date(state.alt).toLocaleTimeString('de-DE',
+      { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : '',
     gemessen: (state.pos && !state.manuell) ? new Date(state.pos.ts).toLocaleTimeString('de-DE',
       { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' Uhr' : '',
     site: state.site || (state.paket ? state.paket.titel : ''),
@@ -2965,6 +3113,21 @@ function paketZuruecksetzen() {
     });
 }
 
+/* Handschuh-Modus: dreht nur an den Schriftgrößen-Variablen. Damit wächst
+   alles Wichtige mit, ohne dass das Raster zerbricht. */
+function grossUmschalten() {
+  var an = !document.body.classList.contains('gross');
+  grossSetzen(an);
+  save(K_GROSS, an);
+  toast(an ? 'Große Schrift an' : 'Große Schrift aus');
+}
+function grossSetzen(an) {
+  document.body.classList.toggle('gross', !!an);
+  var b = $('grossBtn');
+  if (b) { b.textContent = an ? 'An' : 'Aus'; b.setAttribute('aria-pressed', an ? 'true' : 'false');
+           b.classList.toggle('red', !!an); }
+}
+
 function toggleTheme() {
   document.body.classList.toggle('light');
   var light = document.body.classList.contains('light');
@@ -3130,6 +3293,7 @@ function updateNetz() {
 
 function boot() {
   if (load(K_THEME, 'dark') === 'light') document.body.classList.add('light');
+  grossSetzen(!!load(K_GROSS, false));
   state.points = load(K_POINTS, []) || [];
   state.paket = load(K_PAKET, null);
   state.admin = !!load(K_ADMIN, false);

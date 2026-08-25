@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "0.5.0",
+  "versionCode": 11,
+  "versionName": "0.6.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Neu: Wenn das Handy gar nicht orten will, kann man angeben, an welchem Mast man steht — die App rechnet dann von dort. Der Standort wird überall als „von Hand angegeben“ gekennzeichnet, auch in der Meldung an die Leitstelle. Außerdem bessere Anleitung, wenn der Browser selbst gesperrt ist."
+  "notes": "Neues, ruhigeres Erscheinungsbild. Neu: „Große Schrift“ für Handschuhe und Sonne (Info → Anzeige) und der letzte bekannte Standort, wenn die Ortung abreißt — immer deutlich als „nicht aktuell“ gekennzeichnet, auch in der Meldung an die Leitstelle."
 }
