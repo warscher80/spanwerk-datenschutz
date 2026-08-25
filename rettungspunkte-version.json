@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "0.9.1",
+  "versionCode": 18,
+  "versionName": "0.9.2",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Kompass in der installierten App behoben: Er wurde dort nie gestartet, weil der Aufruf hinter der Abzweigung zur nativen Ortung stand. Zusätzlich werden Android-Werte jetzt richtig ausgewertet, das Querformat ausgeglichen, und der Hinweis unter dem Pfeil sagt ehrlich, woran es liegt, wenn kein Kompass da ist."
+  "notes": "GPS genauer: Die App holt keine alten Positionen mehr aus dem Zwischenspeicher, hält beim Stillstehen die beste Messung statt der neuesten, und kehrt nach einer Zeitüberschreitung aus der groben Ortung wieder zur hohen Genauigkeit zurück. Die angezeigte Genauigkeit bleibt die vom Gerät gemeldete — geschönt wird nichts."
 }

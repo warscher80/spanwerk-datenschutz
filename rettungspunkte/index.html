@@ -934,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.1';
+var VERSION = '0.9.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1782,7 +1782,10 @@ function stopWatch() {
 function requestLocationNative(NG) {
   setGeoState('requesting');
   stopWatch();
-  var opts = { enableHighAccuracy: true, timeout: 25000, maximumAge: 10000 };
+  /* maximumAge 0: Bei hoher Genauigkeit soll das Gerät wirklich messen und
+     nicht eine bis zu zehn Sekunden alte Position aus dem Zwischenspeicher
+     zurückgeben — die ist im Gehen schon zweistellige Meter daneben. */
+  var opts = { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 };
 
   NG.checkPermissions().then(function (st) {
     if (st && (st.location === 'granted' || st.coarseLocation === 'granted')) return st;
@@ -2049,7 +2052,7 @@ function requestLocation() {
   // minutenlang nichts, mit der groben Ortung dagegen sofort.
   // Im Sparmodus grundsätzlich der sparsame Weg: gröber, dafür seltener Funk.
   var opts = (geoVersuch === 1 && !sparmodus)
-    ? { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+    ? { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     : { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 };
   geoAnfrageZeit = Date.now();
   diagnose('Ortung angefordert (Versuch ' + geoVersuch + ', hohe Genauigkeit: ' +
@@ -2059,6 +2062,7 @@ function requestLocation() {
      parallel — auf dem iPhone bricht der zweite Aufruf den offenen
      Freigabedialog ab: Man tippt „Erlauben" und nichts passiert. watchPosition
      allein liefert die erste Position genauso und aktualisiert danach weiter. */
+  letzteOptsGrob = !opts.enableHighAccuracy;
   state.watchId = navigator.geolocation.watchPosition(onPos, onGeoError, opts);
 
   /* Wachhund: Kommt weder Erfolg noch Fehler, bliebe die App ewig bei „Ich
@@ -2089,12 +2093,23 @@ function onPos(p) {
     state.gpsHeadingTs = Date.now();
   }
   var vorher = state.pos;
-  state.pos = {
+  var neu = {
     lat: p.coords.latitude,
     lon: p.coords.longitude,
     accuracy: p.coords.accuracy,
     ts: p.timestamp || Date.now()
   };
+
+  /* Nicht jede neue Messung ist die bessere. Das GPS springt beim Stillstehen:
+     Auf ±8 m folgt gern ±60 m. Wer die neueste Messung blind übernimmt, zeigt
+     dann eine schlechtere Position als vorher — und der Pfeil dreht sich, ohne
+     dass sich jemand bewegt hat.
+
+     Die schlechtere Messung wird deshalb verworfen — aber nur unter Bedingungen,
+     die ein echtes Weitergehen niemals verschlucken. */
+  if (!bessereMessung(vorher, neu)) return;
+  state.pos = neu;
+  hoheGenauigkeitPruefen(neu);
 
   /* Das GPS meldet ungefähr jede Sekunde — auch wenn man stillsteht. Die ganze
      Ansicht samt Meldungstext dafür neu aufzubauen, kostet Strom für nichts.
@@ -2107,6 +2122,55 @@ function onPos(p) {
   renderCoords();
   setGeoState('ok', accuracySub());
 }
+
+/* =========================================================================
+   Auswahl der besseren Messung
+
+   Angenommen wird die neue Messung, wenn eines zutrifft:
+   1. Es gibt noch keine — die erste zählt immer.
+   2. Sie ist genauer oder gleich genau.
+   3. Die bisherige ist älter als 15 Sekunden — nichts darf einfrieren.
+   4. Der Abstand ist größer als die bisherige Genauigkeit — dann ist jemand
+      wirklich gegangen, und die neue Position gilt, auch wenn sie unschärfer ist.
+   5. Sie ist nur wenig unschärfer (bis zum Anderthalbfachen) — sonst
+     „klebt" die Anzeige an einem alten Zufallstreffer.
+
+   Trifft nichts davon zu, ist die neue Messung schlicht schlechter, und die
+   bisherige bleibt stehen.
+   ========================================================================= */
+var FRISCH_MS = 15000;        // so lange darf eine Messung höchstens gelten
+var UNSCHAERFER_OK = 1.5;     // so viel schlechter darf eine Messung sein
+
+function bessereMessung(alt, neu) {
+  if (!alt) return true;
+  if (typeof neu.accuracy !== 'number' || typeof alt.accuracy !== 'number') return true;
+  if (neu.accuracy <= alt.accuracy) return true;
+  if ((neu.ts - alt.ts) > FRISCH_MS) return true;
+  var weg = G.distance(alt.lat, alt.lon, neu.lat, neu.lon);
+  if (weg > alt.accuracy) return true;
+  if (neu.accuracy <= alt.accuracy * UNSCHAERFER_OK) return true;
+  verworfeneMessungen++;
+  return false;
+}
+var verworfeneMessungen = 0;
+
+/* Nach einer Zeitüberschreitung schaltet die App auf die grobe Ortung um —
+   sonst liefern manche iPhones minutenlang gar nichts. Bisher blieb sie dann
+   für immer grob, auch draußen mit freier Sicht. Kommt eine grobe Messung mit
+   schlechter Genauigkeit an, wird EINMAL auf hohe Genauigkeit zurückgestellt. */
+var zurueckAufHoch = false;
+function hoheGenauigkeitPruefen(neu) {
+  if (zurueckAufHoch || sparmodus || state.watchNative) return;
+  if (!state.watchId || !letzteOptsGrob) return;
+  if (typeof neu.accuracy !== 'number' || neu.accuracy <= 30) return;
+  zurueckAufHoch = true;
+  diagnose('Grobe Ortung lieferte ±' + Math.round(neu.accuracy) +
+           ' m — einmal zurück auf hohe Genauigkeit');
+  stopWatch();
+  geoVersuch = 0;
+  requestLocation();
+}
+var letzteOptsGrob = false;
 
 var posZuletztGezeichnet = 0;
 function brauchtNeuzeichnung(alt, neu) {
@@ -2252,7 +2316,11 @@ function diagnoseText() {
   if (state.letzterFehler) {
     z.push('Letzter Fehler: ' + state.letzterFehler.code + ' — ' + state.letzterFehler.message);
   }
-  if (state.pos) z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m');
+  if (state.pos) {
+    z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m' +
+           (letzteOptsGrob ? ' (grobe Ortung)' : ' (hohe Genauigkeit)'));
+    z.push('Verworfene schlechtere Messungen: ' + verworfeneMessungen);
+  }
   z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv') +
          ' · abonniert: ' + (compassAttached ? 'ja' : 'NEIN') +
          ' · Meldungen: ' + kompassMeldungen + ' · brauchbar: ' + kompassBrauchbar +
