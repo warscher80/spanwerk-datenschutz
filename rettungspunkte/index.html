@@ -215,6 +215,10 @@
     border-radius:6px;vertical-align:middle;text-transform:uppercase;letter-spacing:.4px}
   .badge.grey{background:var(--muted2)}
   .fineprint{color:var(--muted2);font-size:11.5px;line-height:1.5}
+  .diaglog{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.5;
+    white-space:pre-wrap;word-break:break-word;background:var(--card2);border:1px solid var(--line);
+    border-radius:10px;padding:10px;margin:10px 0 0;max-height:260px;overflow:auto;
+    -webkit-user-select:text;user-select:text;color:var(--txt)}
   /* Nur für Screenreader: Struktur ohne sichtbare Änderung */
   .nurvorleser{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
     clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -635,6 +639,19 @@
         Kein Konto, kein Tracking, keine Werbung.
       </div>
     </div>
+    <details class="det" id="diagDet">
+      <summary>Standort-Diagnose (bei Problemen)</summary>
+      <div class="detbody">
+        <div class="hint">Wenn der Standort auf einem Handy nicht funktioniert: hier auf
+          <b>Kopieren</b> tippen und den Text schicken. Daraus lässt sich sehen, woran es liegt.</div>
+        <pre id="diagLog" class="diaglog">(wird beim Öffnen gefüllt)</pre>
+        <div class="btnrow">
+          <button class="btn sm" onclick="copyText(diagnoseText(),'Diagnose kopiert')">Kopieren</button>
+          <button class="btn sm ghost" onclick="requestLocation()">Standort neu starten</button>
+        </div>
+      </div>
+    </details>
+
     <div class="card">
       <h3>Wichtiger Hinweis</h3>
       <div class="hint" style="font-size:13px;color:var(--warn)">
@@ -708,12 +725,13 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.2.0';
+var VERSION = '0.2.1';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
     K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_PAKET = 'spie_paket',
-    K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin';
+    K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin',
+    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt';
 
 var P = window.SpiePruefung;
 
@@ -1078,6 +1096,9 @@ function demoStop() {
   requestLocation();
 }
 
+var geoWachhund = null;
+var geoVersuch = 0;
+
 function requestLocation() {
   var NG = nativeGeo();
   if (NG) { requestLocationNative(NG); return; }
@@ -1087,15 +1108,41 @@ function requestLocation() {
   setGeoState('requesting');
   stopWatch();
 
-  var opts = { enableHighAccuracy: true, timeout: 25000, maximumAge: 10000 };
+  geoVersuch++;
+  // Beim zweiten Versuch ohne „hohe Genauigkeit": Manche iPhones liefern damit
+  // minutenlang nichts, mit der groben Ortung dagegen sofort.
+  var opts = (geoVersuch === 1)
+    ? { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+    : { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 };
+  diagnose('Ortung angefordert (Versuch ' + geoVersuch + ', hohe Genauigkeit: ' +
+           opts.enableHighAccuracy + ')');
+
   // Erst ein schneller Einzelabruf (auch grobe Position hilft sofort),
   // danach dauerhaft beobachten, damit die Anzeige mitläuft.
   navigator.geolocation.getCurrentPosition(onPos, onGeoError, opts);
   state.watchId = navigator.geolocation.watchPosition(onPos, onGeoError, opts);
   startCompass();
+
+  /* Wachhund: Wenn weder Erfolg noch Fehler kommt — auf iPhones passiert das,
+     wenn ein Systemdialog dazwischenfunkt —, bliebe die App ewig bei „Ich suche
+     dich". Nach 8 Sekunden wird einmal anders angesetzt, nach 16 Sekunden
+     bekommt der Nutzer eine klare Ansage statt einer Endlosanzeige. */
+  clearTimeout(geoWachhund);
+  geoWachhund = setTimeout(function () {
+    if (state.pos || state.geo !== 'requesting') return;
+    diagnose('Keine Antwort nach 8 s');
+    if (geoVersuch < 2) { stopWatch(); requestLocation(); return; }
+    geoWachhund = setTimeout(function () {
+      if (state.pos || state.geo !== 'requesting') return;
+      diagnose('Keine Antwort nach 25 s — Nutzerhinweis');
+      setGeoState('timeout', 'Das Handy meldet keinen Standort zurück. Bitte nochmal versuchen.');
+    }, 8000);
+  }, 8000);
 }
 
 function onPos(p) {
+  clearTimeout(geoWachhund);
+  geoVersuch = 0;
   if (state.demo) { state.demo = false; toast('Echter Standort gefunden'); }
   // Beim Gehen liefert das GPS eine Bewegungsrichtung — die ersetzt den Kompass,
   // falls das Gerät keinen hat.
@@ -1125,6 +1172,8 @@ function accuracySub() {
 }
 
 function onGeoError(err) {
+  diagnose('Ortungsfehler ' + (err && err.code) + ': ' + (err && err.message || ''));
+  if (err && err.code === 1) clearTimeout(geoWachhund);
   // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
   if (err && err.code === 1) setGeoState('denied');
   else if (err && err.code === 3) setGeoState(state.pos ? 'ok' : 'timeout', state.pos ? accuracySub() : '');
@@ -1137,18 +1186,62 @@ function initLocation() {
   if (nativeGeo()) { requestLocation(); return; }
   if (!navigator.geolocation) { setGeoState('unsupported'); return; }
   if (window.isSecureContext === false && !isNative()) { setGeoState('insecure'); return; }
-  if (navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: 'geolocation' }).then(function (res) {
-      if (res.state === 'denied') { setGeoState('denied'); return; }
-      requestLocation();
-      res.onchange = function () {
-        if (res.state === 'granted') requestLocation();
-        else if (res.state === 'denied') setGeoState('denied');
-      };
-    }).catch(function () { requestLocation(); });
-  } else {
-    requestLocation();
+
+  // Safari wirft bei permissions.query({name:'geolocation'}) je nach Version
+  // SOFORT einen Fehler — nicht als abgelehntes Versprechen. Ohne try/catch
+  // wäre die Ortung dann nie gestartet und es würde nichts passieren.
+  var gestartet = false;
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      var versprechen = navigator.permissions.query({ name: 'geolocation' });
+      if (versprechen && versprechen.then) {
+        gestartet = true;
+        versprechen.then(function (res) {
+          diagnose('Freigabe-Zustand: ' + res.state);
+          if (res.state === 'denied') { setGeoState('denied'); return; }
+          requestLocation();
+          res.onchange = function () {
+            diagnose('Freigabe geändert: ' + res.state);
+            if (res.state === 'granted') requestLocation();
+            else if (res.state === 'denied') setGeoState('denied');
+          };
+        }).catch(function () { requestLocation(); });
+      }
+    }
+  } catch (e) {
+    diagnose('permissions.query nicht nutzbar: ' + (e && e.message || e));
+    gestartet = false;
   }
+  if (!gestartet) requestLocation();
+}
+
+/* Kurzprotokoll für die Fehlersuche auf fremden Geräten. Steht im Reiter
+   „Info" und lässt sich weitergeben — ohne das rate ich bei iPhone-Problemen
+   nur herum. */
+var diagnoseLog = [];
+function diagnose(text) {
+  var zeit = new Date().toLocaleTimeString('de-DE');
+  diagnoseLog.push(zeit + '  ' + text);
+  if (diagnoseLog.length > 25) diagnoseLog.shift();
+  var box = $('diagLog');
+  if (box) box.textContent = diagnoseText();
+}
+
+function diagnoseText() {
+  var z = [];
+  z.push('App-Version: ' + VERSION);
+  z.push('Gerät: ' + platform() + (isNative() ? ' (installierte App)' : ' (Browser)'));
+  z.push('Adresse: ' + location.href);
+  z.push('Sicherer Kontext: ' + (window.isSecureContext ? 'ja' : 'NEIN'));
+  z.push('Ortung im Browser: ' + (navigator.geolocation ? 'vorhanden' : 'FEHLT'));
+  z.push('Standort-Zustand: ' + state.geo + (state.pos ? ' · Fix vorhanden' : ' · kein Fix'));
+  if (state.pos) z.push('Genauigkeit: ±' + Math.round(state.pos.accuracy) + ' m');
+  z.push('Kompass: ' + (state.heading != null ? 'aktiv' : 'nicht aktiv'));
+  z.push('Offline-Zustand: ' + state.offline);
+  z.push('Punkte: ' + state.points.length);
+  z.push('');
+  z.push(diagnoseLog.join('\n') || '(keine Meldungen)');
+  return z.join('\n');
 }
 
 function renderCoords() {
@@ -2440,35 +2533,39 @@ function keepAwake() {
    die App braucht deshalb auch keine Ausnahme von der Akku-Optimierung. */
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'visible') {
+    clearTimeout(hintergrundTimer);
     keepAwake();
     if (state.pausiert) { state.pausiert = false; requestLocation(); }
   } else {
-    if (state.watchId != null) { stopWatch(); state.pausiert = true; }
-    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    // Nicht sofort abschalten: Auf dem iPhone gilt die Seite auch während
+    // eines Systemdialogs kurz als versteckt. Erst nach 30 Sekunden im
+    // Hintergrund wird die Ortung wirklich angehalten.
+    clearTimeout(hintergrundTimer);
+    hintergrundTimer = setTimeout(function () {
+      if (document.visibilityState === 'visible') return;
+      if (state.watchId != null) { stopWatch(); state.pausiert = true; diagnose('Ortung pausiert (Hintergrund)'); }
+      if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    }, 30000);
   }
 });
+var hintergrundTimer = null;
 
+/* Auf dem iPhone verlangt Apple für den Kompass eine eigene Freigabe
+   (DeviceOrientationEvent.requestPermission). Diese Abfrage öffnet einen
+   Systemdialog — und wenn der gleichzeitig mit der Standortabfrage kommt,
+   verschluckt iOS die Standortfreigabe: Man tippt „Erlauben" und es passiert
+   nichts. Deshalb wird der Kompass NIE von allein abgefragt, sondern nur,
+   wenn jemand ausdrücklich darauf tippt. */
 function armCompassOnFirstTouch() {
-  if (typeof DeviceOrientationEvent === 'undefined' ||
-      typeof DeviceOrientationEvent.requestPermission !== 'function') { keepAwake(); return; }
+  // Nur den Bildschirm wachhalten — ohne Systemdialog.
   var once = function () {
     document.removeEventListener('touchend', once, true);
     document.removeEventListener('click', once, true);
-    askCompass(true);
     keepAwake();
   };
   document.addEventListener('touchend', once, true);
   document.addEventListener('click', once, true);
 }
-
-// Ohne Mobilfunk bleibt die App voll brauchbar — das soll man auch sehen.
-function updateNetz() {
-  var el = $('netzStrip'); if (!el) return;
-  var offline = (navigator.onLine === false);
-  el.style.display = offline ? 'block' : 'none';
-}
-window.addEventListener('online', updateNetz);
-window.addEventListener('offline', updateNetz);
 
 /* Offline-Bereitschaft. Der Satz „funktioniert offline" darf erst erscheinen,
    wenn der Service Worker aktiv ist und alle Pflichtdateien gespeichert sind.
@@ -2559,6 +2656,13 @@ function detailsBeschriften() {
   }
 }
 
+// Ohne Mobilfunk bleibt die App voll brauchbar — das soll man auch sehen.
+function updateNetz() {
+  var el = $('netzStrip'); if (!el) return;
+  var offline = (navigator.onLine === false);
+  el.style.display = offline ? 'block' : 'none';
+}
+
 function boot() {
   if (load(K_THEME, 'dark') === 'light') document.body.classList.add('light');
   state.points = load(K_POINTS, []) || [];
@@ -2568,9 +2672,13 @@ function boot() {
   if (!state.points.length) loadPaket();
   // Bestehende Installation: geprüfte Daten nachziehen, eigene Punkte behalten.
   state.migration = migriere() || load(K_MIGRATION, null);
-  if (!state.contacts.length) loadNotruf();
   state.contacts = load(K_CONTACTS, []) || [];
   state.site = load(K_SITE, '') || '';
+  // Notrufnummern nur beim allerersten Start übernehmen — wer sie bewusst
+  // gelöscht hat, soll sie nicht bei jedem Start wiederbekommen.
+  if (!state.contacts.length && !load(K_NOTRUF_GESETZT, false)) {
+    if (loadNotruf()) save(K_NOTRUF_GESETZT, true);
+  }
   // Ältere Datensätze ohne uid nachrüsten
   state.points.forEach(function (p) { if (!p.uid) p.uid = uid(); });
   state.contacts.forEach(function (c) { if (!c.uid) c.uid = uid(); });

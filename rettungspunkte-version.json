@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "0.2.0",
-  "apkUrl": "https://github.com/warscher80/spanwerk-datenschutz/raw/main/Rettungspunkte.apk",
-  "notes": "Geprüfte Baustellendaten, Offline-Betrieb, Lageplan, Notrufnummern vom Aushang."
+  "versionCode": 3,
+  "versionName": "0.2.1",
+  "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
+  "notes": "Behebt: Standortfreigabe wurde auf dem iPhone verschluckt. Dazu Wachhund gegen Endlossuche und Standort-Diagnose im Info-Reiter."
 }
