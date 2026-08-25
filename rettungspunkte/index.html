@@ -593,6 +593,11 @@
             <button class="copy" onclick="copyText(document.getElementById('cUtm').textContent,'Kopiert')">Kopieren</button>
           </div>
         </div>
+        <div class="hint">Alle drei Zeilen sind derselbe Punkt, nur anders geschrieben.
+          Deine Position kommt vom GPS und ist auf die oben angezeigten Meter genau —
+          die Koordinaten der Rettungspunkte stammen aus der Baustellenkarte und können
+          <b>ein Stück daneben liegen</b>. Am Ziel nach der Markierung schauen, nicht auf
+          die letzte Nachkommastelle.</div>
       </div>
     </details>
 
@@ -809,11 +814,22 @@
         auch ohne Netz.</div>
     </div>
     <div class="card">
-      <h3>Standort-Genauigkeit</h3>
+      <h3>Wie genau sind die Koordinaten?</h3>
       <div class="hint" style="font-size:13px">
-        Die Anzeige zeigt die vom Gerät gemeldete Genauigkeit (z. B. ±8 m). Werte über 50 m bedeuten meist,
-        dass nur Mobilfunk/WLAN geortet wurde — dann kurz warten, bis GPS greift, oder ins Freie gehen.
-        Unter Bäumen, in Trafo-Häusern und zwischen Masten dauert der GPS-Fix länger.
+        <b>Dein eigener Standort</b> kommt vom GPS. Die App zeigt die vom Gerät gemeldete
+        Genauigkeit (z. B. ±8 m). Werte über 50 m bedeuten meist, dass nur Mobilfunk/WLAN
+        geortet wurde — dann kurz warten, bis GPS greift, oder ins Freie gehen. Unter Bäumen,
+        in Trafo-Häusern und zwischen Masten dauert der GPS-Fix länger.
+      </div>
+      <div class="warnbox" style="margin-top:9px">
+        <b>Die Rettungspunkte und Masten</b> kommen aus der Baustellenkarte. Diese Punkte wurden
+        von Hand auf einer Karte gesetzt — sie können <b>einige Meter neben der Wirklichkeit</b>
+        liegen, einzelne auch mehr. Die App rechnet mit den Zahlen, die in der Karte stehen;
+        sie kann nicht wissen, wie genau sie gesetzt wurden.
+        <br><br>
+        Deshalb im Notfall: <b>Der Name zählt, nicht der Meter.</b> „Rettungspunkt 4" ist die
+        Angabe, mit der die Leitstelle arbeitet. Die Entfernung und der Pfeil bringen dich
+        hin — die letzten Meter macht das Auge.
       </div>
     </div>
     <div class="card">
@@ -910,7 +926,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.8.0';
+var VERSION = '0.8.1';
 var G = window.SpieGeo;
 
 /* =========================================================================

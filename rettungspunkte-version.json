@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "0.8.0",
+  "versionCode": 15,
+  "versionName": "0.8.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Neu: mehrere Baustellen. Jede hat eigene Punkte und eigene Nummern, getrennt gespeichert — ein Rettungspunkt der einen Baustelle kann nie in der anderen auftauchen. Umschalten über den Baustellennamen oben, verwalten unter Info → Baustellen. Die vorhandene Baustelle wird automatisch zur Baustelle 1."
+  "notes": "Die App sagt jetzt deutlich, dass die Koordinaten der Rettungspunkte aus der Baustellenkarte stammen und ein Stück daneben liegen können — bei den Koordinaten, in der Meldung an die Leitstelle und unter Info. Merksatz: Der Name zählt, nicht der Meter."
 }

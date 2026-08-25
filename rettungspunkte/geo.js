@@ -577,6 +577,10 @@ var SpieGeo = (function () {
         L.push('  Entfernung:  ' + formatDistance(point.dist) + ' Richtung ' + compass(point.bearing) + ' von uns');
       }
       if (point.note) L.push('  Hinweis:     ' + point.note);
+      /* Die Leitstelle fährt diese Koordinaten an. Sie soll wissen, dass sie aus
+         einer Karte stammen und nicht eingemessen sind — am Ziel zählt die
+         Markierung vor Ort, nicht die letzte Nachkommastelle. */
+      L.push('  Herkunft:    aus der Baustellenkarte, geringe Abweichung möglich');
       if (point.verified === false) L.push('  ACHTUNG: Dieser Punkt ist UNGEPRÜFT — vor Ort bestätigen!');
     } else {
       L.push('');
