@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "0.6.0",
+  "versionCode": 12,
+  "versionName": "0.6.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Neues, ruhigeres Erscheinungsbild. Neu: „Große Schrift“ für Handschuhe und Sonne (Info → Anzeige) und der letzte bekannte Standort, wenn die Ortung abreißt — immer deutlich als „nicht aktuell“ gekennzeichnet, auch in der Meldung an die Leitstelle."
+  "notes": "Die Standort-Meldung sagt jetzt nicht mehr „in Safari öffnen“, wenn Safari bereits läuft. Steht die Ursache nicht fest, nennt die App beide möglichen Schalter (Website-Freigabe über „Aa“ und Ortungsdienste), statt eine Ursache zu behaupten. Der erkannte Browser steht sichtbar in der Meldung."
 }

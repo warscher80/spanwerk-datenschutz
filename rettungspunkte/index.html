@@ -874,7 +874,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.6.0';
+var VERSION = '0.6.1';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -1108,13 +1108,75 @@ var GEO_TEXT = {
   timeout:     { title: 'GPS sucht noch',         sub: 'Geh nach draußen und warte kurz.',                 btn: 'Nochmal versuchen' },
   unsupported: { title: 'Geht auf diesem Gerät nicht', sub: 'Das Gerät kann den Standort nicht finden.',   btn: 'Nochmal versuchen' },
   insecure:    { title: 'Standort blockiert',     sub: 'Der Standort geht nur über eine sichere Adresse (https).', btn: 'Nochmal versuchen' },
-  inapp:       { title: 'Bitte in Safari öffnen',  sub: 'Das Handy erlaubt DIESEM Browser das Orten nicht. An der Seite liegt es nicht.', btn: 'Nochmal versuchen' }
+  inapp:       { title: 'Ortung ist gesperrt',     sub: 'Das Handy hat sofort abgesagt, ohne zu fragen.', btn: 'Nochmal versuchen' }
 };
+
+/* Wie sicher ist die Diagnose „der Browser darf nicht orten"?
+
+   Sicher ist sie nur, wenn der Browser die Seite selbst als freigegeben meldet,
+   oder wenn ein fremder Browser bzw. ein eingebauter Browser läuft — dort gibt
+   es die App-Freigabe in den iOS-Einstellungen.
+
+   In Safari kennt die Permissions-API den Standort je nach iOS-Version gar
+   nicht. Dann ist der Freigabe-Zustand unbekannt, und eine sofortige Absage
+   kann ZWEI Ursachen haben: der Hauptschalter Ortungsdienste ist aus — oder
+   die Frage wurde früher einmal abgelehnt und Safari merkt sich das. Beides
+   ist gleich plausibel, also behauptet die App keins von beiden. */
+function sperrGrund() {
+  var b = browserApp();
+  if (b.key !== 'safari') return 'browser';          // fremder oder eingebauter Browser
+  if (state.freigabe === 'granted') return 'browser';// Widerspruch: Seite frei, Ortung nein
+  return 'unklar';
+}
+
+function inappText() {
+  var b = browserApp();
+  if (sperrGrund() === 'unklar') {
+    return { title: 'Ortung ist gesperrt',
+             sub: 'Das Handy hat sofort abgesagt, ohne zu fragen. Zwei Schalter kommen infrage.',
+             btn: 'Nochmal versuchen' };
+  }
+  /* Beim Namen nennen nur, wenn er sicher ist. Der eingebaute Browser von
+     WhatsApp & Co. trägt Safaris Kennung — ihn „Safari" zu nennen, würde in
+     die Irre führen: In echtem Safari kann dieser Widerspruch gar nicht
+     auftreten. */
+  var sicherBenannt = (b.key !== 'safari' && b.key !== 'eingebaut' && b.name);
+  return { title: 'Bitte in Safari öffnen',
+           sub: (sicherBenannt ? b.name + ' darf' : 'Dieser Browser darf') +
+                ' am Handy nicht orten. An der Seite liegt es nicht.',
+           btn: 'Nochmal versuchen' };
+}
 
 function howtoHtml(kind) {
   var p = platform();
   if (kind === 'inapp') {
     var b = browserApp();
+
+    /* Safari selbst, Freigabe-Zustand unbekannt: Die App kann die Ursache
+       nicht bestimmen und tut auch nicht so. Sie nennt beide, in der
+       Reihenfolge, in der man sie am schnellsten prüft. */
+    if (sperrGrund() === 'unklar') {
+      return '<b>Das Handy hat sofort abgesagt — ohne zu fragen</b>' +
+        '<div class="warnbox" style="margin:8px 0">Dafür gibt es zwei Gründe, und ' +
+        'die App kann von hier aus nicht unterscheiden, welcher es ist. Bitte beide ' +
+        'der Reihe nach prüfen — es dauert keine Minute.</div>' +
+        '<b>1. Diese Seite wurde einmal abgelehnt</b>' +
+        '<div class="hint">Safari fragt danach <b>nie wieder</b> von selbst.</div>' +
+        '<ol><li>In der Adressleiste auf <b>„Aa"</b> tippen</li>' +
+        '<li><b>Website-Einstellungen</b> → <b>Standort</b> → <b>Erlauben</b></li>' +
+        '<li>Seite neu laden</li></ol>' +
+        '<b style="display:block;margin-top:10px">2. Der Hauptschalter fürs ganze Handy</b>' +
+        '<ol><li><b>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</b> — ' +
+        'der oberste Schalter muss <b>grün</b> sein</li>' +
+        '<li>In derselben Liste weiter unten: <b>Safari</b> → <b>Beim Verwenden der App</b></li>' +
+        '<li>Steht der Schalter grau und lässt sich nicht bewegen: ' +
+        '<b>Einstellungen → Bildschirmzeit → Datenschutz</b> erlaubt Änderungen wieder</li></ol>' +
+        '<div class="warnbox" style="margin:10px 0 0">Hilft beides nicht: oben auf ' +
+        '<b>„Ortung geht nicht — ich stehe bei einem Mast"</b> tippen. Dann rechnet die ' +
+        'App von diesem Mast aus — ganz ohne GPS.</div>' +
+        '<div class="hint">Für die Fehlersuche: <b>Diagnose kopieren</b> und schicken. ' +
+        'Erkannt wurde <b>' + esc(b.name || 'ein eingebauter Browser') + '</b>.</div>';
+    }
 
     // Ein bekannter Browser mit eigenem Eintrag in den iOS-Einstellungen.
     if (b.key === 'chrome' || b.key === 'firefox' || b.key === 'edge' ||
@@ -1214,7 +1276,7 @@ function howtoHtml(kind) {
 
 function setGeoState(kind, extraSub) {
   state.geo = kind;
-  var t = GEO_TEXT[kind] || GEO_TEXT.init;
+  var t = (kind === 'inapp') ? inappText() : (GEO_TEXT[kind] || GEO_TEXT.init);
   var ok = (kind === 'ok');
 
   // In der Vorschau ist die Frage „wo bin ich?" beantwortet — nur eben mit
@@ -1271,15 +1333,20 @@ function setGeoState(kind, extraSub) {
     $('geoTitle').textContent = t.title;
     var rohText = '';
     if (state.letzterFehler && kind !== 'requesting') {
-      // Bei „inapp" hat niemand etwas abgelehnt — das Handy hat den Browser
-      // gesperrt. Derselbe Fehlercode, ein anderer Sachverhalt.
+      /* Bei „inapp" hat niemand etwas abgelehnt. Steht die Ursache fest, wird
+         sie genannt; ist sie offen, beschreibt das Wort nur, WAS passiert ist. */
       var FEHLERWORT = (kind === 'inapp')
-        ? { 1: 'Browser gesperrt' }
+        ? { 1: (sperrGrund() === 'browser' ? 'Browser gesperrt' : 'sofort abgesagt, ohne zu fragen') }
         : { 1: 'abgelehnt', 2: 'nicht verfügbar', 3: 'Zeitüberschreitung' };
       rohText = ' · Handy meldet: Fehler ' + state.letzterFehler.code +
                 ' (' + (FEHLERWORT[state.letzterFehler.code] || 'unbekannt') + ')';
     }
-    $('geoSub').textContent = (extraSub || t.sub) + rohText;
+    var browserZeile = '';
+    if ((kind === 'inapp' || kind === 'denied') && !isNative()) {
+      var ba = browserApp();
+      browserZeile = ' · Browser: ' + (ba.name || 'eingebauter Browser');
+    }
+    $('geoSub').textContent = (extraSub || t.sub) + rohText + browserZeile;
     $('geoBtn').textContent = t.btn;
     var html = howtoHtml(kind);
     $('geoHowto').innerHTML = html;
