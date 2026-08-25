@@ -268,6 +268,12 @@
   .grid2{display:flex;gap:8px}
   .grid2 .field{flex:1}
   .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  /* Bewusste Bestätigung: gross genug zum Treffen, deutlich genug zum Lesen. */
+  .bestaetig{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;padding:11px 12px;
+    border:1px solid var(--line);border-left:3px solid var(--spie-red);border-radius:var(--r);
+    background:var(--card2);font-size:14px;font-weight:700;line-height:1.4;cursor:pointer;
+    text-transform:none;letter-spacing:0;color:var(--txt)}
+  .bestaetig input{width:22px;height:22px;min-width:22px;margin:0;accent-color:var(--spie-red);flex:0 0 auto}
 
   /* ---- Kontakte ---- */
   .contact{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line)}
@@ -608,10 +614,10 @@
         <div class="btnrow" id="msgBtns">
           <button class="btn" onclick="copyMsg()">Meldung kopieren</button>
         </div>
-        <div class="howto" style="margin-top:11px">
+        <div class="howto" style="margin-top:11px" id="sagenBox">
           <b>So sagst du es</b>
           <ol>
-            <li><b>Wo?</b> Sag den Namen vom Rettungspunkt und lies die Zahlen vor.</li>
+            <li id="sagenWo"><b>Wo?</b> Sag den Namen vom Rettungspunkt und lies die Zahlen vor.</li>
             <li><b>Was ist passiert?</b></li>
             <li><b>Wie viele</b> Verletzte?</li>
             <li><b>Was fehlt ihnen?</b></li>
@@ -910,6 +916,8 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- Für Vorleseprogramme: der aktuelle Standort-Zustand, immer genau einer. -->
+<div class="nurvorleser" id="standStatus" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <div class="ov" id="ov" onclick="if(event.target===this)closeOv()">
   <div class="ovbox" id="ovBox"></div>
@@ -926,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.8.1';
+var VERSION = '0.9.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1027,16 +1035,49 @@ function platform() {
    nichts ändern. Deshalb muss die Anleitung den richtigen Namen nennen. */
 function browserApp() {
   var ua = navigator.userAgent || '';
-  if (/CriOS\//.test(ua))  return { key: 'chrome',  name: 'Chrome' };
-  if (/FxiOS\//.test(ua))  return { key: 'firefox', name: 'Firefox' };
-  if (/EdgiOS\//.test(ua)) return { key: 'edge',    name: 'Edge' };
-  if (/OPT\//.test(ua))    return { key: 'opera',   name: 'Opera' };
-  if (/GSA\//.test(ua))    return { key: 'google',  name: 'Google-App' };
-  if (/FBAN|FBAV|Instagram/i.test(ua)) return { key: 'meta', name: 'Facebook/Instagram' };
-  // Safari trägt immer „Version/xx" im Kennzeichen. Fehlt das am iPhone, läuft
-  // die Seite im eingebauten Browser einer anderen App.
-  if (platform() === 'ios' && !/Version\//.test(ua)) return { key: 'eingebaut', name: '' };
-  return { key: 'safari', name: 'Safari' };
+  function b(key, name, anzeige) {
+    return { key: key, name: name || '', anzeige: anzeige || name || key };
+  }
+
+  /* Reihenfolge ist entscheidend: Fast jeder Browser gibt sich zusätzlich als
+     etwas anderes aus. Chrome trägt „Safari" im Kennzeichen, Edge trägt
+     „Chrome", der eingebaute Browser trägt beides. Deshalb vom Speziellen zum
+     Allgemeinen prüfen — und Safari ganz zuletzt, nur mit echten Merkmalen. */
+
+  // 1. Eingebaute Browser fremder Apps
+  if (/FBAN|FBAV|FB_IAB/.test(ua))        return b('meta', 'Facebook', 'Facebook (eingebauter Browser)');
+  if (/Instagram/i.test(ua))              return b('meta', 'Instagram', 'Instagram (eingebauter Browser)');
+  if (/\bGSA\//.test(ua))                 return b('google', 'Google-App', 'Google-App (eingebauter Browser)');
+
+  // 2. Browser am iPhone/iPad — alle auf WebKit, aber mit eigener Kennung
+  if (/CriOS\//.test(ua))                 return b('chrome', 'Chrome', 'Chrome (iPhone)');
+  if (/FxiOS\//.test(ua))                 return b('firefox', 'Firefox', 'Firefox (iPhone)');
+  if (/EdgiOS\//.test(ua))                return b('edge', 'Edge', 'Edge (iPhone)');
+  if (/OPT\//.test(ua))                   return b('opera', 'Opera', 'Opera (iPhone)');
+
+  // 3. Android und Rechner
+  if (/SamsungBrowser\//.test(ua))        return b('samsung', 'Samsung Internet');
+  if (/\bOPR\//.test(ua) || /\bOpera\//.test(ua)) return b('opera', 'Opera');
+  if (/\bEdgA\//.test(ua))                return b('edge', 'Edge', 'Edge (Android)');
+  if (/\bEdg\//.test(ua))                 return b('edge', 'Edge', 'Edge (Rechner)');
+  if (/FxiOS|Firefox\//.test(ua))         return b('firefox', 'Firefox');
+  // Android-WebView: „wv" im Klammerteil oder das alte „Version/x Chrome/y"
+  if (/[;(]\s*wv[;)]/.test(ua) || /\bwv\b/.test(ua) ||
+      /Version\/[\d.]+ Chrome\//.test(ua)) return b('webview', '', 'Android-WebView (App-Browser)');
+  if (/Chrome\/|Chromium\//.test(ua))     return b('chrome', 'Chrome');
+
+  /* 4. Safari — nur mit echten Merkmalen: „Version/x" UND „Safari/x", und
+        keiner der Chromium-Marker. Vorher landete hier alles Unerkannte,
+        weshalb Chrome fälschlich als Safari angezeigt wurde. */
+  if (/Version\/[\d.]+/.test(ua) && /Safari\//.test(ua) &&
+      !/Chrome|Chromium|CriOS|Edg|OPR|OPT|SamsungBrowser/.test(ua)) return b('safari', 'Safari');
+
+  // 5. iPhone ohne „Version/" = eingebauter Browser irgendeiner App
+  if (/iPhone|iPad|iPod/.test(ua) && !/Version\//.test(ua))
+    return b('eingebaut', '', 'eingebauter Browser einer App');
+
+  // 6. Keine sichere Aussage — dann sagt die App das auch.
+  return b('unbekannt', '', 'nicht eindeutig erkannt');
 }
 function nowText() {
   return new Date().toLocaleString('de-DE',
@@ -1047,8 +1088,11 @@ function nowText() {
 // 'rp' Rettungspunkt · 'mast' Mast · 'klinik' Arzt/Krankenhaus · 'lager' Baulager
 /* Beschriftungen der Kategorien. „Gültige Masten" statt „Masten": Gezählt
    werden nur Einträge, die auch als Mast verwendet werden dürfen. */
+/* Art-Bezeichnungen für einzelne Einträge. Bewusst OHNE „gültig": Ein wegen
+   Widersprüchen gesperrter Datensatz hat auch eine Mastnummer, ist aber kein
+   gültiger Mast. Ob etwas gilt, sagt allein verified !== false. */
 var KIND_LABEL = {
-  rp: 'Rettungspunkte', mast: 'Gültige Masten', klinik: 'Ärzte & Kliniken',
+  rp: 'Rettungspunkte', mast: 'Masten', klinik: 'Ärzte & Kliniken',
   lager: 'Baulager', unknown: 'Ohne Zuordnung', sonstiges: 'Sonstige'
 };
 var FILTER_UNGEPRUEFT = 'ungeprueft';
@@ -1057,6 +1101,57 @@ function kindOf(p) { return p.kind || 'rp'; }
 // Nur geprüfte Punkte dürfen in Notfallberechnungen und in die Meldung.
 // Selbst angelegte Punkte gelten als geprüft — der Nutzer hat sie eingetragen.
 function istGeprueft(p) { return p.verified !== false; }
+
+/* =========================================================================
+   Zählung — die EINZIGE Quelle für alle Zahlen in der App
+
+   Vorher zählte die Übersicht unter „Info" alle Datensätze nach Art, die
+   Filterleiste unter „Punkte" nur die geprüften. Ergebnis: 75 Masten hier,
+   72 dort. Beides war für sich richtig gerechnet und zusammen falsch.
+
+   „Gültig" heißt ab jetzt ausschließlich: verified !== false. Ein Datensatz
+   mit Mastnummer, der wegen widersprüchlicher Daten gesperrt ist, ist KEIN
+   gültiger Mast — er ist ein gesperrter.
+
+   Jeder ungeprüfte Datensatz landet in genau einer Gruppe. Die Reihenfolge
+   der Prüfungen entscheidet, und der Auffangtopf „sonstige" sorgt dafür, dass
+   die Summe der Gruppen immer der Gesamtzahl entspricht — auch bei Daten, die
+   es heute noch nicht gibt.
+   ========================================================================= */
+
+function zaehlung(punkte) {
+  var P = punkte || state.points || [];
+  var z = {
+    gesamt: P.length,
+    geprueft: 0,
+    ungeprueft: 0,
+    // geprüft, nach Art
+    rp: 0, mast: 0, lager: 0, klinik: 0, sonstigeGeprueft: 0,
+    // ungeprüft, nach Sperrgrund — Summe = ungeprueft
+    mastGesperrt: 0, ohneZuordnung: 0, klinikUngeprueft: 0, sonstigeUngeprueft: 0
+  };
+  P.forEach(function (p) {
+    var k = kindOf(p);
+    if (istGeprueft(p)) {
+      z.geprueft++;
+      if (k === 'rp') z.rp++;
+      else if (k === 'mast') z.mast++;
+      else if (k === 'lager') z.lager++;
+      else if (k === 'klinik') z.klinik++;
+      else z.sonstigeGeprueft++;
+      return;
+    }
+    z.ungeprueft++;
+    // Ein Datensatz mit Mastnummer bleibt ein Mast — nur eben ein gesperrter.
+    if (k === 'mast' || p.mastNr) z.mastGesperrt++;
+    else if (k === 'klinik') z.klinikUngeprueft++;
+    else if (k === 'unknown') z.ohneZuordnung++;
+    else z.sonstigeUngeprueft++;
+  });
+  // Für Notfallberechnungen kommen nur geprüfte Rettungspunkte und Masten in Frage.
+  z.fuerNotfall = z.rp + z.mast;
+  return z;
+}
 
 function ofKind(kind, nurGeprueft) {
   return state.points.filter(function (p) {
@@ -1118,6 +1213,16 @@ function baustelleLaden(id) {
   // hier nicht.
   if (id === BAUSTELLE_ERSTE) {
     if (!state.points.length) loadPaket();
+    /* Beim allerersten Start ist der Name entstanden, BEVOR das Datenpaket
+       geladen war — dann hieß die Baustelle „Baustelle 1" statt nach der
+       Baustelle. Sobald der echte Titel vorliegt, wird er übernommen. */
+    if (state.paket && state.paket.titel) {
+      var liste = baustellen();
+      liste.forEach(function (b) {
+        if (b.id === BAUSTELLE_ERSTE && /^Baustelle 1$/.test(b.titel)) b.titel = state.paket.titel;
+      });
+      save(K_BAUSTELLEN, liste);
+    }
     state.migration = migriere() || load(K_MIGRATION, null);
     if (!state.contacts.length && !load(K_NOTRUF_GESETZT, false)) {
       if (loadNotruf()) save(K_NOTRUF_GESETZT, true);
@@ -1411,7 +1516,12 @@ var GEO_TEXT = {
    ist gleich plausibel, also behauptet die App keins von beiden. */
 function sperrGrund() {
   var b = browserApp();
-  if (b.key !== 'safari') return 'browser';          // fremder oder eingebauter Browser
+  // Nur bei sicher erkanntem fremdem oder eingebautem Browser steht die
+  // Ursache fest. Bei „nicht eindeutig erkannt" wäre das geraten.
+  if (b.key === 'safari' || b.key === 'unbekannt') {
+    return (state.freigabe === 'granted') ? 'browser' : 'unklar';
+  }
+  return 'browser';
   if (state.freigabe === 'granted') return 'browser';// Widerspruch: Seite frei, Ortung nein
   return 'unklar';
 }
@@ -1427,7 +1537,8 @@ function inappText() {
      WhatsApp & Co. trägt Safaris Kennung — ihn „Safari" zu nennen, würde in
      die Irre führen: In echtem Safari kann dieser Widerspruch gar nicht
      auftreten. */
-  var sicherBenannt = (b.key !== 'safari' && b.key !== 'eingebaut' && b.name);
+  var sicherBenannt = (b.key !== 'safari' && b.key !== 'eingebaut' &&
+                       b.key !== 'unbekannt' && b.name);
   return { title: 'Bitte in Safari öffnen',
            sub: (sicherBenannt ? b.name + ' darf' : 'Dieser Browser darf') +
                 ' am Handy nicht orten. An der Seite liegt es nicht.',
@@ -1467,7 +1578,7 @@ function howtoHtml(kind) {
 
     // Ein bekannter Browser mit eigenem Eintrag in den iOS-Einstellungen.
     if (b.key === 'chrome' || b.key === 'firefox' || b.key === 'edge' ||
-        b.key === 'opera'  || b.key === 'google') {
+        b.key === 'opera'  || b.key === 'google'   || b.key === 'samsung') {
       return '<b>' + esc(b.name) + ' darf am Handy nicht orten</b>' +
         '<div class="warnbox" style="margin:8px 0">Es kam gar keine Frage — das Handy hat ' +
         'sofort abgesagt. Daran kann die Seite nichts ändern. Zwei Schalter kommen infrage, ' +
@@ -1575,7 +1686,7 @@ function setGeoState(kind, extraSub) {
     $('geoStrip').className = 'strip demo';
     $('stripTxt').textContent = 'VORSCHAU — Beispielstandort';
     $('stripAcc').innerHTML = '<button class="chip" onclick="demoStop()">Beenden</button>';
-    renderHero(); renderMessage();
+    renderHero(); renderMessage(); standStatusSetzen(); sagenAnpassen();
     return;
   }
 
@@ -1589,7 +1700,7 @@ function setGeoState(kind, extraSub) {
     $('geoStrip').className = 'strip warn';
     $('stripTxt').textContent = 'Letzter bekannter Standort · ' + alterText(altS);
     $('stripAcc').innerHTML = '<button class="chip" onclick="requestLocation()">Neu suchen</button>';
-    renderHero(); renderMessage();
+    renderHero(); renderMessage(); standStatusSetzen(); sagenAnpassen();
     return;
   }
 
@@ -1599,7 +1710,7 @@ function setGeoState(kind, extraSub) {
     $('geoStrip').className = 'strip warn';
     $('stripTxt').textContent = 'Standpunkt von Hand: ' + G.shortLabel(state.manuell);
     $('stripAcc').innerHTML = '<button class="chip" onclick="standpunktLoeschen()">Ändern</button>';
-    renderHero(); renderMessage();
+    renderHero(); renderMessage(); standStatusSetzen(); sagenAnpassen();
     return;
   }
 
@@ -1631,7 +1742,7 @@ function setGeoState(kind, extraSub) {
     var browserZeile = '';
     if ((kind === 'inapp' || kind === 'denied') && !isNative()) {
       var ba = browserApp();
-      browserZeile = ' · Browser: ' + (ba.name || 'eingebauter Browser');
+      browserZeile = ' · Browser: ' + ba.anzeige;
     }
     $('geoSub').textContent = (extraSub || t.sub) + rohText + browserZeile;
     $('geoBtn').textContent = t.btn;
@@ -1643,6 +1754,8 @@ function setGeoState(kind, extraSub) {
   renderHero();
   renderMessage();
   letztePositionAnbieten();
+  standStatusSetzen();
+  sagenAnpassen();
   wachPruefen();
 }
 
@@ -1704,6 +1817,8 @@ function demoStart() {
   state.pos = { lat: DEMO_POS.lat, lon: DEMO_POS.lon, accuracy: DEMO_POS.accuracy, ts: Date.now() };
   renderCoords();
   setGeoState(state.geo === 'ok' ? 'ok' : state.geo);
+  standStatusSetzen();
+  sagenAnpassen();
   toast('Vorschau mit Beispielstandort');
 }
 
@@ -1711,7 +1826,56 @@ function demoStop() {
   state.demo = false;
   state.pos = null;
   $('geoCoords').style.display = 'none';
+  /* Beim Beenden der Vorschau muss auch die vorgelesene Statusmeldung weg —
+     sonst hörte ein Vorleseprogramm weiterhin „Vorschau mit Beispielstandort",
+     obwohl gar kein Standort mehr da ist. */
+  standStatusSetzen();
   requestLocation();
+}
+
+/* =========================================================================
+   Standort-Zustand in Worten — genau EINER von vier, für Vorleseprogramme
+   und für die Anleitung unter der Meldung.
+   ========================================================================= */
+function standLage() {
+  if (state.demo) return 'vorschau';
+  if (state.manuell) return 'manuell';
+  if (state.alt && state.pos) return 'alt';
+  if (state.pos) return 'gps';
+  return 'fehlt';
+}
+
+function standStatusSetzen() {
+  var el = $('standStatus'); if (!el) return;
+  var texte = {
+    vorschau: 'Vorschau mit Beispielstandort — nicht für den Notfall verwenden.',
+    manuell:  'Standort von Hand gewählt: ' +
+              (state.manuell ? G.shortLabel(state.manuell) : '') + ' — nicht gemessen.',
+    alt:      'Letzter bekannter Standort — nicht aktuell.',
+    gps:      'Echter Standort vom GPS' +
+              (state.pos && state.pos.accuracy != null
+                ? ', auf ' + Math.round(state.pos.accuracy) + ' Meter genau.' : '.'),
+    fehlt:    'Standort fehlt.'
+  };
+  el.textContent = texte[standLage()] || '';
+}
+
+/* Die Anleitung darf nicht zum Vorlesen von Zahlen auffordern, die es nicht
+   gibt. Ohne Standort ist der erste Schritt ein anderer. */
+function sagenAnpassen() {
+  var el = $('sagenWo'); if (!el) return;
+  var ziel = heroTarget();
+  if (!state.pos) {
+    el.innerHTML = '<b>Wo?</b> <span style="color:var(--warn)">Standort ist noch nicht ' +
+      'verfügbar. Standort einschalten oder oben einen bekannten Mast auswählen.</span>';
+    return;
+  }
+  if (!ziel) {
+    el.innerHTML = '<b>Wo?</b> <span style="color:var(--warn)">Kein geprüfter Rettungspunkt ' +
+      'vorhanden.</span> Lies die Koordinaten deines Standorts vor.';
+    return;
+  }
+  el.innerHTML = '<b>Wo?</b> Sag den Namen vom Rettungspunkt und lies die Zahlen vor.';
 }
 
 /* =========================================================================
@@ -2074,8 +2238,7 @@ function diagnoseText() {
   z.push('Gerät: ' + platform() + (isNative() ? ' (installierte App)' : ' (Browser)'));
   if (!isNative()) {
     var ba = browserApp();
-    z.push('Browser-App: ' + (ba.name || 'eingebauter Browser einer anderen App') +
-           ' (' + ba.key + ')');
+    z.push('Browser-App: ' + ba.anzeige + ' (' + ba.key + ')');
   }
   z.push('Adresse: ' + location.href);
   z.push('Sicherer Kontext: ' + (window.isSecureContext ? 'ja' : 'NEIN'));
@@ -2724,22 +2887,19 @@ function renderPoints() {
      GEPRÜFTE Punkte, alles Ungeprüfte sammelt sich in einer eigenen Gruppe —
      egal ob Mast ohne Nummer, Widerspruch oder unbestätigte Klinik.
      Summe der Kategorien + ungeprüft = Gesamtzahl. */
-  var geprueftNachArt = {}, anzahlUngeprueft = 0;
-  state.points.forEach(function (p) {
-    if (istGeprueft(p)) {
-      var k = kindOf(p);
-      geprueftNachArt[k] = (geprueftNachArt[k] || 0) + 1;
-    } else {
-      anzahlUngeprueft++;
-    }
+  var zf = zaehlung();
+  var gruppen = [{ id: 'alle', text: 'Alle', zahl: zf.gesamt, warn: false }];
+  /* In den Art-Gruppen stehen ausschließlich GEPRÜFTE Datensätze — die
+     Beschriftung sagt das auch. Alles Ungeprüfte sammelt die letzte Gruppe. */
+  [['rp', 'Geprüfte Rettungspunkte', zf.rp],
+   ['mast', 'Geprüfte Masten', zf.mast],
+   ['klinik', 'Geprüfte Kliniken', zf.klinik],
+   ['lager', 'Baulager', zf.lager],
+   ['unknown', 'Sonstige geprüfte', zf.sonstigeGeprueft]].forEach(function (g) {
+    if (g[2]) gruppen.push({ id: g[0], text: g[1], zahl: g[2], warn: false });
   });
-  var arten = Object.keys(geprueftNachArt);
-  var gruppen = [{ id: 'alle', text: 'Alle', zahl: state.points.length, warn: false }];
-  arten.forEach(function (k) {
-    gruppen.push({ id: k, text: KIND_LABEL[k] || k, zahl: geprueftNachArt[k], warn: false });
-  });
-  if (anzahlUngeprueft) {
-    gruppen.push({ id: FILTER_UNGEPRUEFT, text: 'Ungeprüfte Punkte', zahl: anzahlUngeprueft, warn: true });
+  if (zf.ungeprueft) {
+    gruppen.push({ id: FILTER_UNGEPRUEFT, text: 'Ungeprüfte Punkte', zahl: zf.ungeprueft, warn: true });
   }
   var gueltigeAuswahl = gruppen.some(function (g) { return g.id === state.ptFilter; });
   if (!gueltigeAuswahl) state.ptFilter = 'alle';
@@ -2969,66 +3129,211 @@ function readImportFile(ev) {
    stillschweigend ersetzen. */
 var importVorschau = null;
 
+/* =========================================================================
+   Import — nichts gilt als geprüft, bis es jemand bestätigt
+
+   Vorher wurde aus der CSV-Zeile „T-1;Testpunkt A;50.2;7.2" ein GEPRÜFTER
+   Rettungspunkt: Zeilen ohne Artangabe galten als Rettungspunkt-Liste, und
+   ohne erkannten Mangel setzte die Prüfung verified = true. Ein frei
+   eingetippter Name wäre damit sofort Anfahrtsziel im Notfall gewesen.
+
+   Jetzt gilt: Art wird zugeordnet oder der Datensatz bleibt „ohne Zuordnung",
+   und geprüft wird nur, was der Mensch ausdrücklich gegen den Notfallplan
+   bestätigt hat.
+   ========================================================================= */
+
+var importRoh = null;          // eingelesene Punkte, vor der Einstufung
+var importArt = '';            // vom Nutzer zugewiesene Art für Punkte ohne Angabe
+var importBestaetigt = false;  // Häkchen „mit dem Notfallplan abgeglichen"
+
+function importEinstufen(punkte) {
+  return punkte.map(function (p) {
+    var q = {};
+    for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) q[k] = p[k];
+
+    // Art: aus der Datei, sonst die Zuweisung des Nutzers
+    var art = (p.kind && p.kind !== 'unknown') ? p.kind : importArt;
+    var gruende = (p.issues || []).filter(function (i) { return i !== 'art-unbekannt'; });
+
+    if (!art || art === 'unknown') {
+      art = 'unknown';
+      gruende.push('art-nicht-zugeordnet');
+    }
+    q.kind = art;
+
+    /* Ein Mast ohne gültige Mastnummer sagt der Leitstelle nichts. Die Nummer
+       wird erst JETZT abgeleitet: Beim Einlesen war die Art noch unbekannt,
+       und die Prüfung sucht die Nummer nur bei Masten. */
+    if (art === 'mast') {
+      if (!q.mastNr && P && P.mastNummerVon) q.mastNr = P.mastNummerVon(q);
+      if (!q.mastNr) gruende.push('mastnummer-fehlt');
+    }
+    // Eine Klinik bleibt ungeprüft, bis die Notfalleignung bestätigt ist.
+    if (art === 'klinik') gruende.push('medizinisch-ungeprueft');
+    // Ohne ausdrückliche Bestätigung bleibt alles ungeprüft.
+    if (!importBestaetigt) gruende.push('nicht-bestaetigt');
+
+    q.issues = gruende.filter(function (g, n) { return gruende.indexOf(g) === n; });
+    q.verified = (q.issues.length === 0);
+    return q;
+  });
+}
+
+function importVorschauBauen() {
+  if (!importRoh) {
+    importVorschau = { neu: [], ungeprueft: [], schonDa: [], verworfen: [], fehler: [], ersetzen: false };
+    return importVorschau;
+  }
+  var eingestuft = importEinstufen(importRoh.punkte);
+  var vorhanden = {};
+  state.points.forEach(function (p) { vorhanden[pkey(p)] = p; });
+  /* Ein gespeicherter Punkt gilt als vorhanden, wenn Name UND Ort passen —
+     oder wenn ein Punkt am praktisch selben Ort schon da ist. Sonst entstünden
+     zwei Rettungspunkte im Abstand von null Metern, nur weil einer anders
+     geschrieben ist. */
+  var NAH_M = (P && P.GLEICHER_ORT_M) || 10;
+  var neu = [], schonDa = [], ungeprueft = [];
+  eingestuft.forEach(function (p) {
+    if (vorhanden[pkey(p)]) { p.schonDaGrund = 'gleicher Eintrag'; schonDa.push(p); return; }
+    var nah = null;
+    for (var i = 0; i < state.points.length; i++) {
+      var q = state.points[i];
+      if (typeof q.lat !== 'number' || typeof q.lon !== 'number') continue;
+      if (G.distance(p.lat, p.lon, q.lat, q.lon) <= NAH_M) { nah = q; break; }
+    }
+    if (nah) {
+      p.schonDaGrund = 'gleicher Ort wie „' + G.shortLabel(nah) + '"';
+      schonDa.push(p); return;
+    }
+    if (p.verified === false) ungeprueft.push(p); else neu.push(p);
+  });
+  importVorschau = { neu: neu, ungeprueft: ungeprueft, schonDa: schonDa,
+                     verworfen: importRoh.verworfen, fehler: importRoh.fehler,
+                     ersetzen: importRoh.ersetzen };
+  return importVorschau;
+}
+
+function importArtSetzen(wert) { importArt = wert; importVorschauZeigen(); }
+function importBestaetigungSetzen(an) { importBestaetigt = !!an; importVorschauZeigen(); }
+
 function runImport() {
   var txt = $('fPaste').value;
   var ersetzen = $('fReplace').checked;
   var res = G.parsePoints(txt);
 
   if (!res.points.length) {
+    // Kein halber Zustand: Sonst zeigte eine spätere Vorschau die Punkte des
+    // vorherigen Versuchs.
+    importRoh = null; importVorschau = null;
     openOv('<h2>Nichts zu importieren</h2>' +
       '<p>' + esc(res.errors[0] || 'In den Daten wurden keine Punkte gefunden.') + '</p>' +
       '<div class="btnrow"><button class="btn ghost" onclick="openImport()">Zurück</button></div>');
     return;
   }
 
-  // Dieselben Regeln wie für die mitgelieferten Daten.
   var roh = res.points.map(function (p) {
     return { name: P ? P.nameVereinheitlichen(p.name, p.kind) : p.name,
              lat: p.lat, lon: p.lon, kind: p.kind, note: p.note, source: 'user' };
   });
   var geprueft = P ? P.pruefen(roh, {}) : { punkte: roh, verworfen: [], bericht: {} };
 
-  // Was steht schon im Gerät?
-  var vorhanden = {};
-  state.points.forEach(function (p) { vorhanden[pkey(p)] = p; });
-  var neu = [], schonDa = [], ungeprueft = [];
-  geprueft.punkte.forEach(function (p) {
-    if (vorhanden[pkey(p)]) { schonDa.push(p); return; }
-    if (p.verified === false) ungeprueft.push(p); else neu.push(p);
-  });
+  importRoh = { punkte: geprueft.punkte, verworfen: geprueft.verworfen,
+                fehler: res.errors, ersetzen: ersetzen };
+  importArt = '';
+  importBestaetigt = false;     // jeder Import beginnt unbestätigt
+  importVorschauZeigen();
+}
 
-  importVorschau = { neu: neu, ungeprueft: ungeprueft, schonDa: schonDa,
-                     verworfen: geprueft.verworfen, fehler: res.errors, ersetzen: ersetzen };
+function importVorschauZeigen() {
+  if (!importRoh) return;
+  var v = importVorschauBauen();
+  var ohneArt = importRoh.punkte.filter(function (p) {
+    return !p.kind || p.kind === 'unknown';
+  }).length;
 
   var zeile = function (farbe, zahl, text) {
     return '<div class="vzeile"><b style="color:' + farbe + '">' + zahl + '</b> ' + text + '</div>';
   };
-  var beispiele = function (liste) {
-    return liste.slice(0, 5).map(function (p) {
-      return '<div class="psub" style="font-family:inherit">· ' + esc(p.name) + ' ' +
-        ((p.issues && p.issues.length) ? '<span style="color:var(--warn)">(' +
-          esc(p.issues.map(problemText).join(', ')) + ')</span>' : '') + '</div>';
-    }).join('') + (liste.length > 5 ? '<div class="psub">… und ' + (liste.length - 5) + ' weitere</div>' : '');
+  var liste = function (punkte, mitGrund) {
+    return punkte.slice(0, 5).map(function (p) {
+      var g = (p.issues || []).map(problemText).join(' · ');
+      return '<div class="psub" style="font-family:inherit">· ' + esc(G.shortLabel(p)) +
+        (mitGrund && g ? ' <span style="color:var(--warn)">— ' + esc(g) + '</span>' : '') + '</div>';
+    }).join('') + (punkte.length > 5
+      ? '<div class="psub">… und ' + (punkte.length - 5) + ' weitere</div>' : '');
   };
+  var ueberschrift = function (t) {
+    return '<h3 style="margin:14px 0 4px;font-size:13px;color:var(--muted)">' + t + '</h3>';
+  };
+
+  var ARTEN = [['', 'Nicht zuordnen (bleibt ungeprüft)'], ['rp', 'Rettungspunkte'],
+               ['mast', 'Masten'], ['lager', 'Baulager'], ['klinik', 'Ärzte & Kliniken'],
+               ['sonstiges', 'Sonstige Punkte']];
 
   openOv(
     '<h2>Vorschau des Imports</h2>' +
-    '<p>' + (ersetzen
-      ? '<b style="color:var(--accent2)">Achtung: Die vorhandenen Punkte werden ersetzt.</b> Der alte Stand wird vorher gesichert.'
-      : 'Die Punkte werden zu den vorhandenen hinzugefügt.') + '</p>' +
-    zeile('var(--ok)', neu.length, 'geprüfte Punkte werden übernommen') +
-    zeile('var(--warn)', ungeprueft.length, 'ungeprüfte Punkte (nur Anzeige, nicht für Notfälle)') +
-    zeile('var(--muted)', schonDa.length, 'sind schon im Gerät') +
-    zeile('var(--muted)', geprueft.verworfen.length, 'Dubletten innerhalb der Datei') +
-    zeile('var(--bad)', res.errors.length, 'fehlerhafte Zeilen') +
-    (neu.length ? '<h3 style="margin:14px 0 4px;font-size:13px;color:var(--muted)">Neu</h3>' + beispiele(neu) : '') +
-    (ungeprueft.length ? '<h3 style="margin:14px 0 4px;font-size:13px;color:var(--muted)">Ungeprüft</h3>' + beispiele(ungeprueft) : '') +
+    '<p>' + (importRoh.ersetzen
+      ? '<b style="color:var(--accent2)">Achtung: Die vorhandenen Punkte werden ersetzt.</b> ' +
+        'Der alte Stand wird vorher gesichert.'
+      : 'Die Punkte werden zu den vorhandenen hinzugefügt.') +
+    ' Solange du nichts bestätigst, wird <b>nichts</b> gespeichert.</p>' +
+
+    (ohneArt
+      ? '<div class="field" style="margin-top:10px"><label>Art für ' + ohneArt +
+        ' Punkte ohne Angabe</label>' +
+        '<select id="impArt" onchange="importArtSetzen(this.value)">' +
+        ARTEN.map(function (a) {
+          return '<option value="' + a[0] + '"' + (importArt === a[0] ? ' selected' : '') + '>' +
+                 esc(a[1]) + '</option>';
+        }).join('') + '</select>' +
+        '<div class="hint">Ein Mast braucht zwingend eine gültige Mastnummer. Ärzte und ' +
+        'Kliniken bleiben ohne bestätigte Notfalleignung immer ungeprüft.</div></div>'
+      : '') +
+
+    '<label class="bestaetig"><input type="checkbox" id="impOk"' +
+      (importBestaetigt ? ' checked' : '') +
+      ' onchange="importBestaetigungSetzen(this.checked)">' +
+      '<span>Ich habe diese Daten mit dem gültigen Notfallplan bzw. Baustellenaushang ' +
+      'geprüft.</span></label>' +
+    (importBestaetigt ? '' :
+      '<div class="warnbox" style="margin:8px 0">Ohne diese Bestätigung wird alles ' +
+      'importiert, bleibt aber <b>ungeprüft</b>: sichtbar in der Liste, aber nie für ' +
+      'nächsten Rettungspunkt, nächsten Mast oder die Meldung.</div>') +
+
+    zeile('var(--ok)', v.neu.length, 'geprüft und verwendbar') +
+    zeile('var(--warn)', v.ungeprueft.length, 'ungeprüft, nur sichtbar') +
+    zeile('var(--muted)', v.schonDa.length, 'schon im Gerät vorhanden') +
+    zeile('var(--muted)', v.verworfen.length, 'Dubletten in der Datei') +
+    zeile('var(--bad)', v.fehler.length, 'fehlerhafte Zeilen') +
+
+    (v.neu.length ? ueberschrift('Geprüft und verwendbar') + liste(v.neu, false) : '') +
+    (v.ungeprueft.length ? ueberschrift('Ungeprüft — mit Grund') + liste(v.ungeprueft, true) : '') +
+    (v.schonDa.length ? ueberschrift('Schon vorhanden — der gespeicherte Eintrag bleibt') +
+        v.schonDa.slice(0, 5).map(function (p) {
+          return '<div class="psub" style="font-family:inherit">· ' + esc(G.shortLabel(p)) +
+            (p.schonDaGrund ? ' <span style="color:var(--muted)">— ' + esc(p.schonDaGrund) + '</span>' : '') +
+            '</div>';
+        }).join('') +
+        (v.schonDa.length > 5 ? '<div class="psub">… und ' + (v.schonDa.length - 5) + ' weitere</div>' : '') : '') +
+    (v.verworfen.length ? ueberschrift('Dubletten — der erste Eintrag bleibt') +
+        liste(v.verworfen, true) : '') +
+    (v.fehler.length ? ueberschrift('Nicht lesbare Zeilen') +
+        v.fehler.slice(0, 5).map(function (f) {
+          return '<div class="psub" style="font-family:inherit">· ' + esc(String(f)) + '</div>';
+        }).join('') : '') +
+
     '<div class="btnrow">' +
-      '<button class="btn ghost" onclick="openImport()">Zurück</button>' +
+      '<button class="btn ghost" onclick="importAbbrechen()">Abbrechen</button>' +
       '<button class="btn primary" onclick="importBestaetigen()"' +
-        ((neu.length + ungeprueft.length) ? '' : ' disabled') + '>Import bestätigen</button>' +
+        ((v.neu.length + v.ungeprueft.length) ? '' : ' disabled') + '>Import übernehmen</button>' +
     '</div>'
   );
+}
+
+/* Abbrechen darf nichts hinterlassen — auch keinen halben Vorschau-Zustand. */
+function importAbbrechen() {
+  importRoh = null; importVorschau = null; importArt = ''; importBestaetigt = false;
+  openImport();
 }
 
 function importBestaetigen() {
@@ -3066,7 +3371,7 @@ function importBestaetigen() {
       '</p><p>Der vorherige Stand wurde wiederhergestellt.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
   }
-  importVorschau = null;
+  importVorschau = null; importRoh = null; importArt = ''; importBestaetigt = false;
 }
 
 function pkey(p) {
@@ -3428,36 +3733,87 @@ function renderApp() {
 
 /* Was in den Daten ungeklärt ist, gehört sichtbar aufgelistet — nicht in
    eine Fußnote. Die Liste kommt aus den Daten, nichts ist fest verdrahtet. */
+/* =========================================================================
+   Offene Datenprüfungen — ALLE gesperrten Datensätze, nicht nur die auffälligen
+
+   Vorher zeigte diese Karte nur vier ausgewählte Problemarten (6 von 51
+   Einträgen). Wer 51 gesperrte Datensätze gemeldet bekommt und 6 erklärt
+   findet, weiß nicht, was mit den übrigen 45 ist — und ob sie ein Problem
+   sind. Jetzt wird jeder gesperrte Datensatz genau einer Gruppe zugeordnet,
+   und die Summe der Gruppen muss der Gesamtzahl entsprechen.
+   ========================================================================= */
+
+function offeneGruppen() {
+  var z = zaehlung();
+  var gruppen = [
+    { id: 'mast', titel: 'Gesperrte Masten',
+      unter: 'Mastnummer vorhanden, aber die Daten widersprechen sich.',
+      erwartet: z.mastGesperrt, punkte: [] },
+    { id: 'ohne', titel: 'Punkte ohne Zuordnung',
+      unter: 'Keine Mastnummer und kein aussagekräftiger Name — die Art ist nicht bestimmbar.',
+      erwartet: z.ohneZuordnung, punkte: [] },
+    { id: 'med', titel: 'Medizinische Einrichtungen ohne bestätigte Eignung',
+      unter: 'Aus der Karte übernommen, aber die Notfalleignung ist nicht bestätigt.',
+      erwartet: z.klinikUngeprueft, punkte: [] },
+    { id: 'rest', titel: 'Sonstige gesperrte Datensätze',
+      unter: 'Gesperrt aus einem anderen Grund.',
+      erwartet: z.sonstigeUngeprueft, punkte: [] }
+  ];
+  var nach = {};
+  gruppen.forEach(function (g) { nach[g.id] = g; });
+
+  // Dieselbe Reihenfolge wie in zaehlung() — sonst gehen die Summen auseinander.
+  state.points.forEach(function (p) {
+    if (istGeprueft(p)) return;
+    var k = kindOf(p);
+    if (k === 'mast' || p.mastNr) nach.mast.punkte.push(p);
+    else if (k === 'klinik') nach.med.punkte.push(p);
+    else if (k === 'unknown') nach.ohne.punkte.push(p);
+    else nach.rest.punkte.push(p);
+  });
+  return gruppen.filter(function (g) { return g.punkte.length; });
+}
+
 function renderOffeneFragen() {
   var karte = $('offeneKarte'), box = $('offeneListe');
   if (!karte || !box) return;
-  var WICHTIG = ['nummer-widerspruch', 'abseits', 'rp-nummer-doppelt', 'koordinaten-ungueltig'];
-  var faelle = state.points.filter(function (p) {
-    return !istGeprueft(p) && (p.issues || []).some(function (i) { return WICHTIG.indexOf(i) >= 0; });
-  });
-  if (!faelle.length) { karte.hidden = true; return; }
+  var z = zaehlung();
+  if (!z.ungeprueft) { karte.hidden = true; box.innerHTML = ''; return; }
   karte.hidden = false;
 
-  // Nach Grund gruppieren, damit zusammengehörige Fälle beieinanderstehen.
-  var nachGrund = {};
-  faelle.forEach(function (p) {
-    (p.issues || []).forEach(function (i) {
-      if (WICHTIG.indexOf(i) < 0) return;
-      (nachGrund[i] = nachGrund[i] || []).push(p);
-    });
-  });
+  var gruppen = offeneGruppen();
+  var summe = gruppen.reduce(function (n, g) { return n + g.punkte.length; }, 0);
 
-  box.innerHTML = Object.keys(nachGrund).map(function (grund) {
-    var liste = nachGrund[grund];
-    return '<div class="pitem ungeprueft"><div class="pmain">' +
-      '<div class="ptitle">' + esc(problemText(grund)) +
-        ' <span class="badge warn">' + liste.length + '</span></div>' +
-      liste.map(function (p) {
-        return '<div class="psub" style="font-family:inherit">' + esc(p.name) + ' — ' +
-               G.formatDec(p.lat, p.lon) + '</div>';
+  var kopf = '<div class="statusline" style="margin-bottom:10px">' +
+    '<span class="dot warn"></span><div class="cinfo">' +
+    '<div class="statustitle">' + z.ungeprueft + ' gesperrte Datensätze</div>' +
+    '<div class="statussub">von ' + z.gesamt + ' insgesamt · keiner davon wird für Rettungspunkt, ' +
+    'Mast oder Meldung verwendet</div></div></div>' +
+    // Sichtbarer Beleg, dass die Aufstellung vollständig ist.
+    (summe === z.ungeprueft
+      ? ''
+      : '<div class="warnbox" style="margin-bottom:10px">Achtung: Die Gruppen ergeben ' +
+        summe + ' Einträge, gemeldet sind ' + z.ungeprueft + '. Bitte melden.</div>');
+
+  box.innerHTML = kopf + gruppen.map(function (g) {
+    return '<details class="det" style="margin-bottom:8px"><summary>' +
+      esc(g.titel) + ' <span class="badge warn">' + g.punkte.length + '</span></summary>' +
+      '<div class="detbody">' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(g.unter) + '</div>' +
+      g.punkte.map(function (p) {
+        var gruende = (p.issues || []).map(function (i) { return P.problemText(i); });
+        return '<div class="pitem ungeprueft"><div class="pmain">' +
+          '<div class="ptitle">' + esc(G.shortLabel(p)) + '</div>' +
+          '<div class="psub">' + G.formatDec(p.lat, p.lon) + '</div>' +
+          '<div class="psub" style="font-family:inherit">Art: ' +
+            esc(KIND_LABEL[kindOf(p)] || kindOf(p)) + '</div>' +
+          '<div class="psub warnhinweis" style="font-family:inherit">Grund: ' +
+            (gruende.length ? esc(gruende.join(' · ')) : 'nicht angegeben') + '</div>' +
+          '<div class="psub warnhinweis" style="font-family:inherit">Wird nicht für ' +
+            'Notfallberechnungen verwendet</div>' +
+          '</div></div>';
       }).join('') +
-      '<div class="psub warnhinweis">Gesperrt für Notfallberechnungen und Meldung</div>' +
-      '</div></div>';
+      '</div></details>';
   }).join('');
 }
 
@@ -3481,23 +3837,44 @@ function renderPaket() {
     tag.textContent = name;
   }
   var box = $('paketBox'); if (!box) return;
-  var counts = {};
-  state.points.forEach(function (p) { var k = kindOf(p); counts[k] = (counts[k] || 0) + 1; });
-  var zeilen = Object.keys(counts).map(function (k) {
-    return (KIND_LABEL[k] || k) + ': <b>' + counts[k] + '</b>';
-  }).join(' · ');
-  var geprueft = state.points.filter(istGeprueft).length;
-  var ungeprueft = state.points.length - geprueft;
+  var z = zaehlung();
+
+  /* Eine Zeile je Kategorie, alle aus derselben Zählung. Leere Kategorien
+     bleiben weg, statt „0" zu zeigen — sonst liest man Zahlen, die nichts
+     bedeuten. */
+  function zeile(text, zahl, farbe) {
+    if (!zahl) return '';
+    return '<div>' + text + ': <b' + (farbe ? ' style="color:var(--' + farbe + ')"' : '') +
+           '>' + zahl + '</b></div>';
+  }
+
   box.innerHTML =
     (state.paket
       ? '<b>' + esc(state.paket.titel) + '</b><br>Quelle: ' + esc(state.paket.quelle) +
         '<br>Stand: ' + esc(state.paket.stand) +
         (state.paket.version ? ' · Paketversion ' + esc(String(state.paket.version)) : '') + '<br>'
       : 'Eigene Punkte, kein Baustellen-Paket geladen.<br>') +
-    '<br><b style="color:var(--ok)">' + geprueft + ' geprüfte Punkte</b> — nur diese werden für ' +
-    'Rettungspunkt, Mast und Meldung verwendet.<br>' +
-    '<b style="color:var(--warn)">' + ungeprueft + ' ungeprüfte Punkte</b> — nur in der Liste sichtbar.<br><br>' +
-    (zeilen || 'Keine Punkte gespeichert.');
+    '<br><b>' + z.gesamt + ' Datensätze insgesamt</b><br>' +
+
+    '<div style="margin-top:8px"><b style="color:var(--ok)">' + z.geprueft + ' geprüfte Datensätze</b>' +
+    (z.fuerNotfall
+      ? ' — für Notfallberechnungen stehen davon <b>' + z.rp + ' Rettungspunkte</b> und <b>' +
+        z.mast + ' Masten</b> zur Verfügung.'
+      : ' — davon steht nichts für Notfallberechnungen zur Verfügung.') +
+    '</div>' +
+    zeile('&nbsp;&nbsp;Geprüfte Rettungspunkte', z.rp, 'ok') +
+    zeile('&nbsp;&nbsp;Geprüfte Masten', z.mast, 'ok') +
+    zeile('&nbsp;&nbsp;Baulager (nicht für Anfahrt)', z.lager) +
+    zeile('&nbsp;&nbsp;Geprüfte medizinische Einrichtungen', z.klinik) +
+    zeile('&nbsp;&nbsp;Sonstige geprüfte Datensätze', z.sonstigeGeprueft) +
+
+    '<div style="margin-top:8px"><b style="color:var(--warn)">' + z.ungeprueft +
+    ' ungeprüfte Datensätze</b> — nur in der Liste sichtbar, nie in Berechnung oder Meldung.</div>' +
+    zeile('&nbsp;&nbsp;Gesperrte Masten (widersprüchliche Daten)', z.mastGesperrt, 'warn') +
+    zeile('&nbsp;&nbsp;Punkte ohne Zuordnung', z.ohneZuordnung, 'warn') +
+    zeile('&nbsp;&nbsp;Medizinische Einrichtungen ohne bestätigte Eignung', z.klinikUngeprueft, 'warn') +
+    zeile('&nbsp;&nbsp;Sonstige ungeprüfte Datensätze', z.sonstigeUngeprueft, 'warn') +
+    (z.gesamt ? '' : 'Keine Punkte gespeichert.');
 }
 
 function paketZuruecksetzen() {

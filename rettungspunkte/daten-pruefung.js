@@ -26,7 +26,9 @@ var SpiePruefung = (function () {
     'art-unbekannt':         'Art des Punktes nicht bestimmbar',
     'rp-nummer-doppelt':     'Rettungspunkt-Nummer kommt mehrfach vor',
     'abseits':               'Liegt weit abseits der übrigen Punkte',
-    'medizinisch-ungeprueft':'Eignung für Notfälle nicht bestätigt'
+    'medizinisch-ungeprueft':'Eignung für Notfälle nicht bestätigt',
+    'nicht-bestaetigt':      'Nicht gegen den Notfallplan bzw. Baustellenaushang bestätigt',
+    'art-nicht-zugeordnet':  'Art beim Import nicht zugeordnet'
   };
 
   /* ---------- Einzelprüfungen ---------- */

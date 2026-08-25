@@ -465,10 +465,12 @@ var SpieGeo = (function () {
     var id = str(pick(src, ['id', 'nr', 'nummer', 'kennung', 'rettungspunkt', 'code']));
     var name = str(pick(src, ['name', 'bezeichnung', 'titel', 'punkt', 'ort', 'beschreibung']));
     var note = str(pick(src, ['note', 'hinweis', 'bemerkung', 'info', 'zufahrt']));
-    if (!id && !name) name = 'Rettungspunkt';
-    // Listen ohne Artangabe (CSV, einfaches JSON) sind Rettungspunkt-Listen.
-    // KML setzt die Art selbst und überschreibt diesen Vorgabewert.
-    var kind = str(pick(src, ['kind', 'art', 'typ'])) || 'rp';
+    if (!id && !name) name = 'Ohne Namen';
+    /* KEIN Vorgabewert „rp" mehr. Eine Zeile ohne Artangabe war bisher
+       automatisch ein Rettungspunkt — damit wurde aus „T-1;Testpunkt A;50.2;7.2"
+       ein geprüfter Rettungspunkt, den die App im Notfall angefahren hätte.
+       Ohne Artangabe gilt jetzt „unknown"; der Import fragt die Art ab. */
+    var kind = str(pick(src, ['kind', 'art', 'typ'])) || 'unknown';
     return { id: id, name: name, lat: lat, lon: lon, note: note, kind: kind };
   }
 

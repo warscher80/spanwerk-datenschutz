@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "0.8.1",
+  "versionCode": 16,
+  "versionName": "0.9.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Die App sagt jetzt deutlich, dass die Koordinaten der Rettungspunkte aus der Baustellenkarte stammen und ein Stück daneben liegen können — bei den Koordinaten, in der Meldung an die Leitstelle und unter Info. Merksatz: Der Name zählt, nicht der Meter."
+  "notes": "Zählungen stimmen jetzt überall überein (72 geprüfte, 3 gesperrte Masten). Alle 51 gesperrten Datensätze werden in aufklappbaren Gruppen erklärt. Importierte Punkte gelten nur noch als geprüft, wenn sie ausdrücklich gegen den Notfallplan bestätigt wurden. Browsererkennung zeigt Chrome nicht mehr als Safari. Der Offline-Speicher kann nicht mehr von einer Fehlerseite überschrieben werden."
 }
