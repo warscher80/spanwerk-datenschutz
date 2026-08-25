@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "0.7.0",
+  "versionCode": 14,
+  "versionName": "0.8.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Akku: Der Bildschirm bleibt nur noch so lange an, wie er gebraucht wird (einstellbar unter Info → Akku). Anzeige und Kompass zeichnen nur noch bei echten Änderungen. Unter 15 % Akku schaltet sich ein Sparmodus ein — sichtbar und mit einem Tipp abschaltbar."
+  "notes": "Neu: mehrere Baustellen. Jede hat eigene Punkte und eigene Nummern, getrennt gespeichert — ein Rettungspunkt der einen Baustelle kann nie in der anderen auftauchen. Umschalten über den Baustellennamen oben, verwalten unter Info → Baustellen. Die vorhandene Baustelle wird automatisch zur Baustelle 1."
 }

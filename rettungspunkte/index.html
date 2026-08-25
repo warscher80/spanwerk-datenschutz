@@ -107,6 +107,12 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brand small{color:var(--accent2);font-weight:800;font-size:19px}
   body.light .brand small{color:var(--spie-red)}
+  /* Die Trefferfläche ist 44 px hoch, das Aussehen bleibt schmal: Der negative
+     Außenabstand hebt den Innenabstand wieder auf. Sonst wächst die Kopfzeile
+     und die 112-Taste rutscht auf kleinen Handys aus dem Bild. */
+  .tagbtn{background:transparent;border:0;padding:13px 0;margin:-13px 0;text-align:left;cursor:pointer;
+    display:flex;align-items:center;gap:5px;max-width:100%;min-height:44px}
+  .tagbtn.mehr::after{content:"▾";font-size:11px;color:var(--accent2);flex:0 0 auto}
   .tag{color:var(--muted);font-size:11.5px;margin-top:1px;line-height:1.25;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (max-width:360px){
@@ -486,7 +492,8 @@
   </div>
   <div class="hgrow">
     <h1 class="brand">Rettungs<small>punkte</small></h1>
-    <div class="tag" id="headTag">Notfall-Standort für die Baustelle</div>
+    <button class="tag tagbtn" id="headTag" onclick="baustellenWaehler()"
+            aria-label="Baustelle wechseln">Notfall-Standort für die Baustelle</button>
   </div>
   <button class="iconbtn" onclick="showHelp()" aria-label="Hilfe" title="Hilfe">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4"/><path d="M12 17h.01"/></svg>
@@ -714,6 +721,17 @@
     </div>
 
     <div class="card">
+      <h3>Baustellen</h3>
+      <div id="baustellenBox"></div>
+      <div class="btnrow">
+        <button class="btn blue sm" onclick="baustelleNeuFragen()">Neue Baustelle</button>
+      </div>
+      <div class="hint">Jede Baustelle hat eigene Punkte und eigene Nummern. Sie werden
+        getrennt gespeichert — ein Rettungspunkt der einen Baustelle kann nie in der
+        anderen auftauchen.</div>
+    </div>
+
+    <div class="card">
       <h3>Geladene Baustellendaten</h3>
       <div id="paketBox" class="hint" style="font-size:13.5px"></div>
       <div id="migrationBox" class="hint" style="font-size:12.5px"></div>
@@ -892,15 +910,44 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.7.0';
+var VERSION = '0.8.0';
 var G = window.SpieGeo;
 
-var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
-    K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_PAKET = 'spie_paket',
-    K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin',
-    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt', K_GEO_OK = 'spie_geo_schon_erlaubt',
-    K_GROSS = 'spie_grosse_schrift', K_LETZTE_POS = 'spie_letzte_position',
-    K_WACH = 'spie_bildschirm_wach';
+/* =========================================================================
+   Speicher — getrennt nach Baustelle
+
+   Punkte, Notrufnummern und Datenpaket gehören zu EINER Baustelle. Sie liegen
+   deshalb in eigenen Speicherfächern: Ein Fehler im Filter kann keine Punkte
+   der Nachbarbaustelle einblenden, weil die gar nicht erst geladen werden.
+   Im Notfall auf einen Rettungspunkt 200 km entfernt zu zeigen, wäre der
+   schlimmste denkbare Fehler dieser App.
+
+   Die erste Baustelle behält die ursprünglichen Schlüssel ohne Anhängsel.
+   Damit wird jede bestehende Installation ohne Datenumzug zur Baustelle 1.
+   ========================================================================= */
+
+var BAUSTELLE_ERSTE = 'a';
+var K_BAUSTELLEN = 'spie_baustellen', K_AKTIV = 'spie_baustelle_aktiv';
+
+// Für alle Baustellen gemeinsam — Vorlieben des Nutzers, nicht Baustellendaten.
+var K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_ADMIN = 'spie_admin',
+    K_GEO_OK = 'spie_geo_schon_erlaubt', K_GROSS = 'spie_grosse_schrift',
+    K_LETZTE_POS = 'spie_letzte_position', K_WACH = 'spie_bildschirm_wach';
+
+// Je Baustelle — werden beim Wechsel umgehängt.
+var K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT;
+
+function schluesselSetzen(id) {
+  var anhang = (id && id !== BAUSTELLE_ERSTE) ? '__' + id : '';
+  K_POINTS         = 'spie_points' + anhang;
+  K_CONTACTS       = 'spie_contacts' + anhang;
+  K_SITE           = 'spie_site' + anhang;
+  K_PAKET          = 'spie_paket' + anhang;
+  K_MIGRATION      = 'spie_migration' + anhang;
+  K_SICHERUNG      = 'spie_sicherung' + anhang;
+  K_NOTRUF_GESETZT = 'spie_notruf_gesetzt' + anhang;
+}
+schluesselSetzen(BAUSTELLE_ERSTE);
 
 var P = window.SpiePruefung;
 
@@ -1010,6 +1057,211 @@ function problemText(schluessel) {
 }
 
 // Notrufnummern vom Aushang übernehmen — beim ersten Start oder auf Wunsch.
+/* =========================================================================
+   Baustellen — Liste, Wechsel, Anlegen, Löschen
+   ========================================================================= */
+
+function baustellen() {
+  var l = load(K_BAUSTELLEN, null);
+  if (l && l.length) return l;
+  // Erster Start nach dem Update: Was schon im Gerät liegt, wird Baustelle 1.
+  var titel = (load('spie_paket', null) || {}).titel || load('spie_site', '') || 'Baustelle 1';
+  var neu = [{ id: BAUSTELLE_ERSTE, titel: titel }];
+  save(K_BAUSTELLEN, neu);
+  return neu;
+}
+
+function aktiveBaustelle() {
+  var id = load(K_AKTIV, BAUSTELLE_ERSTE);
+  var alle = baustellen();
+  // Zeigt der Merker ins Leere (gelöschte Baustelle), auf die erste zurück.
+  return alle.some(function (b) { return b.id === id; }) ? id : alle[0].id;
+}
+
+function baustelleName(id) {
+  var b = baustellen().filter(function (x) { return x.id === id; })[0];
+  return b ? b.titel : '';
+}
+
+/* Lädt eine Baustelle in den Arbeitsspeicher. Alles, was zur vorherigen
+   gehörte, wird dabei bewusst verworfen — auch der von Hand gewählte
+   Standpunkt: Der zeigte auf einen Mast der anderen Baustelle. */
+function baustelleLaden(id) {
+  save(K_AKTIV, id);
+  schluesselSetzen(id);
+
+  state.manuell = null;
+  state.alt = 0;
+  state.points = load(K_POINTS, []) || [];
+  state.paket = load(K_PAKET, null);
+  state.contacts = load(K_CONTACTS, []) || [];
+  state.site = load(K_SITE, '') || '';
+
+  // Nur die erste Baustelle bekommt die mitgelieferten Daten. Jede weitere
+  // startet leer und wird über den Import gefüllt — erfundene Punkte gibt es
+  // hier nicht.
+  if (id === BAUSTELLE_ERSTE) {
+    if (!state.points.length) loadPaket();
+    state.migration = migriere() || load(K_MIGRATION, null);
+    if (!state.contacts.length && !load(K_NOTRUF_GESETZT, false)) {
+      if (loadNotruf()) save(K_NOTRUF_GESETZT, true);
+    }
+  } else {
+    state.migration = load(K_MIGRATION, null);
+  }
+
+  state.points.forEach(function (p) { if (!p.uid) p.uid = uid(); });
+  state.contacts.forEach(function (c) { if (!c.uid) c.uid = uid(); });
+}
+
+/* Lädt die Baustelle und baut die ganze Anzeige neu auf. Ohne Abkürzung: Das
+   Laden muss auch dann laufen, wenn der Merker bereits auf diese Baustelle
+   zeigt — etwa direkt nach dem Löschen der aktiven Baustelle. Sonst bleiben
+   deren Punkte im Arbeitsspeicher stehen. */
+function baustelleUebernehmen(id) {
+  baustelleLaden(id);
+  closeOv();
+  var feld = $('siteInput'); if (feld) feld.value = state.site;
+  renderPoints(); renderContacts(); renderPaket(); renderMigration();
+  renderAdmin(); renderOffeneFragen(); renderHero(); renderMessage();
+  baustellenAnzeigen();
+}
+
+function baustelleWechseln(id) {
+  if (id === aktiveBaustelle()) { closeOv(); return; }
+  baustelleUebernehmen(id);
+  diagnose('Baustelle gewechselt: ' + baustelleName(id));
+  toast('Baustelle: ' + baustelleName(id));
+}
+
+function baustellenAnzeigen() {
+  var alle = baustellen(), jetzt = aktiveBaustelle();
+
+  var tag = $('headTag');
+  if (tag) tag.classList.toggle('mehr', alle.length > 1);
+
+  var box = $('baustellenBox'); if (!box) return;
+  box.innerHTML = alle.map(function (b) {
+    var an = (b.id === jetzt);
+    return '<div class="contact">' +
+      '<span class="dot ' + (an ? 'ok' : '') + '" aria-hidden="true"></span>' +
+      '<div class="cinfo">' +
+      '<div class="cname">' + esc(b.titel) + (an ? ' <span class="badge">aktiv</span>' : '') + '</div>' +
+      '<div class="crole">' + baustelleUmfang(b.id) + '</div></div>' +
+      (an ? '' : '<button class="chip" onclick="baustelleWechseln(&#39;' + esc(b.id) + '&#39;)">Wechseln</button>') +
+      '<button class="chip" onclick="baustelleUmbenennen(&#39;' + esc(b.id) + '&#39;)" aria-label="Umbenennen">Name</button>' +
+      (alle.length > 1 ? '<button class="chip red" onclick="baustelleLoeschen(&#39;' + esc(b.id) + '&#39;)" aria-label="Löschen">Weg</button>' : '') +
+      '</div>';
+  }).join('');
+}
+
+/* Umfang einer Baustelle, ohne sie zu laden — direkt aus ihrem Speicherfach. */
+function baustelleUmfang(id) {
+  if (id === aktiveBaustelle()) {
+    return state.points.filter(istGeprueft).length + ' geprüfte Punkte · ' +
+           state.contacts.length + ' Nummern';
+  }
+  var merk = aktiveBaustelle();
+  schluesselSetzen(id);
+  var punkte = load(K_POINTS, []) || [], nummern = load(K_CONTACTS, []) || [];
+  schluesselSetzen(merk);
+  return punkte.filter(istGeprueft).length + ' geprüfte Punkte · ' + nummern.length + ' Nummern';
+}
+
+function baustellenWaehler() {
+  var alle = baustellen(), jetzt = aktiveBaustelle();
+  if (alle.length < 2) { setTab('info'); toast('Neue Baustelle anlegen: unter Info'); return; }
+  openOv('<h2>Baustelle wählen</h2>' +
+    '<p>Die App rechnet nur mit den Punkten der gewählten Baustelle.</p>' +
+    alle.map(function (b) {
+      return '<button class="btn ' + (b.id === jetzt ? 'haupt' : 'ghost') + '" ' +
+        'style="width:100%;margin-bottom:7px;justify-content:flex-start" ' +
+        'onclick="baustelleWechseln(&#39;' + esc(b.id) + '&#39;)">' +
+        esc(b.titel) + (b.id === jetzt ? ' — aktiv' : '') + '</button>';
+    }).join('') +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button></div>');
+}
+
+function baustelleNeuFragen() {
+  openOv('<h2>Neue Baustelle</h2>' +
+    '<p>Sie startet <b>leer</b> — Punkte und Nummern kommen über „Punkte → Importieren" ' +
+    'aus der Karte oder dem Aushang der neuen Baustelle. Erfundene Daten gibt es hier nicht.</p>' +
+    '<input class="inp" id="bsNeu" placeholder="z. B. Neubau Rheinquerung" aria-label="Name der neuen Baustelle">' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    '<button class="btn primary" onclick="baustelleNeuOk()">Anlegen</button></div>');
+  var f = $('bsNeu'); if (f) f.focus();
+}
+
+function baustelleNeuOk() {
+  var titel = (($('bsNeu') || {}).value || '').trim();
+  var id = baustelleAnlegen(titel);
+  if (id) baustelleWechseln(id);
+}
+
+function baustelleAnlegen(titel) {
+  titel = (titel || '').trim();
+  if (!titel) { toast('Bitte einen Namen angeben'); return null; }
+  var alle = baustellen();
+  var id = 'b' + Date.now().toString(36);
+  alle.push({ id: id, titel: titel });
+  save(K_BAUSTELLEN, alle);
+  // Leer anlegen und gleich hinwechseln.
+  schluesselSetzen(id);
+  save(K_POINTS, []); save(K_CONTACTS, []); save(K_SITE, titel); save(K_PAKET, null);
+  schluesselSetzen(aktiveBaustelle());
+  return id;
+}
+
+function baustelleUmbenennen(id) {
+  var alt = baustelleName(id);
+  openOv('<h2>Baustelle umbenennen</h2>' +
+    '<input class="inp" id="bsName" value="' + esc(alt) + '" aria-label="Name der Baustelle">' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    '<button class="btn primary" onclick="baustelleUmbenennenOk(&#39;' + esc(id) + '&#39;)">Speichern</button></div>');
+  var f = $('bsName'); if (f) { f.focus(); f.select(); }
+}
+
+function baustelleUmbenennenOk(id) {
+  var neu = (($('bsName') || {}).value || '').trim();
+  if (!neu) { toast('Bitte einen Namen angeben'); return; }
+  var alle = baustellen().map(function (b) { return b.id === id ? { id: b.id, titel: neu } : b; });
+  save(K_BAUSTELLEN, alle);
+  if (id === aktiveBaustelle()) { state.site = neu; save(K_SITE, neu);
+    var feld = $('siteInput'); if (feld) feld.value = neu; }
+  closeOv(); renderPaket(); baustellenAnzeigen(); toast('Umbenannt');
+}
+
+function baustelleLoeschen(id) {
+  var alle = baustellen();
+  if (alle.length < 2) { toast('Die letzte Baustelle bleibt'); return; }
+  var name = baustelleName(id);
+  confirmBox('Baustelle löschen?',
+    name + '\n\nAlle Punkte und Nummern dieser Baustelle werden gelöscht. ' +
+    'Das lässt sich nicht rückgängig machen.',
+    function () {
+      // ZUERST merken, welche Baustelle aktiv ist — danach steht die gelöschte
+      // nicht mehr in der Liste, und aktiveBaustelle() würde bereits auf die
+      // Ausweichbaustelle zeigen. Der Vergleich weiter unten wäre dann nie wahr.
+      var merk = aktiveBaustelle();
+      var rest = alle.filter(function (b) { return b.id !== id; });
+      save(K_BAUSTELLEN, rest);
+      // Fächer der gelöschten Baustelle leeren.
+      schluesselSetzen(id);
+      [K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT]
+        .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* egal */ } });
+      schluesselSetzen(merk);
+      if (id === merk) {
+        // Die aktive Baustelle ist weg — die verbliebene muss wirklich neu
+        // geladen werden, nicht bloß angezeigt.
+        baustelleUebernehmen(rest[0].id);
+        diagnose('Baustelle gelöscht, gewechselt zu: ' + baustelleName(rest[0].id));
+      } else {
+        baustellenAnzeigen();
+      }
+      toast('Gelöscht');
+    }, 'Löschen');
+}
+
 function loadNotruf(force) {
   if (typeof BAUSTELLE_NOTRUF === 'undefined' || !BAUSTELLE_NOTRUF.nummern) return false;
   if (state.contacts.length && !force) return false;
@@ -3207,7 +3459,11 @@ function renderMigration() {
 
 function renderPaket() {
   var tag = $('headTag');
-  if (tag) tag.textContent = state.paket ? state.paket.titel : 'Notfall-Standort für die Baustelle';
+  if (tag) {
+    var name = baustelleName(aktiveBaustelle()) ||
+               (state.paket ? state.paket.titel : '') || 'Notfall-Standort für die Baustelle';
+    tag.textContent = name;
+  }
   var box = $('paketBox'); if (!box) return;
   var counts = {};
   state.points.forEach(function (p) { var k = kindOf(p); counts[k] = (counts[k] || 0) + 1; });
@@ -3599,26 +3855,15 @@ function updateNetz() {
 function boot() {
   if (load(K_THEME, 'dark') === 'light') document.body.classList.add('light');
   grossSetzen(!!load(K_GROSS, false));
-  state.points = load(K_POINTS, []) || [];
-  state.paket = load(K_PAKET, null);
   state.admin = !!load(K_ADMIN, false);
-  // Erster Start: mitgelieferte Baustellendaten übernehmen.
-  if (!state.points.length) loadPaket();
-  // Bestehende Installation: geprüfte Daten nachziehen, eigene Punkte behalten.
-  state.migration = migriere() || load(K_MIGRATION, null);
-  state.contacts = load(K_CONTACTS, []) || [];
-  state.site = load(K_SITE, '') || '';
-  // Notrufnummern nur beim allerersten Start übernehmen — wer sie bewusst
-  // gelöscht hat, soll sie nicht bei jedem Start wiederbekommen.
-  if (!state.contacts.length && !load(K_NOTRUF_GESETZT, false)) {
-    if (loadNotruf()) save(K_NOTRUF_GESETZT, true);
-  }
-  // Ältere Datensätze ohne uid nachrüsten
-  state.points.forEach(function (p) { if (!p.uid) p.uid = uid(); });
-  state.contacts.forEach(function (c) { if (!c.uid) c.uid = uid(); });
+  /* Die aktive Baustelle laden. Das übernimmt auch das, was früher hier stand:
+     mitgelieferte Daten beim ersten Start, Migration, Notrufnummern, uid-
+     Nachrüstung — aber nur für die erste Baustelle. */
+  baustelleLaden(aktiveBaustelle());
 
   $('siteInput').value = state.site;
   $('verOut').textContent = VERSION;
+  baustellenAnzeigen();
   renderPoints(); renderContacts(); renderMessage(); renderPaket();
   renderMigration(); renderAdmin(); renderApp(); renderOffeneFragen();
 
