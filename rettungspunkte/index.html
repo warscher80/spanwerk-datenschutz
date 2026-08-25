@@ -727,13 +727,13 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.2.3';
+var VERSION = '0.3.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
     K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_PAKET = 'spie_paket',
     K_MIGRATION = 'spie_migration', K_SICHERUNG = 'spie_sicherung', K_ADMIN = 'spie_admin',
-    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt';
+    K_NOTRUF_GESETZT = 'spie_notruf_gesetzt', K_GEO_OK = 'spie_geo_schon_erlaubt';
 
 var P = window.SpiePruefung;
 
@@ -929,6 +929,7 @@ function migriere() {
 
 var GEO_TEXT = {
   init:        { title: 'Wo bist du?',            sub: 'Einen Moment …',                                   btn: 'Standort einschalten' },
+  tippen:      { title: 'Standort einschalten',   sub: 'Auf die rote Taste tippen — dann fragt das Handy einmal nach dem Standort.', btn: 'Standort einschalten' },
   requesting:  { title: 'Ich suche dich …',       sub: 'Das dauert ein paar Sekunden. Draußen geht es schneller.', btn: 'Nochmal versuchen' },
   ok:          { title: 'Gefunden',               sub: '',                                                 btn: '' },
   denied:      { title: 'Standort fehlt',         sub: 'Das Handy darf nicht sehen, wo du bist. Bitte erlauben.', btn: 'Standort einschalten' },
@@ -1027,7 +1028,7 @@ function setGeoState(kind, extraSub) {
     $('stripAcc').textContent = extraSub || accuracySub();
   } else {
     // Beim Suchen ruhig bleiben, erst bei echten Problemen alarmieren.
-    var searching = (kind === 'requesting' || kind === 'init');
+    var searching = (kind === 'requesting' || kind === 'init' || kind === 'tippen');
     $('geoBig').className = 'bigblock' + (searching ? ' searching' : '');
     $('geoTitle').textContent = t.title;
     var rohText = '';
@@ -1159,6 +1160,7 @@ function requestLocation() {
 function onPos(p) {
   clearTimeout(geoWachhund);
   geoVersuch = 0;
+  if (!load(K_GEO_OK, false)) save(K_GEO_OK, true);   // beim nächsten Start automatisch
   if (state.demo) { state.demo = false; toast('Echter Standort gefunden'); }
   // Beim Gehen liefert das GPS eine Bewegungsrichtung — die ersetzt den Kompass,
   // falls das Gerät keinen hat.
@@ -1209,6 +1211,17 @@ function initLocation() {
   if (nativeGeo()) { requestLocation(); return; }
   if (!navigator.geolocation) { setGeoState('unsupported'); return; }
   if (window.isSecureContext === false && !isNative()) { setGeoState('insecure'); return; }
+
+  /* Safari am iPhone stellt die Standortfrage zuverlässig, wenn sie aus einer
+     Berührung kommt. Beim Laden der Seite verschluckt es sie manchmal — dann
+     wartet man vor einer Anzeige, in der nichts passiert. Deshalb beim ersten
+     Mal auf das Antippen warten. Sobald einmal ein Standort kam, startet die
+     App wieder von allein (Safari fragt dann nicht mehr). */
+  if (platform() === 'ios' && !isNative() && !load(K_GEO_OK, false)) {
+    diagnose('iPhone, erster Start: warte auf Antippen (Safari fragt sonst evtl. nicht)');
+    setGeoState('tippen');
+    return;
+  }
 
   // Safari wirft bei permissions.query({name:'geolocation'}) je nach Version
   // SOFORT einen Fehler — nicht als abgelehntes Versprechen. Ohne try/catch
@@ -2438,9 +2451,14 @@ var APK_URL = '../Rettungspunkte.apk';
    passiert nur beim Start; ohne Netz passiert einfach nichts. */
 var VERSION_URL = 'https://warscher80.github.io/spanwerk-datenschutz/rettungspunkte-version.json';
 
+var letzteUpdatePruefung = 0;
+
 function updatePruefen() {
   if (!isNative()) return;                       // Web-Version aktualisiert der Service Worker
   if (navigator.onLine === false) return;
+  var jetzt = Date.now();
+  if (jetzt - letzteUpdatePruefung < 3600000) return;   // höchstens stündlich
+  letzteUpdatePruefung = jetzt;
   httpGet(VERSION_URL).then(function (txt) {
     var v = JSON.parse(txt);
     if (!v || !v.versionName) return;
@@ -2449,16 +2467,79 @@ function updatePruefen() {
   }).catch(function () { /* kein Netz, kein Problem */ });
 }
 
+/* Der eigene Android-Baustein, der die neue Version lädt und den Installer
+   öffnet. Fehlt er (Web-Version, alte Installation), bleibt der Download-Link. */
+function updater() {
+  var C = window.Capacitor;
+  if (!C || !C.isNativePlatform || !C.isNativePlatform()) return null;
+  if (platform() !== 'android') return null;
+  var P = C.Plugins && C.Plugins.Updater;
+  return (P && typeof P.herunterladenUndInstallieren === 'function') ? P : null;
+}
+
+var updateInfo = null;
+
 function zeigeUpdate(v) {
+  updateInfo = v;
   var box = $('updateBox');
   if (!box) return;
   box.hidden = false;
+  var U = updater();
+  var tasten = U
+    ? '<button class="btn primary" onclick="updateInstallieren()">Jetzt aktualisieren</button>'
+    : '<a class="btn primary" href="' + esc(v.apkUrl) + '" download>Update herunterladen</a>';
   box.innerHTML =
-    '<b>Neue Version ' + esc(v.versionName) + ' verfügbar</b>' +
+    '<h3>Neue Version ' + esc(v.versionName) + '</h3>' +
     (v.notes ? '<div class="hint" style="margin-top:4px">' + esc(v.notes) + '</div>' : '') +
-    '<div class="hint" style="margin-top:6px">Die neue Version wird über die alte installiert — ' +
+    '<div class="hint" style="margin-top:6px">Wird über die alte Version installiert — ' +
     'nichts löschen, die gespeicherten Punkte bleiben.</div>' +
-    '<div class="btnrow"><a class="btn primary" href="' + esc(v.apkUrl) + '">Update herunterladen</a></div>';
+    '<div class="btnrow">' + tasten + '</div>' +
+    '<div class="hint" id="updateStand"></div>';
+}
+
+function updateStand(text) {
+  var el = $('updateStand');
+  if (el) el.textContent = text;
+}
+
+function updateInstallieren() {
+  var U = updater();
+  if (!U || !updateInfo) return;
+  updateStand('Update wird geladen …');
+  // Meldungen des Bausteins mitnehmen (fertig, Fehler, Installer offen)
+  if (U.addListener && !window.__updateHoert) {
+    window.__updateHoert = true;
+    U.addListener('updateStatus', function (e) {
+      if (!e) return;
+      if (e.status === 'installer-offen') updateStand('Android fragt jetzt nach der Bestätigung.');
+      else if (e.status === 'fehler') updateStand('Fehlgeschlagen: ' + (e.text || 'unbekannt'));
+    });
+  }
+  U.herunterladenUndInstallieren({ url: updateInfo.apkUrl }).then(function (r) {
+    if (r && r.status === 'erlaubnis-fehlt') {
+      updateStand('Android muss der App das Installieren erlauben.');
+      var box = $('updateBox');
+      if (box && !box.querySelector('.erlaubnis')) {
+        var b = document.createElement('button');
+        b.className = 'btn erlaubnis';
+        b.textContent = 'Erlaubnis erteilen';
+        b.onclick = function () {
+          U.erlaubnisOeffnen();
+          updateStand('Nach dem Erlauben nochmal auf „Jetzt aktualisieren" tippen.');
+        };
+        box.appendChild(b);
+      }
+      return;
+    }
+    updateStand('Wird geladen — Android meldet sich, sobald es fertig ist.');
+  }).catch(function (e) {
+    updateStand('Fehlgeschlagen: ' + (e && e.message || e) + ' — bitte den Link benutzen.');
+    var box = $('updateBox');
+    if (box && updateInfo) {
+      box.innerHTML += '<div class="btnrow"><a class="btn" href="' + esc(updateInfo.apkUrl) +
+                       '" download>Update herunterladen</a></div>';
+    }
+  });
 }
 
 function renderApp() {
@@ -2558,6 +2639,7 @@ document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'visible') {
     clearTimeout(hintergrundTimer);
     keepAwake();
+    updatePruefen();
     if (state.pausiert) { state.pausiert = false; requestLocation(); }
   } else {
     // Nicht sofort abschalten: Auf dem iPhone gilt die Seite auch während

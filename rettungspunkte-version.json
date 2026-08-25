@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "0.2.2",
+  "versionCode": 6,
+  "versionName": "0.3.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Standort auf dem iPhone repariert: Die App fordert die Ortung nur noch einmal an, sonst brach iOS den Freigabedialog ab."
+  "notes": "Update direkt aus der App heraus. Am iPhone startet die Ortung jetzt auf Tastendruck — Safari fragt dann zuverlässig."
 }
