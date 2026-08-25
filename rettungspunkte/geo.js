@@ -552,6 +552,12 @@ var SpieGeo = (function () {
       L.push('*** VORSCHAU — BEISPIELSTANDORT, NICHT VERWENDEN ***');
       L.push('');
     }
+    if (opts.manuell) {
+      // Die Leitstelle muss wissen, woher die Koordinaten stammen. Ein von Hand
+      // gewählter Punkt ist gut genug zum Anfahren, aber er ist nicht gemessen.
+      L.push('*** STANDORT VON HAND ANGEGEBEN — NICHT VOM GPS GEMESSEN ***');
+      L.push('');
+    }
     L.push('NOTFALL — Standortmeldung');
     if (opts.site) L.push('Baustelle: ' + opts.site);
 
@@ -575,11 +581,17 @@ var SpieGeo = (function () {
 
     L.push('');
     if (pos) {
-      L.push('UNFALLSTELLE (eigener Standort)');
+      L.push(opts.manuell
+        ? 'UNFALLSTELLE (von Hand angegeben: ' + opts.manuell + ')'
+        : 'UNFALLSTELLE (eigener Standort)');
       L.push('  Dezimalgrad: ' + formatDec(pos.lat, pos.lon));
       L.push('  Grad/Min:    ' + formatDDM(pos.lat, pos.lon));
       L.push('  UTM:         ' + toUTM(pos.lat, pos.lon).text);
-      if (pos.accuracy != null) L.push('  Genauigkeit: ' + formatAccuracy(pos.accuracy));
+      if (opts.manuell) {
+        L.push('  Herkunft:    von Hand gewählt (' + opts.manuell + '), GPS war nicht verfügbar');
+      } else if (pos.accuracy != null) {
+        L.push('  Genauigkeit: ' + formatAccuracy(pos.accuracy));
+      }
       if (opts.gemessen) L.push('  Gemessen:    ' + opts.gemessen);
       if (pos.accuracy != null && pos.accuracy > 50) {
         L.push('  ACHTUNG: Standort nur auf ' + formatAccuracy(pos.accuracy) + ' genau.');

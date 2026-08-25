@@ -452,7 +452,8 @@
       <div class="bigtitle" id="geoTitle">Standort einschalten</div>
       <div class="bigtext" id="geoSub">Die App muss wissen, wo du bist.</div>
       <button class="btn primary huge" id="geoBtn" onclick="requestLocation()">Standort einschalten</button>
-      <button class="btn ghost sm" style="margin-top:9px" onclick="demoStart()">Nur ansehen (Vorschau)</button>
+      <button class="btn ghost sm" style="margin-top:9px" onclick="standpunktWaehlen()">Ortung geht nicht — ich stehe bei einem Mast</button>
+      <button class="btn ghost sm" style="margin-top:7px" onclick="demoStart()">Nur ansehen (Vorschau)</button>
       <button class="btn ghost sm" style="margin-top:7px"
               onclick="copyText(diagnoseText(),'Diagnose kopiert — bitte schicken')">Diagnose kopieren</button>
       <details class="howdet" id="geoHowDet"><summary>Wie geht das?</summary>
@@ -802,7 +803,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.4.2';
+var VERSION = '0.5.0';
 var G = window.SpieGeo;
 
 var K_POINTS = 'spie_points', K_CONTACTS = 'spie_contacts', K_SITE = 'spie_site',
@@ -826,6 +827,7 @@ var state = {
   editPoint: null,
   editContact: null,
   demo: false,        // Vorschau mit Beispielstandort
+  manuell: null,      // von Hand gewählter Standpunkt (geprüfter Punkt), wenn die Ortung versagt
   pausiert: false,    // Ortung im Hintergrund angehalten (Akku)
   letzterFehler: null, // rohe Meldung des Browsers, für die Fehlersuche
   freigabe: null,     // was die Permissions-API sagt (granted/denied/prompt)
@@ -1045,23 +1047,27 @@ function howtoHtml(kind) {
     if (b.key === 'chrome' || b.key === 'firefox' || b.key === 'edge' ||
         b.key === 'opera'  || b.key === 'google') {
       return '<b>' + esc(b.name) + ' darf am Handy nicht orten</b>' +
-        '<div class="warnbox" style="margin:8px 0">Am iPhone hat <b>jeder</b> Browser ' +
-        'seine eigene Standort-Freigabe. Die von ' + esc(b.name) + ' ist aus — deshalb ' +
-        'kommt gar keine Frage, sondern sofort eine Absage. Die Seite selbst kann daran ' +
-        'nichts ändern.</div>' +
-        '<ol>' +
-        '<li><b>Einstellungen</b> öffnen (das graue Zahnrad)</li>' +
-        '<li>Nach unten zu <b>' + esc(b.name) + '</b> tippen</li>' +
+        '<div class="warnbox" style="margin:8px 0">Es kam gar keine Frage — das Handy hat ' +
+        'sofort abgesagt. Daran kann die Seite nichts ändern. Zwei Schalter kommen infrage, ' +
+        'in dieser Reihenfolge:</div>' +
+        '<b>1. Der Hauptschalter fürs ganze Handy</b>' +
+        '<ol><li><b>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</b></li>' +
+        '<li>Der oberste Schalter muss <b>grün</b> sein</li></ol>' +
+        '<div class="hint">Ist der aus, kann <b>kein</b> Browser orten — dann hilft auch der ' +
+        'Wechsel zu Safari nichts. Steht er grau/gesperrt: ' +
+        '<b>Einstellungen → Bildschirmzeit → Datenschutz</b> (früher „Einschränkungen") ' +
+        'erlaubt Änderungen wieder.</div>' +
+        '<b style="display:block;margin-top:10px">2. Der Schalter für ' + esc(b.name) + '</b>' +
+        '<ol><li><b>Einstellungen</b> öffnen, nach unten zu <b>' + esc(b.name) + '</b></li>' +
         '<li><b>Standort</b> → <b>Beim Verwenden der App</b></li>' +
-        '<li>Zurück hierher, Seite neu laden, <b>Standort einschalten</b></li>' +
-        '</ol>' +
-        '<div class="hint"><b>Schneller geht es in Safari.</b> Die Adresse in Safari öffnen — ' +
-        'dort fragt das Handy normal nach. Nur in Safari funktioniert die App außerdem ' +
+        '<li>Zurück hierher, Seite neu laden, <b>Standort einschalten</b></li></ol>' +
+        '<div class="hint">In der Liste unter <b>Ortungsdienste</b> steht jede App noch einmal — ' +
+        'dort siehst du auf einen Blick, was auf „Nie" steht.</div>' +
+        '<div class="hint"><b>Safari ist der bessere Weg.</b> Nur dort läuft die App auch ' +
         '<b>ohne Netz</b> und lässt sich über <b>Teilen → Zum Home-Bildschirm</b> ablegen.</div>' +
-        '<div class="hint">Kommt in Safari die Frage auch nicht: ' +
-        '<b>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</b> muss an sein.</div>' +
-        '<div class="hint">Hast du die Frage gerade selbst weggetippt? Dann Seite neu laden ' +
-        'und beim zweiten Mal auf <b>Erlauben</b> tippen.</div>';
+        '<div class="warnbox" style="margin:10px 0 0">Geht es nirgends: unten auf ' +
+        '<b>„Ortung geht nicht — ich stehe bei einem Mast"</b> tippen. Dann rechnet die App ' +
+        'von diesem Mast aus — ganz ohne GPS.</div>';
     }
 
     // Eingebauter Browser einer anderen App (WhatsApp, Instagram, Mail …).
@@ -1153,6 +1159,16 @@ function setGeoState(kind, extraSub) {
 
   $('geoStrip').style.display = ok ? 'flex' : 'none';
   $('geoBig').style.display = ok ? 'none' : 'block';
+
+  if (ok && state.manuell) {
+    // Nie grün: Der Standort ist nicht gemessen, sondern angegeben.
+    $('geoDot').className = 'dot warn';
+    $('geoStrip').className = 'strip warn';
+    $('stripTxt').textContent = 'Standpunkt von Hand: ' + G.shortLabel(state.manuell);
+    $('stripAcc').innerHTML = '<button class="chip" onclick="standpunktLoeschen()">Ändern</button>';
+    renderHero(); renderMessage();
+    return;
+  }
 
   if (ok) {
     var acc = state.pos ? state.pos.accuracy : null;
@@ -1258,6 +1274,99 @@ function demoStop() {
   requestLocation();
 }
 
+/* =========================================================================
+   Standpunkt von Hand — der Rückfall, wenn das Handy nicht orten will
+
+   Ohne GPS wäre die App im Notfall wertlos. Auf einer Freileitungsbaustelle
+   weiß aber jeder, an welchem Mast er steht. Wählt der Nutzer den Mast, kann
+   die App von dort aus rechnen: nächster Rettungspunkt, Richtung, Entfernung,
+   Meldung an die Leitstelle.
+
+   Zwei Regeln, damit daraus nichts Gefährliches wird:
+   1. Nur GEPRÜFTE Punkte stehen zur Wahl — ein ungeprüfter Punkt darf keine
+      Standortmeldung erzeugen.
+   2. Überall, wo dieser Standort auftaucht, steht dabei, dass er von Hand
+      gewählt und nicht gemessen wurde. Auch in der Meldung an die Leitstelle.
+   ========================================================================= */
+
+function standpunktWaehlen() {
+  var wahl = state.points.filter(istGeprueft).filter(function (p) {
+    return typeof p.lat === 'number' && typeof p.lon === 'number';
+  });
+  if (!wahl.length) {
+    openOv('<h2>Keine geprüften Punkte</h2><p>Ohne geprüfte Punkte kann die App keinen ' +
+           'Standpunkt anbieten. Bitte erst die Baustellendaten laden.</p>' +
+           '<div class="btnrow"><button class="btn" onclick="closeOv()">Schließen</button></div>');
+    return;
+  }
+  openOv(
+    '<h2>Wo stehst du?</h2>' +
+    '<p>Such den Mast oder Punkt, an dem du gerade stehst. Die App rechnet dann von dort — ' +
+    '<b>ohne GPS</b>.</p>' +
+    '<input class="inp" id="standSuche" type="search" inputmode="search" autocomplete="off" ' +
+    'placeholder="Mastnummer oder Name, z. B. 2409" aria-label="Standpunkt suchen" ' +
+    'oninput="standpunktListe(this.value)">' +
+    '<div id="standListe" style="margin-top:10px"></div>' +
+    '<div class="btnrow" style="margin-top:12px">' +
+    '<button class="btn ghost" onclick="closeOv()">Abbrechen</button></div>');
+  standpunktListe('');
+  var feld = $('standSuche'); if (feld) feld.focus();
+}
+
+function standpunktListe(suche) {
+  var box = $('standListe'); if (!box) return;
+  var q = (suche || '').toLowerCase().trim();
+  var treffer = state.points.filter(function (p) {
+    if (!istGeprueft(p)) return false;
+    if (typeof p.lat !== 'number' || typeof p.lon !== 'number') return false;
+    if (!q) return true;
+    return (G.shortLabel(p) + ' ' + (p.name || '') + ' ' + (p.mastNr || '') + ' ' + (p.id || ''))
+      .toLowerCase().indexOf(q) >= 0;
+  });
+  // Rettungspunkte zuerst — sie sind die wichtigste Marke im Gelände.
+  treffer.sort(function (a, b) {
+    var ka = (kindOf(a) === 'rp') ? 0 : 1, kb = (kindOf(b) === 'rp') ? 0 : 1;
+    if (ka !== kb) return ka - kb;
+    return G.shortLabel(a).localeCompare(G.shortLabel(b), 'de', { numeric: true });
+  });
+  var gezeigt = treffer.slice(0, 40);
+  if (!gezeigt.length) { box.innerHTML = '<p>Nichts gefunden.</p>'; return; }
+  box.innerHTML = gezeigt.map(function (p) {
+    return '<button class="btn ghost" style="width:100%;justify-content:flex-start;margin-bottom:6px;text-align:left" ' +
+      // uid ist die stabile Kennung; p.id ist die freie Kennung des Nutzers und
+      // oft leer. Einfache Anführungszeichen — doppelte zerrissen das Attribut.
+      'onclick="standpunktSetzen(&#39;' + esc(String(p.uid)) + '&#39;)">' +
+      '<b>' + esc(G.shortLabel(p)) + '</b>' +
+      '<span style="color:var(--muted);font-weight:600;margin-left:8px">' + esc(KIND_LABEL[kindOf(p)] || '') + '</span>' +
+      '</button>';
+  }).join('') +
+  (treffer.length > gezeigt.length
+    ? '<p style="margin-top:6px">… ' + (treffer.length - gezeigt.length) + ' weitere — bitte suchen.</p>'
+    : '');
+}
+
+function standpunktSetzen(uid) {
+  var p = state.points.filter(function (x) { return x.uid === uid; })[0];
+  if (!p || !istGeprueft(p)) { toast('Punkt nicht verwendbar'); return; }
+  state.demo = false;
+  state.manuell = p;
+  // accuracy bleibt null: Diese Position ist nicht gemessen, jede Zahl wäre erfunden.
+  state.pos = { lat: p.lat, lon: p.lon, accuracy: null, ts: Date.now() };
+  closeOv();
+  stopWatch();
+  renderCoords();
+  setGeoState('ok');
+  diagnose('Standpunkt von Hand gesetzt: ' + G.shortLabel(p));
+  toast('Standpunkt: ' + G.shortLabel(p));
+}
+
+function standpunktLoeschen() {
+  state.manuell = null;
+  state.pos = null;
+  $('geoCoords').style.display = 'none';
+  requestLocation();
+}
+
 var geoWachhund = null;
 var geoVersuch = 0;
 var geoAnfrageZeit = 0;   // wann ging die letzte Anforderung raus?
@@ -1306,6 +1415,7 @@ function onPos(p) {
   geoVersuch = 0;
   if (!load(K_GEO_OK, false)) save(K_GEO_OK, true);   // beim nächsten Start automatisch
   if (state.demo) { state.demo = false; toast('Echter Standort gefunden'); }
+  if (state.manuell) { state.manuell = null; toast('Echter Standort gefunden — Handeingabe aufgehoben'); }
   // Beim Gehen liefert das GPS eine Bewegungsrichtung — die ersetzt den Kompass,
   // falls das Gerät keinen hat.
   if (p.coords.heading != null && !isNaN(p.coords.heading) && p.coords.speed > 0.7) {
@@ -1634,6 +1744,10 @@ function gpsZeile() {
   var schlecht = (acc != null && acc > 50);
   var alt = alterS > 120;
   var klasse = (schlecht || alt) ? 'gpszeile warn' : 'gpszeile';
+  if (state.manuell) {
+    return '<div class="gpszeile warn">Standpunkt von Hand gewählt: ' +
+      esc(G.shortLabel(state.manuell)) + ' · nicht gemessen</div>';
+  }
   var teile = [];
   teile.push('Genauigkeit ' + (acc != null ? '±' + Math.round(acc) + ' m' : 'unbekannt'));
   teile.push(state.demo ? 'Beispielstandort' : 'Stand ' + alterText(alterS));
@@ -1768,7 +1882,8 @@ function renderMessage() {
   var n = heroTarget();
   $('msgBox').value = G.emergencyText(state.pos, n, {
     vorschau: state.demo,
-    gemessen: state.pos ? new Date(state.pos.ts).toLocaleTimeString('de-DE',
+    manuell: state.manuell ? G.shortLabel(state.manuell) : '',
+    gemessen: (state.pos && !state.manuell) ? new Date(state.pos.ts).toLocaleTimeString('de-DE',
       { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' Uhr' : '',
     site: state.site || (state.paket ? state.paket.titel : ''),
     mast: nearestMast(),

@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "0.4.2",
+  "versionCode": 10,
+  "versionName": "0.5.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Erkennt jetzt, wenn nicht die Seite, sondern der Browser selbst nicht orten darf (Chrome, Firefox, Edge oder der eingebaute Browser von WhatsApp am iPhone). Statt „Standort abgelehnt“ nennt die App den Browser beim Namen und den Weg über die iPhone-Einstellungen."
+  "notes": "Neu: Wenn das Handy gar nicht orten will, kann man angeben, an welchem Mast man steht — die App rechnet dann von dort. Der Standort wird überall als „von Hand angegeben“ gekennzeichnet, auch in der Meldung an die Leitstelle. Außerdem bessere Anleitung, wenn der Browser selbst gesperrt ist."
 }

@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-5b6714fd';
+var CACHE = 'rettungspunkte-7d9cfd37';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
