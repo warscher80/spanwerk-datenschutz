@@ -302,21 +302,31 @@ var SpieGeo = (function () {
         var block = pm[0];
         var nameEarly = block.match(/<name>([\s\S]*?)<\/name>/);
 
-        // Linien (gespeicherte Routen, Trassenzüge) mitnehmen — das sind die
-        // einzigen echten Wege, die die Karte hergibt.
-        var lineM = block.match(/<LineString>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/);
-        if (lineM) {
+        /* Linien (Zuwegungen, Trassenzüge) mitnehmen. ALLE, nicht nur die
+           erste: In Google My Maps steckt eine gezeichnete Zuwegung als
+           MultiGeometry mit vielen LineStrings in EINER Platzmarke. Vorher
+           nahm die Suche ohne /g nur das erste Segment — aus einer 2 km langen
+           Zuwegung wurde ein 30-Meter-Stummel, der im Lageplan trotzdem wie
+           der ganze Weg aussah.
+
+           Jedes Segment wird ein eigener Eintrag: Zusammenhängen darf man sie
+           nicht, sonst entstünden Verbindungslinien quer durch die Landschaft,
+           die es in Wirklichkeit nicht gibt. */
+        var lineRe = /<LineString>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/g;
+        var lm, gefunden = false;
+        while ((lm = lineRe.exec(block)) !== null) {
           var punkte = [];
-          clean(lineM[1]).split(/\s+/).forEach(function (paar) {
+          clean(lm[1]).split(/\s+/).forEach(function (paar) {
             var t = paar.split(',');
             var lo = parseFloat(t[0]), la = parseFloat(t[1]);
             if (inRange(la, lo)) punkte.push([la, lo]);
           });
           if (punkte.length >= 2) {
             out.lines.push({ name: nameEarly ? clean(nameEarly[1]) : 'Weg', punkte: punkte, folder: f.name });
+            gefunden = true;
           }
-          continue;
         }
+        if (gefunden) continue;
 
         var coordM = block.match(/<Point>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/);
         if (!coordM) continue;                       // Fläche → überspringen
@@ -532,6 +542,264 @@ var SpieGeo = (function () {
     return punkte.filter(function (_, i) { return behalten[i]; });
   }
 
+
+  /* ---------- Wege aus einer Karte aufbereiten ----------
+     Was in einer Google-My-Maps-Karte als „Zuwegung" gezeichnet ist, kommt im
+     KML-Export nicht als ein Linienzug an. Bei der Baustelle Blatzheim steckten
+     8274 einzelne LineStrings in EINER Platzmarke: eine gestrichelte Linie,
+     Strich für Strich — im Schnitt 3,5 m Strich, 6,3 m Lücke. Roh gespeichert
+     wären das 174 KB je Baustelle und im Lageplan ein Gewimmel aus Punkten.
+
+     Zusätzlich enthalten solche Karten Ebenen, die gar keine Wege sind:
+     „Mastnummern" (308 Linien) sind gezeichnete Ziffern, „Mastmittelpunkte"
+     (76 Linien) gezeichnete Kreuze. Die längste davon misst 7 m.
+
+     Deshalb: gleiche Striche zusammenfassen, Striche derselben Linie verketten,
+     und alles unter 100 m verwerfen. Die Ziffern und Kreuze fallen dabei über
+     ihre Länge heraus, nicht über ihren Namen — eine andere Baustelle darf ihre
+     Ebenen nennen, wie sie will.
+
+     Verkettet wird nur innerhalb einer Ebene und nur über Lücken bis 8 m. Bei
+     Blatzheim wuchs die Gesamtlänge dadurch von 39,4 km auf 40,6 km (+3 %) —
+     die überbrückten Lücken, nichts Erfundenes. Wer eine größere Toleranz
+     setzt, verbindet irgendwann Wege, die sich nur nahekommen. */
+
+  var STRICH_MAX     = 25;     // kürzer = Zeichenmuster, kein Wegabschnitt
+  var WEG_LUECKE_M   = 8;      // größte Lücke, die als derselbe Strichzug gilt
+  var WEG_MIN_M      = 100;    // kürzer ist kein Weg, sondern eine Zeichnung
+  var WEG_MAX        = 300;    // Obergrenze, damit der Gerätespeicher reicht
+  var WEG_NAHE_M     = 1000;   // weiter weg = gehört nicht zu dieser Baustelle
+  var WEG_GENAUIGKEIT_M = 8;   // Ausdünnung für den Lageplan
+
+  // Punkt auf halber Länge eines Strichs.
+  function mitte(pts) {
+    if (pts.length === 1) return pts[0];
+    var ganz = wegLaenge(pts), halb = ganz / 2, l = 0;
+    for (var i = 1; i < pts.length; i++) {
+      var d = distance(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+      if (l + d >= halb && d > 0) {
+        var t = (halb - l) / d;
+        return [pts[i-1][0] + (pts[i][0] - pts[i-1][0]) * t,
+                pts[i-1][1] + (pts[i][1] - pts[i-1][1]) * t];
+      }
+      l += d;
+    }
+    return pts[pts.length - 1];
+  }
+
+  function wegLaenge(pts) {
+    var l = 0;
+    for (var i = 1; i < pts.length; i++) l += distance(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+    return l;
+  }
+
+  /* Nachbarsuche über ein Gitter: ohne das wären es bei 4000 Strichen 16
+     Millionen Abstandsrechnungen — auf einem Baustellenhandy zu langsam. */
+  function gitter(zellenMeter) {
+    var netz = {}, gLat = zellenMeter / 110540;
+    var schluessel = function (p) {
+      var gLon = zellenMeter / Math.max(1, 111320 * Math.cos(p[0] * Math.PI / 180));
+      return Math.floor(p[0] / gLat) + ':' + Math.floor(p[1] / gLon);
+    };
+    return {
+      ablegen: function (p, wert) {
+        var k = schluessel(p);
+        (netz[k] || (netz[k] = [])).push(wert);
+      },
+      umkreis: function (p) {
+        var gLon = zellenMeter / Math.max(1, 111320 * Math.cos(p[0] * Math.PI / 180));
+        var a = Math.floor(p[0] / gLat), b = Math.floor(p[1] / gLon), out = [];
+        for (var i = -1; i <= 1; i++) for (var j = -1; j <= 1; j++) {
+          var z = netz[(a + i) + ':' + (b + j)];
+          if (z) out = out.concat(z);
+        }
+        return out;
+      }
+    };
+  }
+
+  /* Kehrt der Anschlussstrich um mehr als 150° um, gehört er zur
+     Gegenrichtung derselben gestrichelten Linie — nicht an diese Kette. */
+  function kehrt(kurs, von, nach) {
+    if (kurs == null) return false;
+    if (von[0] === nach[0] && von[1] === nach[1]) return false;   // keine Richtung
+    var neu = bearing(von[0], von[1], nach[0], nach[1]);
+    // 0° = geradeaus weiter, 180° = zurueck denselben Weg.
+    var d = Math.abs(((neu - kurs + 540) % 360) - 180);
+    return d > 150;
+  }
+
+  /* „Style12" ist kein Wegname, sondern was Google My Maps hinterlässt, wenn
+     beim Zeichnen keiner vergeben wurde. Dann ist der Name der Ebene
+     („Zuwegungen") das Ehrlichere. Erfunden wird nichts. */
+  function wegName(name, ebene) {
+    var n = String(name || '').trim();
+    if (!n || /^(style|linie|line|untitled|ohne titel)\s*\d*$/i.test(n)) return ebene || 'Weg';
+    return n;
+  }
+
+  function wegeAufbereiten(lines, opts) {
+    opts = opts || {};
+    var luecke = opts.luecke != null ? opts.luecke : WEG_LUECKE_M;
+    var minM   = opts.minLaenge != null ? opts.minLaenge : WEG_MIN_M;
+    var max    = opts.max != null ? opts.max : WEG_MAX;
+    var nahe   = opts.naheBei && opts.naheBei.length ? opts.naheBei : null;
+    var naheM  = opts.naheM != null ? opts.naheM : WEG_NAHE_M;
+    var genau  = opts.genauigkeit != null ? opts.genauigkeit : WEG_GENAUIGKEIT_M;
+
+    var bericht = { roh: 0, doppelt: 0, verkettet: 0, zuKurz: 0, fremd: 0, beschnitten: 0, uebrig: 0,
+                    gekappt: 0, laengeM: 0, luecke: luecke, minLaenge: minM };
+    if (!lines || !lines.length) return { wege: [], bericht: bericht };
+    bericht.roh = lines.length;
+
+    // Nach Ebene trennen — Ebenen werden nie miteinander verkettet.
+    var ebenen = {};
+    lines.forEach(function (l) {
+      if (!l || !l.punkte || l.punkte.length < 2) return;
+      var e = l.folder || '';
+      (ebenen[e] || (ebenen[e] = [])).push(l);
+    });
+
+    var alle = [];
+    Object.keys(ebenen).forEach(function (name) {
+      /* 1. Aus jedem Strichlein wird sein Mittelpunkt.
+
+         Die kurzen Stücke sind keine Wegabschnitte, sondern das Muster, mit
+         dem die Linie gezeichnet ist: In Blatzheim ist jedes 3,5 m lang, zeigt
+         quer zur Fahrtrichtung und das nächste steht 5 m weiter — eine
+         schraffierte Linie. Wer diese Striche aneinanderhängt, bekommt einen
+         Zickzack und eine um zwei Drittel zu große Länge. Der Mittelpunkt
+         jedes Strichs liegt dagegen auf der Wegachse, bei einer schraffierten
+         wie bei einer gestrichelten Linie.
+
+         Doppelt exportierte Striche fallen dabei von selbst zusammen. */
+      var gesehen = {}, teile = [];
+      var kk = function (p) { return p[0].toFixed(5) + ',' + p[1].toFixed(5); };
+      ebenen[name].forEach(function (l) {
+        var pts = l.punkte;
+        if (wegLaenge(pts) < STRICH_MAX) pts = [mitte(pts)];
+        var a = kk(pts[0]), b = kk(pts[pts.length - 1]);
+        if (gesehen[a + '>' + b] || gesehen[b + '>' + a]) { bericht.doppelt++; return; }
+        gesehen[a + '>' + b] = 1;
+        teile.push({ name: l.name || 'Weg', punkte: pts });
+      });
+
+      // 2. Striche verketten, die aneinander anschließen.
+      var netz = gitter(luecke);
+      teile.forEach(function (t, i) {
+        netz.ablegen(t.punkte[0], i);
+        netz.ablegen(t.punkte[t.punkte.length - 1], i);
+      });
+      var benutzt = new Array(teile.length);
+
+      for (var i = 0; i < teile.length; i++) {
+        if (benutzt[i]) continue;
+        benutzt[i] = true;
+        var kette = teile[i].punkte.slice(), weiter = true;
+        while (weiter) {
+          weiter = false;
+          for (var e = 1; e >= 0; e--) {                 // erst hinten, dann vorn
+            var p = e ? kette[kette.length - 1] : kette[0];
+            /* Richtung, in der die Kette gerade läuft. Ohne diese Prüfung
+               hängt sich die Kette am Ende des Weges an die Striche der
+               Gegenrichtung und läuft denselben Weg zurück: Die Länge wäre
+               doppelt so groß wie in Wirklichkeit. */
+            var her = e ? kette[kette.length - 2] : kette[1];
+            var kurs = her ? bearing(her[0], her[1], p[0], p[1]) : null;
+            var best = -1, bestD = luecke, umdrehen = false;
+            netz.umkreis(p).forEach(function (j) {
+              if (benutzt[j]) return;
+              var s = teile[j].punkte;
+              var d0 = distance(p[0], p[1], s[0][0], s[0][1]);
+              var d1 = distance(p[0], p[1], s[s.length-1][0], s[s.length-1][1]);
+              /* Richtung IMMER vom Kettenende zum fernen Ende des Anschlusses
+                 messen. Ein Strich, der auf seinen Mittelpunkt zusammengefallen
+                 ist, hat sonst gar keine eigene Richtung. */
+              if (d0 < bestD && !kehrt(kurs, p, s[s.length-1])) { bestD = d0; best = j; umdrehen = false; }
+              if (d1 < bestD && !kehrt(kurs, p, s[0])) { bestD = d1; best = j; umdrehen = true; }
+            });
+            if (best < 0) continue;
+            benutzt[best] = true;
+            bericht.verkettet++;
+            var st = teile[best].punkte.slice();
+            if (umdrehen) st.reverse();
+            kette = e ? kette.concat(st) : st.reverse().concat(kette);
+            weiter = true;
+            break;
+          }
+        }
+        alle.push({ name: teile[i].name, folder: name, punkte: kette, laenge: wegLaenge(kette) });
+      }
+    });
+
+    // 3. Zu kurz = keine Wegstrecke (Ziffern, Kreuze, Reste).
+    var lang = alle.filter(function (w) {
+      if (w.laenge >= minM) return true;
+      bericht.zuKurz++;
+      return false;
+    });
+
+    /* 4. Auf die Umgebung der Baustelle beschneiden.
+
+       In der Pillig-Karte steckt eine 53 km lange Linie quer durch die Eifel
+       und eine gespeicherte Autoroute nach Kaisersesch. Im Lageplan sah beides
+       aus wie ein Weg zum Rettungspunkt. Ein einzelner Berührungspunkt reicht
+       als Zugehörigkeit nicht — die Linie streift unterwegs auch eine Klinik.
+       Deshalb bleibt nur, was wirklich in der Nähe verläuft; der Rest fällt
+       gleich danach durch die Mindestlänge heraus.
+
+       Gemessen wird gegen die Punkte der Baustelle, nicht gegen deren Mitte:
+       eine Freileitung ist zehn Kilometer lang. */
+    if (nahe) {
+      var beschnitten = [];
+      lang.forEach(function (w) {
+        var lauf = [], teile = [];
+        w.punkte.forEach(function (q) {
+          var dran = nahe.some(function (z) { return distance(q[0], q[1], z[0], z[1]) <= naheM; });
+          if (dran) { lauf.push(q); return; }
+          if (lauf.length >= 2) teile.push(lauf);
+          lauf = [];
+        });
+        if (lauf.length >= 2) teile.push(lauf);
+        if (!teile.length) { bericht.fremd++; return; }
+        if (teile.length === 1 && teile[0].length === w.punkte.length) { beschnitten.push(w); return; }
+        bericht.beschnitten++;
+        teile.forEach(function (t) {
+          beschnitten.push({ name: w.name, folder: w.folder, punkte: t, laenge: wegLaenge(t) });
+        });
+      });
+      // Ein Rest unter der Mindestlänge war nie ein Weg dieser Baustelle.
+      lang = beschnitten.filter(function (w) {
+        if (w.laenge >= minM) return true;
+        bericht.zuKurz++;
+        return false;
+      });
+    }
+
+    // 5. Längste zuerst — wenn gekappt werden muss, fällt Unwichtiges weg.
+    lang.sort(function (a, b) { return b.laenge - a.laenge; });
+    if (lang.length > max) { bericht.gekappt = lang.length - max; lang = lang.slice(0, max); }
+
+    var wege = lang.map(function (w) {
+      var pts = simplify(w.punkte, genau);
+      return {
+        name: wegName(w.name, w.folder),
+        folder: w.folder,
+        // Viele Stützpunkte = aus einer Routenberechnung, folgt also echten
+        // Straßen. Wenige = jemand hat die Linie grob per Hand gezogen.
+        art: pts.length >= 20 ? 'strasse' : 'linie',
+        laenge: Math.round(w.laenge),
+        punkte: pts.map(function (q) {
+          return [Math.round(q[0] * 1e6) / 1e6, Math.round(q[1] * 1e6) / 1e6];
+        })
+      };
+    });
+
+    bericht.uebrig = wege.length;
+    bericht.laengeM = Math.round(wege.reduce(function (a, w) { return a + w.laenge; }, 0));
+    return { wege: wege, bericht: bericht };
+  }
+
   /* ---------- Nächste Punkte ---------- */
 
   // Punkte um die Position anreichern und nach Entfernung sortieren.
@@ -684,6 +952,7 @@ var SpieGeo = (function () {
     parsePoints: parsePoints,
     parseKml: parseKml,
     simplify: simplify,
+    wegeAufbereiten: wegeAufbereiten,
     classify: classify,
     myMapsKmlUrl: myMapsKmlUrl,
     normalizePoint: normalizePoint,

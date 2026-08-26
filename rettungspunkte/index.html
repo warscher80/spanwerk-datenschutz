@@ -934,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.4';
+var VERSION = '0.9.5';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -959,7 +959,7 @@ var K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_ADMIN = 'spie_admin',
     K_LETZTE_POS = 'spie_letzte_position', K_WACH = 'spie_bildschirm_wach';
 
 // Je Baustelle — werden beim Wechsel umgehängt.
-var K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT;
+var K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_WEGE, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT;
 
 function schluesselSetzen(id) {
   var anhang = (id && id !== BAUSTELLE_ERSTE) ? '__' + id : '';
@@ -967,6 +967,7 @@ function schluesselSetzen(id) {
   K_CONTACTS       = 'spie_contacts' + anhang;
   K_SITE           = 'spie_site' + anhang;
   K_PAKET          = 'spie_paket' + anhang;
+  K_WEGE           = 'spie_wege' + anhang;
   K_MIGRATION      = 'spie_migration' + anhang;
   K_SICHERUNG      = 'spie_sicherung' + anhang;
   K_NOTRUF_GESETZT = 'spie_notruf_gesetzt' + anhang;
@@ -984,6 +985,7 @@ var state = {
   gpsHeading: null,     // Bewegungsrichtung aus dem GPS (nur beim Gehen)
   gpsHeadingTs: 0,
   points: [],
+  wege: [],            // Zuwegungen dieser Baustelle für den Lageplan
   contacts: [],
   site: '',
   editPoint: null,
@@ -1218,6 +1220,10 @@ function baustelleLaden(id) {
   state.alt = 0;
   state.points = load(K_POINTS, []) || [];
   state.paket = load(K_PAKET, null);
+  /* Wege gehören zur Baustelle, nicht zur App. Vorher zeichnete der Lageplan
+     jeder Baustelle die Zuwegungen der mitgelieferten Karte — auf einer
+     Baustelle 300 km weiter waren das Linien ins Nichts. */
+  state.wege = load(K_WEGE, null);
   state.contacts = load(K_CONTACTS, []) || [];
   state.site = load(K_SITE, '') || '';
 
@@ -1226,6 +1232,16 @@ function baustelleLaden(id) {
   // hier nicht.
   if (id === BAUSTELLE_ERSTE) {
     if (!state.points.length) loadPaket();
+    if (state.wege === null && typeof BAUSTELLE_DATEN !== 'undefined') {
+      /* Auch die mitgelieferten Wege laufen durch dieselbe Prüfung wie ein
+         Import. Im Pillig-Paket steckt eine 53 km lange Linie, die der
+         Baustelle nirgends näher als 3,5 km kommt — im Lageplan sah die aus
+         wie ein Weg zum Rettungspunkt. */
+      state.wege = G.wegeAufbereiten(BAUSTELLE_DATEN.wege || [], {
+        naheBei: state.points.map(function (p) { return [p.lat, p.lon]; })
+      }).wege;
+      save(K_WEGE, state.wege);
+    }
     /* Beim allerersten Start ist der Name entstanden, BEVOR das Datenpaket
        geladen war — dann hieß die Baustelle „Baustelle 1" statt nach der
        Baustelle. Sobald der echte Titel vorliegt, wird er übernommen. */
@@ -1244,6 +1260,7 @@ function baustelleLaden(id) {
     state.migration = load(K_MIGRATION, null);
   }
 
+  if (!state.wege) state.wege = [];
   state.points.forEach(function (p) { if (!p.uid) p.uid = uid(); });
   state.contacts.forEach(function (c) { if (!c.uid) c.uid = uid(); });
 }
@@ -1341,7 +1358,8 @@ function baustelleAnlegen(titel) {
   save(K_BAUSTELLEN, alle);
   // Leer anlegen und gleich hinwechseln.
   schluesselSetzen(id);
-  save(K_POINTS, []); save(K_CONTACTS, []); save(K_SITE, titel); save(K_PAKET, null);
+  save(K_POINTS, []); save(K_CONTACTS, []); save(K_SITE, titel);
+  save(K_PAKET, null); save(K_WEGE, []);
   schluesselSetzen(aktiveBaustelle());
   return id;
 }
@@ -1381,7 +1399,7 @@ function baustelleLoeschen(id) {
       save(K_BAUSTELLEN, rest);
       // Fächer der gelöschten Baustelle leeren.
       schluesselSetzen(id);
-      [K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT]
+      [K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_WEGE, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT]
         .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* egal */ } });
       schluesselSetzen(merk);
       if (id === merk) {
@@ -2524,9 +2542,39 @@ function renderHero() {
     return;
   }
 
-  // Fall 3: die eigentliche Antwort. Wichtigste Information ist der NAME —
-  // den nennt man am Telefon. Die Entfernung ist Nebensache.
+  /* Fall 3: Punkte und Standort sind da — aber kein GEPRÜFTER
+     Rettungspunkt. Das ist der Normalfall auf einer frisch angelegten
+     Baustelle: Wer eine Karte importiert und das Häkchen „mit dem Notfallplan
+     abgeglichen" nicht setzt, hat lauter ungeprüfte Punkte. Die dürfen hier
+     nicht auftauchen — aber die Anzeige griff bisher trotzdem auf den ersten
+     Eintrag zu und stürzte ab. Der Absturz riss den ganzen Import mit sich:
+     Die App meldete „Import fehlgeschlagen" und nahm die Punkte zurück. */
   var list = nearestList(4, 'rp');
+  if (!list.length) {
+    var z = zaehlung();
+    h.innerHTML =
+      '<div class="herolab">Nächster Rettungspunkt</div>' +
+      '<div class="bigtitle" style="margin-top:10px">Kein geprüfter Rettungspunkt</div>' +
+      '<div class="bigtext">' +
+        (z.ungeprueft
+          ? z.ungeprueft + ' von ' + z.gesamt + ' Punkten dieser Baustelle sind ' +
+            '<b>ungeprüft</b>. Ungeprüfte Punkte nennt die App im Notfall nicht.'
+          : 'Für diese Baustelle sind keine Rettungspunkte hinterlegt.') +
+        '<br>Im Reiter <b>Punkte</b> prüfen und freigeben — oder im Notfall ' +
+        '<b>112</b> rufen und den Standort vorlesen.</div>' +
+      mastLine() +
+      gpsZeile() +
+      '<div class="btnrow">' +
+        '<button class="btn haupt" onclick="setTab(\'punkte\')">Punkte ansehen</button>' +
+        '<button class="btn" onclick="setTab(\'notfall\')">Meldung</button>' +
+      '</div>';
+    altDet.style.display = 'none';
+    $('klinikDet').style.display = 'none';
+    return;
+  }
+
+  // Fall 4: die eigentliche Antwort. Wichtigste Information ist der NAME —
+  // den nennt man am Telefon. Die Entfernung ist Nebensache.
   var n = list[0];
   var kurz = G.shortLabel(n), amtlich = G.officialLabel(n);
   var nr = G.rpNumber(n);
@@ -2862,7 +2910,7 @@ function planDraw() {
   // Wege aus der Karte: durchgezogen, wenn sie aus einer Routenberechnung
   // stammen (folgen echten Straßen), dünn gestrichelt, wenn jemand sie grob
   // von Hand gezogen hat. Nichts davon wird als Weg ausgegeben, was keiner ist.
-  var wege = (typeof BAUSTELLE_DATEN !== 'undefined' && BAUSTELLE_DATEN.wege) || [];
+  var wege = state.wege || [];
   wege.forEach(function (w) {
     var sichtbar = false, letzte = null;
     g.beginPath();
@@ -3323,6 +3371,7 @@ var importVorschau = null;
    ========================================================================= */
 
 var importRoh = null;          // eingelesene Punkte, vor der Einstufung
+var importWege = null;         // aufbereitete Wege aus derselben Datei
 var importArt = '';            // vom Nutzer zugewiesene Art für Punkte ohne Angabe
 var importBestaetigt = false;  // Häkchen „mit dem Notfallplan abgeglichen"
 
@@ -3401,10 +3450,19 @@ function runImport() {
   var ersetzen = $('fReplace').checked;
   var res = G.parsePoints(txt);
 
-  if (!res.points.length) {
+  /* Wege aus derselben Datei. Eine gezeichnete Zuwegung steckt im KML als
+     hunderte Einzelstriche — G.wegeAufbereiten macht daraus wieder Wege und
+     wirft weg, was nur Zeichnung ist (Mastnummern, Mastsymbole). */
+  var wegeNahe = res.points.map(function (p) { return [p.lat, p.lon]; })
+    .concat(state.points.map(function (p) { return [p.lat, p.lon]; }));
+  var wegeErgebnis = G.wegeAufbereiten
+    ? G.wegeAufbereiten(res.lines, { naheBei: wegeNahe })
+    : { wege: [], bericht: null };
+
+  if (!res.points.length && !wegeErgebnis.wege.length) {
     // Kein halber Zustand: Sonst zeigte eine spätere Vorschau die Punkte des
     // vorherigen Versuchs.
-    importRoh = null; importVorschau = null;
+    importRoh = null; importVorschau = null; importWege = null;
     openOv('<h2>Nichts zu importieren</h2>' +
       '<p>' + esc(res.errors[0] || 'In den Daten wurden keine Punkte gefunden.') + '</p>' +
       '<div class="btnrow"><button class="btn ghost" onclick="openImport()">Zurück</button></div>');
@@ -3419,9 +3477,36 @@ function runImport() {
 
   importRoh = { punkte: geprueft.punkte, verworfen: geprueft.verworfen,
                 fehler: res.errors, ersetzen: ersetzen };
+  importWege = wegeErgebnis;
   importArt = '';
   importBestaetigt = false;     // jeder Import beginnt unbestätigt
   importVorschauZeigen();
+}
+
+function wegeAnzahl() { return (importWege && importWege.wege.length) || 0; }
+
+/* Wege sind Orientierung im Lageplan, keine Notfalldaten: Sie gehen in keine
+   Berechnung ein und ersetzen keinen Rettungspunkt. Deshalb hängen sie nicht
+   am Häkchen „mit dem Notfallplan geprüft" — aber die Zahl muss sichtbar sein,
+   damit niemand glaubt, die Karte sei vollständig übernommen. */
+function wegeZeile() {
+  if (!importWege) return '';
+  var b = importWege.bericht, n = wegeAnzahl();
+  if (!n) {
+    return b && b.roh
+      ? '<div class="vzeile"><b style="color:var(--muted)">0</b> Wege — ' +
+        'die ' + b.roh + ' Linien der Karte sind Zeichnungen (Mastnummern, ' +
+        'Symbole), keine Zuwegungen</div>'
+      : '';
+  }
+  return '<div class="vzeile"><b style="color:var(--blue)">' + n + '</b> Wege für den ' +
+    'Lageplan, zusammen ' + G.formatDistance(b.laengeM) + '</div>' +
+    '<div class="psub">Nur zur Orientierung — Wege gehen in keine Berechnung ein.' +
+    (b.zuKurz ? ' ' + b.zuKurz + ' zu kurze Linien (Zeichnungen) verworfen.' : '') +
+    (b.fremd ? ' ' + b.fremd + ' Linien liegen weit ab von den Punkten dieser ' +
+      'Baustelle und wurden weggelassen.' : '') +
+    (b.gekappt ? ' ' + b.gekappt + ' weitere Wege wurden weggelassen, damit der ' +
+      'Speicher des Geräts reicht.' : '') + '</div>';
 }
 
 function importVorschauZeigen() {
@@ -3485,6 +3570,7 @@ function importVorschauZeigen() {
     zeile('var(--muted)', v.schonDa.length, 'schon im Gerät vorhanden') +
     zeile('var(--muted)', v.verworfen.length, 'Dubletten in der Datei') +
     zeile('var(--bad)', v.fehler.length, 'fehlerhafte Zeilen') +
+    wegeZeile() +
 
     (v.neu.length ? ueberschrift('Geprüft und verwendbar') + liste(v.neu, false) : '') +
     (v.ungeprueft.length ? ueberschrift('Ungeprüft — mit Grund') + liste(v.ungeprueft, true) : '') +
@@ -3505,14 +3591,16 @@ function importVorschauZeigen() {
     '<div class="btnrow">' +
       '<button class="btn ghost" onclick="importAbbrechen()">Abbrechen</button>' +
       '<button class="btn primary" onclick="importBestaetigen()"' +
-        ((v.neu.length + v.ungeprueft.length) ? '' : ' disabled') + '>Import übernehmen</button>' +
+        ((v.neu.length + v.ungeprueft.length + wegeAnzahl()) ? '' : ' disabled') +
+        '>Import übernehmen</button>' +
     '</div>'
   );
 }
 
 /* Abbrechen darf nichts hinterlassen — auch keinen halben Vorschau-Zustand. */
 function importAbbrechen() {
-  importRoh = null; importVorschau = null; importArt = ''; importBestaetigt = false;
+  importRoh = null; importVorschau = null; importWege = null;
+  importArt = ''; importBestaetigt = false;
   openImport();
 }
 
@@ -3534,12 +3622,23 @@ function importBestaetigen() {
     } else {
       state.points = state.points.concat(eingehend);
     }
+    /* Wege ersetzen die alten dieser Baustelle immer: Zwei Kartenstände
+       übereinandergelegt ergäben ein Liniengewirr. Punkte bleiben davon
+       unberührt. */
+    var wegeVorher = (state.wege || []).length;
+    if (wegeAnzahl()) {
+      state.wege = importWege.wege;
+      save(K_WEGE, state.wege);
+      if (plan.offen) planDraw();
+    }
     persistPoints();
     openOv(
       '<h2>Import fertig</h2>' +
       '<div class="vzeile"><b>' + eingehend.length + '</b> Punkte übernommen ' +
         '(' + v.neu.length + ' geprüft, ' + v.ungeprueft.length + ' ungeprüft)</div>' +
       '<div class="vzeile">Punkte im Gerät: <b>' + vorher + '</b> → <b>' + state.points.length + '</b></div>' +
+      (wegeAnzahl() ? '<div class="vzeile">Wege im Lageplan: <b>' + wegeVorher +
+        '</b> → <b>' + state.wege.length + '</b></div>' : '') +
       (v.fehler.length ? '<div class="vzeile" style="color:var(--warn)">' + v.fehler.length + ' Zeilen konnten nicht gelesen werden</div>' : '') +
       '<p class="fineprint">Der Stand vor dem Import ist gesichert — „Letzte Änderung rückgängig" im Reiter Punkte.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>'
@@ -3551,7 +3650,8 @@ function importBestaetigen() {
       '</p><p>Der vorherige Stand wurde wiederhergestellt.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
   }
-  importVorschau = null; importRoh = null; importArt = ''; importBestaetigt = false;
+  importVorschau = null; importRoh = null; importWege = null;
+  importArt = ''; importBestaetigt = false;
 }
 
 function pkey(p) {
