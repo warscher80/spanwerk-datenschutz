@@ -962,7 +962,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.11.0';
+var VERSION = '0.11.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -2789,11 +2789,21 @@ function kompassHinweis() {
          '</div>';
 }
 
+/* Ab hier steht man nicht mehr „bei" einem Mast. Vom Baustellenhandy aus
+   gesehen ist ein Mast in 60 m Sichtweite und Rufweite — einer in 936 m nicht.
+   Genau das stand aber auf dem Bildschirm: „Du stehst bei Mast 4225/0092 ·
+   936 m". Wer das am Telefon weitergibt, schickt die Rettung fast einen
+   Kilometer daneben. */
+var MAST_DANEBEN_M = 60;
+
 function mastLine() {
   var m = nearestMast();
   if (!m) return '';
-  return '<div class="bigmast">Du stehst bei <b>Mast ' + esc(m.name) + '</b> · ' +
-         G.formatDistance(m.dist) + '</div>';
+  var dabei = (typeof m.dist === 'number' && m.dist <= MAST_DANEBEN_M);
+  return '<div class="bigmast">' +
+    (dabei ? 'Du stehst bei <b>Mast ' + esc(m.name) + '</b>'
+           : 'Nächster Mast: <b>' + esc(m.name) + '</b>') +
+    ' · ' + G.formatDistance(m.dist) + '</div>';
 }
 
 // Telefonnummer aus dem Kartenhinweis ziehen (My Maps schreibt sie in den Text).
