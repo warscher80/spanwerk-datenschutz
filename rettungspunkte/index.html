@@ -934,7 +934,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.5';
+var VERSION = '0.9.6';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3372,6 +3372,14 @@ var importVorschau = null;
 
 var importRoh = null;          // eingelesene Punkte, vor der Einstufung
 var importWege = null;         // aufbereitete Wege aus derselben Datei
+var importFremd = null;        // { abstand } — Karte passt nicht zu dieser Baustelle
+
+/* Ab dieser Entfernung gehört eine Karte vermutlich zu einer anderen Baustelle.
+   Pillig–Wengerohr zieht sich über 100 km an der Leitung 4225 entlang, Blatzheim
+   über 10 km — 5 km sind also klein genug, um dieselbe Baustelle nie
+   auseinanderzureißen, und groß genug, um Blatzheim (49 km von Pillig
+   entfernt) sicher zu erkennen. */
+var FREMDE_KARTE_M = 5000;
 var importArt = '';            // vom Nutzer zugewiesene Art für Punkte ohne Angabe
 var importBestaetigt = false;  // Häkchen „mit dem Notfallplan abgeglichen"
 
@@ -3453,16 +3461,20 @@ function runImport() {
   /* Wege aus derselben Datei. Eine gezeichnete Zuwegung steckt im KML als
      hunderte Einzelstriche — G.wegeAufbereiten macht daraus wieder Wege und
      wirft weg, was nur Zeichnung ist (Mastnummern, Mastsymbole). */
-  var wegeNahe = res.points.map(function (p) { return [p.lat, p.lon]; })
-    .concat(state.points.map(function (p) { return [p.lat, p.lon]; }));
+  /* Bezugspunkte sind die Punkte DIESER Karte, nicht die der gerade aktiven
+     Baustelle. Sonst hängen sich die Wege einer fremden Karte an der falschen
+     Baustelle fest — und genau das soll getrennt bleiben. */
+  var wegeNahe = res.points.length
+    ? res.points.map(function (p) { return [p.lat, p.lon]; })
+    : state.points.map(function (p) { return [p.lat, p.lon]; });
   var wegeErgebnis = G.wegeAufbereiten
-    ? G.wegeAufbereiten(res.lines, { naheBei: wegeNahe })
+    ? G.wegeAufbereiten(res.lines, { naheBei: wegeNahe.length ? wegeNahe : null })
     : { wege: [], bericht: null };
 
   if (!res.points.length && !wegeErgebnis.wege.length) {
     // Kein halber Zustand: Sonst zeigte eine spätere Vorschau die Punkte des
     // vorherigen Versuchs.
-    importRoh = null; importVorschau = null; importWege = null;
+    importRoh = null; importVorschau = null; importWege = null; importFremd = null;
     openOv('<h2>Nichts zu importieren</h2>' +
       '<p>' + esc(res.errors[0] || 'In den Daten wurden keine Punkte gefunden.') + '</p>' +
       '<div class="btnrow"><button class="btn ghost" onclick="openImport()">Zurück</button></div>');
@@ -3476,10 +3488,77 @@ function runImport() {
   var geprueft = P ? P.pruefen(roh, {}) : { punkte: roh, verworfen: [], bericht: {} };
 
   importRoh = { punkte: geprueft.punkte, verworfen: geprueft.verworfen,
-                fehler: res.errors, ersetzen: ersetzen };
+                fehler: res.errors, ersetzen: ersetzen, titel: res.title || '' };
   importWege = wegeErgebnis;
+  importFremd = fremdePruefen(res.points);
   importArt = '';
   importBestaetigt = false;     // jeder Import beginnt unbestätigt
+  importVorschauZeigen();
+}
+
+/* Gehört diese Karte überhaupt zu der Baustelle, in die gerade importiert
+   wird? Zwei Baustellen im selben Speicherfach wären im Notfall der schlimmste
+   denkbare Zustand: Die App würde den nächsten Rettungspunkt der FALSCHEN
+   Baustelle nennen. Gemessen wird der kleinste Abstand zwischen irgendeinem
+   Punkt der Karte und irgendeinem Punkt der Baustelle — nicht zwischen den
+   Mitten, denn eine Freileitung ist hundert Kilometer lang. */
+function fremdePruefen(punkte) {
+  if (!punkte || !punkte.length || !state.points.length) return null;
+  var naechster = Infinity;
+  punkte.forEach(function (p) {
+    state.points.forEach(function (q) {
+      var d = G.distance(p.lat, p.lon, q.lat, q.lon);
+      if (d < naechster) naechster = d;
+    });
+  });
+  return naechster > FREMDE_KARTE_M ? { abstand: naechster } : null;
+}
+
+function fremdWarnung() {
+  if (!importFremd) return '';
+  return '<div class="warnbox" style="margin:0 0 12px">' +
+    '<b>Gehört diese Karte zu „' + esc(baustelleName(aktiveBaustelle())) + '"?</b><br>' +
+    'Kein Punkt der Karte liegt näher als <b>' + G.formatDistance(importFremd.abstand) +
+    '</b> an den Punkten dieser Baustelle. Wahrscheinlich ist es eine andere ' +
+    'Baustelle — die gehört in ein eigenes Fach. Sonst stünden im Notfall die ' +
+    'Rettungspunkte zweier Baustellen durcheinander, und die App nennt den ' +
+    'nächsten der falschen.' +
+    '<div class="btnrow" style="margin-top:10px">' +
+      '<button class="btn primary" onclick="importAlsNeueBaustelle()">Eigene Baustelle anlegen</button>' +
+    '</div></div>';
+}
+
+/* Die Karte in eine neue, leere Baustelle laden. Die bisherige bleibt
+   unangetastet — auch ihre Wege und Notrufnummern. */
+function importAlsNeueBaustelle() {
+  if (!importRoh) return;
+  var vorschlag = (importRoh.titel || '').trim();
+  openOv(
+    '<h2>Eigene Baustelle anlegen</h2>' +
+    '<p>Die Karte wird in eine neue, leere Baustelle geladen. Punkte, ' +
+    'Notrufnummern und Wege von „<b>' + esc(baustelleName(aktiveBaustelle())) +
+    '</b>" bleiben unberührt.</p>' +
+    '<div class="field"><label>Name der Baustelle</label>' +
+    '<input id="fNeueB" type="text" value="' + esc(vorschlag) + '" placeholder="z. B. Blatzheim"></div>' +
+    '<div class="hint">Der Name steht später im Kopf der Meldung an die Leitstelle. ' +
+    'Am besten so, wie die Baustelle auf dem Aushang heißt.</div>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="importVorschauZeigen()">Zurück</button>' +
+      '<button class="btn primary" onclick="importBaustelleAnlegen()">Anlegen und weiter</button>' +
+    '</div>');
+  var f = $('fNeueB'); if (f) { f.focus(); f.select(); }
+}
+
+function importBaustelleAnlegen() {
+  var name = ($('fNeueB').value || '').trim();
+  if (!name) { toast('Bitte einen Namen angeben'); return; }
+  var id = baustelleAnlegen(name);
+  if (!id) return;
+  baustelleWechseln(id);
+  // In einer leeren Baustelle ist nichts fremd und nichts zu ersetzen.
+  importFremd = null;
+  if (importRoh) importRoh.ersetzen = false;
+  importVorschau = null;
   importVorschauZeigen();
 }
 
@@ -3537,6 +3616,7 @@ function importVorschauZeigen() {
 
   openOv(
     '<h2>Vorschau des Imports</h2>' +
+    fremdWarnung() +
     '<p>' + (importRoh.ersetzen
       ? '<b style="color:var(--accent2)">Achtung: Die vorhandenen Punkte werden ersetzt.</b> ' +
         'Der alte Stand wird vorher gesichert.'
@@ -3599,7 +3679,7 @@ function importVorschauZeigen() {
 
 /* Abbrechen darf nichts hinterlassen — auch keinen halben Vorschau-Zustand. */
 function importAbbrechen() {
-  importRoh = null; importVorschau = null; importWege = null;
+  importRoh = null; importVorschau = null; importWege = null; importFremd = null;
   importArt = ''; importBestaetigt = false;
   openImport();
 }
@@ -3650,7 +3730,7 @@ function importBestaetigen() {
       '</p><p>Der vorherige Stand wurde wiederhergestellt.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
   }
-  importVorschau = null; importRoh = null; importWege = null;
+  importVorschau = null; importRoh = null; importWege = null; importFremd = null;
   importArt = ''; importBestaetigt = false;
 }
 
