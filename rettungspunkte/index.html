@@ -962,7 +962,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.11.1';
+var VERSION = '0.11.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1162,6 +1162,12 @@ function istGeprueft(p) { return p.verified !== false; }
    es heute noch nicht gibt.
    ========================================================================= */
 
+/* Einziger offener Punkt ist die Bestätigung gegen den Aushang? */
+function nurBestaetigungFehlt(p) {
+  var g = p.issues || [];
+  return g.length === 1 && g[0] === 'nicht-bestaetigt';
+}
+
 function zaehlung(punkte) {
   var P = punkte || state.points || [];
   var z = {
@@ -1171,7 +1177,7 @@ function zaehlung(punkte) {
     // geprüft, nach Art
     rp: 0, mast: 0, lager: 0, klinik: 0, sonstigeGeprueft: 0,
     // ungeprüft, nach Sperrgrund — Summe = ungeprueft
-    mastGesperrt: 0, ohneZuordnung: 0, klinikUngeprueft: 0, sonstigeUngeprueft: 0
+    nichtBestaetigt: 0, mastGesperrt: 0, ohneZuordnung: 0, klinikUngeprueft: 0, sonstigeUngeprueft: 0
   };
   P.forEach(function (p) {
     var k = kindOf(p);
@@ -1185,6 +1191,12 @@ function zaehlung(punkte) {
       return;
     }
     z.ungeprueft++;
+    /* Wer nichts weiter fehlt als das Häkchen „gegen den Notfallplan geprüft",
+       ist nicht kaputt — er wartet. Das ist ein anderer Zustand als ein Mast
+       mit widersprüchlichen Daten, und er hat eine andere Abhilfe. Vorher
+       standen 46 frisch eingescannte Masten unter „Gesperrte Masten
+       (widersprüchliche Daten)" — eine Ursache, die gar nicht vorlag. */
+    if (nurBestaetigungFehlt(p)) { z.nichtBestaetigt++; return; }
     // Ein Datensatz mit Mastnummer bleibt ein Mast — nur eben ein gesperrter.
     if (k === 'mast' || p.mastNr) z.mastGesperrt++;
     else if (k === 'klinik') z.klinikUngeprueft++;
@@ -2643,8 +2655,8 @@ function renderHero() {
           ? z.ungeprueft + ' von ' + z.gesamt + ' Punkten dieser Baustelle sind ' +
             '<b>ungeprüft</b>. Ungeprüfte Punkte nennt die App im Notfall nicht.'
           : 'Für diese Baustelle sind keine Rettungspunkte hinterlegt.') +
-        '<br>Im Reiter <b>Punkte</b> prüfen und freigeben — oder im Notfall ' +
-        '<b>112</b> rufen und den Standort vorlesen.</div>' +
+        '<br>Im Reiter <b>Info</b> unter „Offene Datenprüfungen" gegen den Aushang ' +
+        'bestätigen — oder im Notfall <b>112</b> rufen und den Standort vorlesen.</div>' +
       mastLine() +
       gpsZeile() +
       '<div class="btnrow">' +
@@ -4427,8 +4439,12 @@ function renderApp() {
 function offeneGruppen() {
   var z = zaehlung();
   var gruppen = [
+    { id: 'unbestaetigt', titel: 'Warten auf Bestätigung gegen den Aushang',
+      unter: 'Aus einer Karte übernommen, aber noch nicht gegen den Notfallplan ' +
+             'bzw. Baustellenaushang bestätigt. Sonst fehlt diesen Punkten nichts.',
+      erwartet: z.nichtBestaetigt, punkte: [] },
     { id: 'mast', titel: 'Gesperrte Masten',
-      unter: 'Mastnummer vorhanden, aber die Daten widersprechen sich.',
+      unter: 'Keine gültige Mastnummer, oder die Daten widersprechen sich.',
       erwartet: z.mastGesperrt, punkte: [] },
     { id: 'ohne', titel: 'Punkte ohne Zuordnung',
       unter: 'Keine Mastnummer und kein aussagekräftiger Name — die Art ist nicht bestimmbar.',
@@ -4447,7 +4463,8 @@ function offeneGruppen() {
   state.points.forEach(function (p) {
     if (istGeprueft(p)) return;
     var k = kindOf(p);
-    if (k === 'mast' || p.mastNr) nach.mast.punkte.push(p);
+    if (nurBestaetigungFehlt(p)) nach.unbestaetigt.punkte.push(p);
+    else if (k === 'mast' || p.mastNr) nach.mast.punkte.push(p);
     else if (k === 'klinik') nach.med.punkte.push(p);
     else if (k === 'unknown') nach.ohne.punkte.push(p);
     else nach.rest.punkte.push(p);
@@ -4481,6 +4498,11 @@ function renderOffeneFragen() {
       esc(g.titel) + ' <span class="badge warn">' + g.punkte.length + '</span></summary>' +
       '<div class="detbody">' +
       '<div class="hint" style="margin-bottom:8px">' + esc(g.unter) + '</div>' +
+      (g.id === 'unbestaetigt'
+        ? '<div class="btnrow" style="margin:0 0 10px">' +
+          '<button class="btn primary" onclick="bestaetigenFragen()">Gegen den Aushang bestätigen</button>' +
+          '</div>'
+        : '') +
       g.punkte.map(function (p) {
         var gruende = (p.issues || []).map(function (i) { return P.problemText(i); });
         return '<div class="pitem ungeprueft"><div class="pmain">' +
@@ -4496,6 +4518,80 @@ function renderOffeneFragen() {
       }).join('') +
       '</div></details>';
   }).join('');
+}
+
+/* =========================================================================
+   Punkte gegen den Aushang bestätigen
+
+   Bis 0.11.1 gab es dafür keinen Weg. Wer eine Karte einscannte, ohne beim
+   Import das Häkchen zu setzen, hatte 57 Datensätze und NULL verwendbare
+   Punkte — und musste den ganzen Import wiederholen, um das zu ändern. Der
+   Text der App versprach sogar „im Reiter Punkte prüfen und freigeben"; diese
+   Funktion existierte nicht.
+
+   Das hier ist die einzige Stelle, an der aus ungeprüften Daten Notfalldaten
+   werden. Deshalb:
+   - Sie räumt AUSSCHLIESSLICH den Grund „nicht bestätigt" weg. Ein Mast ohne
+     gültige Nummer und eine Klinik ohne bestätigte Notfalleignung bleiben
+     gesperrt, egal wie oft jemand hier tippt.
+   - Sie sagt vorher, was frei wird und was gesperrt bleibt.
+   - Der Stand davor wird gesichert („Letzte Änderung rückgängig").
+   ========================================================================= */
+
+function nichtBestaetigte() {
+  return state.points.filter(function (p) {
+    return !istGeprueft(p) && (p.issues || []).indexOf('nicht-bestaetigt') >= 0;
+  });
+}
+
+function bestaetigenFragen() {
+  var alle = nichtBestaetigte();
+  if (!alle.length) { toast('Nichts offen'); return; }
+  var frei = alle.filter(nurBestaetigungFehlt);
+  var bleibt = alle.length - frei.length;
+  var nachArt = {};
+  frei.forEach(function (p) {
+    var k = KIND_LABEL[kindOf(p)] || kindOf(p);
+    nachArt[k] = (nachArt[k] || 0) + 1;
+  });
+
+  openOv(
+    '<h2>Gegen den Aushang bestätigen</h2>' +
+    '<p>Danach werden diese Punkte für <b>nächsten Rettungspunkt, nächsten Mast, ' +
+    'Lageplan und Meldung</b> verwendet. Bestätige nur, was du am ' +
+    'Notfall-Aushang bzw. im gültigen Notfallplan dieser Baustelle ' +
+    'nachgesehen hast.</p>' +
+    '<div class="vzeile"><b style="color:var(--ok)">' + frei.length + '</b> Punkte werden verwendbar</div>' +
+    Object.keys(nachArt).map(function (k) {
+      return '<div class="psub" style="font-family:inherit">· ' + nachArt[k] + '× ' + esc(k) + '</div>';
+    }).join('') +
+    (bleibt
+      ? '<div class="vzeile"><b style="color:var(--warn)">' + bleibt + '</b> bleiben gesperrt — ' +
+        'ihnen fehlt mehr als die Bestätigung</div>' +
+        '<div class="psub">Ein Mast ohne gültige Mastnummer und eine medizinische ' +
+        'Einrichtung ohne bestätigte Notfalleignung bleiben gesperrt.</div>'
+      : '') +
+    '<div class="warnbox" style="margin:10px 0">Der Stand von vorher wird gesichert. ' +
+    'Rückgängig geht über „Letzte Änderung rückgängig" im Reiter Punkte.</div>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+      '<button class="btn primary" onclick="bestaetigenAusfuehren()"' +
+        (frei.length ? '' : ' disabled') + '>' + frei.length + ' Punkte bestätigen</button>' +
+    '</div>');
+}
+
+function bestaetigenAusfuehren() {
+  var alle = nichtBestaetigte();
+  var frei = 0;
+  sichern('Punkte bestätigt');
+  alle.forEach(function (p) {
+    p.issues = (p.issues || []).filter(function (i) { return i !== 'nicht-bestaetigt'; });
+    if (!p.issues.length) { p.verified = true; frei++; }
+  });
+  persistPoints();
+  renderOffeneFragen(); renderPaket(); renderHero(); renderMessage();
+  closeOv();
+  toast(frei + ' Punkte bestätigt — Rücknahme möglich');
 }
 
 function renderMigration() {
@@ -4551,7 +4647,8 @@ function renderPaket() {
 
     '<div style="margin-top:8px"><b style="color:var(--warn)">' + z.ungeprueft +
     ' ungeprüfte Datensätze</b> — nur in der Liste sichtbar, nie in Berechnung oder Meldung.</div>' +
-    zeile('&nbsp;&nbsp;Gesperrte Masten (widersprüchliche Daten)', z.mastGesperrt, 'warn') +
+    zeile('&nbsp;&nbsp;Warten auf Bestätigung gegen den Aushang', z.nichtBestaetigt, 'warn') +
+    zeile('&nbsp;&nbsp;Gesperrte Masten (Mastnummer fehlt oder widersprüchlich)', z.mastGesperrt, 'warn') +
     zeile('&nbsp;&nbsp;Punkte ohne Zuordnung', z.ohneZuordnung, 'warn') +
     zeile('&nbsp;&nbsp;Medizinische Einrichtungen ohne bestätigte Eignung', z.klinikUngeprueft, 'warn') +
     zeile('&nbsp;&nbsp;Sonstige ungeprüfte Datensätze', z.sonstigeUngeprueft, 'warn') +
