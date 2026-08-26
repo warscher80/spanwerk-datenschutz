@@ -55,10 +55,19 @@ var SpiePruefung = (function () {
 
   // Echte Mastbezeichnung: Leitungsnummer / Mastnummer, z. B. 4225/0058,
   // 2409/283B, 2409/P001. Nichts anderes gilt als Mastnummer.
+  /* Zwei Schreibweisen kommen auf den Baustellen vor:
+     1. „4225/0063" — Leitungsnummer / Mastnummer (Baustelle Pillig)
+     2. „Mast 12"   — fortlaufend innerhalb der Baustelle (Baustelle Blatzheim)
+
+     Beide benennen den Mast eindeutig INNERHALB ihrer Baustelle, und Baustellen
+     sind in der App getrennt. Eine nackte Zahl oder „Punkt 91" zählt bewusst
+     NICHT: Ohne das Wort „Mast" ist nicht gesagt, dass es überhaupt einer ist. */
   var MASTNUMMER = /^\s*(\d{3,4})\s*\/\s*([A-Za-z]?\d+[A-Za-z]?)\s*$/;
+  var MASTNUMMER_EINFACH = /^\s*mast\s*\.?\s*(\d+[A-Za-z]?)\s*$/i;
 
   function istMastnummer(text) {
-    return MASTNUMMER.test(String(text || ''));
+    var s = String(text || '');
+    return MASTNUMMER.test(s) || MASTNUMMER_EINFACH.test(s);
   }
 
   // Mastnummer aus Name oder Kartenhinweis ziehen — ohne zu raten.

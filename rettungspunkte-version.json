@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "0.9.3",
+  "versionCode": 20,
+  "versionName": "0.9.4",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Drei Fehler aus einem systematischen Durchgang behoben: Eine als zu schlecht verworfene GPS-Messung wurde trotzdem als letzte bekannte Position gespeichert. Bei einem von Hand gewählten Standpunkt behauptete die Diagnose eine Genauigkeit von ±0 m. Und bei vollem Speicher zeigte die Liste Punkte, die das Gerät gar nicht behalten hatte — die Warnung bleibt jetzt stehen."
+  "notes": "Zweite Schreibweise für Mastnummern: Masten wie „Mast 12“ (Baustelle Blatzheim) werden jetzt erkannt, nicht nur „4225/0063“ (Pillig). Damit lässt sich die Blatzheimer Karte vollständig importieren — 11 Rettungspunkte und 46 Masten. Eine nackte Zahl oder „Punkt 91“ zählt weiterhin nicht als Mast."
 }

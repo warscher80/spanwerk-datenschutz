@@ -263,6 +263,10 @@ var SpieGeo = (function () {
     if (KLINIK.test(n)) return 'klinik';
     if (/baulager|lagerplatz|bauhof/.test(n)) return 'lager';
     if (/^\s*\d{3,4}\/\d+[a-z]?\s*$/i.test(name || '')) return 'mast';
+    /* Zweite Schreibweise, die auf Baustellen vorkommt: „Mast 12". Sie zählt
+       nur MIT dem Wort „Mast" — eine nackte Zahl oder „Punkt 91" sagt nicht,
+       was der Punkt ist, und bleibt deshalb ohne Zuordnung. */
+    if (/^\s*mast\s*\.?\s*\d+[a-z]?\s*$/i.test(name || '')) return 'mast';
 
     if (/rettungspunk/.test(f)) return 'rp';
     if (/mastliste|masten\b/.test(f)) return 'mast';
