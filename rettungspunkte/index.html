@@ -962,7 +962,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.11.2';
+var VERSION = '0.11.3';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4041,6 +4041,7 @@ function importBestaetigen() {
       if (plan.offen) planDraw();
     }
     persistPoints();
+    var wartende = nichtBestaetigte().length;
     openOv(
       '<h2>Import fertig</h2>' +
       '<div class="vzeile"><b>' + eingehend.length + '</b> Punkte übernommen ' +
@@ -4050,7 +4051,19 @@ function importBestaetigen() {
         '</b> → <b>' + state.wege.length + '</b></div>' : '') +
       (v.fehler.length ? '<div class="vzeile" style="color:var(--warn)">' + v.fehler.length + ' Zeilen konnten nicht gelesen werden</div>' : '') +
       '<p class="fineprint">Der Stand vor dem Import ist gesichert — „Letzte Änderung rückgängig" im Reiter Punkte.</p>' +
-      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>'
+      /* Direkt weiter zur Bestätigung. Wer eine Karte einscannt und danach
+         „57 Datensätze, 0 geprüfte" liest, sucht sonst erst im Reiter Info
+         nach dem Knopf. Die Bestätigung selbst bleibt ein eigener, bewusster
+         Schritt mit derselben Nachfrage — nur der Weg dorthin ist kürzer. */
+      (wartende
+        ? '<div class="warnbox" style="margin:10px 0"><b>' + wartende + ' Punkte warten auf ' +
+          'die Bestätigung.</b> Bis dahin stehen sie nur in der Liste und werden für ' +
+          'Rettungspunkt, Mast, Lageplan und Meldung <b>nicht</b> verwendet.</div>' +
+          '<div class="btnrow">' +
+            '<button class="btn ghost" onclick="closeOv()">Später</button>' +
+            '<button class="btn primary" onclick="bestaetigenFragen()">Gegen den Aushang bestätigen</button>' +
+          '</div>'
+        : '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>')
     );
   } catch (e) {
     var sicherung = load(K_SICHERUNG, null);
