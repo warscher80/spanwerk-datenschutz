@@ -113,6 +113,11 @@
   .tagbtn{background:transparent;border:0;padding:13px 0;margin:-13px 0;text-align:left;cursor:pointer;
     display:flex;align-items:center;gap:5px;max-width:100%;min-height:44px}
   .tagbtn.mehr::after{content:"▾";font-size:11px;color:var(--accent2);flex:0 0 auto}
+  /* .tagbtn ist ein Flex-Kasten — „text-overflow:ellipsis" greift dort am
+     Text NICHT. Ein langer Name (z. B. ein hineingeratener Kartenlink) lief
+     deshalb ungekürzt bis unter die Knöpfe. Der Text braucht einen eigenen
+     Kasten, der sich kürzen lässt. */
+  .tagtext{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tag{color:var(--muted);font-size:11.5px;margin-top:1px;line-height:1.25;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (max-width:360px){
@@ -279,8 +284,18 @@
   .contact{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line)}
   .contact:last-child{border-bottom:0}
   .cinfo{flex:1;min-width:0}
-  .cname{font-weight:800;font-size:15px}
-  .crole{color:var(--muted);font-size:12px}
+  .cname{font-weight:800;font-size:15px;display:flex;gap:6px;align-items:baseline;min-width:0}
+  /* Eine Kette ohne Leerzeichen (ein Link) bricht sonst nirgends um und
+     schiebt die Knöpfe aus dem Bild. Drei Zeilen reichen für jeden Namen. */
+  .cnametext{min-width:0;overflow-wrap:anywhere;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .crole{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+  /* Baustellen tragen längere Namen als Kontakte. Passen Name und Knöpfe nicht
+     nebeneinander, rutschen die Knöpfe in eine eigene Zeile — statt den Namen
+     auf eine Spalte von Handbreite zusammenzuquetschen. */
+  .bszeile{flex-wrap:wrap;row-gap:8px}
+  .bszeile .cinfo{flex:1 1 58%}
+  .bsknoepfe{display:flex;gap:8px;flex:0 0 auto;margin-left:auto}
   .cnum{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--blue);-webkit-user-select:text;user-select:text}
   .callbtn{flex:0 0 auto;border:0;border-radius:11px;padding:0 16px;min-height:48px;min-width:88px;
     font-weight:800;font-size:15px;
@@ -499,7 +514,7 @@
   <div class="hgrow">
     <h1 class="brand">Rettungs<small>punkte</small></h1>
     <button class="tag tagbtn" id="headTag" onclick="baustellenWaehler()"
-            aria-label="Baustelle wechseln">Notfall-Standort für die Baustelle</button>
+            aria-label="Baustelle wechseln"><span class="tagtext">Notfall-Standort für die Baustelle</span></button>
   </div>
   <button class="iconbtn" onclick="showHelp()" aria-label="Hilfe" title="Hilfe">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4"/><path d="M12 17h.01"/></svg>
@@ -934,7 +949,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.6';
+var VERSION = '0.9.7';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1294,14 +1309,21 @@ function baustellenAnzeigen() {
   var box = $('baustellenBox'); if (!box) return;
   box.innerHTML = alle.map(function (b) {
     var an = (b.id === jetzt);
-    return '<div class="contact">' +
+    return '<div class="contact bszeile">' +
       '<span class="dot ' + (an ? 'ok' : '') + '" aria-hidden="true"></span>' +
       '<div class="cinfo">' +
-      '<div class="cname">' + esc(b.titel) + (an ? ' <span class="badge">aktiv</span>' : '') + '</div>' +
-      '<div class="crole">' + baustelleUmfang(b.id) + '</div></div>' +
-      (an ? '' : '<button class="chip" onclick="baustelleWechseln(&#39;' + esc(b.id) + '&#39;)">Wechseln</button>') +
-      '<button class="chip" onclick="baustelleUmbenennen(&#39;' + esc(b.id) + '&#39;)" aria-label="Umbenennen">Name</button>' +
-      (alle.length > 1 ? '<button class="chip red" onclick="baustelleLoeschen(&#39;' + esc(b.id) + '&#39;)" aria-label="Löschen">Weg</button>' : '') +
+      '<div class="cname"><span class="cnametext">' + esc(b.titel) + '</span>' +
+        (an ? '<span class="badge">aktiv</span>' : '') + '</div>' +
+      '<div class="crole">' + baustelleUmfang(b.id) + '</div>' +
+      (istLink(b.titel)
+        ? '<div class="crole" style="color:var(--warn)">Das ist ein Kartenlink, kein Name — ' +
+          'über „Name" ändern.</div>' : '') +
+      '</div>' +
+      '<div class="bsknoepfe">' +
+        (an ? '' : '<button class="chip" onclick="baustelleWechseln(&#39;' + esc(b.id) + '&#39;)">Wechseln</button>') +
+        '<button class="chip" onclick="baustelleUmbenennen(&#39;' + esc(b.id) + '&#39;)" aria-label="Umbenennen">Name</button>' +
+        (alle.length > 1 ? '<button class="chip red" onclick="baustelleLoeschen(&#39;' + esc(b.id) + '&#39;)" aria-label="Löschen">Weg</button>' : '') +
+      '</div>' +
       '</div>';
   }).join('');
 }
@@ -1343,15 +1365,59 @@ function baustelleNeuFragen() {
   var f = $('bsNeu'); if (f) f.focus();
 }
 
+/* Wer den QR-Code der Baustelle gescannt hat, hat den Kartenlink in der
+   Zwischenablage — und fügt ihn beim Anlegen der Baustelle als Namen ein. Die
+   Baustelle hieß danach „https://www.google.com/maps/d/kml?mid=…", und dieser
+   Name steht im Kopf der Meldung an die Leitstelle. Statt das anzunehmen, macht
+   die App daraus den kürzesten Weg zum Ziel: Namen fragen, Karte laden. */
+function istLink(text) {
+  return /^\s*(https?:\/\/|www\.)/i.test(String(text || ''));
+}
+
+var neueBaustelleLink = '';
+
 function baustelleNeuOk() {
   var titel = (($('bsNeu') || {}).value || '').trim();
+  if (istLink(titel)) { baustelleAusLink(titel); return; }
   var id = baustelleAnlegen(titel);
   if (id) baustelleWechseln(id);
+}
+
+function baustelleAusLink(link) {
+  neueBaustelleLink = link;
+  var karte = G.myMapsKmlUrl(link);
+  openOv('<h2>Das ist der Kartenlink</h2>' +
+    '<p>Ein Link ist kein Name. Der Name der Baustelle steht im Kopf der ' +
+    'Meldung an die Leitstelle — dort muss stehen, wo die Leute hinfahren sollen.</p>' +
+    '<div class="field"><label>Name der Baustelle</label>' +
+    '<input class="inp" id="bsNeu2" placeholder="z. B. Blatzheim" aria-label="Name der neuen Baustelle"></div>' +
+    '<div class="hint">' + (karte
+      ? 'Die Karte aus dem Link wird gleich danach geladen.'
+      : 'Der Link sieht nicht nach einer Google-My-Maps-Karte aus. Die Baustelle ' +
+        'wird leer angelegt; Punkte lädst du danach unter „Punkte → Importieren".') +
+    '</div>' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    '<button class="btn primary" onclick="baustelleAusLinkOk()">' +
+      (karte ? 'Anlegen und Karte laden' : 'Anlegen') + '</button></div>');
+  var f = $('bsNeu2'); if (f) f.focus();
+}
+
+function baustelleAusLinkOk() {
+  var name = (($('bsNeu2') || {}).value || '').trim();
+  var id = baustelleAnlegen(name);
+  if (!id) return;
+  baustelleWechseln(id);
+  var link = neueBaustelleLink; neueBaustelleLink = '';
+  if (!G.myMapsKmlUrl(link)) return;
+  openImport();
+  var f = $('fLink'); if (f) f.value = link;
+  importFromLink();
 }
 
 function baustelleAnlegen(titel) {
   titel = (titel || '').trim();
   if (!titel) { toast('Bitte einen Namen angeben'); return null; }
+  if (istLink(titel)) { toast('Ein Link ist kein Name der Baustelle'); return null; }
   var alle = baustellen();
   var id = 'b' + Date.now().toString(36);
   alle.push({ id: id, titel: titel });
@@ -1376,6 +1442,7 @@ function baustelleUmbenennen(id) {
 function baustelleUmbenennenOk(id) {
   var neu = (($('bsName') || {}).value || '').trim();
   if (!neu) { toast('Bitte einen Namen angeben'); return; }
+  if (istLink(neu)) { toast('Ein Link ist kein Name der Baustelle'); return; }
   var alle = baustellen().map(function (b) { return b.id === id ? { id: b.id, titel: neu } : b; });
   save(K_BAUSTELLEN, alle);
   if (id === aktiveBaustelle()) { state.site = neu; save(K_SITE, neu);
@@ -4194,7 +4261,7 @@ function renderPaket() {
   if (tag) {
     var name = baustelleName(aktiveBaustelle()) ||
                (state.paket ? state.paket.titel : '') || 'Notfall-Standort für die Baustelle';
-    tag.textContent = name;
+    tag.innerHTML = '<span class="tagtext">' + esc(name) + '</span>';
   }
   var box = $('paketBox'); if (!box) return;
   var z = zaehlung();
