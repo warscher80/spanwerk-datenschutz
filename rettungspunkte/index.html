@@ -109,7 +109,8 @@
   body.light .brand small{color:var(--spie-red)}
   /* Die Trefferfläche ist 44 px hoch, das Aussehen bleibt schmal: Der negative
      Außenabstand hebt den Innenabstand wieder auf. Sonst wächst die Kopfzeile
-     und die 112-Taste rutscht auf kleinen Handys aus dem Bild. */
+     und die Antwort — Name des Rettungspunkts und Pfeil — rutscht auf kleinen
+     Handys aus dem Bild. */
   .tagbtn{background:transparent;border:0;padding:13px 0;margin:-13px 0;text-align:left;cursor:pointer;
     display:flex;align-items:center;gap:5px;max-width:100%;min-height:44px}
   .tagbtn.mehr::after{content:"▾";font-size:11px;color:var(--accent2);flex:0 0 auto}
@@ -200,18 +201,6 @@
   .btn.blue{background:transparent;color:var(--txt);border:1px solid var(--line)}
   .btn.blue:active{background:var(--card2)}
   .btn.ghost{background:transparent}
-  /* Notruf: der einzige groß-flächig rote Knopf, deutlich höher als alles
-     andere und mit eigener Beschriftung darüber. */
-  .btn.sos{font-size:calc(25px * var(--gross));padding:0 14px;min-height:66px;letter-spacing:.6px;border-radius:var(--r-l);
-    box-shadow:0 10px 30px -12px rgba(226,0,26,.95), var(--kante);
-    background:var(--notruf);color:var(--spie-white);border:2px solid var(--spie-white);
-    text-transform:uppercase}
-  body.light .btn.sos{border-color:var(--spie-red-hover)}
-  .btn.sos:active{background:var(--notruf2)}
-  .notrufblock{margin:16px 0 12px}
-  .notruflabel{font-size:11.5px;font-weight:800;letter-spacing:1.4px;color:var(--muted);
-    text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:7px}
-  .notruflabel::before{content:"";width:22px;height:2px;background:var(--spie-red)}
   .btn.sm{padding:10px 11px;font-size:13.5px}
   .btnrow{display:flex;gap:8px;margin-top:10px}
   .btnrow .btn{flex:1}
@@ -297,9 +286,13 @@
   .bszeile .cinfo{flex:1 1 58%}
   .bsknoepfe{display:flex;gap:8px;flex:0 0 auto;margin-left:auto}
   .cnum{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--blue);-webkit-user-select:text;user-select:text}
+  /* Seit die 112-Taste raus ist, ist das DER Knopf zum Telefonieren. Die alte
+     helle Verlaufsstufe #f21528 kam mit Weiß nur auf 4,27:1 — unter der
+     Lesbarkeitsgrenze und schlechter als die 112-Taste vorher (4,94:1).
+     Jetzt beginnt der Verlauf beim Markenrot und wird nach unten dunkler. */
   .callbtn{flex:0 0 auto;border:0;border-radius:11px;padding:0 16px;min-height:48px;min-width:88px;
     font-weight:800;font-size:15px;
-    background:linear-gradient(180deg,#f21528,var(--accent));color:#fff;cursor:pointer}
+    background:linear-gradient(180deg,var(--accent),#c40017);color:#fff;cursor:pointer}
 
   /* ---- Navigation ---- */
   nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
@@ -430,7 +423,6 @@
   body.light .bigarrow{background:radial-gradient(circle at 50% 42%, #ffffff 0%, #eef2f6 78%);
     box-shadow:inset 0 0 0 1px rgba(16,24,32,.06), var(--schatten-s)}
   body.light .bigarrow svg{filter:none}
-  body.light .btn.sos{box-shadow:0 8px 22px -14px rgba(226,0,26,.7), var(--kante)}
   body.light .btn.primary{box-shadow:0 5px 14px -9px rgba(226,0,26,.6)}
   .bigarrow .ntop{position:absolute;top:7px;font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.6px}
   .bigdist{font-size:58px;line-height:1;font-weight:800;color:var(--accent2);letter-spacing:-1px}
@@ -458,7 +450,6 @@
   .bigmast{margin-top:9px;font-size:calc(14.5px * var(--gross));color:var(--txt);opacity:.9}
   .bigmast b{color:var(--blue)}
   .bignote{margin-top:10px;font-size:14px;color:var(--warn);line-height:1.35}
-  .soshint{text-align:center;font-size:12.5px;color:var(--muted);margin:7px 0 13px}
 
   details.det{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:11px;overflow:hidden}
   details.det > summary{list-style:none;cursor:pointer;padding:15px 14px;min-height:44px;font-weight:800;font-size:14.5px;
@@ -472,8 +463,9 @@
     text-align:center;padding:6px}
   details.howdet > summary::-webkit-details-marker{display:none}
 
-  /* Kleine Handys (iPhone SE, ältere Androids): alles etwas enger, damit die
-     112-Taste ohne Scrollen erreichbar bleibt — im Notfall zählt jede Sekunde. */
+  /* Kleine Handys (iPhone SE, ältere Androids): alles etwas enger, damit
+     Name des Rettungspunkts und die Nummern der Baustelle ohne Scrollen
+     erreichbar bleiben — im Notfall zählt jede Sekunde. */
   @media (max-height:720px){
     .herolab{font-size:11px}
     .strip{padding:7px 12px;margin-bottom:9px}
@@ -484,10 +476,6 @@
     .rpofficial{margin-top:4px}
     .rpmeta{font-size:calc(15px * var(--gross));margin-top:7px}
     .bigmast{margin-top:7px;font-size:13.5px}
-    .btn.sos{font-size:calc(21px * var(--gross));min-height:56px;padding:0 12px}
-    .notrufblock{margin:10px 0 8px}
-    .notruflabel{margin-bottom:4px;font-size:11px}
-    .soshint{margin:6px 0 8px}
     .btn{padding:12px 12px}
     .gpszeile{margin-top:7px;padding-top:6px;font-size:12.5px}
     .rpnamebig{margin-top:5px}
@@ -501,7 +489,7 @@
   }
 
   /* Sehr kleine Handys (320er Breite): Meta-Zeile darf nicht umbrechen,
-     sonst rutscht die 112-Taste aus dem Bild. */
+     sonst rutschen die Nummern der Baustelle aus dem Bild. */
   @media (max-height:600px), (max-width:340px){
     .bigarrow{width:min(28vw,92px);height:min(28vw,92px);margin:4px auto 2px}
     .hero{padding:10px 10px}
@@ -512,10 +500,7 @@
     .rpmeta{font-size:calc(13.5px * var(--gross))}
     .rpofficial{font-size:12px}
     .bigmast{font-size:12.5px}
-    .btn.sos{font-size:calc(19px * var(--gross));min-height:52px;padding:0 10px}
     .herolab{font-size:10px}
-    .notrufblock{margin:8px 0 6px}
-    .soshint{font-size:11.5px;margin:5px 0 6px}
     .hero{padding:8px 10px}
   }
   .bigblock.searching{border-color:var(--line);border-width:1px;background:var(--card)}
@@ -592,17 +577,15 @@
     <!-- DIE ANTWORT: Wo ist der nächste Rettungspunkt? -->
     <div class="hero" id="hero"></div>
 
-    <div class="notrufblock">
-      <div class="notruflabel">Notruf</div>
-      <button class="btn sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 anrufen</button>
-      <div class="soshint">Feuerwehr und Rettung. Sag zuerst den Namen vom Rettungspunkt.</div>
-    </div>
-    <div id="kompassBox"></div>
-
+    <!-- Die Nummern der Baustelle stehen dort, wo bis 0.10.0 die 112-Taste war,
+         und sind aufgeklappt, sobald welche hinterlegt sind: Ohne die Taste
+         wäre der Weg zum Telefonieren sonst länger geworden. -->
     <details class="det" id="quickDet">
       <summary>Nummern der Baustelle</summary>
       <div class="detbody"><div class="plist" id="quickContacts"></div></div>
     </details>
+
+    <div id="kompassBox"></div>
 
     <details class="det" id="klinikDet" style="display:none">
       <summary>Ärzte und Kliniken aus der Karte (ungeprüft)</summary>
@@ -696,10 +679,6 @@
   <!-- ============ KONTAKTE ============ -->
   <section class="tabpane" id="tab-kontakte">
     <h2 class="nurvorleser">Nummern</h2>
-    <div class="card alarm">
-      <h3>Notruf</h3>
-      <button class="btn sos" aria-label="Notruf 1 1 2 anrufen" onclick="call('112')">112 anrufen</button>
-    </div>
     <div class="card">
       <h3>Baustelle</h3>
       <div class="field">
@@ -983,7 +962,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.10.0';
+var VERSION = '0.11.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4091,11 +4070,15 @@ function exportPoints() {
 function renderContacts() {
   $('ctCount').textContent = state.contacts.length;
   renderNotrufQuelle();
+  var det = $('quickDet');
   if (!state.contacts.length) {
     $('ctList').innerHTML = '<div class="empty">Noch keine Nummern hinterlegt.</div>';
-    $('quickContacts').innerHTML = '';
+    $('quickContacts').innerHTML = '<div class="empty">Keine Nummern für diese Baustelle. ' +
+      'Im Reiter „Nummern" vom Aushang der Baustelle eintragen.</div>';
+    if (det) det.open = false;
     return;
   }
+  if (det) det.open = true;
   $('ctList').innerHTML = state.contacts.map(function (c) {
     return '<div class="contact"><div class="cinfo">' +
       '<div class="cname">' + esc(c.name) + '</div>' +
@@ -4269,7 +4252,7 @@ function showHelp() {
     '<b>1.</b> Standort einschalten.<br>' +
     '<b>2.</b> Oben steht, wie der nächste Rettungspunkt heißt.<br>' +
     '<b>3.</b> Der Pfeil zeigt hin.<br>' +
-    '<b>4.</b> Bei einem Unfall: <b>112</b> drücken und den Namen sagen.</p>' +
+    '<b>4.</b> Bei einem Unfall: <b>112</b> wählen und den Namen sagen.</p>' +
     '<p style="font-size:14px">Alles ist schon im Handy gespeichert. Die App braucht kein Internet.</p>' +
     '<p class="fineprint">Es gilt immer der Aushang auf der Baustelle. Die App hilft nur dabei.</p>' +
     '<div class="btnrow"><button class="btn primary huge" onclick="closeOv()">Passt</button></div>'
