@@ -119,6 +119,22 @@
      deshalb ungekürzt bis unter die Knöpfe. Der Text braucht einen eigenen
      Kasten, der sich kürzen lässt. */
   .tagtext{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Der Rettungsknopf im Kopf. Rot, beschriftet, in jeder Ansicht sichtbar —
+     kein Menüpunkt, kein Symbol ohne Wort. Auf sehr schmalen Geräten
+     schrumpft die Beschriftung, der Knopf selbst nie unter 44 px. */
+  .rettungbtn{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    min-height:44px;min-width:48px;padding:0 12px;border-radius:var(--r-s);cursor:pointer;
+    background:var(--accent);color:#fff;border:1px solid var(--accent);
+    font-size:12.5px;font-weight:800;letter-spacing:.5px;
+    box-shadow:0 4px 14px -8px rgba(226,0,26,.9)}
+  .rettungbtn svg{width:18px;height:18px;flex:0 0 auto}
+  .rettungbtn:active{background:var(--notruf2)}
+  /* Wird der Platz knapp, geht zuerst das Zeichen, dann der Markenname —
+     zuletzt das Wort RETTUNG. Ein rotes Kreuz ohne Wort sagt niemandem, was
+     dahintersteckt. */
+  @media (max-width:430px){ .rettungbtn svg{display:none} .brand{font-size:18px} .brand small{font-size:18px} }
+  @media (max-width:360px){ .rettungbtn{padding:0 9px;font-size:11.5px;letter-spacing:.2px} }
+  @media (max-width:320px){ .rettungbtn span{display:none} .rettungbtn svg{display:block} .rettungbtn{padding:0 12px} }
   .tag{color:var(--muted);font-size:11.5px;margin-top:1px;line-height:1.25;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (max-width:360px){
@@ -310,6 +326,19 @@
   nav button svg{width:22px;height:22px;transition:transform .18s cubic-bezier(.2,.8,.3,1)}
   nav button.on{color:var(--accent2)}
   nav button.on svg{transform:translateY(-1px) scale(1.06)}
+  /* Rettung ist die einzige rote Fläche in der Navigation. Sie behält ihre
+     Farbe auch dann, wenn ein anderer Bereich offen ist — der Weg dorthin
+     soll ohne Suchen zu finden sein. */
+  nav button.rettung{color:var(--accent)}
+  nav button.rettung svg{width:24px;height:24px;color:#fff;position:relative;z-index:1}
+  /* Gefüllte Fläche hinter dem Zeichen: Die Rettung soll sich auch dann
+     abheben, wenn ein anderer Bereich offen ist — der ist ebenfalls rot. */
+  nav button.rettung::before{content:"";position:absolute;top:5px;left:50%;margin-left:-19px;
+    width:38px;height:30px;border-radius:99px;background:var(--spie-red);
+    box-shadow:0 4px 12px -6px rgba(226,0,26,.9)}
+  nav button.rettung.on{color:var(--accent)}
+  body.light nav button.rettung{color:var(--spie-red)}
+  @media (max-width:360px){ nav button{font-size:10px} nav button svg{width:20px;height:20px} }
   /* Der Strich sitzt jetzt unter dem Symbol und ist rund — weniger Balken, mehr Marke. */
   nav button.on::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
     width:34px;height:3px;border-radius:0 0 3px 3px;background:var(--spie-red)}
@@ -505,6 +534,108 @@
   }
   .bigblock.searching{border-color:var(--line);border-width:1px;background:var(--card)}
   .bigblock.searching .bigicon svg{stroke:var(--muted)}
+
+  /* ---- Am PC ----
+     Büro und Baustelle haben verschiedene Aufgaben, aber dieselben Daten.
+     Was hier steht, ist die kleine, belastbare Anpassung: Inhalt nicht über
+     die ganze Breite laufen lassen und die Ablagefläche so groß machen, dass
+     man einen Ordner hineinziehen mag. Eine eigene Büro-Oberfläche mit
+     Seitenleiste und großen Tabellen ist der nächste Schritt, nicht dieser. */
+  @media (min-width:900px){
+    main{max-width:1100px;margin:0 auto;padding-left:20px;padding-right:20px}
+    header{padding-left:20px;padding-right:20px}
+    .dropzone{padding:48px 20px;min-height:210px}
+    .droptext b{font-size:22px}
+    nav button{font-size:12px}
+    .bereiche{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+    .zahl{flex:0 1 150px}
+  }
+
+  /* ---- Übersicht, Masten, Mastakte, Dokumente ---- */
+  .bsname{font-size:calc(21px * var(--gross));font-weight:800;line-height:1.2;overflow-wrap:anywhere}
+  .bsstand{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .zahlen{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .zahl{flex:1 1 90px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-s);
+    padding:9px 10px;min-width:0}
+  .zahl b{display:block;font-size:calc(21px * var(--gross));line-height:1.1}
+  .zahl span{font-size:11.5px;color:var(--muted)}
+
+  .suchfeld{display:flex;gap:8px;align-items:stretch}
+  .suchfeld input{flex:1;min-width:0;font-size:calc(17px * var(--gross));min-height:52px;
+    padding:10px 12px;border-radius:var(--r-s);border:1px solid var(--line);
+    background:var(--card2);color:var(--txt)}
+  .suchfeld .chip{flex:0 0 auto}
+
+  .mastzeile{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line);
+    cursor:pointer;background:transparent;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;
+    color:var(--txt);min-height:56px}
+  .mastzeile:last-child{border-bottom:0}
+  .mastnr{font-size:calc(19px * var(--gross));font-weight:800;flex:0 0 auto}
+  .mastinfo{flex:1;min-width:0;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+  .mastpfeil{flex:0 0 auto;color:var(--muted2);font-size:18px}
+  .mastmarke{flex:0 0 auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;
+    background:var(--card2);border:1px solid var(--line);color:var(--muted)}
+
+  .aktekopf{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .aktetitel{font-size:calc(23px * var(--gross));font-weight:800;min-width:0;overflow-wrap:anywhere}
+  .akteFakten{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+  .fakt{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-s);padding:8px 10px;min-width:0}
+  .fakt span{display:block;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .fakt b{font-size:14.5px;overflow-wrap:anywhere}
+  .card.rettungkarte{border-color:var(--accent);border-width:2px}
+
+  /* Große Bedienflächen statt zehn kleiner Menüpunkte. */
+  .bereiche{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .bereich{display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+    background:var(--card2);border:1px solid var(--line);border-radius:var(--r);
+    padding:14px 13px;min-height:76px;cursor:pointer;color:var(--txt);text-align:left;width:100%}
+  .bereich b{font-size:calc(16px * var(--gross));font-weight:800}
+  .bereich span{font-size:12px;color:var(--muted)}
+  .bereich:active{background:var(--line)}
+
+  .dropzone{border:2px dashed var(--line);border-radius:var(--r);padding:22px 14px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:12px;transition:border-color .15s ease, background .15s ease}
+  .dropzone.ueber{border-color:var(--accent);background:rgba(226,0,26,.06)}
+  .droptext b{font-size:calc(16px * var(--gross))}
+  .dropzone .btn{width:auto;padding-left:18px;padding-right:18px}
+  /* Am Telefon zieht niemand Dateien mit der Maus. Dort bleibt die Auswahl,
+     der Ziehbereich verschwindet. */
+  @media (pointer:coarse){ .droptext{display:none} .dropzone{border-style:solid;padding:14px} }
+
+  .dokzeile{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
+  .dokzeile:last-child{border-bottom:0}
+  .dokinfo{flex:1;min-width:0}
+  .doktitel{font-weight:800;font-size:14.5px;overflow-wrap:anywhere}
+  .doksub{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+  .rev{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;
+    border:1px solid var(--line);background:var(--card2);color:var(--muted)}
+  .rev.jetzt{background:var(--ok);border-color:var(--ok);color:#fff}
+  .rev.alt{background:var(--card2);color:var(--warn);border-color:var(--warn)}
+
+  /* Importvorschau: eine Tabelle, die auf einem Telefon nicht zerfällt. */
+  .imptab{width:100%;border-collapse:collapse;font-size:13px}
+  .imptab th{text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--muted);padding:6px 4px;border-bottom:1px solid var(--line)}
+  .imptab td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+  .imptab input, .imptab select{width:100%;min-width:64px;font-size:13px;padding:7px 6px;
+    border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--txt)}
+  .imptab tr.offen td{background:rgba(147,97,10,.10)}
+  .impwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  .planbox{position:fixed;inset:0;z-index:75;background:#000;display:none;flex-direction:column}
+  .planbox.on{display:flex}
+  .planbild{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:#111}
+  .planbild img{max-width:none;transform-origin:center center;display:block}
+  .planbild iframe, .planbild embed{width:100%;height:100%;border:0;background:#fff}
+  .planfuss2{background:#000;color:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .planfuss2 .btn{width:auto;flex:0 0 auto;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.55);color:#fff;padding:10px 13px}
+  .planfuss2 .btn.ghost{background:transparent}
+  .plantitel{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .planaltwarn{background:var(--spie-red);color:#fff;padding:10px 12px;font-size:13.5px;font-weight:700;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .planaltwarn .btn{width:auto;flex:0 0 auto;padding:8px 12px;background:#fff;color:var(--spie-red);border:0}
 </style>
 </head>
 <body>
@@ -521,6 +652,15 @@
     <button class="tag tagbtn" id="headTag" onclick="baustellenWaehler()"
             aria-label="Baustelle wechseln"><span class="tagtext">Notfall-Standort für die Baustelle</span></button>
   </div>
+  <!-- Rettung ist keine Unterfunktion. Sie steht im Kopf, in JEDER Ansicht,
+       und ein Antippen führt ohne Zwischenfrage auf den Rettungsbildschirm.
+       Deshalb steht dieser Knopf VOR Hilfe und Hell/Dunkel: Er darf auf
+       schmalen Geräten nicht als Erster weichen. -->
+  <button class="rettungbtn" id="rettungBtn" onclick="rettungOeffnen()"
+          aria-label="Rettung öffnen — nächster Rettungspunkt und Notruf">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 6.5v11M6.5 12h11"/></svg>
+    <span>RETTUNG</span>
+  </button>
   <button class="iconbtn" onclick="showHelp()" aria-label="Hilfe" title="Hilfe">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4"/><path d="M12 17h.01"/></svg>
   </button>
@@ -530,6 +670,99 @@
 </header>
 
 <main>
+
+  <!-- ============ ÜBERSICHT ============
+       Die Baustelle auf einen Blick. Kein Dashboard mit Kacheln, die nichts
+       sagen: Was hier steht, führt entweder weiter oder ist eine Zahl, die
+       der Monteur wirklich braucht. -->
+  <section class="tabpane" id="tab-uebersicht">
+    <h2 class="nurvorleser">Übersicht</h2>
+    <div class="card">
+      <div class="bsname" id="ueName">—</div>
+      <div class="bsstand" id="ueStand"></div>
+      <div class="zahlen" id="ueZahlen"></div>
+    </div>
+    <div class="card">
+      <h3>Schnellzugriff</h3>
+      <button class="btn primary huge" onclick="setTab('masten');mastSucheFokus()">Mast suchen</button>
+      <div class="btnrow">
+        <button class="btn" onclick="setTab('dokumente')">Dokumente</button>
+        <button class="btn" onclick="setTab('info')">Verwaltung</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Offline</h3>
+      <div id="ueOffline" class="statussub">wird geprüft …</div>
+    </div>
+  </section>
+
+  <!-- ============ MASTEN ============ -->
+  <section class="tabpane" id="tab-masten">
+    <h2 class="nurvorleser">Masten</h2>
+    <div class="card">
+      <div class="suchfeld">
+        <input id="mastSuche" type="search" inputmode="numeric" autocomplete="off"
+               placeholder="Mastnummer suchen …" aria-label="Mastnummer suchen"
+               oninput="mastListeZeichnen()">
+        <button class="chip" onclick="scanOeffnen('mast')" aria-label="Mast-QR-Code scannen">QR</button>
+      </div>
+      <div class="hint" id="mastHinweis"></div>
+    </div>
+    <div class="card">
+      <div class="plist" id="mastListe"></div>
+    </div>
+  </section>
+
+  <!-- ============ MASTAKTE ============
+       Kein Navigationspunkt: Man kommt aus der Mastliste, aus der Suche oder
+       später aus einem QR-Code am Mast hierher. -->
+  <section class="tabpane" id="tab-mastakte"
+           ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAufMast(event)">
+    <h2 class="nurvorleser">Mastakte</h2>
+    <div class="aktekopf">
+      <button class="chip" onclick="setTab('masten')" aria-label="Zurück zur Mastliste">← Masten</button>
+      <div class="aktetitel" id="akteTitel">—</div>
+    </div>
+    <div class="card" id="akteKopfKarte">
+      <div class="akteFakten" id="akteFakten"></div>
+      <div class="btnrow"><button class="btn sm ghost" onclick="mastdatenBearbeiten()">Stammdaten bearbeiten</button></div>
+    </div>
+    <!-- Rettung im Mast: kurz, mit Verweis auf die eine zentrale Rettung.
+         Nicht die ganze Rettungsoberfläche hierher kopieren. -->
+    <div class="card rettungkarte" id="akteRettung"></div>
+    <div class="card" id="akteBereiche"></div>
+    <!-- Am PC: Datei auf die offene Mastakte ziehen, dann ist der Mast schon
+         gewählt. Am Telefon zieht niemand Dateien — dort verschwindet der
+         Hinweis (siehe .droptext in der Gestaltung). -->
+    <div class="card droptext" id="akteDrop">
+      <div class="hint">Plan für diesen Mast hierher ziehen — Mast <b id="akteDropNr">—</b>
+        ist dann schon zugeordnet.</div>
+    </div>
+  </section>
+
+  <!-- ============ DOKUMENTE ============ -->
+  <section class="tabpane" id="tab-dokumente">
+    <h2 class="nurvorleser">Dokumente</h2>
+    <div class="card" id="dokImportKarte">
+      <h3>Pläne hochladen</h3>
+      <div class="dropzone" id="dropZone"
+           ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAbgelegt(event)">
+        <div class="droptext"><b>Pläne hierher ziehen</b><br>
+          <span class="hint">PDF, JPG, JPEG, PNG · mehrere gleichzeitig</span></div>
+        <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
+        <input id="dokDatei" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+               style="display:none" onchange="dateienGewaehlt(event)">
+      </div>
+    </div>
+    <div class="card">
+      <h3>Abgelegte Dokumente <span class="badge grey" id="dokCount">0</span></h3>
+      <div class="suchfeld">
+        <input id="dokSuche" type="search" autocomplete="off" placeholder="Mast, Art oder Dateiname …"
+               aria-label="Dokumente durchsuchen" oninput="dokListeZeichnen()">
+      </div>
+      <div class="plist" id="dokListe"></div>
+    </div>
+  </section>
 
   <!-- ============ NOTFALL ============ -->
   <section class="tabpane on" id="tab-notfall">
@@ -702,7 +935,23 @@
 
   <!-- ============ INFO ============ -->
   <section class="tabpane" id="tab-info">
-    <h2 class="nurvorleser">Info und Einstellungen</h2>
+    <h2 class="nurvorleser">Verwaltung</h2>
+    <!-- Punkte und Nummern sind Verwaltungsaufgaben und keine Bereiche für die
+         Baustelle — deshalb stehen sie nicht mehr unten in der Navigation.
+         Erreichbar bleiben müssen sie trotzdem, und zwar sofort sichtbar. -->
+    <div class="card">
+      <h3>Baustellendaten</h3>
+      <div class="bereiche">
+        <button class="bereich" onclick="setTab('punkte')">
+          <b>Punkte</b><span id="vwPunkte">Rettungspunkte, Masten, Kliniken</span></button>
+        <button class="bereich" onclick="setTab('kontakte')">
+          <b>Nummern</b><span id="vwNummern">Notrufnummern vom Aushang</span></button>
+        <button class="bereich" onclick="setTab('dokumente')">
+          <b>Dokumente</b><span id="vwDok">Pläne und Fotos</span></button>
+        <button class="bereich" onclick="setTab('masten')">
+          <b>Masten</b><span id="vwMasten">Mastakten</span></button>
+      </div>
+    </div>
     <div class="card">
       <h3>So funktioniert die App</h3>
       <div class="howto">
@@ -886,21 +1135,28 @@
 </main>
 
 <nav aria-label="Hauptbereiche">
-  <button class="on" data-tab="notfall" onclick="setTab('notfall')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><path d="M12 6.6v6.8M8.6 10h6.8"/></svg>
-    Notfall
+  <button data-tab="uebersicht" onclick="setTab('uebersicht')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h7v6H4zM13 5h7v3h-7zM13 10h7v9h-7zM4 13h7v6H4z"/></svg>
+    Übersicht
   </button>
-  <button data-tab="punkte" onclick="setTab('punkte')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    Punkte
+  <button data-tab="masten" onclick="setTab('masten')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M6 21l6-18 6 18M8 9h8M7 14h10"/></svg>
+    Masten
   </button>
-  <button data-tab="kontakte" onclick="setTab('kontakte')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 3.5h3l1.5 4-2 1.4a12 12 0 0 0 6 6l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17 17 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2z"/></svg>
-    Nummern
+  <!-- Rettung sitzt in der Mitte und ist die einzige rote Fläche in der
+       Navigation. Sie soll auch mit Handschuhen und ohne Hinsehen zu treffen
+       sein. -->
+  <button class="on rettung" data-tab="notfall" onclick="setTab('notfall')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><path d="M12 6.6v6.8M8.6 10h6.8"/></svg>
+    Rettung
+  </button>
+  <button data-tab="dokumente" onclick="setTab('dokumente')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg>
+    Dokumente
   </button>
   <button data-tab="info" onclick="setTab('info')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-    Info
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2"/></svg>
+    Verwaltung
   </button>
 </nav>
 
@@ -943,6 +1199,18 @@
   </div>
 </div>
 
+<!-- Planansicht: Pläne bleiben in der App. Wer auf der Baustelle erst eine
+     Datei herunterladen und in einer anderen App suchen muss, hat verloren. -->
+<div class="planbox" id="planBox" role="dialog" aria-modal="true" aria-label="Plan ansehen">
+  <div id="planWarn"></div>
+  <div class="planbild" id="planBild"></div>
+  <div class="planfuss2">
+    <span class="plantitel" id="planTitel"></span>
+    <button class="btn ghost" onclick="planSchliessen()">Schließen</button>
+    <span id="planWerkzeuge"></span>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <!-- Für Vorleseprogramme: der aktuelle Standort-Zustand, immer genau einer. -->
 <div class="nurvorleser" id="standStatus" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -955,6 +1223,8 @@
 <script src="daten-notruf.js"></script>
 <script src="daten-pruefung.js"></script>
 <script src="geo.js"></script>
+<script src="dok-modell.js"></script>
+<script src="speicher.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -962,7 +1232,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.11.3';
+var VERSION = '0.12.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1301,6 +1571,15 @@ function baustelleLaden(id) {
   }
 
   if (!state.wege) state.wege = [];
+  /* Dokumente hängen an der Baustelle wie Punkte und Nummern. Beim Wechsel
+     müssen sie mitwechseln, sonst zeigt die Liste die Pläne der anderen
+     Baustelle. */
+  akte.key = ''; akte.mast = null; akte.dokumente = []; akte.werte = []; akte.stamm = null;
+  if (typeof dokumenteLaden === 'function') {
+    dokumenteLaden().then(function () {
+      dokListeZeichnen(); renderUebersicht();
+    });
+  }
   state.points.forEach(function (p) { if (!p.uid) p.uid = uid(); });
   state.contacts.forEach(function (c) { if (!c.uid) c.uid = uid(); });
 }
@@ -1496,6 +1775,9 @@ function baustelleLoeschen(id) {
       schluesselSetzen(id);
       [K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_WEGE, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT]
         .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* egal */ } });
+      // Auch die Dokumente dieser Baustelle gehen mit — sonst belegen Pläne
+      // einer abgeschlossenen Baustelle den Speicher weiter.
+      if (S && S.verfuegbar()) S.baustelleLeeren(id).catch(function () { /* nichts zu retten */ });
       schluesselSetzen(merk);
       if (id === merk) {
         // Die aktive Baustelle ist weg — die verbliebene muss wirklich neu
@@ -3556,6 +3838,21 @@ function scanSchliessen() {
 /* Was im QR-Code steht, ist fremder Text. Er wird nie ausgeführt und nie als
    geprüfte Angabe übernommen — nur eingeordnet. */
 function scanVerarbeiten(text) {
+  /* Ein QR-Code am Mast trägt die Mastnummer — als nackte Nummer, als
+     „Mast 127" oder in einer Adresse. Gesucht wird nur in dieser Baustelle;
+     erfunden wird nichts. */
+  if (scan.ziel === 'mast') {
+    var kandidat = String(text || '').match(/(?:mast[\s_.\-]*)?(\d{3,4}[\/\-_]\d{1,4}|\d{1,4})\s*$/i)
+                || String(text || '').match(/(\d{3,4}[\/\-_]\d{1,4}|\d{1,4})/);
+    var m = kandidat ? mastFinden(kandidat[1]) : null;
+    if (m) { mastOeffnen(m.key); toast('Mast ' + m.nr); return; }
+    openOv('<h2>QR-Code gelesen</h2>' +
+      '<p>Darin steht kein Mast dieser Baustelle. Gelesen wurde:</p>' +
+      '<div class="field"><textarea rows="3" readonly>' + esc(String(text).slice(0, 300)) + '</textarea></div>' +
+      '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Schließen</button>' +
+      '<button class="btn primary" onclick="scanOeffnen(\'mast\')">Nochmal scannen</button></div>');
+    return;
+  }
   var karte = G.myMapsKmlUrl(text);
   if (karte) {
     if (scan.ziel === 'baustelle') { baustelleAusLink(text); return; }
@@ -4304,9 +4601,21 @@ function setTab(name) {
     if (aktiv) btns[j].setAttribute('aria-current', 'page');
     else btns[j].removeAttribute('aria-current');
   }
+  /* Die Mastakte hat keinen eigenen Navigationspunkt — man kommt aus der
+     Mastliste. Damit die Navigation nicht leer wirkt, bleibt „Masten"
+     markiert. */
+  if (name === 'mastakte') {
+    for (var m = 0; m < btns.length; m++) {
+      if (btns[m].getAttribute('data-tab') === 'masten') btns[m].classList.add('on');
+    }
+  }
   window.scrollTo(0, 0);
   if (name === 'punkte') renderPoints();
   if (name === 'kontakte') renderContacts();
+  if (name === 'uebersicht') renderUebersicht();
+  if (name === 'info') renderVerwaltung();
+  if (name === 'masten') mastListeZeichnen();
+  if (name === 'dokumente') dokListeZeichnen();
 }
 
 /* Installationswege: Android-App zum Herunterladen, iPhone über
@@ -4933,6 +5242,857 @@ function armCompassOnFirstTouch() {
   document.addEventListener('click', once, true);
 }
 
+
+/* =========================================================================
+   BAUSTELLE → MASTEN → UNTERLAGEN
+
+   Aufgesetzt auf das, was schon trägt: Die Masten sind keine neue Datenquelle,
+   sondern dieselben Punkte, aus denen die Rettung rechnet. Ein Mast bekommt
+   hier nur, was ihm zum Arbeitsobjekt fehlt — Stammdaten, Dokumente,
+   Regulierwerte. Die liegen in IndexedDB (siehe speicher.js), weil ein
+   Gründungsplan nicht in localStorage passt.
+
+   Rettung bleibt davon unberührt. Sie ist keine Unterfunktion eines Mastes.
+   ========================================================================= */
+
+var D = window.SpieDok;
+var S = window.SpieSpeicher;
+
+/* Ein Antippen, keine Zwischenfrage — aus jeder Ansicht, auch aus einem
+   offenen Plan oder Scanner heraus. */
+function rettungOeffnen() {
+  if (typeof planSchliessen === 'function') planSchliessen();
+  if (typeof scanSchliessen === 'function' && scan && scan.lauf) scanSchliessen();
+  closeOv();
+  setTab('notfall');
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Masten ---------- */
+
+/* Die Mastliste kommt aus den Punkten der Baustelle. Ungeprüfte Masten sind
+   Arbeitsobjekte wie alle anderen — für die Rettung bleiben sie gesperrt,
+   das entscheidet nearestList(), nicht diese Liste. */
+function mastenAlle() {
+  var out = [];
+  state.points.forEach(function (p) {
+    if (kindOf(p) !== 'mast') return;
+    var nr = p.mastNr || p.name || '';
+    var key = D.mastSchluessel(nr);
+    if (!key) return;
+    out.push({ punkt: p, nr: nr, key: key, geprueft: istGeprueft(p),
+               zahl: parseInt(String(key).replace(/^\d+\//, ''), 10) || 0 });
+  });
+  out.sort(function (a, b) { return a.zahl - b.zahl || (a.key < b.key ? -1 : 1); });
+  return out;
+}
+
+function mastFinden(key) {
+  var k = D.mastSchluessel(key);
+  var alle = mastenAlle();
+  for (var i = 0; i < alle.length; i++) if (alle[i].key === k) return alle[i];
+  return null;
+}
+
+function mastSucheFokus() {
+  var f = $('mastSuche'); if (f) { f.focus(); f.select(); }
+}
+
+var MASTEN_JE_SEITE = 60;   // mehr braucht kein Bildschirm; der Rest wird gesagt
+
+function mastListeZeichnen() {
+  var box = $('mastListe'); if (!box) return;
+  var alle = mastenAlle();
+  var q = (($('mastSuche') || {}).value || '').trim().toLowerCase();
+  var treffer = alle;
+  if (q) {
+    var qk = D.mastSchluessel(q);
+    treffer = alle.filter(function (m) {
+      return m.key.toLowerCase().indexOf(q) >= 0 ||
+             String(m.nr).toLowerCase().indexOf(q) >= 0 ||
+             (qk && m.key === qk) ||
+             String(m.punkt.name || '').toLowerCase().indexOf(q) >= 0;
+    });
+    // Genauer Treffer nach vorn: „127" soll Mast 127 zeigen, nicht 1270.
+    treffer.sort(function (a, b) {
+      var ga = (a.key.toLowerCase() === q || a.key === qk) ? 0 : 1;
+      var gb = (b.key.toLowerCase() === q || b.key === qk) ? 0 : 1;
+      return ga - gb || a.zahl - b.zahl;
+    });
+  }
+
+  var hin = $('mastHinweis');
+  if (hin) {
+    hin.innerHTML = !alle.length
+      ? 'Für diese Baustelle sind keine Masten gespeichert. Karte laden unter ' +
+        '<b>Verwaltung → Punkte</b>.'
+      : (q ? treffer.length + ' von ' + alle.length + ' Masten'
+           : alle.length + ' Masten · Nummer eintippen, z. B. <b>127</b>');
+  }
+
+  if (!treffer.length) {
+    box.innerHTML = '<div class="empty">' + (q ? 'Kein Mast mit dieser Nummer.' : 'Keine Masten.') + '</div>';
+    return;
+  }
+  var zeigen = treffer.slice(0, MASTEN_JE_SEITE);
+  box.innerHTML = zeigen.map(function (m) {
+    var d = (state.pos && m.punkt.lat != null)
+      ? G.formatDistance(G.distance(state.pos.lat, state.pos.lon, m.punkt.lat, m.punkt.lon)) : '';
+    return '<button class="mastzeile" onclick="mastOeffnen(&#39;' + esc(m.key) + '&#39;)">' +
+      /* Angezeigt wird die Schreibweise der Baustelle („4225/0063"), gesucht
+         wird über den vereinheitlichten Schlüssel. Wer am Mast steht, liest
+         dort keine normalisierte Nummer. */
+      '<span class="mastnr">' + esc(m.nr) + '</span>' +
+      '<span class="mastinfo">' + (String(m.punkt.name || '') !== String(m.nr)
+        ? esc(m.punkt.name || '') : '') + (d ? (String(m.punkt.name || '') !== String(m.nr) ? ' · ' : '') + d : '') +
+      '</span>' +
+      (m.geprueft ? '' : '<span class="mastmarke">ungeprüft</span>') +
+      '<span class="mastpfeil" aria-hidden="true">›</span></button>';
+  }).join('') +
+  (treffer.length > zeigen.length
+    ? '<div class="psub" style="padding:10px 2px">… und ' + (treffer.length - zeigen.length) +
+      ' weitere. Nummer eintippen, um sie zu finden.</div>' : '');
+}
+
+/* ---------- Mastakte ---------- */
+
+var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '' };
+
+function mastOeffnen(key) {
+  var m = mastFinden(key);
+  if (!m) { toast('Mast nicht gefunden'); return; }
+  akte.key = m.key; akte.mast = m; akte.offen = '';
+  akte.dokumente = []; akte.werte = []; akte.stamm = null;
+  setTab('mastakte');
+  window.scrollTo(0, 0);
+  renderMastakte();
+  if (!S || !S.verfuegbar()) return;
+  var baustelle = aktiveBaustelle();
+  Promise.all([
+    S.dokVonMast(baustelle, m.key).catch(function () { return []; }),
+    S.werteVonMast(baustelle, m.key).catch(function () { return []; }),
+    S.mastdatenHolen(baustelle, m.key).catch(function () { return null; })
+  ]).then(function (r) {
+    if (akte.key !== m.key) return;            // inzwischen weitergetippt
+    akte.dokumente = r[0] || []; akte.werte = r[1] || []; akte.stamm = r[2];
+    renderMastakte();
+  });
+}
+
+function renderMastakte() {
+  var m = akte.mast; if (!m) return;
+  $('akteTitel').textContent = 'Mast ' + m.nr;
+  var dn = $('akteDropNr'); if (dn) dn.textContent = m.nr;
+
+  var st = akte.stamm || {};
+  var fakt = function (t, w) {
+    return '<div class="fakt"><span>' + t + '</span><b>' + (w ? esc(w) : '—') + '</b></div>';
+  };
+  $('akteFakten').innerHTML =
+    fakt('Masttyp', st.typ) +
+    fakt('Abschnitt', st.abschnitt) +
+    fakt('Koordinaten', G.formatDec(m.punkt.lat, m.punkt.lon)) +
+    fakt('Status', st.status) +
+    (m.geprueft ? '' :
+      '<div class="fakt" style="grid-column:1/-1;border-color:var(--warn)">' +
+      '<span>Hinweis</span><b style="color:var(--warn)">Dieser Mast ist ungeprüft — ' +
+      'er wird für Rettungsberechnungen nicht verwendet.</b></div>');
+
+  renderAkteRettung();
+  renderAkteBereiche();
+}
+
+/* Rettung im Mast. Der Bezugspunkt ist hier der MAST, nicht der eigene
+   Standort — beides zu verwechseln wäre der schlimmste Fehler, den diese
+   Ansicht machen kann. Deshalb steht es wörtlich dabei. */
+function renderAkteRettung() {
+  var box = $('akteRettung'); if (!box) return;
+  var m = akte.mast;
+  var kopf = '<h3 style="margin-top:0">Rettung</h3>';
+  var knopf = '<div class="btnrow"><button class="btn primary" onclick="rettungOeffnen()">Rettung öffnen</button></div>';
+
+  if (!m.geprueft) {
+    box.innerHTML = kopf + '<div class="statussub">Für einen ungeprüften Mast wird kein ' +
+      'Rettungspunkt berechnet.</div>' + knopf;
+    return;
+  }
+  var pool = state.points.filter(istGeprueft).filter(function (p) { return kindOf(p) === 'rp'; });
+  if (!pool.length) {
+    box.innerHTML = kopf + '<div class="statussub">Kein geprüfter Rettungspunkt in dieser ' +
+      'Baustelle.</div>' + knopf;
+    return;
+  }
+  var n = G.nearest(pool, m.punkt.lat, m.punkt.lon, 1)[0];
+  var eigen = '';
+  if (state.pos) {
+    var de = G.distance(state.pos.lat, state.pos.lon, m.punkt.lat, m.punkt.lon);
+    eigen = '<div class="statussub" style="margin-top:6px">Dein Standort ist ' +
+      G.formatDistance(de) + ' von diesem Mast entfernt.</div>';
+  }
+  box.innerHTML = kopf +
+    '<div class="doktitel">' + esc(G.shortLabel(n)) + '</div>' +
+    '<div class="doksub">' + G.formatDistance(n.dist) + ' · ' + dirWord(n.compass) +
+    ' — <b>vom Mast aus</b>, nicht von deinem Standort</div>' + eigen + knopf;
+}
+
+function renderAkteBereiche() {
+  var box = $('akteBereiche'); if (!box) return;
+  var reihen = D.nachKategorie(akte.dokumente);
+  var zahlIn = function (gruppen) {
+    return reihen.filter(function (r) {
+      var k = D.kategorie(r.kategorie);
+      return k && gruppen.indexOf(k.gruppe) >= 0;
+    }).length;
+  };
+  var b = function (id, titel, unter) {
+    return '<button class="bereich" onclick="akteBereich(&#39;' + id + '&#39;)">' +
+      '<b>' + titel + '</b><span>' + unter + '</span></button>';
+  };
+  // „1 Unterlagen" liest sich wie ein Fehler und ist auch einer.
+  var stueck = function (n, eins, viele) { return n + ' ' + (n === 1 ? eins : viele); };
+  var offeneWerte = akte.werte.filter(function (w) { return w.status !== 'fertig'; }).length;
+
+  box.innerHTML = '<h3 style="margin-top:0">Mastakte</h3><div class="bereiche">' +
+    b('werte', 'Regulierwerte', akte.werte.length
+        ? stueck(akte.werte.length, 'Wert', 'Werte') + (offeneWerte ? ' · ' + offeneWerte + ' offen' : '')
+        : 'noch keine') +
+    b('gruendung', 'Gründung', stueck(zahlIn(['Gründung']), 'Unterlage', 'Unterlagen')) +
+    b('plaene', 'Pläne', stueck(zahlIn(['Mast', 'Montage', 'Sonstiges']), 'Unterlage', 'Unterlagen')) +
+    b('fotos', 'Fotos', stueck(zahlIn(['Fotos']), 'Bild', 'Bilder')) +
+    b('pruefungen', 'Prüfungen', stueck(zahlIn(['Prüfung']), 'Unterlage', 'Unterlagen')) +
+    b('bemerkungen', 'Bemerkungen', (akte.stamm && akte.stamm.bemerkung) ? 'vorhanden' : 'keine') +
+    '</div>' +
+    '<div id="akteInhalt" style="margin-top:14px"></div>';
+  if (akte.offen) akteBereich(akte.offen, true);
+}
+
+function akteBereich(id, behalten) {
+  akte.offen = (akte.offen === id && !behalten) ? '' : id;
+  var ziel = $('akteInhalt'); if (!ziel) return;
+  if (!akte.offen) { ziel.innerHTML = ''; return; }
+  if (id === 'werte') { ziel.innerHTML = werteHtml(); return; }
+  if (id === 'bemerkungen') { ziel.innerHTML = bemerkungHtml(); return; }
+  var gruppen = id === 'gruendung' ? ['Gründung']
+              : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges']
+              : id === 'fotos'     ? ['Fotos']
+              : ['Prüfung'];
+  ziel.innerHTML = dokGruppenHtml(gruppen);
+}
+
+function dokGruppenHtml(gruppen) {
+  var reihen = D.nachKategorie(akte.dokumente).filter(function (r) {
+    var k = D.kategorie(r.kategorie);
+    return k && gruppen.indexOf(k.gruppe) >= 0;
+  });
+  if (!reihen.length) {
+    return '<div class="empty">Noch keine Unterlagen. Am PC lassen sich Pläne unter ' +
+           '„Dokumente" per Ziehen ablegen.</div>';
+  }
+  return reihen.map(function (r) {
+    var a = r.aktuell;
+    return '<div class="dokzeile"><div class="dokinfo">' +
+      '<div class="doktitel">' + esc(D.kategorieName(r.kategorie)) + '</div>' +
+      '<div class="doksub">' +
+        (a.revision ? '<span class="rev jetzt">AKTUELL · REV ' + esc(a.revision) + '</span> '
+                    : '<span class="rev jetzt">AKTUELL</span> ') +
+        esc(a.dateiname) + (a.datum ? ' · ' + esc(a.datum) : '') +
+      '</div>' +
+      (r.ersetzt.length
+        ? '<details class="det" style="margin:6px 0 0"><summary>Versionsverlauf (' +
+          r.ersetzt.length + ')</summary><div class="detbody">' +
+          r.ersetzt.map(function (d) {
+            return '<div class="dokzeile"><div class="dokinfo">' +
+              '<div class="doksub"><span class="rev alt">ERSETZT' +
+              (d.revision ? ' · REV ' + esc(d.revision) : '') + '</span> ' + esc(d.dateiname) + '</div></div>' +
+              '<button class="chip" onclick="planOeffnen(&#39;' + esc(d.id) + '&#39;)">Ansehen</button></div>';
+          }).join('') + '</div></details>'
+        : '') +
+      '</div>' +
+      '<button class="chip blue" onclick="planOeffnen(&#39;' + esc(a.id) + '&#39;)">Öffnen</button>' +
+      '</div>';
+  }).join('');
+}
+
+/* ---------- Stammdaten des Mastes ---------- */
+
+function mastdatenBearbeiten() {
+  var st = akte.stamm || {};
+  openOv('<h2>Mast ' + esc(akte.mast ? akte.mast.nr : akte.key) + '</h2>' +
+    '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
+    '<div class="field"><label>Abschnitt</label><input class="inp" id="mdAbschnitt" value="' + esc(st.abschnitt || '') + '" placeholder="z. B. Abschnitt 2"></div>' +
+    '<div class="field"><label>Arbeits-/Montagestatus</label><input class="inp" id="mdStatus" value="' + esc(st.status || '') + '" placeholder="z. B. Gründung fertig"></div>' +
+    '<div class="field"><label>Bemerkung</label><textarea id="mdBemerkung" rows="3">' + esc(st.bemerkung || '') + '</textarea></div>' +
+    '<div class="hint">Diese Angaben gehören zu dieser Baustelle und bleiben im Gerät.</div>' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    '<button class="btn primary" onclick="mastdatenSpeichern()">Speichern</button></div>');
+}
+
+function mastdatenSpeichern() {
+  var daten = {
+    typ: ($('mdTyp').value || '').trim(),
+    abschnitt: ($('mdAbschnitt').value || '').trim(),
+    status: ($('mdStatus').value || '').trim(),
+    bemerkung: ($('mdBemerkung').value || '').trim()
+  };
+  S.mastdatenSetzen(aktiveBaustelle(), akte.key, daten).then(function (e) {
+    akte.stamm = e; closeOv(); renderMastakte(); toast('Gespeichert');
+  }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
+}
+
+function bemerkungHtml() {
+  var t = (akte.stamm && akte.stamm.bemerkung) || '';
+  return '<div class="dokinfo">' + (t
+    ? '<div class="doksub" style="font-family:inherit;white-space:pre-line">' + esc(t) + '</div>'
+    : '<div class="empty">Keine Bemerkung.</div>') +
+    '</div><div class="btnrow"><button class="btn sm" onclick="mastdatenBearbeiten()">Bemerkung bearbeiten</button></div>';
+}
+
+/* ---------- Regulierwerte ----------
+   Felder und Ablauf stehen. Fachliche Sollwerte und Toleranzen kommen aus den
+   Unterlagen der Baustelle — die App erfindet hier nichts. */
+function werteHtml() {
+  var kopf = '<div class="btnrow" style="margin-top:0">' +
+    '<button class="btn sm" onclick="wertBearbeiten(&#39;&#39;)">Wert hinzufügen</button></div>';
+  if (!akte.werte.length) {
+    return '<div class="empty">Noch keine Regulierwerte. Soll- und Toleranzwerte stehen in den ' +
+      'Unterlagen der Baustelle; die App gibt keine vor.</div>' + kopf;
+  }
+  var zeilen = akte.werte.slice().sort(function (a, b) {
+    return String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de');
+  }).map(function (w) {
+    var farbe = w.status === 'fertig' ? 'var(--ok)' : w.status === 'abweichung' ? 'var(--bad)' : 'var(--warn)';
+    return '<div class="dokzeile"><div class="dokinfo">' +
+      '<div class="doktitel">' + esc(w.bezeichnung || 'Wert') + '</div>' +
+      '<div class="doksub">Soll ' + esc(String(w.soll || '—')) + ' · Ist ' + esc(String(w.ist || '—')) +
+        (w.einheit ? ' ' + esc(w.einheit) : '') +
+        (w.toleranz ? ' · Toleranz ' + esc(String(w.toleranz)) : '') + '</div>' +
+      '<div class="doksub">' + (w.messdatum ? esc(w.messdatum) + ' · ' : '') +
+        (w.bearbeiter ? esc(w.bearbeiter) + ' · ' : '') +
+        '<b style="color:' + farbe + '">' + esc(w.status || 'offen') + '</b></div>' +
+      (w.bemerkung ? '<div class="doksub">' + esc(w.bemerkung) + '</div>' : '') +
+      '</div><button class="chip" onclick="wertBearbeiten(&#39;' + esc(w.id) + '&#39;)">Ändern</button></div>';
+  }).join('');
+  return zeilen + kopf;
+}
+
+function wertBearbeiten(id) {
+  var w = null;
+  for (var i = 0; i < akte.werte.length; i++) if (akte.werte[i].id === id) w = akte.werte[i];
+  w = w || { bezeichnung: '', soll: '', ist: '', einheit: '', toleranz: '',
+             messdatum: new Date().toISOString().slice(0, 10), bearbeiter: '', bemerkung: '', status: 'offen' };
+  /* Die Kennungen stehen hier ausgeschrieben und nicht als Argument einer
+     Hilfsfunktion: Die Statikprüfung vergleicht $('…') gegen die id="…" im
+     Text und findet dynamisch zusammengesetzte Kennungen nicht. Diese Prüfung
+     hat in diesem Projekt schon echte Fehler gefunden — sie soll auch hier
+     greifen können. */
+  openOv('<h2>Regulierwert</h2>' +
+    '<div class="field"><label>Bezeichnung</label>' +
+      '<input class="inp" id="rwBez" value="' + esc(String(w.bezeichnung || '')) + '" placeholder="z. B. Durchhang Feld 12"></div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<div style="flex:1"><div class="field"><label>Sollwert</label>' +
+        '<input class="inp" id="rwSoll" value="' + esc(String(w.soll == null ? '' : w.soll)) + '"></div></div>' +
+      '<div style="flex:1"><div class="field"><label>Istwert</label>' +
+        '<input class="inp" id="rwIst" value="' + esc(String(w.ist == null ? '' : w.ist)) + '"></div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<div style="flex:1"><div class="field"><label>Einheit</label>' +
+        '<input class="inp" id="rwEinheit" value="' + esc(String(w.einheit || '')) + '" placeholder="m, mm, kN"></div></div>' +
+      '<div style="flex:1"><div class="field"><label>Toleranz</label>' +
+        '<input class="inp" id="rwTol" value="' + esc(String(w.toleranz == null ? '' : w.toleranz)) + '"></div></div>' +
+    '</div>' +
+    '<div class="field"><label>Messdatum</label>' +
+      '<input class="inp" id="rwDatum" type="date" value="' + esc(String(w.messdatum || '')) + '"></div>' +
+    '<div class="field"><label>Bearbeiter</label>' +
+      '<input class="inp" id="rwWer" value="' + esc(String(w.bearbeiter || '')) + '"></div>' +
+    '<div class="field"><label>Status</label><select id="rwStatus">' +
+      ['offen', 'gemessen', 'abweichung', 'fertig'].map(function (x) {
+        return '<option value="' + x + '"' + (w.status === x ? ' selected' : '') + '>' + x + '</option>';
+      }).join('') + '</select></div>' +
+    '<div class="field"><label>Bemerkung</label><textarea id="rwBem" rows="2">' + esc(w.bemerkung || '') + '</textarea></div>' +
+    '<div class="hint">Soll- und Toleranzwerte stehen in den Unterlagen der Baustelle. ' +
+    'Die App gibt keine vor und rechnet nichts nach.</div>' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    (w.id ? '<button class="btn red" onclick="wertWeg(&#39;' + esc(w.id) + '&#39;)">Löschen</button>' : '') +
+    '<button class="btn primary" onclick="wertSpeichern(&#39;' + esc(w.id || '') + '&#39;)">Speichern</button></div>');
+}
+
+function wertSpeichern(id) {
+  var w = {
+    id: id || '', baustelle: aktiveBaustelle(), mastSchluessel: akte.key,
+    bezeichnung: ($('rwBez').value || '').trim(),
+    soll: ($('rwSoll').value || '').trim(), ist: ($('rwIst').value || '').trim(),
+    einheit: ($('rwEinheit').value || '').trim(), toleranz: ($('rwTol').value || '').trim(),
+    messdatum: ($('rwDatum').value || '').trim(), bearbeiter: ($('rwWer').value || '').trim(),
+    status: $('rwStatus').value, bemerkung: ($('rwBem').value || '').trim()
+  };
+  if (!w.bezeichnung) { toast('Bitte eine Bezeichnung angeben'); return; }
+  S.wertSetzen(w).then(function () {
+    return S.werteVonMast(aktiveBaustelle(), akte.key);
+  }).then(function (liste) {
+    akte.werte = liste; akte.offen = 'werte'; closeOv(); renderMastakte(); toast('Gespeichert');
+  }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
+}
+
+function wertWeg(id) {
+  S.wertLoeschen(id).then(function () {
+    return S.werteVonMast(aktiveBaustelle(), akte.key);
+  }).then(function (liste) {
+    akte.werte = liste; akte.offen = 'werte'; closeOv(); renderMastakte(); toast('Gelöscht');
+  });
+}
+
+
+/* =========================================================================
+   DOKUMENTE — Ablegen, Revisionen, Ansehen
+
+   Der Projektleiter zieht am PC einen Ordner voller Pläne hinein. Die App
+   liest aus den Dateinamen einen VORSCHLAG und legt ihn zur Kontrolle vor.
+   Nichts wird ungeprüft übernommen: Ein Gründungsplan am falschen Mast ist
+   auf einer Baustelle kein Schönheitsfehler.
+   ========================================================================= */
+
+var dokImport = null;     // { reihen: [{datei, vorschlag, mast, kategorie, revision, datum}] }
+var dokAlle = [];         // Dokumente der aktiven Baustelle, für Liste und Zählung
+
+function dokumenteLaden() {
+  if (!S || !S.verfuegbar()) { dokAlle = []; return Promise.resolve([]); }
+  return S.dokVonBaustelle(aktiveBaustelle()).then(function (liste) {
+    dokAlle = liste || [];
+    return dokAlle;
+  }).catch(function () { dokAlle = []; return []; });
+}
+
+function dokListeZeichnen() {
+  var box = $('dokListe'); if (!box) return;
+  var zaehler = $('dokCount'); if (zaehler) zaehler.textContent = dokAlle.length;
+  if (!S || !S.verfuegbar()) {
+    box.innerHTML = '<div class="warnbox">Dieses Gerät bietet der App keine Dateiablage. ' +
+      'Punkte, Nummern und Rettung funktionieren weiter; Dokumente lassen sich hier nicht speichern.</div>';
+    return;
+  }
+  var q = (($('dokSuche') || {}).value || '').trim().toLowerCase();
+  var liste = dokAlle.filter(function (d) {
+    if (!q) return true;
+    return (d.mastSchluessel + ' ' + D.kategorieName(d.kategorie) + ' ' + d.dateiname)
+      .toLowerCase().indexOf(q) >= 0;
+  });
+  if (!liste.length) {
+    box.innerHTML = '<div class="empty">' + (dokAlle.length
+      ? 'Kein Treffer.' : 'Noch keine Dokumente für diese Baustelle.') + '</div>';
+    return;
+  }
+  liste.sort(function (a, b) {
+    return String(a.mastSchluessel).localeCompare(String(b.mastSchluessel), 'de', { numeric: true }) ||
+           (b.abgelegt || 0) - (a.abgelegt || 0);
+  });
+  var proMast = {};
+  dokAlle.forEach(function (d) { (proMast[d.mastSchluessel] || (proMast[d.mastSchluessel] = [])).push(d); });
+
+  box.innerHTML = liste.slice(0, 200).map(function (d) {
+    var jetzt = D.istAktuell(d, proMast[d.mastSchluessel] || []);
+    return '<div class="dokzeile"><div class="dokinfo">' +
+      '<div class="doktitel">Mast ' + esc(mastAnzeige(d.mastSchluessel)) + ' · ' +
+        esc(D.kategorieName(d.kategorie)) + '</div>' +
+      '<div class="doksub">' +
+        '<span class="rev ' + (jetzt ? 'jetzt' : 'alt') + '">' + (jetzt ? 'AKTUELL' : 'ERSETZT') +
+        (d.revision ? ' · REV ' + esc(d.revision) : '') + '</span> ' +
+        esc(d.dateiname) + ' · ' + dateiGroesse(d.groesse) +
+      '</div></div>' +
+      '<button class="chip blue" onclick="planOeffnen(&#39;' + esc(d.id) + '&#39;)">Öffnen</button>' +
+      (state.admin ? '<button class="chip red" onclick="dokWegFragen(&#39;' + esc(d.id) + '&#39;)">Weg</button>' : '') +
+      '</div>';
+  }).join('') +
+  (liste.length > 200 ? '<div class="psub" style="padding:10px 2px">… und ' +
+    (liste.length - 200) + ' weitere. Suchfeld benutzen.</div>' : '');
+}
+
+/* Zu einem Schlüssel die Schreibweise der Baustelle finden — für die Anzeige. */
+function mastAnzeige(key) {
+  var m = mastFinden(key);
+  return m ? m.nr : key;
+}
+
+function dateiGroesse(n) {
+  n = n || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+/* ---------- Ziehen und Ablegen ---------- */
+
+function dropUeber(e) { e.preventDefault(); e.currentTarget.classList.add('ueber'); }
+function dropWeg(e) { e.currentTarget.classList.remove('ueber'); }
+
+function dropAbgelegt(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('ueber');
+  var dt = e.dataTransfer;
+  dateienAufnehmen(dt && dt.files ? dt.files : [], '');
+}
+
+function dateienGewaehlt(e) {
+  dateienAufnehmen(e.target.files || [], '');
+  e.target.value = '';
+}
+
+/* Auf einer offenen Mastakte ist der Mast schon bekannt — dann muss ihn
+   niemand mehr auswählen. */
+function dropAufMast(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('ueber');
+  var dt = e.dataTransfer;
+  dateienAufnehmen(dt && dt.files ? dt.files : [], akte.key);
+}
+
+function dateienAufnehmen(dateien, mastVorgabe) {
+  if (!S || !S.verfuegbar()) {
+    openOv('<h2>Keine Dateiablage</h2><p>Dieses Gerät bietet der App keine Ablage für Dateien ' +
+      '(IndexedDB fehlt oder ist gesperrt). Punkte, Nummern und Rettung funktionieren weiter.</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+    return;
+  }
+  var liste = [].slice.call(dateien || []);
+  if (!liste.length) return;
+  var abgelehnt = liste.filter(function (f) { return !D.istErlaubt(f.name, f.type); });
+  var gut = liste.filter(function (f) { return D.istErlaubt(f.name, f.type); });
+
+  dokImport = {
+    abgelehnt: abgelehnt,
+    reihen: gut.map(function (f) {
+      var v = D.dateiAuswerten(f.name);
+      /* In der Vorschau steht die Schreibweise der Baustelle, nicht der
+         vereinheitlichte Schlüssel: Wer „2409/P001" kontrolliert, soll nicht
+         „2409/P1" gegenlesen müssen. */
+      var gefunden = v.mastNr ? mastFinden(v.mastNr) : null;
+      return {
+        datei: f,
+        vorschlag: v,
+        mast: mastVorgabe || (gefunden ? gefunden.nr : (v.mastNr || '')),
+        mastSicher: mastVorgabe ? 'sicher' : v.sicherheit.mastNr,
+        kategorie: v.kategorie || '',
+        revision: v.revision || '',
+        datum: v.datum || ''
+      };
+    })
+  };
+  if (!dokImport.reihen.length) {
+    openOv('<h2>Keine passenden Dateien</h2>' +
+      '<p>Übernommen werden PDF, JPG, JPEG und PNG. Abgelehnt wurden:</p>' +
+      '<div class="psub">' + abgelehnt.map(function (f) { return esc(f.name); }).join('<br>') + '</div>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+    dokImport = null;
+    return;
+  }
+  dokImportVorschau();
+}
+
+function dokImportVorschau() {
+  if (!dokImport) return;
+  var kategorien = D.alleKategorien();
+  var masten = mastenAlle();
+
+  var offeneReihen = dokImport.reihen.filter(function (r) { return dokReiheOffen(r).length; }).length;
+
+  var zeilen = dokImport.reihen.map(function (r, i) {
+    var offen = dokReiheOffen(r);
+    return '<tr' + (offen.length ? ' class="offen"' : '') + '>' +
+      '<td><div class="doktitel" style="font-size:13px">' + esc(r.datei.name) + '</div>' +
+        '<div class="doksub">' + dateiGroesse(r.datei.size) +
+        (offen.length ? ' · <b style="color:var(--warn)">' + esc(offen.join(', ')) + '</b>' : '') + '</div></td>' +
+      '<td><input list="mastVorschlaege" id="impMast' + i + '" value="' + esc(r.mast) + '" ' +
+        'placeholder="Mast suchen …" oninput="dokReiheSetzen(' + i + ')"></td>' +
+      '<td><select id="impKat' + i + '" onchange="dokReiheSetzen(' + i + ')">' +
+        '<option value="">— Art wählen —</option>' +
+        kategorien.map(function (k) {
+          return '<option value="' + k.id + '"' + (r.kategorie === k.id ? ' selected' : '') + '>' +
+                 esc(k.name) + '</option>';
+        }).join('') + '</select></td>' +
+      '<td><input id="impRev' + i + '" value="' + esc(r.revision) + '" placeholder="C" ' +
+        'oninput="dokReiheSetzen(' + i + ')" style="max-width:70px"></td>' +
+      '<td><input id="impDat' + i + '" type="date" value="' + esc(r.datum) + '" ' +
+        'oninput="dokReiheSetzen(' + i + ')"></td>' +
+      '</tr>';
+  }).join('');
+
+  openOv(
+    '<h2>' + dokImport.reihen.length + ' Dateien übernehmen</h2>' +
+    '<p>Was hier steht, ist aus den <b>Dateinamen gelesen</b> — ein Vorschlag, keine ' +
+    'Tatsache. Bitte kontrollieren und wo nötig ändern.</p>' +
+    (offeneReihen
+      ? '<div class="warnbox" style="margin-bottom:10px"><b>' + offeneReihen + ' Zeilen sind ' +
+        'unvollständig oder nur vermutet</b> — sie sind gelb hinterlegt.</div>' : '') +
+    (dokImport.abgelehnt.length
+      ? '<div class="hint" style="margin-bottom:10px">' + dokImport.abgelehnt.length +
+        ' Dateien übersprungen (kein PDF/JPG/PNG).</div>' : '') +
+    '<datalist id="mastVorschlaege">' +
+      masten.slice(0, 2000).map(function (m) { return '<option value="' + esc(m.key) + '">'; }).join('') +
+    '</datalist>' +
+    '<div class="impwrap"><table class="imptab">' +
+    '<tr><th>Datei</th><th>Mast</th><th>Art</th><th>Rev.</th><th>Datum</th></tr>' +
+    zeilen + '</table></div>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="dokImportAbbrechen()">Abbrechen</button>' +
+      '<button class="btn primary" onclick="dokImportAusfuehren()">Importieren</button>' +
+    '</div>');
+}
+
+function dokReiheOffen(r) {
+  var offen = [];
+  if (!r.mast) offen.push('Mast fehlt');
+  else if (r.mastSicher !== 'sicher') offen.push('Mast nur vermutet');
+  else if (!mastFinden(r.mast)) offen.push('Mast nicht in dieser Baustelle');
+  if (!r.kategorie) offen.push('Art fehlt');
+  if (!r.revision) offen.push('Revision fehlt');
+  return offen;
+}
+
+function dokReiheSetzen(i) {
+  var r = dokImport && dokImport.reihen[i]; if (!r) return;
+  var m = ($('impMast' + i).value || '').trim();
+  if (m !== r.mast) { r.mast = m; r.mastSicher = 'sicher'; }   // von Hand = bestätigt
+  r.kategorie = $('impKat' + i).value;
+  r.revision = ($('impRev' + i).value || '').trim().toUpperCase();
+  r.datum = ($('impDat' + i).value || '').trim();
+}
+
+function dokImportAbbrechen() { dokImport = null; closeOv(); }
+
+function dokImportAusfuehren() {
+  if (!dokImport) return;
+  dokImport.reihen.forEach(function (r, i) { if ($('impMast' + i)) dokReiheSetzen(i); });
+  var ohneMast = dokImport.reihen.filter(function (r) { return !r.mast; });
+  if (ohneMast.length) {
+    toast(ohneMast.length + ' Dateien ohne Mast — bitte zuordnen');
+    return;
+  }
+  var baustelle = aktiveBaustelle();
+  var reihen = dokImport.reihen.slice();
+  var fertig = 0, fehler = [];
+
+  openOv('<h2>Wird abgelegt …</h2><p id="impFortschritt">0 von ' + reihen.length + '</p>');
+
+  var kette = S.platzSichern().catch(function () { return null; });
+  reihen.forEach(function (r) {
+    kette = kette.then(function () {
+      return S.dokAblegen({
+        baustelle: baustelle,
+        mastSchluessel: D.mastSchluessel(r.mast),
+        kategorie: r.kategorie || 'sonstiges',
+        revision: r.revision,
+        datum: r.datum,
+        dateiname: r.datei.name,
+        art: D.dateiArt(r.datei.name, r.datei.type)
+      }, r.datei).then(function () {
+        fertig++;
+        var f = $('impFortschritt');
+        if (f) f.textContent = fertig + ' von ' + reihen.length;
+      }).catch(function (e) {
+        fehler.push(r.datei.name + ': ' + (e && e.message || e));
+      });
+    });
+  });
+
+  kette.then(function () { return dokumenteLaden(); }).then(function () {
+    dokImport = null;
+    dokListeZeichnen(); renderUebersicht();
+    if (akte.key) { return S.dokVonMast(baustelle, akte.key).then(function (l) {
+      akte.dokumente = l; renderMastakte(); }); }
+  }).then(function () {
+    openOv('<h2>Import fertig</h2>' +
+      '<div class="vzeile"><b style="color:var(--ok)">' + fertig + '</b> Dokumente abgelegt</div>' +
+      (fehler.length
+        ? '<div class="vzeile"><b style="color:var(--bad)">' + fehler.length + '</b> fehlgeschlagen</div>' +
+          '<div class="psub">' + fehler.slice(0, 5).map(esc).join('<br>') + '</div>'
+        : '') +
+      '<p class="fineprint">Die Dateien liegen im Gerät. Zwischen PC und Handy werden sie ' +
+      'derzeit <b>nicht</b> übertragen — dafür fehlt eine gemeinsame Ablage.</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>');
+  });
+}
+
+function dokWegFragen(id) {
+  var d = null;
+  dokAlle.forEach(function (x) { if (x.id === id) d = x; });
+  if (!d) return;
+  confirmBox('Dokument löschen?',
+    'Mast ' + mastAnzeige(d.mastSchluessel) + ' · ' + D.kategorieName(d.kategorie) +
+    (d.revision ? ' · Rev ' + d.revision : '') + '\n' + d.dateiname +
+    '\n\nDas lässt sich nicht rückgängig machen.',
+    function () {
+      S.dokLoeschen(id).then(dokumenteLaden).then(function () {
+        dokListeZeichnen(); renderUebersicht();
+        if (akte.key) return S.dokVonMast(aktiveBaustelle(), akte.key).then(function (l) {
+          akte.dokumente = l; renderMastakte(); });
+      }).then(function () { toast('Gelöscht'); });
+    });
+}
+
+/* =========================================================================
+   PLANANSICHT
+   ========================================================================= */
+
+var plan2 = { id: '', url: '', zoom: 1, dreh: 0 };
+
+function planOeffnen(id) {
+  var d = null;
+  dokAlle.concat(akte.dokumente || []).forEach(function (x) { if (x.id === id) d = x; });
+  if (!d) { toast('Dokument nicht gefunden'); return; }
+
+  S.dateiHolen(id).then(function (datei) {
+    if (!datei) { toast('Datei fehlt in der Ablage'); return; }
+    planFreigeben();
+    plan2.id = id; plan2.zoom = 1; plan2.dreh = 0;
+    plan2.url = URL.createObjectURL(datei);
+
+    /* Alte Revision? Dann steht das ganz oben und rot, mit dem Weg zur
+       geltenden Fassung. Wer nach einem überholten Plan baut, merkt es sonst
+       erst, wenn das Fundament steht. */
+    var gleiche = dokAlle.filter(function (x) {
+      return x.mastSchluessel === d.mastSchluessel && x.kategorie === d.kategorie;
+    });
+    var jetzt = D.aktuelle(gleiche);
+    var warn = $('planWarn');
+    if (jetzt && jetzt.id !== d.id) {
+      warn.className = 'planaltwarn';
+      warn.innerHTML = '<span>ACHTUNG — DIESER PLAN IST NICHT MEHR AKTUELL.' +
+        (jetzt.revision ? ' Aktuell gültig: Revision ' + esc(jetzt.revision) + '.' : '') + '</span>' +
+        '<button class="btn" onclick="planOeffnen(&#39;' + esc(jetzt.id) + '&#39;)">Aktuellen Plan öffnen</button>';
+    } else {
+      warn.className = ''; warn.innerHTML = '';
+    }
+
+    $('planTitel').textContent = 'Mast ' + mastAnzeige(d.mastSchluessel) + ' · ' + D.kategorieName(d.kategorie) +
+      (d.revision ? ' · Rev ' + d.revision : '');
+
+    var bild = $('planBild');
+    var art = d.art || D.dateiArt(d.dateiname, d.mime);
+    if (art === 'bild') {
+      bild.innerHTML = '<img id="planImg" alt="' + esc(d.dateiname) + '" src="' + plan2.url + '">';
+      $('planWerkzeuge').innerHTML =
+        '<button class="btn" onclick="planZoom2(1.4)">Größer</button>' +
+        '<button class="btn" onclick="planZoom2(1/1.4)">Kleiner</button>' +
+        '<button class="btn" onclick="planDrehen()">Drehen</button>' +
+        '<button class="btn" onclick="planPassend()">Einpassen</button>';
+    } else {
+      /* PDF: Der Browser zeigt es selbst an, so gut er kann. Auf manchen
+         Geräten (vor allem am iPhone) bleibt der Rahmen leer — dann führt der
+         Knopf in einen eigenen Tab, statt zu behaupten, es ginge. */
+      bild.innerHTML = '<iframe id="planPdf" title="' + esc(d.dateiname) + '" src="' + plan2.url + '"></iframe>';
+      $('planWerkzeuge').innerHTML =
+        '<button class="btn" onclick="planExtern()">In neuem Tab öffnen</button>';
+    }
+    $('planBox').classList.add('on');
+    wachVerlaengern();
+  }).catch(function (e) { toast('Nicht zu öffnen: ' + (e && e.message || e)); });
+}
+
+function planZoom2(f) {
+  var img = $('planImg'); if (!img) return;
+  plan2.zoom = Math.max(0.2, Math.min(8, plan2.zoom * f));
+  planBildSetzen();
+}
+function planDrehen() { plan2.dreh = (plan2.dreh + 90) % 360; planBildSetzen(); }
+function planPassend() { plan2.zoom = 1; plan2.dreh = 0; planBildSetzen(); }
+function planBildSetzen() {
+  var img = $('planImg'); if (!img) return;
+  img.style.transform = 'rotate(' + plan2.dreh + 'deg) scale(' + plan2.zoom + ')';
+  img.style.maxWidth = plan2.zoom === 1 && plan2.dreh === 0 ? '100%' : 'none';
+}
+function planExtern() { if (plan2.url) window.open(plan2.url, '_blank'); }
+
+function planFreigeben() {
+  if (plan2.url) { try { URL.revokeObjectURL(plan2.url); } catch (e) { /* egal */ } }
+  plan2.url = '';
+}
+
+function planSchliessen() {
+  var box = $('planBox'); if (!box) return;
+  box.classList.remove('on');
+  $('planBild').innerHTML = '';
+  $('planWarn').innerHTML = '';
+  planFreigeben();
+  plan2.id = '';
+}
+
+/* =========================================================================
+   ÜBERSICHT
+   ========================================================================= */
+
+/* Die Einstiege in der Verwaltung tragen ihre Zahl — sonst muss man erst
+   hineintippen, um zu sehen, ob dort etwas liegt. */
+/* 2026-08-25 liest sich auf einer Baustelle niemand gern. */
+function datumDeutsch(iso) {
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso || '');
+}
+
+function renderVerwaltung() {
+  var z = zaehlung();
+  var setz = function (id, text) { var e = $(id); if (e) e.textContent = text; };
+  setz('vwPunkte', z.gesamt + ' Punkte · ' + z.geprueft + ' geprüft');
+  setz('vwNummern', state.contacts.length + ' Nummern');
+  setz('vwDok', dokAlle.length + ' Dokumente');
+  setz('vwMasten', mastenAlle().length + ' Masten');
+}
+
+function renderUebersicht() {
+  var n = $('ueName'); if (!n) return;
+  n.textContent = baustelleName(aktiveBaustelle()) || 'Baustelle';
+
+  var stand = $('ueStand');
+  var paketStand = state.paket && state.paket.stand ? state.paket.stand : '';
+  stand.textContent = paketStand
+    ? 'Datenstand der Karte: ' + datumDeutsch(paketStand)
+    : 'Datenstand: aus dem Import dieser Baustelle';
+
+  var z = zaehlung();
+  var masten = mastenAlle();
+  var kachel = function (wert, text, farbe) {
+    return '<div class="zahl"><b' + (farbe ? ' style="color:' + farbe + '"' : '') + '>' + wert +
+      '</b><span>' + text + '</span></div>';
+  };
+  $('ueZahlen').innerHTML =
+    kachel(masten.length, 'Masten') +
+    kachel(z.rp, 'Rettungspunkte', 'var(--ok)') +
+    kachel(dokAlle.length, 'Dokumente') +
+    kachel(state.contacts.length, 'Nummern') +
+    (z.ungeprueft ? kachel(z.ungeprueft, 'ungeprüft', 'var(--warn)') : '');
+
+  renderUeOffline();
+}
+
+/* Offline-Status. Die App darf nie „offline bereit" behaupten, wenn Dateien
+   fehlen — deshalb wird der Programmteil (Service Worker) getrennt vom
+   Datenteil (Dokumente) gemeldet. */
+function renderUeOffline() {
+  var box = $('ueOffline'); if (!box) return;
+  var teile = [];
+  teile.push(state.offline === 'bereit' || state.offline === 'nativ'
+    ? '<b style="color:var(--ok)">Programm und Baustellendaten sind im Gerät.</b>'
+    : '<b style="color:var(--warn)">Programm noch nicht vollständig gespeichert</b> — ' +
+      'einmal mit Internet öffnen.');
+
+  if (!S || !S.verfuegbar()) {
+    teile.push('Dokumente: keine Dateiablage auf diesem Gerät.');
+  } else if (!dokAlle.length) {
+    teile.push('Dokumente: keine abgelegt.');
+  } else {
+    var mb = dokAlle.reduce(function (a, d) { return a + (d.groesse || 0); }, 0);
+    teile.push(dokAlle.length + ' Dokumente im Gerät (' + dateiGroesse(mb) + ') — ' +
+      'sie liegen lokal und brauchen kein Netz.');
+  }
+  box.innerHTML = teile.join('<br>');
+
+  if (S && S.verfuegbar() && S.platzInfo) {
+    S.platzInfo().then(function (p) {
+      if (!p || !p.gesamt || !$('ueOffline')) return;
+      $('ueOffline').innerHTML = teile.join('<br>') +
+        '<br>Speicher: ' + dateiGroesse(p.benutzt) + ' von ' + dateiGroesse(p.gesamt) + ' belegt.';
+    });
+  }
+}
+
 /* Offline-Bereitschaft. Der Satz „funktioniert offline" darf erst erscheinen,
    wenn der Service Worker aktiv ist und alle Pflichtdateien gespeichert sind.
    In der nativen App (Capacitor) liegt sowieso alles im Gerät. */
@@ -5050,6 +6210,11 @@ function boot() {
   baustellenAnzeigen();
   renderPoints(); renderContacts(); renderMessage(); renderPaket();
   renderMigration(); renderAdmin(); renderApp(); renderOffeneFragen();
+  /* Masten, Dokumente und Übersicht. Die Dokumente kommen aus IndexedDB und
+     damit erst nach einer Umdrehung — die Rettungsanzeige wartet darauf
+     ausdrücklich NICHT. */
+  mastListeZeichnen(); renderUebersicht(); renderVerwaltung();
+  dokumenteLaden().then(function () { dokListeZeichnen(); renderUebersicht(); renderVerwaltung(); });
 
   wachAnzeigen();
   akkuBeobachten();
