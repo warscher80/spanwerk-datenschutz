@@ -328,6 +328,26 @@
     background:#0c1116;color:#fff;border:1px solid var(--line);border-radius:11px;padding:11px 16px;font-size:14px;
     font-weight:700;opacity:0;pointer-events:none;transition:.22s ease;z-index:60;max-width:88vw;text-align:center}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* QR-Scanner. Bewusst schwarz und ganzflächig: Der Sucher soll groß sein,
+     und auf der Baustelle hält man das Handy oft schräg gegen einen Aushang.
+     Liegt über allem außer der Meldung — z-Ebene 80 statt 70. */
+  .scan{position:fixed;inset:0;z-index:80;background:#000;display:none;flex-direction:column}
+  .scan.on{display:flex}
+  .scanbild{position:relative;flex:1;min-height:0;overflow:hidden}
+  .scanbild video{width:100%;height:100%;object-fit:cover;display:block}
+  .scanrahmen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .scanrahmen i{width:min(70vw,64vh);height:min(70vw,64vh);border:3px solid rgba(255,255,255,.9);
+    border-radius:16px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+  .scanfuss{background:#000;color:#fff;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:10px}
+  .scanmsg{font-size:14.5px;line-height:1.45;text-align:center;min-height:42px}
+  .scanmsg b{color:#fff}
+  /* Der Sucher ist schwarz, egal ob die App hell oder dunkel steht. Die
+     normalen Knopffarben sind für den App-Untergrund gemacht und wären hier
+     dunkelgrau auf schwarz — „Abbrechen" war praktisch unlesbar. */
+  .scan .btn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.55);color:#fff}
+  .scan .btn.ghost{background:transparent;border-color:rgba(255,255,255,.6);color:#fff}
+  .scan .btn:active{background:rgba(255,255,255,.28)}
   .ov{position:fixed;inset:0;z-index:70;background:rgba(6,9,12,.86);display:none;align-items:center;justify-content:center;padding:18px}
   .ov.on{display:flex}
   .ovbox{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;
@@ -930,6 +950,20 @@
   </div>
 </div>
 
+<div class="scan" id="scanBox" role="dialog" aria-modal="true" aria-label="QR-Code scannen">
+  <div class="scanbild">
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <div class="scanrahmen"><i></i></div>
+  </div>
+  <div class="scanfuss">
+    <div class="scanmsg" id="scanMsg" role="status" aria-live="polite">Kamera wird gestartet …</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="scanSchliessen()">Abbrechen</button>
+      <button class="btn" id="scanLichtBtn" onclick="scanLicht()" style="display:none">Licht an</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <!-- Für Vorleseprogramme: der aktuelle Standort-Zustand, immer genau einer. -->
 <div class="nurvorleser" id="standStatus" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -949,7 +983,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.9.7';
+var VERSION = '0.10.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1361,7 +1395,10 @@ function baustelleNeuFragen() {
     'aus der Karte oder dem Aushang der neuen Baustelle. Erfundene Daten gibt es hier nicht.</p>' +
     '<input class="inp" id="bsNeu" placeholder="z. B. Neubau Rheinquerung" aria-label="Name der neuen Baustelle">' +
     '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
-    '<button class="btn primary" onclick="baustelleNeuOk()">Anlegen</button></div>');
+    '<button class="btn primary" onclick="baustelleNeuOk()">Anlegen</button></div>' +
+    '<div class="hint" style="margin-top:12px">Den QR-Code der neuen Baustelle hast du dabei? ' +
+      'Dann geht es kürzer:</div>' +
+    '<div class="btnrow"><button class="btn" onclick="scanOeffnen(\'baustelle\')">QR-Code scannen</button></div>');
   var f = $('bsNeu'); if (f) f.focus();
 }
 
@@ -3344,7 +3381,10 @@ function savePointForm(id) {
 function openImport() {
   openOv(
     '<h2>Punkte laden</h2>' +
-    '<div class="field"><label>Google-My-Maps-Link (aus dem QR-Code)</label>' +
+    '<button class="btn primary huge" onclick="scanOeffnen(\'karte\')">QR-Code scannen</button>' +
+    '<div class="hint" style="margin:6px 0 14px">Der QR-Code hängt am Aushang der ' +
+      'Baustelle. Scannen holt die Karte selbst — braucht einmal Internet.</div>' +
+    '<div class="field"><label>oder Google-My-Maps-Link (aus dem QR-Code)</label>' +
       '<input id="fLink" type="text" placeholder="https://www.google.com/maps/d/…?mid=…">' +
       '<button class="btn sm" style="margin-top:8px" onclick="importFromLink()">Karte aus dem Link holen</button>' +
       '<div class="hint">Braucht einmal Internet. Danach sind die Punkte im Gerät und funktionieren ohne Netz.</div>' +
@@ -3363,6 +3403,222 @@ function openImport() {
   );
 }
 
+/* =========================================================================
+   QR-Code scannen
+
+   Der Aushang jeder Baustelle trägt einen QR-Code mit dem Link zur Karte.
+   Bisher musste man den Link abtippen oder aus der Zwischenablage einfügen —
+   dabei ist er schon einmal als NAME der Baustelle gelandet. Scannen erledigt
+   den ganzen Weg: Kamera → Link → Karte holen → Vorschau.
+
+   Was der Scanner NICHT tut: Punkte ohne Nachfrage als geprüft übernehmen.
+   Die Bestätigung gegen den Notfallplan bleibt beim Menschen — daran ändert
+   auch die bequemere Eingabe nichts.
+
+   Die Lesebibliothek (jsqr.js, 127 KB) wird erst beim Öffnen geladen. Im
+   Notfall hat sie nichts zu suchen: Ohne sie startet, ortet und meldet die
+   App genauso.
+   ========================================================================= */
+
+var scan = {
+  lauf: false, strom: null, laden: null, bahn: null,
+  leinwand: null, stift: null, zuletzt: 0, seit: 0, licht: false, ziel: ''
+};
+
+var SCAN_TAKT_MS = 120;     // höchstens acht Bilder je Sekunde prüfen
+var SCAN_KANTE   = 640;     // längere Bildkante zum Lesen; darunter reißt es ab
+var SCAN_UMKEHR_MS = 4000;  // danach auch nach hell-auf-dunkel suchen
+
+function qrBibliothek() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  if (scan.laden) return scan.laden;
+  scan.laden = new Promise(function (ja, nein) {
+    var el = document.createElement('script');
+    el.src = 'jsqr.js';
+    el.onload = function () { window.jsQR ? ja(window.jsQR) : nein(new Error('Bibliothek unvollständig')); };
+    el.onerror = function () { scan.laden = null; nein(new Error('Bibliothek nicht ladbar')); };
+    document.head.appendChild(el);
+  });
+  return scan.laden;
+}
+
+function scanMeldung(html) { var m = $('scanMsg'); if (m) m.innerHTML = html; }
+
+/* ziel: 'karte'    — Ergebnis soll eine Kartenkarte sein (Standardfall)
+   ziel: 'baustelle'— aus dem Anlegen einer Baustelle heraus gescannt */
+function scanOeffnen(ziel) {
+  scan.ziel = ziel || 'karte';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    scanKeineKamera('Dieses Gerät bietet der App keine Kamera an.');
+    return;
+  }
+  if (!window.isSecureContext && location.protocol !== 'file:') {
+    scanKeineKamera('Die Kamera braucht eine gesicherte Verbindung (https). ' +
+      'Über eine reine http-Adresse gibt der Browser sie nicht frei.');
+    return;
+  }
+  $('scanBox').classList.add('on');
+  scan.lauf = true;
+  scan.seit = Date.now();
+  scanMeldung('Kamera wird gestartet …');
+  wachVerlaengern();                    // Bildschirm darf beim Zielen nicht ausgehen
+
+  qrBibliothek().then(function () {
+    if (!scan.lauf) return null;
+    scanMeldung('QR-Code des Aushangs in den Rahmen halten');
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+  }).then(function (strom) {
+    if (!strom) return;
+    if (!scan.lauf) { strom.getTracks().forEach(function (t) { t.stop(); }); return; }
+    scan.strom = strom;
+    var v = $('scanVideo');
+    v.srcObject = strom;
+    v.setAttribute('playsinline', '');   // iOS spielt sonst im Vollbild ab
+    var los = v.play();
+    if (los && los.catch) los.catch(function () { /* iOS meldet hier gern ab */ });
+    scanLichtPruefen();
+    scan.bahn = requestAnimationFrame(scanBild);
+  }).catch(function (e) {
+    scanFehler(e);
+  });
+}
+
+function scanLichtPruefen() {
+  var btn = $('scanLichtBtn'); if (!btn) return;
+  var spur = scan.strom && scan.strom.getVideoTracks()[0];
+  var kann = false;
+  try { kann = !!(spur && spur.getCapabilities && spur.getCapabilities().torch); } catch (e) { kann = false; }
+  btn.style.display = kann ? '' : 'none';
+  scan.licht = false;
+  btn.textContent = 'Licht an';
+}
+
+function scanLicht() {
+  var spur = scan.strom && scan.strom.getVideoTracks()[0];
+  if (!spur || !spur.applyConstraints) return;
+  scan.licht = !scan.licht;
+  spur.applyConstraints({ advanced: [{ torch: scan.licht }] })
+    .then(function () { $('scanLichtBtn').textContent = scan.licht ? 'Licht aus' : 'Licht an'; })
+    .catch(function () { scan.licht = false; $('scanLichtBtn').style.display = 'none'; });
+}
+
+function scanBild() {
+  if (!scan.lauf) return;
+  scan.bahn = requestAnimationFrame(scanBild);
+  var jetzt = Date.now();
+  if (jetzt - scan.zuletzt < SCAN_TAKT_MS) return;   // Akku: nicht jedes Bild lesen
+  scan.zuletzt = jetzt;
+
+  var v = $('scanVideo');
+  if (!v || !v.videoWidth || !v.videoHeight) return;
+
+  if (!scan.leinwand) {
+    scan.leinwand = document.createElement('canvas');
+    scan.stift = scan.leinwand.getContext('2d', { willReadFrequently: true });
+  }
+  var f = Math.min(1, SCAN_KANTE / Math.max(v.videoWidth, v.videoHeight));
+  var b = Math.max(1, Math.round(v.videoWidth * f)), h = Math.max(1, Math.round(v.videoHeight * f));
+  if (scan.leinwand.width !== b || scan.leinwand.height !== h) {
+    scan.leinwand.width = b; scan.leinwand.height = h;
+  }
+  scan.stift.drawImage(v, 0, 0, b, h);
+  var daten;
+  try { daten = scan.stift.getImageData(0, 0, b, h); } catch (e) { return; }
+
+  /* Zuerst nur dunkel auf hell — das ist jeder gedruckte Aushang und geht
+     doppelt so schnell. Erst wenn nach vier Sekunden nichts kommt, auch
+     umgekehrt suchen. */
+  var umkehr = (jetzt - scan.seit > SCAN_UMKEHR_MS) ? 'attemptBoth' : 'dontInvert';
+  var treffer = window.jsQR(daten.data, b, h, { inversionAttempts: umkehr });
+  if (!treffer || !treffer.data) return;
+
+  if (navigator.vibrate) { try { navigator.vibrate(40); } catch (e) { /* egal */ } }
+  var text = treffer.data;
+  scanSchliessen();
+  scanVerarbeiten(text);
+}
+
+function scanSchliessen() {
+  scan.lauf = false;
+  if (scan.bahn) { cancelAnimationFrame(scan.bahn); scan.bahn = null; }
+  if (scan.strom) {
+    scan.strom.getTracks().forEach(function (t) { try { t.stop(); } catch (e) { /* egal */ } });
+    scan.strom = null;
+  }
+  var v = $('scanVideo'); if (v) { try { v.pause(); } catch (e) { /* egal */ } v.srcObject = null; }
+  $('scanBox').classList.remove('on');
+}
+
+/* Was im QR-Code steht, ist fremder Text. Er wird nie ausgeführt und nie als
+   geprüfte Angabe übernommen — nur eingeordnet. */
+function scanVerarbeiten(text) {
+  var karte = G.myMapsKmlUrl(text);
+  if (karte) {
+    if (scan.ziel === 'baustelle') { baustelleAusLink(text); return; }
+    openImport();
+    var f = $('fLink'); if (f) f.value = text;
+    importFromLink(true);
+    return;
+  }
+  scanKeinePassendeKarte(text);
+}
+
+function scanKeinePassendeKarte(text) {
+  var kurz = String(text || '').slice(0, 300);
+  var koord = G.parseCoords(kurz);
+  openOv(
+    '<h2>QR-Code gelesen</h2>' +
+    '<p>Darin steht keine Google-My-Maps-Karte. Gelesen wurde:</p>' +
+    '<div class="field"><textarea rows="4" readonly>' + esc(kurz) + '</textarea></div>' +
+    (koord
+      ? '<p>Das sind Koordinaten (' + esc(G.formatDec(koord.lat, koord.lon)) + '). ' +
+        'Als Punkt anlegen kannst du sie über „Punkte → Punkt hinzufügen".</p>'
+      : '<p>Der QR-Code des Baustellenaushangs enthält einen Link auf die ' +
+        'Karte der Baustelle (google.com/maps/d/…).</p>') +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="closeOv()">Schließen</button>' +
+      '<button class="btn primary" onclick="scanOeffnen(\'' + esc(scan.ziel) + '\')">Nochmal scannen</button>' +
+    '</div>');
+}
+
+function scanFehler(e) {
+  scanSchliessen();
+  var name = (e && e.name) || '';
+  var text;
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    text = '<b>Die Kamera ist nicht erlaubt.</b> ' +
+      'Am iPhone: Einstellungen → Rettungspunkte → Kamera. ' +
+      'Bei Android: Einstellungen → Apps → Rettungspunkte → Berechtigungen → Kamera. ' +
+      'Im Browser: auf das Schloss neben der Adresse tippen.';
+  } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    text = '<b>Keine Kamera gefunden.</b> Das Gerät meldet keine nutzbare Kamera.';
+  } else if (name === 'NotReadableError' || name === 'AbortError') {
+    text = '<b>Die Kamera ist belegt.</b> Eine andere App benutzt sie gerade — ' +
+      'schließe sie und versuche es noch einmal.';
+  } else {
+    text = '<b>Die Kamera ließ sich nicht starten.</b>' +
+      (e && e.message ? ' Meldung des Geräts: ' + esc(String(e.message)) : '');
+  }
+  scanKeineKamera(text);
+}
+
+/* Ohne Kamera ist der Weg über den Link immer noch da — eine Sackgasse darf
+   hier nicht entstehen. */
+function scanKeineKamera(grundHtml) {
+  openOv(
+    '<h2>Scannen geht nicht</h2>' +
+    '<p>' + grundHtml + '</p>' +
+    '<p>Der Link der Karte lässt sich auch von Hand einfügen: QR-Code mit der ' +
+    'Kamera-App des Handys öffnen, Link kopieren, hier einsetzen.</p>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="closeOv()">Schließen</button>' +
+      '<button class="btn primary" onclick="openImport()">Link einfügen</button>' +
+    '</div>');
+}
+
 // Kartendaten holen. In der nativen App über Capacitor (umgeht CORS),
 // im Browser über fetch — dort kann Google die Anfrage blockieren.
 function httpGet(url) {
@@ -3378,14 +3634,19 @@ function httpGet(url) {
   });
 }
 
-function importFromLink() {
+/* weiter=true: gleich in die Vorschau. So kommt ein gescannter QR-Code ohne
+   weiteres Tippen bis dorthin, wo der Mensch bestätigen muss. */
+function importFromLink(weiter) {
   var link = ($('fLink').value || '').trim();
   var url = G.myMapsKmlUrl(link);
   if (!url) { toast('Das sieht nicht nach einem My-Maps-Link aus'); return; }
   toast('Karte wird geladen …');
   httpGet(url).then(function (txt) {
     if (!/<kml|<Placemark/i.test(txt)) throw new Error('keine KML-Daten');
-    $('fPaste').value = txt;
+    var feld = $('fPaste');
+    if (!feld) { linkFehler(url); return; }
+    feld.value = txt;
+    if (weiter) { runImport(); return; }
     var vor = G.parsePoints(txt);
     toast(vor.points.length + ' Punkte gefunden — jetzt „Importieren" drücken');
   }).catch(function () {

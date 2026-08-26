@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-326611fa';
+var CACHE = 'rettungspunkte-36fd7631';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
@@ -22,8 +22,15 @@ var PFLICHT = [
   './daten-notruf.js'
 ];
 
-// Nützlich, aber kein Grund, den Offline-Betrieb abzulehnen.
+/* Nützlich, aber kein Grund, den Offline-Betrieb abzulehnen.
+
+   jsqr.js steht bewusst HIER und nicht bei den Pflichtdateien: 127 KB, und
+   ohne sie startet, ortet und meldet die App genauso — nur scannen kann sie
+   dann nicht. Ein QR-Code führt ohnehin auf eine Karte im Internet. Die App
+   würde sich sonst wegen einer Bequemlichkeitsfunktion als „nicht offline
+   einsatzbereit" bezeichnen. */
 var KUER = [
+  './jsqr.js',
   './manifest.webmanifest',
   './icon-180.png',
   './icon-192.png',
