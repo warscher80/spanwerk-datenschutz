@@ -725,6 +725,12 @@
     </div>
     <div class="card" id="akteKopfKarte">
       <div class="akteFakten" id="akteFakten"></div>
+      <div class="btnrow">
+        <button class="btn primary" onclick="mastAnfahrt()">Anfahrt · Google&nbsp;Maps</button>
+        <button class="btn" onclick="mastKoordinatenKopieren()">Koordinaten</button>
+      </div>
+      <div class="hint" id="akteAnfahrtHinweis">Öffnet die Route zum Mast in Google Maps —
+        braucht Internet. Der Lageplan in der App geht auch ohne.</div>
       <div class="btnrow"><button class="btn sm ghost" onclick="mastdatenBearbeiten()">Stammdaten bearbeiten</button></div>
     </div>
     <!-- Rettung im Mast: kurz, mit Verweis auf die eine zentrale Rettung.
@@ -1247,7 +1253,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.13.0';
+var VERSION = '0.13.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4524,15 +4530,50 @@ function call(number) {
 
 // Führt in der Karten-App zum Punkt — zu Fuß, weil man auf der Trasse läuft.
 // Braucht Internet; der Lageplan in der App geht auch ohne.
+/* Zu einem Rettungspunkt geht man — auf der Trasse fährt man nicht. Deshalb
+   ist „zu Fuß" hier richtig und bleibt so. */
 function openMap(lat, lon, label) {
+  kartenAppOeffnen(lat, lon, 'zufuss');
+}
+
+/* Zum Mast fährt man. Google Maps ausdrücklich, weil die Zuwegungen dort
+   eingezeichnet sind — dieselbe Karte, aus der die Baustellendaten kommen.
+   Am Handy übernimmt die Google-Maps-App den Link, am PC der Browser. */
+function anfahrtOeffnen(lat, lon) {
+  kartenAppOeffnen(lat, lon, 'auto');
+}
+
+function kartenAppOeffnen(lat, lon, art) {
   var p = platform();
-  var name = encodeURIComponent(label || 'Rettungspunkt');
   var url;
-  if (p === 'ios') url = 'maps://?daddr=' + lat + ',' + lon + '&dirflg=w';
-  else if (p === 'android') url = 'google.navigation:q=' + lat + ',' + lon + '&mode=w';
-  else url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon + '&travelmode=walking';
+  if (art === 'auto') {
+    /* Ein Link für alle: Android öffnet die App, iPhone die Google-Maps-App
+       (oder den Browser, wenn sie fehlt), der PC den Browser. */
+    url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon +
+          '&travelmode=driving';
+  } else if (p === 'ios') {
+    url = 'maps://?daddr=' + lat + ',' + lon + '&dirflg=w';
+  } else if (p === 'android') {
+    url = 'google.navigation:q=' + lat + ',' + lon + '&mode=w';
+  } else {
+    url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon +
+          '&travelmode=walking';
+  }
   try { window.open(url, '_system') || (window.location.href = url); }
   catch (e) { window.location.href = url; }
+}
+
+/* Anfahrt zu dem Mast, der gerade offen ist. */
+function mastAnfahrt() {
+  var m = akte.mast;
+  if (!m || typeof m.punkt.lat !== 'number') { toast('Keine Koordinaten für diesen Mast'); return; }
+  anfahrtOeffnen(m.punkt.lat, m.punkt.lon);
+}
+
+function mastKoordinatenKopieren() {
+  var m = akte.mast; if (!m) return;
+  copyText('Mast ' + m.nr + '\n' + G.formatDec(m.punkt.lat, m.punkt.lon) + '\n' +
+    G.toUTM(m.punkt.lat, m.punkt.lon).text, 'Koordinaten kopiert');
 }
 
 function copyText(txt, okMsg) {
