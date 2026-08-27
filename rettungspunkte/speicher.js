@@ -201,6 +201,13 @@ var SpieSpeicher = (function () {
     });
   }
 
+  function werteVonBaustelle(baustelle) {
+    return bereit().then(function (d) {
+      return anfrage(d.transaction('werte').objectStore('werte')
+        .index('baustelle').getAll(String(baustelle)));
+    });
+  }
+
   function wertSetzen(wert) {
     var e = {
       id: wert.id || kennung(),
@@ -297,6 +304,7 @@ var SpieSpeicher = (function () {
     mastdatenSetzen: mastdatenSetzen,
     mastdatenAlle: mastdatenAlle,
     werteVonMast: werteVonMast,
+    werteVonBaustelle: werteVonBaustelle,
     wertSetzen: wertSetzen,
     wertLoeschen: wertLoeschen,
     einstellungHolen: einstellungHolen,

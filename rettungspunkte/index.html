@@ -952,6 +952,20 @@
           <b>Masten</b><span id="vwMasten">Mastakten</span></button>
       </div>
     </div>
+    <!-- Der Weg vom Büro auf die Baustelle, solange es keine gemeinsame
+         Ablage gibt — und danach der Inhalt genau dieses Ordners. -->
+    <div class="card">
+      <h3>Baustelle weitergeben</h3>
+      <div class="hint" style="margin-bottom:10px">Punkte, Nummern, Wege, Mastdaten,
+        Regulierwerte und alle Dokumente in <b>einer Datei</b>. Ein gewöhnliches ZIP —
+        am PC lässt es sich öffnen.</div>
+      <div class="btnrow">
+        <button class="btn" onclick="paketExportieren()">Als Datei sichern</button>
+        <button class="btn primary" onclick="document.getElementById('pkDatei').click()">Datei einlesen</button>
+      </div>
+      <input id="pkDatei" type="file" accept=".zip,application/zip" style="display:none"
+             onchange="paketDateiGewaehlt(event)">
+    </div>
     <div class="card">
       <h3>So funktioniert die App</h3>
       <div class="howto">
@@ -1225,6 +1239,7 @@
 <script src="geo.js"></script>
 <script src="dok-modell.js"></script>
 <script src="speicher.js"></script>
+<script src="paket.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -1232,7 +1247,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.12.0';
+var VERSION = '0.13.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -5457,8 +5472,10 @@ function renderAkteBereiche() {
         ? stueck(akte.werte.length, 'Wert', 'Werte') + (offeneWerte ? ' · ' + offeneWerte + ' offen' : '')
         : 'noch keine') +
     b('gruendung', 'Gründung', stueck(zahlIn(['Gründung']), 'Unterlage', 'Unterlagen')) +
-    b('plaene', 'Pläne', stueck(zahlIn(['Mast', 'Montage', 'Sonstiges']), 'Unterlage', 'Unterlagen')) +
-    b('fotos', 'Fotos', stueck(zahlIn(['Fotos']), 'Bild', 'Bilder')) +
+    /* Keine eigene Fläche für Fotos: Am Mast wird nicht fotografiert (Ansage
+       des Betreibers). Bilder, die aus dem Büro kommen, verschwinden trotzdem
+       nicht — sie stehen unter „Pläne". */
+    b('plaene', 'Pläne', stueck(zahlIn(['Mast', 'Montage', 'Sonstiges', 'Fotos']), 'Unterlage', 'Unterlagen')) +
     b('pruefungen', 'Prüfungen', stueck(zahlIn(['Prüfung']), 'Unterlage', 'Unterlagen')) +
     b('bemerkungen', 'Bemerkungen', (akte.stamm && akte.stamm.bemerkung) ? 'vorhanden' : 'keine') +
     '</div>' +
@@ -5473,8 +5490,7 @@ function akteBereich(id, behalten) {
   if (id === 'werte') { ziel.innerHTML = werteHtml(); return; }
   if (id === 'bemerkungen') { ziel.innerHTML = bemerkungHtml(); return; }
   var gruppen = id === 'gruendung' ? ['Gründung']
-              : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges']
-              : id === 'fotos'     ? ['Fotos']
+              : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges', 'Fotos']
               : ['Prüfung'];
   ziel.innerHTML = dokGruppenHtml(gruppen);
 }
@@ -6091,6 +6107,243 @@ function renderUeOffline() {
         '<br>Speicher: ' + dateiGroesse(p.benutzt) + ' von ' + dateiGroesse(p.gesamt) + ' belegt.';
     });
   }
+}
+
+
+/* =========================================================================
+   BAUSTELLENPAKET — eine Baustelle als eine Datei
+
+   Der Weg vom Büro auf die Baustelle. Eine gemeinsame Ablage in der Cloud des
+   Auftraggebers ist die richtige Lösung; bis es sie gibt (und danach als
+   Inhalt genau dieses Ordners) wandert eine Baustelle als Datei: Punkte,
+   Nummern, Wege, Mastdaten, Regulierwerte und alle Dokumente.
+
+   Die Datei ist ein gewöhnliches ZIP. Wer sie am PC öffnet, sieht
+   baustelle.json und einen Ordner „dateien" — kein Bastelformat, das nur
+   diese App versteht.
+   ========================================================================= */
+
+var PK = window.SpiePaket;
+var paketEinlesen = null;    // { daten, dateien, fehlend } zwischen Vorschau und Übernahme
+
+function paketExportieren() {
+  if (!PK) { toast('Paketfunktion nicht geladen'); return; }
+  var baustelle = aktiveBaustelle();
+  var titel = baustelleName(baustelle) || 'Baustelle';
+
+  openOv('<h2>Baustelle als Datei</h2><p id="expStand">Wird gepackt …</p>');
+
+  var holen = (S && S.verfuegbar())
+    ? Promise.all([
+        S.dokVonBaustelle(baustelle).catch(function () { return []; }),
+        S.mastdatenAlle(baustelle).catch(function () { return []; }),
+        S.werteVonBaustelle(baustelle).catch(function () { return []; })
+      ])
+    : Promise.resolve([[], [], []]);
+
+  holen.then(function (r) {
+    var dokumente = r[0], mastdaten = r[1], werte = r[2];
+    var f = $('expStand');
+    if (f) f.textContent = dokumente.length + ' Dokumente werden gepackt …';
+    // Die Dateien einzeln holen — nicht alle auf einmal in den Speicher.
+    var dateien = {};
+    var kette = Promise.resolve();
+    dokumente.forEach(function (d) {
+      kette = kette.then(function () {
+        return S.dateiHolen(d.id).then(function (datei) { if (datei) dateien[d.id] = datei; });
+      });
+    });
+    return kette.then(function () {
+      return PK.paketBauen({
+        titel: titel,
+        erzeugt: new Date().toISOString(),
+        punkte: state.points,
+        kontakte: state.contacts,
+        wege: state.wege || [],
+        mastdaten: mastdaten,
+        werte: werte,
+        dokumente: dokumente
+      }, dateien);
+    }).then(function (teile) {
+      return { blob: new Blob(teile, { type: 'application/zip' }), dokumente: dokumente };
+    });
+  }).then(function (e) {
+    var name = 'Baustelle_' + titel.replace(/[^\wäöüÄÖÜß\- ]+/g, '').replace(/\s+/g, '_') + '.zip';
+    paketAusgeben(e.blob, name, titel, e.dokumente.length);
+  }).catch(function (e) {
+    openOv('<h2>Packen fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+  });
+}
+
+/* Weitergeben: am Telefon über „Teilen", am PC als Download. Beides anbieten
+   und keines behaupten, das nicht geht. */
+function paketAusgeben(blob, name, titel, anzahl) {
+  var datei = null;
+  try { datei = new File([blob], name, { type: 'application/zip' }); } catch (e) { datei = null; }
+  var teilbar = !!(datei && navigator.canShare && navigator.canShare({ files: [datei] }));
+
+  window._paketBlob = blob; window._paketName = name;
+  openOv('<h2>Baustelle als Datei</h2>' +
+    '<div class="vzeile"><b>' + esc(titel) + '</b></div>' +
+    '<div class="vzeile">' + state.points.length + ' Punkte · ' + state.contacts.length +
+      ' Nummern · ' + anzahl + ' Dokumente</div>' +
+    '<div class="vzeile">Dateigröße: <b>' + dateiGroesse(blob.size) + '</b></div>' +
+    '<p class="fineprint">Die Datei ist ein gewöhnliches ZIP. Am PC lässt sie sich öffnen: ' +
+      'darin stehen <code>baustelle.json</code> und der Ordner <code>dateien</code>.</p>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="closeOv()">Schließen</button>' +
+      (teilbar ? '<button class="btn" onclick="paketTeilen()">Teilen</button>' : '') +
+      '<button class="btn primary" onclick="paketSpeichern()">Datei sichern</button>' +
+    '</div>');
+}
+
+function paketSpeichern() {
+  var blob = window._paketBlob; if (!blob) return;
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = window._paketName || 'Baustelle.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* egal */ } }, 30000);
+  toast('Datei gesichert');
+}
+
+function paketTeilen() {
+  var blob = window._paketBlob; if (!blob) return;
+  var datei = new File([blob], window._paketName || 'Baustelle.zip', { type: 'application/zip' });
+  navigator.share({ files: [datei], title: window._paketName })
+    .catch(function () { /* abgebrochen ist kein Fehler */ });
+}
+
+/* ---------- Einlesen ---------- */
+
+function paketDateiGewaehlt(e) {
+  var f = (e.target.files || [])[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!PK) { toast('Paketfunktion nicht geladen'); return; }
+  openOv('<h2>Paket wird gelesen …</h2>');
+  PK.paketLesen(f).then(function (r) {
+    paketEinlesen = r;
+    paketVorschau();
+  }).catch(function (err) {
+    paketEinlesen = null;
+    openOv('<h2>Paket nicht lesbar</h2><p>' + esc(String(err && err.message || err)) + '</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+  });
+}
+
+function paketVorschau() {
+  var r = paketEinlesen; if (!r) return;
+  var d = r.daten;
+  var gleiche = baustellen().filter(function (b) { return b.titel === d.titel; })[0];
+
+  openOv('<h2>Baustelle aus Datei</h2>' +
+    '<div class="vzeile"><b>' + esc(d.titel || '(ohne Namen)') + '</b></div>' +
+    (d.erzeugt ? '<div class="psub">Gepackt am ' + esc(new Date(d.erzeugt).toLocaleString('de-DE')) + '</div>' : '') +
+    '<div class="vzeile">' + (d.punkte || []).length + ' Punkte · ' + (d.kontakte || []).length +
+      ' Nummern · ' + (d.dokumente || []).length + ' Dokumente · ' + (d.werte || []).length + ' Regulierwerte</div>' +
+    (r.fehlend.length
+      ? '<div class="warnbox" style="margin:10px 0"><b>' + r.fehlend.length + ' Dateien fehlen im Paket.</b> ' +
+        'Die Angaben dazu kommen mit, die Datei selbst nicht — diese Dokumente lassen sich ' +
+        'nicht öffnen.</div>'
+      : '') +
+    '<div class="warnbox" style="margin:10px 0">Die Punkte aus dem Paket sind <b>so geprüft ' +
+      'oder ungeprüft, wie sie gepackt wurden</b>. Wer sie im Büro nicht gegen den Notfallplan ' +
+      'bestätigt hat, muss das hier tun.</div>' +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="paketAbbrechen()">Abbrechen</button>' +
+      (gleiche ? '<button class="btn red" onclick="paketUebernehmen(&#39;' + esc(gleiche.id) +
+        '&#39;)">„' + esc(gleiche.titel) + '" ersetzen</button>' : '') +
+      '<button class="btn primary" onclick="paketUebernehmen(&#39;&#39;)">Als neue Baustelle</button>' +
+    '</div>');
+}
+
+function paketAbbrechen() { paketEinlesen = null; closeOv(); }
+
+/* ziel = '' → neue Baustelle, sonst die Kennung der zu ersetzenden. */
+function paketUebernehmen(ziel) {
+  var r = paketEinlesen; if (!r) return;
+  var d = r.daten;
+  var titel = d.titel || 'Baustelle aus Datei';
+
+  openOv('<h2>Wird übernommen …</h2><p id="pkStand">Baustelle wird angelegt …</p>');
+
+  var id = ziel;
+  if (!id) {
+    id = baustelleAnlegen(titel + (baustellen().some(function (b) { return b.titel === titel; })
+      ? ' (' + new Date().toLocaleDateString('de-DE') + ')' : ''));
+    if (!id) { toast('Baustelle konnte nicht angelegt werden'); return; }
+  }
+
+  var vorher = aktiveBaustelle();
+  /* Die Punkte gehen in das Fach der Zielbaustelle — ohne sie vorher zu
+     laden, sonst zeigt die App kurz fremde Daten an. */
+  schluesselSetzen(id);
+  save(K_POINTS, (d.punkte || []).map(function (p) {
+    var q = {}; for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) q[k] = p[k];
+    if (!q.uid) q.uid = uid();
+    return q;
+  }));
+  save(K_CONTACTS, d.kontakte || []);
+  save(K_WEGE, d.wege || []);
+  save(K_SITE, titel);
+  schluesselSetzen(vorher);
+
+  var alle = baustellen().map(function (b) { return b.id === id ? { id: id, titel: titel } : b; });
+  save(K_BAUSTELLEN, alle);
+
+  var arbeit = Promise.resolve();
+  if (S && S.verfuegbar()) {
+    // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne nebeneinander.
+    if (ziel) arbeit = S.baustelleLeeren(id).catch(function () { return null; });
+    arbeit = arbeit.then(function () { return S.platzSichern().catch(function () { return null; }); });
+    (d.mastdaten || []).forEach(function (m) {
+      arbeit = arbeit.then(function () {
+        return S.mastdatenSetzen(id, m.mastSchluessel, m).catch(function () { return null; });
+      });
+    });
+    (d.werte || []).forEach(function (w) {
+      arbeit = arbeit.then(function () {
+        var q = {}; for (var k in w) if (Object.prototype.hasOwnProperty.call(w, k)) q[k] = w[k];
+        q.baustelle = id;
+        return S.wertSetzen(q).catch(function () { return null; });
+      });
+    });
+    var n = 0, gesamt = (d.dokumente || []).length;
+    (d.dokumente || []).forEach(function (dok) {
+      arbeit = arbeit.then(function () {
+        var datei = r.dateien[dok.id];
+        if (!datei) return null;                    // fehlende Datei: schon gemeldet
+        var q = {}; for (var k in dok) if (Object.prototype.hasOwnProperty.call(dok, k)) q[k] = dok[k];
+        q.baustelle = id;
+        var f = $('pkStand'); if (f) f.textContent = (++n) + ' von ' + gesamt + ' Dokumenten …';
+        return S.dokAblegen(q, new Blob([datei], { type: dok.mime || '' })).catch(function () { return null; });
+      });
+    });
+  }
+
+  arbeit.then(function () {
+    paketEinlesen = null;
+    baustelleWechseln(id);
+    return dokumenteLaden();
+  }).then(function () {
+    dokListeZeichnen(); renderUebersicht(); renderVerwaltung(); mastListeZeichnen();
+    var z = zaehlung();
+    openOv('<h2>Baustelle übernommen</h2>' +
+      '<div class="vzeile"><b>' + esc(titel) + '</b> ist jetzt die aktive Baustelle.</div>' +
+      '<div class="vzeile">' + z.gesamt + ' Punkte · ' + state.contacts.length + ' Nummern · ' +
+        dokAlle.length + ' Dokumente</div>' +
+      (z.ungeprueft
+        ? '<div class="warnbox" style="margin:10px 0">' + z.ungeprueft + ' Punkte sind ' +
+          '<b>ungeprüft</b> und werden für Rettungspunkt, Mast und Meldung nicht verwendet. ' +
+          'Unter „Verwaltung → Offene Datenprüfungen" gegen den Aushang bestätigen.</div>'
+        : '') +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>');
+  }).catch(function (e) {
+    openOv('<h2>Übernahme fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+  });
 }
 
 /* Offline-Bereitschaft. Der Satz „funktioniert offline" darf erst erscheinen,
