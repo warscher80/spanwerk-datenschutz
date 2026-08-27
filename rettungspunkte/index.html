@@ -132,9 +132,13 @@
   /* Wird der Platz knapp, geht zuerst das Zeichen, dann der Markenname —
      zuletzt das Wort RETTUNG. Ein rotes Kreuz ohne Wort sagt niemandem, was
      dahintersteckt. */
-  @media (max-width:430px){ .rettungbtn svg{display:none} .brand{font-size:18px} .brand small{font-size:18px} }
+  @media (max-width:480px){ .brand{font-size:18px} .brand small{font-size:18px} }
+  @media (max-width:430px){ .rettungbtn svg{display:none} .brand{font-size:17px} .brand small{font-size:17px} }
   @media (max-width:360px){ .rettungbtn{padding:0 9px;font-size:11.5px;letter-spacing:.2px} }
-  @media (max-width:320px){ .rettungbtn span{display:none} .rettungbtn svg{display:block} .rettungbtn{padding:0 12px} }
+  /* Erst ganz zum Schluss weicht das Wort. Ein rotes Kreuz allein sagt
+     niemandem, dass dahinter die Rettung liegt — auf einem iPhone SE (320 px)
+     steht es deshalb noch. */
+  @media (max-width:300px){ .rettungbtn span{display:none} .rettungbtn svg{display:block} .rettungbtn{padding:0 12px} }
   .tag{color:var(--muted);font-size:11.5px;margin-top:1px;line-height:1.25;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media (max-width:360px){
@@ -554,11 +558,33 @@
   /* ---- Übersicht, Masten, Mastakte, Dokumente ---- */
   .bsname{font-size:calc(21px * var(--gross));font-weight:800;line-height:1.2;overflow-wrap:anywhere}
   .bsstand{font-size:12.5px;color:var(--muted);margin-top:4px}
-  .zahlen{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-  .zahl{flex:1 1 90px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-s);
-    padding:9px 10px;min-width:0}
-  .zahl b{display:block;font-size:calc(21px * var(--gross));line-height:1.1}
-  .zahl span{font-size:11.5px;color:var(--muted)}
+  /* Ein festes Raster statt Flex: Mit „flex:1 1 90px" wurde jede Kachel so
+     breit wie ihr längstes Wort — „Rettungspunkte" breiter als „Masten" —,
+     und die letzte Kachel zog sich über die ganze Zeile. Gleiche Spalten
+     stehen ruhiger und lassen die Zahlen untereinander fluchten. */
+  .zahlen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+  @media (min-width:560px){ .zahlen{grid-template-columns:repeat(4,minmax(0,1fr))} }
+  .zahl{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-s);
+    padding:10px 11px;min-width:0}
+  .zahl b{display:block;font-size:calc(21px * var(--gross));line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .zahl span{font-size:11.5px;color:var(--muted);display:block;overflow-wrap:anywhere}
+
+  /* Ungeprüfte Punkte sind keine Bestandszahl, sondern eine offene Aufgabe.
+     Sie standen als fünfte Kachel in einer Reihe von vier — als Zeile mit
+     Weg zur Abhilfe sagen sie mehr und das Raster bleibt ganz. */
+  .offenzeile{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;
+    margin-top:10px;padding:11px 13px;border-radius:var(--r-s);
+    background:var(--card2);border:1px solid var(--warn)}
+  /* Der Text darf umbrechen, der Knopf bleibt daneben — sonst fällt er unter
+     einen zweizeiligen Satz und die Zeile wird doppelt so hoch. */
+  .offenzeile > span{flex:1 1 12rem;min-width:0}
+  .offenzeile b{display:block;color:var(--warn);font-variant-numeric:tabular-nums}
+  .offenzeile i{display:block;font-style:normal;font-size:12.5px;color:var(--muted)}
+  .offenzeile .chip{flex:0 0 auto;margin-left:auto}
+  /* Auf schmalen Geräten rutscht der Knopf ohnehin in eine eigene Zeile —
+     dann soll er die ganze Breite nehmen statt rechts allein zu stehen. */
+  @media (max-width:360px){ .offenzeile .chip{margin-left:0;width:100%} }
 
   .suchfeld{display:flex;gap:8px;align-items:stretch}
   .suchfeld input{flex:1;min-width:0;font-size:calc(17px * var(--gross));min-height:52px;
@@ -681,6 +707,7 @@
       <div class="bsname" id="ueName">—</div>
       <div class="bsstand" id="ueStand"></div>
       <div class="zahlen" id="ueZahlen"></div>
+      <div class="offenzeile" id="ueOffen" style="display:none"></div>
     </div>
     <div class="card">
       <h3>Schnellzugriff</h3>
@@ -1253,7 +1280,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.13.1';
+var VERSION = '0.13.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6113,8 +6140,17 @@ function renderUebersicht() {
     kachel(masten.length, 'Masten') +
     kachel(z.rp, 'Rettungspunkte', 'var(--ok)') +
     kachel(dokAlle.length, 'Dokumente') +
-    kachel(state.contacts.length, 'Nummern') +
-    (z.ungeprueft ? kachel(z.ungeprueft, 'ungeprüft', 'var(--warn)') : '');
+    kachel(state.contacts.length, 'Nummern');
+
+  var offen = $('ueOffen');
+  if (offen) {
+    offen.innerHTML = z.ungeprueft
+      ? '<span><b>' + z.ungeprueft + ' ungeprüfte Punkte</b>' +
+        '<i>nicht in Berechnung oder Meldung</i></span>' +
+        '<button class="chip" onclick="setTab(\'info\')">Ansehen</button>'
+      : '';
+    offen.style.display = z.ungeprueft ? '' : 'none';
+  }
 
   renderUeOffline();
 }
