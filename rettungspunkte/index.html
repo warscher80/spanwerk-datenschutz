@@ -415,6 +415,7 @@
   .lg{width:11px;height:11px;border-radius:50%;display:inline-block}
   .lg.me{background:var(--blue)} .lg.rp{background:var(--accent)} .lg.ma{background:var(--muted2)}
   .lg.we{background:var(--ok)}
+  .lg.we.dick{box-shadow:0 0 0 3px var(--txt)}
   .planleg{flex-wrap:wrap;row-gap:4px}
 
   /* ================= Antwort-Bildschirm =================
@@ -603,6 +604,26 @@
     background:var(--card2);border:1px solid var(--line);color:var(--muted)}
   .mastmarke.lkw{border-color:var(--warn);color:var(--warn)}
   .mastmarke.lkw.sperre{border-color:var(--accent);color:var(--accent)}
+  .zuwegung{border-radius:var(--r-s);padding:11px 13px;margin:0 0 10px;
+    border:1px solid var(--line);background:var(--card2)}
+  .zuwegung b{display:block;font-size:13px;letter-spacing:.4px;color:var(--blue)}
+  /* Wegnamen aus My Maps sind manchmal ganze Sätze („Direções de …") — eine
+     Zeile mit Auslassung, der volle Name steht im title. */
+  .zuwegung u{display:block;text-decoration:none;font-size:calc(15px * var(--gross));
+    font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .zuwegung i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:4px}
+  .zuwegung .btnrow{margin-top:8px}
+  .wegchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px}
+  .wegchips>span{flex:1 0 100%;font-size:12.5px;color:var(--muted)}
+  .zuwegung.fehlt{border-color:var(--warn)}
+  .zuwegung.fehlt b{color:var(--warn)}
+  .zuwegung .lauf{font-weight:800;color:var(--ok)}
+  .zuwegung .lauf.ab{color:var(--warn)}
+  .planweg{flex:0 0 auto;padding:9px 14px;font-size:calc(14px * var(--gross));
+    font-weight:800;border-bottom:1px solid var(--line);background:var(--card2)}
+  .planweg.auf{color:var(--ok)}
+  .planweg.ab{color:var(--warn)}
+  .planweg.unbekannt{color:var(--muted);font-weight:600}
 
   /* Zufahrt: die Angabe, die in keiner Karte steht. Sie sitzt über dem
      Anfahrt-Knopf, weil danach niemand mehr liest. */
@@ -770,8 +791,11 @@
     </div>
     <div class="card" id="akteKopfKarte">
       <div class="akteFakten" id="akteFakten"></div>
-      <!-- Die Beschränkung steht ÜBER dem Knopf, nicht daneben: Wer schon auf
-           „Anfahrt" getippt hat, liest keine Fußnote mehr. -->
+      <!-- Erst der Weg (wo darf ich fahren), dann die Beschränkung (darf ich
+           da überhaupt hin), dann erst der Knopf. Beides steht ÜBER dem Knopf,
+           nicht daneben: Wer schon auf „Anfahrt" getippt hat, liest keine
+           Fußnote mehr. -->
+      <div id="akteZuwegung"></div>
       <div id="akteZufahrt"></div>
       <div class="btnrow">
         <button class="btn primary" onclick="mastAnfahrt()">Anfahrt · Google&nbsp;Maps</button>
@@ -1240,6 +1264,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
+  <div class="planweg" id="planWeg" hidden></div>
   <canvas id="planCanvas"></canvas>
   <div class="planfoot">
     <button class="btn sm" onclick="planZoom(1/1.6)">Größer</button>
@@ -1251,6 +1276,7 @@
     <span><i class="lg rp"></i> Rettungspunkt</span>
     <span><i class="lg ma"></i> Mast</span>
     <span><i class="lg we"></i> Weg aus der Karte</span>
+    <span><i class="lg we dick"></i> Weg zum gewählten Mast</span>
   </div>
 </div>
 
@@ -1302,7 +1328,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.14.0';
+var VERSION = '0.15.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1641,6 +1667,7 @@ function baustelleLaden(id) {
   }
 
   if (!state.wege) state.wege = [];
+  wegCacheLeeren();
   /* Dokumente hängen an der Baustelle wie Punkte und Nummern. Beim Wechsel
      müssen sie mitwechseln, sonst zeigt die Liste die Pläne der anderen
      Baustelle. */
@@ -3277,7 +3304,8 @@ function renderMessage() {
    Punkte, Entfernungsringe, Norden und einen Maßstab.
    ========================================================================= */
 
-var plan = { spanne: 1200, offen: false };   // Spanne = Breite des Ausschnitts in Metern
+var plan = { spanne: 1200, offen: false, weg: null, wegMast: null };
+// Spanne = Breite des Ausschnitts in Metern
 
 function planOpen() {
   if (!state.pos) { toast('Erst den Standort einschalten'); return; }
@@ -3289,6 +3317,7 @@ function planOpen() {
 
 function planClose() {
   plan.offen = false;
+  plan.weg = null; plan.wegMast = null;
   $('planOv').classList.remove('on');
   window.removeEventListener('resize', planDraw);
 }
@@ -3380,7 +3409,16 @@ function planDraw() {
       letzte = pt;
     });
     if (!sichtbar) return;
-    if (w.art === 'strasse') {
+    var gewaehlt = plan.weg && plan.weg.weg === w;
+    if (gewaehlt) {
+      /* Der Weg zum gewählten Mast: dieselbe Farbe wie jeder Weg, aber dick
+         und hell umrandet. Eine zweite blaue Linie wäre neben dem blauen
+         Standortpunkt eine Farbe mit zwei Bedeutungen — beim Fahren die
+         schlechteste Art, etwas hervorzuheben. */
+      g.strokeStyle = cTxt; g.lineWidth = 9; g.globalAlpha = .9; g.setLineDash([]);
+      g.stroke();
+      g.strokeStyle = farbe('--ok', '#2fc27a'); g.lineWidth = 5; g.globalAlpha = 1;
+    } else if (w.art === 'strasse') {
       g.strokeStyle = farbe('--ok', '#2fc27a'); g.lineWidth = 4; g.globalAlpha = .8; g.setLineDash([]);
     } else {
       g.strokeStyle = cMuted; g.lineWidth = 2; g.globalAlpha = .5; g.setLineDash([4, 6]);
@@ -3388,6 +3426,23 @@ function planDraw() {
     g.stroke();
     g.setLineDash([]); g.globalAlpha = 1;
   });
+
+  /* Abzweig und Zielmast des gewählten Weges: die Stelle, an der man die
+     Zuwegung verlässt, ist beim Fahren die wichtigste des ganzen Plans. */
+  if (plan.weg) {
+    var ab = xy(plan.weg.abzweig.lat, plan.weg.abzweig.lon);
+    g.strokeStyle = farbe('--ok', '#2fc27a'); g.lineWidth = 3;
+    g.beginPath(); g.arc(ab[0], ab[1], 7, 0, Math.PI * 2); g.stroke();
+    beschrifte('Abzweig', ab[0], ab[1], farbe('--ok', '#2fc27a'), 11);
+    if (plan.wegMast && plan.wegMast.punkt.lat != null) {
+      var zm = xy(plan.wegMast.punkt.lat, plan.wegMast.punkt.lon);
+      g.setLineDash([3, 4]); g.lineWidth = 2; g.beginPath();
+      g.moveTo(ab[0], ab[1]); g.lineTo(zm[0], zm[1]); g.stroke(); g.setLineDash([]);
+      g.fillStyle = farbe('--ok', '#2fc27a');
+      g.beginPath(); g.arc(zm[0], zm[1], 5, 0, Math.PI * 2); g.fill();
+      beschrifte('Mast ' + plan.wegMast.nr, zm[0], zm[1], cTxt, 11);
+    }
+  }
 
   // Masten zuerst (Hintergrund)
   var sicht = plan.spanne * 0.75;
@@ -3494,6 +3549,7 @@ function planDraw() {
 
   $('planSub').textContent = 'ohne Internet · Ausschnitt ' + G.formatDistance(plan.spanne) +
     ' · rote Linie = Luftlinie, kein Weg';
+  planWegBand();
 }
 
 // Runde Schrittweite für Ringe und Maßstab
@@ -4407,6 +4463,7 @@ function importBestaetigen() {
     if (wegeAnzahl()) {
       state.wege = importWege.wege;
       save(K_WEGE, state.wege);
+      wegCacheLeeren();          // neue Wege, neue Zuordnung Mast→Weg
       if (plan.offen) planDraw();
     }
     persistPoints();
@@ -5469,7 +5526,8 @@ function mastListeZeichnen() {
 
 /* ---------- Mastakte ---------- */
 
-var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '' };
+var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '',
+             zuwegung: null, wegStamm: null, wegEnde: null };
 
 /* Merkzeichen für die Mastliste: welcher Mast hat eine eingeschränkte
    Zufahrt? Einmal je Baustelle geladen — die Liste soll auch bei tausend
@@ -5480,10 +5538,24 @@ function zufahrtMarkenLaden() {
   mastZufahrtMarken = {};
   if (!S || !S.verfuegbar()) return Promise.resolve({});
   return S.mastdatenAlle(aktiveBaustelle()).then(function (liste) {
+    var amWeg = {}, amMast = {};
     (liste || []).forEach(function (m) {
-      var z = zufahrtLage(m);
-      if (z.sperre) mastZufahrtMarken[m.mastSchluessel] = { text: 'kein Lkw', sperre: true };
-      else if (z.warnt) mastZufahrtMarken[m.mastSchluessel] = { text: 'Zufahrt', sperre: false };
+      var k = m.mastSchluessel;
+      if (String(k).indexOf('weg:') === 0) amWeg[k] = m; else amMast[k] = m;
+    });
+    var marke = function (z) {
+      if (z.sperre) return { text: 'kein Lkw', sperre: true };
+      if (z.warnt)  return { text: 'Zufahrt', sperre: false };
+      return null;
+    };
+    /* Eine Beschränkung am Weg gilt für JEDEN Mast an diesem Weg — sonst
+       müsste sie zwanzigmal eingetragen werden und fehlte beim einundzwanzigsten.
+       Ein Eintrag direkt am Mast geht vor. */
+    mastenAlle().forEach(function (m) {
+      var z = mastZuwegung(m);
+      var lage = zufahrtLageMitWeg(amMast[m.key], z ? amWeg[z.kennung] : null);
+      var mk = marke(lage);
+      if (mk) mastZufahrtMarken[m.key] = mk;
     });
     return mastZufahrtMarken;
   }).catch(function () { return {}; });
@@ -5494,6 +5566,8 @@ function mastOeffnen(key) {
   if (!m) { toast('Mast nicht gefunden'); return; }
   akte.key = m.key; akte.mast = m; akte.offen = '';
   akte.dokumente = []; akte.werte = []; akte.stamm = null;
+  // Der Weg zu diesem Mast steht in der Karte und braucht keine Datenbank.
+  akte.zuwegung = mastZuwegung(m); akte.wegStamm = null; akte.wegEnde = null;
   setTab('mastakte');
   window.scrollTo(0, 0);
   renderMastakte();
@@ -5502,12 +5576,213 @@ function mastOeffnen(key) {
   Promise.all([
     S.dokVonMast(baustelle, m.key).catch(function () { return []; }),
     S.werteVonMast(baustelle, m.key).catch(function () { return []; }),
-    S.mastdatenHolen(baustelle, m.key).catch(function () { return null; })
+    S.mastdatenHolen(baustelle, m.key).catch(function () { return null; }),
+    akte.zuwegung
+      ? S.mastdatenHolen(baustelle, akte.zuwegung.kennung).catch(function () { return null; })
+      : Promise.resolve(null)
   ]).then(function (r) {
     if (akte.key !== m.key) return;            // inzwischen weitergetippt
     akte.dokumente = r[0] || []; akte.werte = r[1] || []; akte.stamm = r[2];
+    akte.wegStamm = r[3];
     renderMastakte();
   });
+}
+
+/* ---------- Zuwegungen: wo darf gefahren werden? ----------
+
+   Die einzige belastbare Antwort auf „wo darf der Lkw lang" steht in der
+   Karte der Baustelle: die eingezeichneten Zuwegungen. Jemand ist die
+   Strecke abgefahren und hat sie festgelegt. Google Maps kennt sie nicht —
+   dort ist das ein Feldweg oder gar nichts, und eine Pkw-Route führt
+   womöglich über eine Brücke, die den Kran nicht trägt.
+
+   Deshalb rechnet die App hier nur mit dem, was in der Karte steht. Ist
+   nichts eingezeichnet, sagt sie das — und behauptet nicht, der Weg sei
+   frei. */
+
+var wegCache = { baustelle: '', masten: {} };
+
+function wegeVorhanden() { return !!(state.wege && state.wege.length); }
+
+/* Wegnamen aus My Maps sind oft ganze Routenbeschreibungen („Direções de
+   Jahnstraße 5, 56759 Kaisersesch … para Straße Ohne Straßennamen"). Im
+   Fahrband, das man im Vorbeifahren liest, wird daraus ein Stichwort. */
+function wegKurz(name) {
+  var n = String(name || 'Zuwegung').trim();
+  return n.length > 24 ? n.slice(0, 23).trim() + '…' : n;
+}
+
+function wegCacheLeeren() { wegCache = { baustelle: aktiveBaustelle(), masten: {} }; }
+
+/* Die Zuwegung, die zu diesem Mast führt — oder null. Das Ergebnis wird
+   gemerkt: In der Mastliste würde die Suche sonst bei jedem Zeichnen für
+   jeden der 75 Masten alle Wege durchgehen. */
+function mastZuwegung(m) {
+  if (!m || !m.punkt) return null;
+  var b = aktiveBaustelle();
+  if (wegCache.baustelle !== b) wegCache = { baustelle: b, masten: {} };
+  if (!(m.key in wegCache.masten)) {
+    wegCache.masten[m.key] = wegeVorhanden()
+      ? G.zuwegungZuMast(m.punkt, state.wege) : null;
+  }
+  return wegCache.masten[m.key];
+}
+
+/* Beschränkungen gelten meist für den WEG, nicht für den einzelnen Mast:
+   Die Bahnunterführung liegt an der Zuwegung, an der zwanzig Masten hängen.
+   Wer sie einmal am Weg einträgt, hat sie an allen zwanzig. Ein Eintrag
+   direkt am Mast geht vor — er ist der genauere. */
+function zufahrtLageMitWeg(mastStamm, wegStamm) {
+  var eigen = zufahrtLage(mastStamm);
+  if (eigen.erfasst) { eigen.quelle = 'mast'; return eigen; }
+  var vomWeg = zufahrtLage(wegStamm);
+  vomWeg.quelle = vomWeg.erfasst ? 'weg' : '';
+  return vomWeg;
+}
+
+/* Welches Ende der Zuwegung wird angefahren? Die App WEISS nicht, welches
+   Ende an der öffentlichen Straße liegt — dafür bräuchte sie ein
+   Straßennetz, das sie offline nicht hat. Sie nimmt deshalb das Ende, das
+   dem Fahrer gerade am nächsten ist, schreibt hin, welches das ist, und
+   lässt ihn umschalten. Geraten wird nichts, was als Tatsache aussieht. */
+function wegEndeWahl(z) {
+  if (!z) return null;
+  if (akte.wegEnde === 0 || akte.wegEnde === 1) return z.enden[akte.wegEnde];
+  if (state.pos) {
+    var d0 = G.distance(state.pos.lat, state.pos.lon, z.enden[0].lat, z.enden[0].lon);
+    var d1 = G.distance(state.pos.lat, state.pos.lon, z.enden[1].lat, z.enden[1].lon);
+    return d0 <= d1 ? z.enden[0] : z.enden[1];
+  }
+  // Ohne Standort: das Ende, das vom Abzweig am weitesten weg ist — von dort
+  // kommt man in aller Regel, weil der Abzweig am Mastende des Weges liegt.
+  return z.enden[0].aufWegM >= z.enden[1].aufWegM ? z.enden[0] : z.enden[1];
+}
+
+function wegEndeNummer(z, e) { return z.enden[0] === e ? 0 : 1; }
+
+function wegEndeUmschalten() {
+  var z = akte.zuwegung; if (!z) return;
+  var jetzt = wegEndeWahl(z);
+  akte.wegEnde = wegEndeNummer(z, jetzt) === 0 ? 1 : 0;
+  renderAkteZuwegung();
+}
+
+function wegEndeAnfahrt() {
+  var z = akte.zuwegung; if (!z) { toast('Keine Zuwegung'); return; }
+  var e = wegEndeWahl(z);
+  anfahrtOeffnen(e.lat, e.lon);
+}
+
+/* Das Band in der Mastakte. Ohne Zuwegung wird es nicht versteckt, sondern
+   sagt ausdrücklich, dass die App den Weg nicht kennt — ein leeres Feld
+   würde als „alles in Ordnung" gelesen. */
+function renderAkteZuwegung() {
+  var box = $('akteZuwegung'); if (!box) return;
+  var z = akte.zuwegung;
+
+  if (!z) {
+    box.innerHTML = '<div class="zuwegung fehlt"><b>Keine Zuwegung eingezeichnet</b>' +
+      '<i>' + (wegeVorhanden()
+        ? 'In dieser Baustelle sind Zuwegungen eingezeichnet, aber keine führt bis auf ' +
+          G.formatDistance(G.WEG_ZU_MAST_M) + ' an diesen Mast heran.'
+        : 'Für diese Baustelle sind keine Zuwegungen in der Karte. ' +
+          'Ohne sie weiß die App nicht, wo gefahren werden darf.') +
+      ' Vor der Fahrt mit einem schweren Fahrzeug am Bau erfragen.</i></div>';
+    return;
+  }
+
+  var e = wegEndeWahl(z);
+  var abstand = state.pos
+    ? G.distance(state.pos.lat, state.pos.lon, e.lat, e.lon) : null;
+  var lage = state.pos ? G.aufZuwegung(state.pos.lat, state.pos.lon, state.wege) : null;
+
+  box.innerHTML = '<div class="zuwegung"><b>ZUWEGUNG AUS DER KARTE</b>' +
+    '<u title="' + esc(z.name) + '">' + esc(z.name) + '</u>' +
+    '<i>' + G.formatDistance(z.laenge) + ' lang · Abzweig ' +
+      G.formatDistance(z.abzweigM) + ' vor dem Mast</i>' +
+    (lage && lage.weiss
+      ? '<i class="lauf' + (lage.auf ? '' : ' ab') + '">' +
+        (lage.auf ? 'Du bist auf der Zuwegung (' + G.formatDistance(lage.dist) + ' von der Achse).'
+                  : 'Du bist ' + G.formatDistance(lage.dist) + ' neben der nächsten Zuwegung.') +
+        '</i>' : '') +
+    '<div class="btnrow">' +
+      '<button class="btn" onclick="zuwegungImPlan()">Weg im Lageplan</button>' +
+      '<button class="btn" onclick="wegEndeAnfahrt()">Zum Weganfang</button>' +
+    '</div>' +
+    '<div class="wegchips">' +
+      '<span>Weganfang ' + esc(G.compass(G.bearing(z.abzweig.lat, z.abzweig.lon, e.lat, e.lon))) +
+        (abstand != null ? ' · ' + G.formatDistance(abstand) + ' von hier' : '') + '</span>' +
+      '<button class="chip" onclick="wegEndeUmschalten()">Anderes Ende</button>' +
+      '<button class="chip" onclick="zuwegungBearbeiten()">Beschränkung am Weg</button>' +
+    '</div>' +
+    '<i>Welches Ende an der Straße liegt, weiß die App nicht — ab dem Weganfang ' +
+      'gilt die eingezeichnete Zuwegung, nicht die Route von Google Maps.</i>' +
+    '</div>';
+}
+
+/* Den Weg dieses Mastes im Lageplan hervorheben. Der Lageplan braucht den
+   eigenen Standort — ohne ihn hat er keinen Mittelpunkt. */
+function zuwegungImPlan() {
+  if (!akte.zuwegung) return;
+  plan.weg = akte.zuwegung;
+  plan.wegMast = akte.mast;
+  if (!state.pos) { toast('Erst den Standort einschalten'); return; }
+  planOpen();
+  planWegFit();
+}
+
+/* Ausschnitt so, dass Abzweig und Mast sicher im Bild sind. */
+function planWegFit() {
+  var z = plan.weg; if (!z || !state.pos) return;
+  var d = G.distance(state.pos.lat, state.pos.lon, z.abzweig.lat, z.abzweig.lon);
+  plan.spanne = Math.max(300, Math.min(20000, Math.max(d, z.abzweigM) * 2.6));
+  planDraw();
+}
+
+/* Das Fahrband über dem Lageplan: die Antwort auf „fahre ich hier richtig?"
+   in einem Satz, ohne Karte lesen zu müssen. */
+function planWegBand() {
+  var el = $('planWeg'); if (!el) return;
+  if (!state.pos) { el.hidden = true; return; }
+  var lage = G.aufZuwegung(state.pos.lat, state.pos.lon, state.wege);
+  el.hidden = false;
+  if (!lage.weiss) {
+    el.className = 'planweg unbekannt';
+    el.textContent = 'Keine Zuwegungen in dieser Baustelle — die App weiß nicht, wo gefahren werden darf.';
+    return;
+  }
+  if (lage.auf) {
+    el.className = 'planweg auf';
+    el.textContent = 'Auf der Zuwegung · ' + G.formatDistance(lage.dist) +
+      ' von der Achse · ' + wegKurz(lage.name);
+  } else {
+    el.className = 'planweg ab';
+    el.textContent = 'Nicht auf der Zuwegung · ' + G.formatDistance(lage.dist) +
+      ' bis „' + wegKurz(lage.name) + '"';
+  }
+}
+
+/* Beschränkung, die für die ganze Zuwegung gilt. Dasselbe Formular wie am
+   Mast, nur mit einem anderen Ablageort — und mit dem Hinweis, dass es für
+   alle Masten an diesem Weg gilt. */
+function zuwegungBearbeiten() {
+  var z = akte.zuwegung; if (!z) return;
+  var st = akte.wegStamm || {};
+  openOv('<h2>Zuwegung „' + esc(z.name) + '"</h2>' +
+    '<div class="hint" style="margin-bottom:10px">Gilt für <b>alle Masten</b> an diesem Weg. ' +
+    'Eine Angabe direkt am Mast geht vor.</div>' +
+    zufahrtFelder(st) +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    '<button class="btn primary" onclick="zuwegungSpeichern()">Speichern</button></div>');
+}
+
+function zuwegungSpeichern() {
+  var z = akte.zuwegung; if (!z) return;
+  S.mastdatenSetzen(aktiveBaustelle(), z.kennung, zufahrtWerte()).then(function (e) {
+    akte.wegStamm = e; closeOv(); renderMastakte();
+    zufahrtMarkenLaden().then(mastListeZeichnen);
+    toast('Gespeichert');
+  }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
 }
 
 /* Was an dieser Zufahrt für Lkw gilt — als Text und als Schwere.
@@ -5551,6 +5826,7 @@ function renderMastakte() {
       '<span>Hinweis</span><b style="color:var(--warn)">Dieser Mast ist ungeprüft — ' +
       'er wird für Rettungsberechnungen nicht verwendet.</b></div>');
 
+  renderAkteZuwegung();
   renderAkteZufahrt();
   renderAkteRettung();
   renderAkteBereiche();
@@ -5558,7 +5834,12 @@ function renderMastakte() {
 
 function renderAkteZufahrt() {
   var box = $('akteZufahrt'); if (!box) return;
-  var z = zufahrtLage(akte.stamm);
+  var z = zufahrtLageMitWeg(akte.stamm, akte.wegStamm);
+  /* Woher die Angabe stammt, gehört dazu: „gilt für die ganze Zuwegung" ist
+     eine andere Aussage als „an diesem Mast gemessen". */
+  var her = (z.quelle === 'weg' && akte.zuwegung)
+    ? '<i>Gilt für die Zuwegung „' + esc(akte.zuwegung.name) + '" — und damit für ' +
+      'alle Masten an diesem Weg.</i>' : '';
 
   if (!z.erfasst) {
     box.innerHTML = '<div class="zufahrt offen">' +
@@ -5571,13 +5852,14 @@ function renderAkteZufahrt() {
   if (z.art === 'frei') {
     box.innerHTML = '<div class="zufahrt frei">' +
       '<b>Zufahrt frei</b><i>Keine Beschränkung eingetragen.</i>' +
-      (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') + '</div>';
+      (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') + her + '</div>';
     return;
   }
   box.innerHTML = '<div class="zufahrt ' + (z.sperre ? 'sperre' : 'warn') + '">' +
     '<b>' + (z.sperre ? 'NICHT FÜR LKW BEFAHRBAR' : 'ZUFAHRT EINGESCHRÄNKT') + '</b>' +
     (z.masse ? '<u>' + esc(z.masse) + '</u>' : '') +
     (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') +
+    her +
     '<i>Google Maps kennt diese Beschränkung nicht.</i>' +
     '</div>';
 }
@@ -5696,18 +5978,14 @@ function dokGruppenHtml(gruppen) {
 
 /* ---------- Stammdaten des Mastes ---------- */
 
-function mastdatenBearbeiten() {
-  var st = akte.stamm || {};
-  openOv('<h2>Mast ' + esc(akte.mast ? akte.mast.nr : akte.key) + '</h2>' +
-    '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
-    '<div class="field"><label>Abschnitt</label><input class="inp" id="mdAbschnitt" value="' + esc(st.abschnitt || '') + '" placeholder="z. B. Abschnitt 2"></div>' +
-    '<div class="field"><label>Arbeits-/Montagestatus</label><input class="inp" id="mdStatus" value="' + esc(st.status || '') + '" placeholder="z. B. Gründung fertig"></div>' +
-
-    /* Zufahrt für schwere Fahrzeuge. Diese Angaben stehen in keiner Karte —
-       Google Maps rechnet Pkw-Routen und kennt weder Brückenhöhe noch
-       Tonnage. Wer sie hier einträgt, sorgt dafür, dass der Fahrer sie SIEHT,
-       bevor er losfährt. */
-    '<h3 style="margin:18px 0 8px;font-size:15px">Zufahrt für Lkw</h3>' +
+/* Zufahrt für schwere Fahrzeuge. Diese Angaben stehen in keiner Karte —
+   Google Maps rechnet Pkw-Routen und kennt weder Brückenhöhe noch Tonnage.
+   Wer sie einträgt, sorgt dafür, dass der Fahrer sie SIEHT, bevor er
+   losfährt. Dieselben Felder gelten am Mast und an der Zuwegung; es ist
+   immer nur ein Formular offen, deshalb dieselben Kennungen. */
+function zufahrtFelder(st) {
+  st = st || {};
+  return '<h3 style="margin:18px 0 8px;font-size:15px">Zufahrt für Lkw</h3>' +
     '<div class="field"><label>Zufahrt</label><select id="mdZufahrt">' +
       [['', 'nicht erfasst'], ['frei', 'frei — keine bekannte Beschränkung'],
        ['eingeschraenkt', 'eingeschränkt — Beschränkung beachten'],
@@ -5728,7 +6006,27 @@ function mastdatenBearbeiten() {
       esc(st.zufahrtHinweis || '') + '</textarea></div>' +
     '<div class="hint">Diese Angaben kommen aus der Baustelle, nicht aus einer Karte. ' +
       'Die App rechnet damit nichts aus — sie zeigt sie dem Fahrer, bevor er die ' +
-      'Route startet.</div>' +
+      'Route startet.</div>';
+}
+
+function zufahrtWerte() {
+  return {
+    zufahrt: $('mdZufahrt').value,
+    hoehe: ($('mdHoehe').value || '').trim(),
+    gewicht: ($('mdGewicht').value || '').trim(),
+    breite: ($('mdBreite').value || '').trim(),
+    zufahrtHinweis: ($('mdZufahrtHinweis').value || '').trim()
+  };
+}
+
+function mastdatenBearbeiten() {
+  var st = akte.stamm || {};
+  openOv('<h2>Mast ' + esc(akte.mast ? akte.mast.nr : akte.key) + '</h2>' +
+    '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
+    '<div class="field"><label>Abschnitt</label><input class="inp" id="mdAbschnitt" value="' + esc(st.abschnitt || '') + '" placeholder="z. B. Abschnitt 2"></div>' +
+    '<div class="field"><label>Arbeits-/Montagestatus</label><input class="inp" id="mdStatus" value="' + esc(st.status || '') + '" placeholder="z. B. Gründung fertig"></div>' +
+
+    zufahrtFelder(st) +
 
     '<div class="field" style="margin-top:14px"><label>Bemerkung</label><textarea id="mdBemerkung" rows="3">' + esc(st.bemerkung || '') + '</textarea></div>' +
     '<div class="hint">Alle Angaben gehören zu dieser Baustelle und bleiben im Gerät.</div>' +
@@ -5737,17 +6035,11 @@ function mastdatenBearbeiten() {
 }
 
 function mastdatenSpeichern() {
-  var daten = {
-    zufahrt: $('mdZufahrt').value,
-    hoehe: ($('mdHoehe').value || '').trim(),
-    gewicht: ($('mdGewicht').value || '').trim(),
-    breite: ($('mdBreite').value || '').trim(),
-    zufahrtHinweis: ($('mdZufahrtHinweis').value || '').trim(),
-    typ: ($('mdTyp').value || '').trim(),
-    abschnitt: ($('mdAbschnitt').value || '').trim(),
-    status: ($('mdStatus').value || '').trim(),
-    bemerkung: ($('mdBemerkung').value || '').trim()
-  };
+  var daten = zufahrtWerte();
+  daten.typ = ($('mdTyp').value || '').trim();
+  daten.abschnitt = ($('mdAbschnitt').value || '').trim();
+  daten.status = ($('mdStatus').value || '').trim();
+  daten.bemerkung = ($('mdBemerkung').value || '').trim();
   S.mastdatenSetzen(aktiveBaustelle(), akte.key, daten).then(function (e) {
     akte.stamm = e; closeOv(); renderMastakte();
     zufahrtMarkenLaden().then(mastListeZeichnen);

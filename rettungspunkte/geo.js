@@ -570,6 +570,8 @@ var SpieGeo = (function () {
   var WEG_MAX        = 300;    // Obergrenze, damit der Gerätespeicher reicht
   var WEG_NAHE_M     = 1000;   // weiter weg = gehört nicht zu dieser Baustelle
   var WEG_GENAUIGKEIT_M = 8;   // Ausdünnung für den Lageplan
+  var WEG_ZU_MAST_M  = 150;    // weiter weg = führt nicht zu diesem Mast
+  var WEG_TOLERANZ_M = 30;     // so weit darf man neben der Achse fahren
 
   // Punkt auf halber Länge eines Strichs.
   function mitte(pts) {
@@ -803,6 +805,129 @@ var SpieGeo = (function () {
   /* ---------- Nächste Punkte ---------- */
 
   // Punkte um die Position anreichern und nach Entfernung sortieren.
+
+  /* ---------- Zuwegungen: wo darf ich fahren? ----------
+
+     Die Zuwegungen sind die einzige Antwort auf „wo darf der Lkw lang",
+     die diese App wirklich hat: Sie sind in der Karte der Baustelle
+     eingezeichnet, also von jemandem festgelegt worden, der die Strecke
+     abgefahren ist. Google Maps kennt sie nicht — dort sind es Feldwege
+     oder gar nichts.
+
+     Deshalb wird hier nichts geschätzt und nichts erfunden. Gerechnet wird
+     nur, was aus der Geometrie folgt: Wie weit ist ein Punkt vom Weg weg,
+     wo liegt der Fußpunkt, wie weit ist es dort entlang bis zum Ende. */
+
+  /* Abstand Punkt→Strecke in Metern, in einer örtlichen Ebene. Über die paar
+     hundert Meter eines Wegstücks ist der Fehler dieser Näherung im
+     Millimeterbereich — die Punkte selbst stehen auf 1 m genau. */
+  function lotAufStrecke(lat, lon, a, b) {
+    var latm = 110540, lonm = 111320 * Math.cos(rad(lat));
+    var px = (lon - a[1]) * lonm, py = (lat - a[0]) * latm;
+    var vx = (b[1] - a[1]) * lonm, vy = (b[0] - a[0]) * latm;
+    var vv = vx * vx + vy * vy;
+    var t = vv > 0 ? (px * vx + py * vy) / vv : 0;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    var fx = a[1] + (b[1] - a[1]) * t, fy = a[0] + (b[0] - a[0]) * t;
+    return { t: t, lat: fy, lon: fx, dist: distance(lat, lon, fy, fx) };
+  }
+
+  /* Der nächste Punkt AUF einem Weg. Liefert außerdem, wie weit dieser
+     Fußpunkt vom Anfang des Weges entfernt ist — damit lässt sich sagen,
+     wie weit man auf dem Weg noch zu fahren hat. */
+  function wegAbstand(lat, lon, weg) {
+    var pts = (weg && weg.punkte) || [];
+    if (pts.length === 0) return null;
+    if (pts.length === 1) {
+      return { dist: distance(lat, lon, pts[0][0], pts[0][1]),
+               lat: pts[0][0], lon: pts[0][1], abAnfang: 0, laenge: 0 };
+    }
+    var best = null, lauf = 0, bestLauf = 0;
+    for (var i = 1; i < pts.length; i++) {
+      var l = lotAufStrecke(lat, lon, pts[i-1], pts[i]);
+      if (!best || l.dist < best.dist) {
+        best = l;
+        bestLauf = lauf + distance(pts[i-1][0], pts[i-1][1], l.lat, l.lon);
+      }
+      lauf += distance(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+    }
+    return { dist: best.dist, lat: best.lat, lon: best.lon,
+             abAnfang: bestLauf, laenge: lauf };
+  }
+
+  /* Welcher Weg liegt diesem Punkt am nächsten? Ohne Fund: null — das ist
+     eine gültige Antwort und wird nirgends zu „ist schon frei" umgedeutet. */
+  function wegSuchen(lat, lon, wege, maxM) {
+    var grenze = maxM != null ? maxM : Infinity;
+    var best = null;
+    (wege || []).forEach(function (w, i) {
+      var a = wegAbstand(lat, lon, w);
+      if (!a || a.dist > grenze) return;
+      if (!best || a.dist < best.dist) {
+        best = { weg: w, nr: i, dist: a.dist, lat: a.lat, lon: a.lon,
+                 abAnfang: a.abAnfang, laenge: a.laenge };
+      }
+    });
+    return best;
+  }
+
+  /* Stabile Kennung eines Weges aus seiner Geometrie. Zwei Importe derselben
+     Karte ergeben dieselbe Kennung, damit eingetragene Beschränkungen einen
+     erneuten Import überleben. */
+  function wegKennung(weg) {
+    var pts = (weg && weg.punkte) || [];
+    if (!pts.length) return 'weg:leer';
+    var a = pts[0], b = pts[pts.length - 1], m = pts[(pts.length / 2) | 0];
+    var s = function (p) { return p[0].toFixed(4) + ',' + p[1].toFixed(4); };
+    return 'weg:' + s(a) + '|' + s(m) + '|' + s(b);
+  }
+
+  /* Die Zuwegung zu einem Mast: der eingezeichnete Weg, der am nächsten
+     vorbeiführt, und die Stelle, an der man ihn zum Mast hin verlässt.
+
+     WEG_ZU_MAST_M ist bewusst knapp: Ein Weg, der 400 m entfernt vorbeiläuft,
+     führt nicht zu diesem Mast — ihn trotzdem anzubieten hieße, dem Fahrer
+     eine Zufahrt zu versprechen, die niemand eingezeichnet hat. */
+  function zuwegungZuMast(punkt, wege, opts) {
+    opts = opts || {};
+    var maxM = opts.maxM != null ? opts.maxM : WEG_ZU_MAST_M;
+    if (!punkt || punkt.lat == null) return null;
+    var t = wegSuchen(punkt.lat, punkt.lon, wege, maxM);
+    if (!t) return null;
+    var pts = t.weg.punkte;
+    var enden = [
+      { lat: pts[0][0], lon: pts[0][1], abAnfang: 0 },
+      { lat: pts[pts.length-1][0], lon: pts[pts.length-1][1], abAnfang: t.laenge }
+    ];
+    // Wie weit ist es vom Abzweig aus bis zu den beiden Enden des Weges?
+    enden.forEach(function (e) { e.aufWegM = Math.abs(t.abAnfang - e.abAnfang); });
+    return {
+      weg: t.weg,
+      nr: t.nr,
+      kennung: wegKennung(t.weg),
+      name: t.weg.name || 'Zuwegung',
+      laenge: Math.round(t.laenge),
+      // Der Abzweig ist die Stelle auf dem Weg, die dem Mast am nächsten
+      // liegt — ab hier geht es zu Fuß oder querfeldein weiter.
+      abzweig: { lat: t.lat, lon: t.lon },
+      abzweigM: Math.round(t.dist),
+      enden: enden
+    };
+  }
+
+  /* Fahre ich noch auf der Zuwegung? „weiss:false" heißt: für diese Baustelle
+     ist gar kein Weg eingezeichnet — dann sagt die App nicht „daneben",
+     sondern dass sie es nicht weiß. */
+  function aufZuwegung(lat, lon, wege, toleranzM) {
+    var tol = toleranzM != null ? toleranzM : WEG_TOLERANZ_M;
+    if (!wege || !wege.length) return { weiss: false };
+    var t = wegSuchen(lat, lon, wege, null);
+    if (!t) return { weiss: false };
+    return { weiss: true, auf: t.dist <= tol, dist: Math.round(t.dist),
+             name: t.weg.name || 'Zuwegung', weg: t.weg,
+             kennung: wegKennung(t.weg), toleranz: tol };
+  }
+
   function nearest(points, lat, lon, limit) {
     var list = (points || []).map(function (p) {
       var d = distance(lat, lon, p.lat, p.lon);
@@ -953,6 +1078,13 @@ var SpieGeo = (function () {
     parseKml: parseKml,
     simplify: simplify,
     wegeAufbereiten: wegeAufbereiten,
+    wegAbstand: wegAbstand,
+    wegSuchen: wegSuchen,
+    wegKennung: wegKennung,
+    zuwegungZuMast: zuwegungZuMast,
+    aufZuwegung: aufZuwegung,
+    WEG_TOLERANZ_M: WEG_TOLERANZ_M,
+    WEG_ZU_MAST_M: WEG_ZU_MAST_M,
     classify: classify,
     myMapsKmlUrl: myMapsKmlUrl,
     normalizePoint: normalizePoint,
