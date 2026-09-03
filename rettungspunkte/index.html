@@ -602,6 +602,7 @@
   .mastmarke{flex:0 0 auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;
     background:var(--card2);border:1px solid var(--line);color:var(--muted)}
   .mastmarke.lkw{border-color:var(--warn);color:var(--warn)}
+  .mastmarke.lkw.sperre{border-color:var(--accent);color:var(--accent)}
 
   /* Zufahrt: die Angabe, die in keiner Karte steht. Sie sitzt über dem
      Anfahrt-Knopf, weil danach niemand mehr liest. */
@@ -5456,7 +5457,9 @@ function mastListeZeichnen() {
       (m.geprueft ? '' : '<span class="mastmarke">ungeprüft</span>') +
       // Wer die Liste durchgeht, soll eingeschränkte Zufahrten sehen, ohne
       // jeden Mast zu öffnen.
-      (zufahrtMarke[m.key] ? '<span class="mastmarke lkw">' + zufahrtMarke[m.key] + '</span>' : '') +
+      (zufahrtMarke[m.key]
+        ? '<span class="mastmarke lkw' + (zufahrtMarke[m.key].sperre ? ' sperre' : '') + '">' +
+          esc(zufahrtMarke[m.key].text) + '</span>' : '') +
       '<span class="mastpfeil" aria-hidden="true">›</span></button>';
   }).join('') +
   (treffer.length > zeigen.length
@@ -5479,8 +5482,8 @@ function zufahrtMarkenLaden() {
   return S.mastdatenAlle(aktiveBaustelle()).then(function (liste) {
     (liste || []).forEach(function (m) {
       var z = zufahrtLage(m);
-      if (z.sperre) mastZufahrtMarken[m.mastSchluessel] = 'kein Lkw';
-      else if (z.warnt) mastZufahrtMarken[m.mastSchluessel] = 'Zufahrt';
+      if (z.sperre) mastZufahrtMarken[m.mastSchluessel] = { text: 'kein Lkw', sperre: true };
+      else if (z.warnt) mastZufahrtMarken[m.mastSchluessel] = { text: 'Zufahrt', sperre: false };
     });
     return mastZufahrtMarken;
   }).catch(function () { return {}; });
@@ -5559,15 +5562,15 @@ function renderAkteZufahrt() {
 
   if (!z.erfasst) {
     box.innerHTML = '<div class="zufahrt offen">' +
-      '<b>Zufahrt für Lkw nicht erfasst.</b> Ob Höhe, Gewicht oder Breite hier ' +
-      'begrenzt sind, weiß die App nicht — vor der Fahrt mit einem schweren ' +
-      'Fahrzeug am Bau erfragen.' +
-      '<button class="chip" onclick="mastdatenBearbeiten()">Eintragen</button></div>';
+      '<b>Zufahrt für Lkw nicht erfasst.</b>' +
+      '<i>Ob Höhe, Gewicht oder Breite hier begrenzt sind, weiß die App nicht — ' +
+      'vor der Fahrt mit einem schweren Fahrzeug am Bau erfragen.</i>' +
+      '<div><button class="chip" onclick="mastdatenBearbeiten()">Eintragen</button></div></div>';
     return;
   }
   if (z.art === 'frei') {
     box.innerHTML = '<div class="zufahrt frei">' +
-      '<b>Zufahrt frei</b> — keine Beschränkung eingetragen.' +
+      '<b>Zufahrt frei</b><i>Keine Beschränkung eingetragen.</i>' +
       (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') + '</div>';
     return;
   }
