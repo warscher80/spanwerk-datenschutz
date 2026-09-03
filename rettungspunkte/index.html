@@ -601,6 +601,23 @@
   .mastpfeil{flex:0 0 auto;color:var(--muted2);font-size:18px}
   .mastmarke{flex:0 0 auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;
     background:var(--card2);border:1px solid var(--line);color:var(--muted)}
+  .mastmarke.lkw{border-color:var(--warn);color:var(--warn)}
+
+  /* Zufahrt: die Angabe, die in keiner Karte steht. Sie sitzt über dem
+     Anfahrt-Knopf, weil danach niemand mehr liest. */
+  .zufahrt{border-radius:var(--r-s);padding:11px 13px;margin:0 0 10px;border:1px solid var(--line);
+    background:var(--card2)}
+  .zufahrt b{display:block;font-size:13px;letter-spacing:.4px}
+  .zufahrt u{display:block;text-decoration:none;font-size:calc(16px * var(--gross));font-weight:800;
+    margin-top:3px;font-variant-numeric:tabular-nums}
+  .zufahrt i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:4px}
+  .zufahrt .chip{margin-top:8px}
+  .zufahrt.warn{border-color:var(--warn)}
+  .zufahrt.warn b{color:var(--warn)}
+  .zufahrt.sperre{border-color:var(--accent);border-width:2px;background:var(--card2)}
+  .zufahrt.sperre b{color:var(--accent)}
+  .zufahrt.frei b{color:var(--ok)}
+  .zufahrt.offen b{color:var(--muted)}
 
   .aktekopf{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
   .aktetitel{font-size:calc(23px * var(--gross));font-weight:800;min-width:0;overflow-wrap:anywhere}
@@ -752,12 +769,16 @@
     </div>
     <div class="card" id="akteKopfKarte">
       <div class="akteFakten" id="akteFakten"></div>
+      <!-- Die Beschränkung steht ÜBER dem Knopf, nicht daneben: Wer schon auf
+           „Anfahrt" getippt hat, liest keine Fußnote mehr. -->
+      <div id="akteZufahrt"></div>
       <div class="btnrow">
         <button class="btn primary" onclick="mastAnfahrt()">Anfahrt · Google&nbsp;Maps</button>
         <button class="btn" onclick="mastKoordinatenKopieren()">Koordinaten</button>
       </div>
-      <div class="hint" id="akteAnfahrtHinweis">Öffnet die Route zum Mast in Google Maps —
-        braucht Internet. Der Lageplan in der App geht auch ohne.</div>
+      <div class="hint" id="akteAnfahrtHinweis">Google Maps rechnet eine <b>Pkw-Route</b> und
+        kennt keine Höhen- oder Gewichtsbeschränkungen. Braucht Internet; der Lageplan in der
+        App geht auch ohne.</div>
       <div class="btnrow"><button class="btn sm ghost" onclick="mastdatenBearbeiten()">Stammdaten bearbeiten</button></div>
     </div>
     <!-- Rettung im Mast: kurz, mit Verweis auf die eine zentrale Rettung.
@@ -1280,7 +1301,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.13.2';
+var VERSION = '0.14.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1623,6 +1644,8 @@ function baustelleLaden(id) {
      müssen sie mitwechseln, sonst zeigt die Liste die Pläne der anderen
      Baustelle. */
   akte.key = ''; akte.mast = null; akte.dokumente = []; akte.werte = []; akte.stamm = null;
+  mastZufahrtMarken = {};
+  if (typeof zufahrtMarkenLaden === 'function') zufahrtMarkenLaden().then(mastListeZeichnen);
   if (typeof dokumenteLaden === 'function') {
     dokumenteLaden().then(function () {
       dokListeZeichnen(); renderUebersicht();
@@ -4697,7 +4720,7 @@ function setTab(name) {
   if (name === 'kontakte') renderContacts();
   if (name === 'uebersicht') renderUebersicht();
   if (name === 'info') renderVerwaltung();
-  if (name === 'masten') mastListeZeichnen();
+  if (name === 'masten') { mastListeZeichnen(); zufahrtMarkenLaden().then(mastListeZeichnen); }
   if (name === 'dokumente') dokListeZeichnen();
 }
 
@@ -5418,6 +5441,7 @@ function mastListeZeichnen() {
     return;
   }
   var zeigen = treffer.slice(0, MASTEN_JE_SEITE);
+  var zufahrtMarke = mastZufahrtMarken;
   box.innerHTML = zeigen.map(function (m) {
     var d = (state.pos && m.punkt.lat != null)
       ? G.formatDistance(G.distance(state.pos.lat, state.pos.lon, m.punkt.lat, m.punkt.lon)) : '';
@@ -5430,6 +5454,9 @@ function mastListeZeichnen() {
         ? esc(m.punkt.name || '') : '') + (d ? (String(m.punkt.name || '') !== String(m.nr) ? ' · ' : '') + d : '') +
       '</span>' +
       (m.geprueft ? '' : '<span class="mastmarke">ungeprüft</span>') +
+      // Wer die Liste durchgeht, soll eingeschränkte Zufahrten sehen, ohne
+      // jeden Mast zu öffnen.
+      (zufahrtMarke[m.key] ? '<span class="mastmarke lkw">' + zufahrtMarke[m.key] + '</span>' : '') +
       '<span class="mastpfeil" aria-hidden="true">›</span></button>';
   }).join('') +
   (treffer.length > zeigen.length
@@ -5440,6 +5467,24 @@ function mastListeZeichnen() {
 /* ---------- Mastakte ---------- */
 
 var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '' };
+
+/* Merkzeichen für die Mastliste: welcher Mast hat eine eingeschränkte
+   Zufahrt? Einmal je Baustelle geladen — die Liste soll auch bei tausend
+   Masten nicht tausend Abfragen auslösen. */
+var mastZufahrtMarken = {};
+
+function zufahrtMarkenLaden() {
+  mastZufahrtMarken = {};
+  if (!S || !S.verfuegbar()) return Promise.resolve({});
+  return S.mastdatenAlle(aktiveBaustelle()).then(function (liste) {
+    (liste || []).forEach(function (m) {
+      var z = zufahrtLage(m);
+      if (z.sperre) mastZufahrtMarken[m.mastSchluessel] = 'kein Lkw';
+      else if (z.warnt) mastZufahrtMarken[m.mastSchluessel] = 'Zufahrt';
+    });
+    return mastZufahrtMarken;
+  }).catch(function () { return {}; });
+}
 
 function mastOeffnen(key) {
   var m = mastFinden(key);
@@ -5462,6 +5507,28 @@ function mastOeffnen(key) {
   });
 }
 
+/* Was an dieser Zufahrt für Lkw gilt — als Text und als Schwere.
+   Es wird nichts gerechnet und nichts geschätzt: Was hier steht, hat jemand
+   für diese Baustelle eingetragen. */
+function zufahrtLage(st) {
+  st = st || {};
+  var teile = [];
+  if (st.hoehe) teile.push('max. ' + st.hoehe + ' m hoch');
+  if (st.gewicht) teile.push('max. ' + st.gewicht + ' t');
+  if (st.breite) teile.push('max. ' + st.breite + ' m breit');
+  var hatMasse = teile.length > 0;
+  var art = st.zufahrt || (hatMasse || st.zufahrtHinweis ? 'eingeschraenkt' : '');
+  return {
+    art: art,
+    masse: teile.join(' · '),
+    hinweis: st.zufahrtHinweis || '',
+    // Erfasst heißt nicht frei: „nicht erfasst" ist ein eigener Zustand.
+    erfasst: !!(art || hatMasse || st.zufahrtHinweis),
+    sperre: art === 'kein-lkw',
+    warnt: art === 'kein-lkw' || art === 'eingeschraenkt'
+  };
+}
+
 function renderMastakte() {
   var m = akte.mast; if (!m) return;
   $('akteTitel').textContent = 'Mast ' + m.nr;
@@ -5481,8 +5548,35 @@ function renderMastakte() {
       '<span>Hinweis</span><b style="color:var(--warn)">Dieser Mast ist ungeprüft — ' +
       'er wird für Rettungsberechnungen nicht verwendet.</b></div>');
 
+  renderAkteZufahrt();
   renderAkteRettung();
   renderAkteBereiche();
+}
+
+function renderAkteZufahrt() {
+  var box = $('akteZufahrt'); if (!box) return;
+  var z = zufahrtLage(akte.stamm);
+
+  if (!z.erfasst) {
+    box.innerHTML = '<div class="zufahrt offen">' +
+      '<b>Zufahrt für Lkw nicht erfasst.</b> Ob Höhe, Gewicht oder Breite hier ' +
+      'begrenzt sind, weiß die App nicht — vor der Fahrt mit einem schweren ' +
+      'Fahrzeug am Bau erfragen.' +
+      '<button class="chip" onclick="mastdatenBearbeiten()">Eintragen</button></div>';
+    return;
+  }
+  if (z.art === 'frei') {
+    box.innerHTML = '<div class="zufahrt frei">' +
+      '<b>Zufahrt frei</b> — keine Beschränkung eingetragen.' +
+      (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') + '</div>';
+    return;
+  }
+  box.innerHTML = '<div class="zufahrt ' + (z.sperre ? 'sperre' : 'warn') + '">' +
+    '<b>' + (z.sperre ? 'NICHT FÜR LKW BEFAHRBAR' : 'ZUFAHRT EINGESCHRÄNKT') + '</b>' +
+    (z.masse ? '<u>' + esc(z.masse) + '</u>' : '') +
+    (z.hinweis ? '<i>' + esc(z.hinweis) + '</i>' : '') +
+    '<i>Google Maps kennt diese Beschränkung nicht.</i>' +
+    '</div>';
 }
 
 /* Rettung im Mast. Der Bezugspunkt ist hier der MAST, nicht der eigene
@@ -5605,21 +5699,56 @@ function mastdatenBearbeiten() {
     '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
     '<div class="field"><label>Abschnitt</label><input class="inp" id="mdAbschnitt" value="' + esc(st.abschnitt || '') + '" placeholder="z. B. Abschnitt 2"></div>' +
     '<div class="field"><label>Arbeits-/Montagestatus</label><input class="inp" id="mdStatus" value="' + esc(st.status || '') + '" placeholder="z. B. Gründung fertig"></div>' +
-    '<div class="field"><label>Bemerkung</label><textarea id="mdBemerkung" rows="3">' + esc(st.bemerkung || '') + '</textarea></div>' +
-    '<div class="hint">Diese Angaben gehören zu dieser Baustelle und bleiben im Gerät.</div>' +
+
+    /* Zufahrt für schwere Fahrzeuge. Diese Angaben stehen in keiner Karte —
+       Google Maps rechnet Pkw-Routen und kennt weder Brückenhöhe noch
+       Tonnage. Wer sie hier einträgt, sorgt dafür, dass der Fahrer sie SIEHT,
+       bevor er losfährt. */
+    '<h3 style="margin:18px 0 8px;font-size:15px">Zufahrt für Lkw</h3>' +
+    '<div class="field"><label>Zufahrt</label><select id="mdZufahrt">' +
+      [['', 'nicht erfasst'], ['frei', 'frei — keine bekannte Beschränkung'],
+       ['eingeschraenkt', 'eingeschränkt — Beschränkung beachten'],
+       ['kein-lkw', 'nicht für Lkw befahrbar']].map(function (a) {
+        return '<option value="' + a[0] + '"' + ((st.zufahrt || '') === a[0] ? ' selected' : '') +
+               '>' + esc(a[1]) + '</option>';
+      }).join('') + '</select></div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<div style="flex:1"><div class="field"><label>Höhe max. (m)</label>' +
+        '<input class="inp" id="mdHoehe" inputmode="decimal" value="' + esc(String(st.hoehe || '')) + '" placeholder="3,50"></div></div>' +
+      '<div style="flex:1"><div class="field"><label>Gewicht max. (t)</label>' +
+        '<input class="inp" id="mdGewicht" inputmode="decimal" value="' + esc(String(st.gewicht || '')) + '" placeholder="12"></div></div>' +
+      '<div style="flex:1"><div class="field"><label>Breite max. (m)</label>' +
+        '<input class="inp" id="mdBreite" inputmode="decimal" value="' + esc(String(st.breite || '')) + '" placeholder="3,00"></div></div>' +
+    '</div>' +
+    '<div class="field"><label>Hinweis zur Zufahrt</label>' +
+      '<textarea id="mdZufahrtHinweis" rows="2" placeholder="z. B. Bahnunterführung 3,50 m in Blatzheim · Waldweg ab Wendeplatz nur bis 12 t">' +
+      esc(st.zufahrtHinweis || '') + '</textarea></div>' +
+    '<div class="hint">Diese Angaben kommen aus der Baustelle, nicht aus einer Karte. ' +
+      'Die App rechnet damit nichts aus — sie zeigt sie dem Fahrer, bevor er die ' +
+      'Route startet.</div>' +
+
+    '<div class="field" style="margin-top:14px"><label>Bemerkung</label><textarea id="mdBemerkung" rows="3">' + esc(st.bemerkung || '') + '</textarea></div>' +
+    '<div class="hint">Alle Angaben gehören zu dieser Baustelle und bleiben im Gerät.</div>' +
     '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
     '<button class="btn primary" onclick="mastdatenSpeichern()">Speichern</button></div>');
 }
 
 function mastdatenSpeichern() {
   var daten = {
+    zufahrt: $('mdZufahrt').value,
+    hoehe: ($('mdHoehe').value || '').trim(),
+    gewicht: ($('mdGewicht').value || '').trim(),
+    breite: ($('mdBreite').value || '').trim(),
+    zufahrtHinweis: ($('mdZufahrtHinweis').value || '').trim(),
     typ: ($('mdTyp').value || '').trim(),
     abschnitt: ($('mdAbschnitt').value || '').trim(),
     status: ($('mdStatus').value || '').trim(),
     bemerkung: ($('mdBemerkung').value || '').trim()
   };
   S.mastdatenSetzen(aktiveBaustelle(), akte.key, daten).then(function (e) {
-    akte.stamm = e; closeOv(); renderMastakte(); toast('Gespeichert');
+    akte.stamm = e; closeOv(); renderMastakte();
+    zufahrtMarkenLaden().then(mastListeZeichnen);
+    toast('Gespeichert');
   }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
 }
 
@@ -6544,6 +6673,7 @@ function boot() {
      damit erst nach einer Umdrehung — die Rettungsanzeige wartet darauf
      ausdrücklich NICHT. */
   mastListeZeichnen(); renderUebersicht(); renderVerwaltung();
+  zufahrtMarkenLaden().then(mastListeZeichnen);
   dokumenteLaden().then(function () { dokListeZeichnen(); renderUebersicht(); renderVerwaltung(); });
 
   wachAnzeigen();
