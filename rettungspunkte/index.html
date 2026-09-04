@@ -1328,7 +1328,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.15.0';
+var VERSION = '0.15.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -5619,6 +5619,9 @@ function wegCacheLeeren() { wegCache = { baustelle: aktiveBaustelle(), masten: {
    jeden der 75 Masten alle Wege durchgehen. */
 function mastZuwegung(m) {
   if (!m || !m.punkt) return null;
+  // Fehlt der Baustein, gibt es eben keine Zuwegung — aber die Mastakte
+  // öffnet sich. Eine Zusatzanzeige darf nie eine Grundfunktion blockieren.
+  if (typeof G.zuwegungZuMast !== 'function') return null;
   var b = aktiveBaustelle();
   if (wegCache.baustelle !== b) wegCache = { baustelle: b, masten: {} };
   if (!(m.key in wegCache.masten)) {
@@ -5684,7 +5687,7 @@ function renderAkteZuwegung() {
     box.innerHTML = '<div class="zuwegung fehlt"><b>Keine Zuwegung eingezeichnet</b>' +
       '<i>' + (wegeVorhanden()
         ? 'In dieser Baustelle sind Zuwegungen eingezeichnet, aber keine führt bis auf ' +
-          G.formatDistance(G.WEG_ZU_MAST_M) + ' an diesen Mast heran.'
+          G.formatDistance(G.WEG_ZU_MAST_M || 150) + ' an diesen Mast heran.'
         : 'Für diese Baustelle sind keine Zuwegungen in der Karte. ' +
           'Ohne sie weiß die App nicht, wo gefahren werden darf.') +
       ' Vor der Fahrt mit einem schweren Fahrzeug am Bau erfragen.</i></div>';
@@ -5694,7 +5697,8 @@ function renderAkteZuwegung() {
   var e = wegEndeWahl(z);
   var abstand = state.pos
     ? G.distance(state.pos.lat, state.pos.lon, e.lat, e.lon) : null;
-  var lage = state.pos ? G.aufZuwegung(state.pos.lat, state.pos.lon, state.wege) : null;
+  var lage = (state.pos && typeof G.aufZuwegung === 'function')
+    ? G.aufZuwegung(state.pos.lat, state.pos.lon, state.wege) : null;
 
   box.innerHTML = '<div class="zuwegung"><b>ZUWEGUNG AUS DER KARTE</b>' +
     '<u title="' + esc(z.name) + '">' + esc(z.name) + '</u>' +
@@ -5743,7 +5747,7 @@ function planWegFit() {
    in einem Satz, ohne Karte lesen zu müssen. */
 function planWegBand() {
   var el = $('planWeg'); if (!el) return;
-  if (!state.pos) { el.hidden = true; return; }
+  if (!state.pos || typeof G.aufZuwegung !== 'function') { el.hidden = true; return; }
   var lage = G.aufZuwegung(state.pos.lat, state.pos.lon, state.wege);
   el.hidden = false;
   if (!lage.weiss) {
@@ -6950,7 +6954,91 @@ function updateNetz() {
   el.style.display = offline ? 'block' : 'none';
 }
 
+/* ---------- Passen die Programmdateien zusammen? ----------
+
+   index.html kommt aus dem Netz, damit Aktualisierungen sofort ankommen;
+   geo.js und die anderen Bausteine kommen aus dem Offline-Speicher, damit
+   die App im Flugmodus startet. Beim ersten Start nach einer Aktualisierung
+   kann daraus für einen einzigen Lauf eine NEUE index.html mit einer ALTEN
+   geo.js werden — der neue Offline-Speicher ist dann noch nicht fertig.
+
+   Genau das ist nach 0.15.0 passiert: Die Mastakte rief eine Funktion auf,
+   die es in der alten geo.js noch nicht gab. Die Liste stand da, ließ sich
+   antippen — und nichts geschah. Kein Fehler, den ein Nutzer deuten kann.
+
+   Zwei Lehren, beide hier umgesetzt:
+   1. Kein Baustein darf eine Grundfunktion lahmlegen. Fehlt er, arbeitet die
+      App ohne ihn weiter (siehe mastZuwegung, planWegBand).
+   2. Die App merkt es selbst, holt die neuen Dateien und lädt einmal neu —
+      aber nur, solange niemand sie gerade bedient. Im Notfall reißt ihr
+      niemand den Bildschirm unter der Hand weg. */
+
+var BAUSTEINE = [
+  ['geo.js',        function () { return typeof G.zuwegungZuMast === 'function'; }],
+  ['speicher.js',   function () { return typeof SpieSpeicher !== 'undefined'; }],
+  ['dok-modell.js', function () { return typeof SpieDok !== 'undefined'; }],
+  ['paket.js',      function () { return typeof SpiePaket !== 'undefined'; }]
+];
+var bausteineFehlen = [];
+var benutzerAktiv = false;
+
+function bausteinePruefen() {
+  bausteineFehlen = BAUSTEINE.filter(function (b) {
+    try { return !b[1](); } catch (e) { return true; }
+  }).map(function (b) { return b[0]; });
+  return bausteineFehlen.length > 0;
+}
+
+function bausteineMelden() {
+  var box = $('updateBox'); if (!box) return;
+  box.hidden = false;
+  box.innerHTML = '<h3>Aktualisierung noch nicht fertig</h3>' +
+    '<div class="hint" style="margin-top:4px">Ein Teil des Programms ist noch die ' +
+    'alte Fassung (' + esc(bausteineFehlen.join(', ')) + '). Rettung, Masten und ' +
+    'Dokumente arbeiten weiter — einzelne neue Anzeigen fehlen bis zum nächsten ' +
+    'Start mit Internet.</div>' +
+    '<div class="btnrow"><button class="btn primary" onclick="location.reload()">' +
+    'Jetzt neu laden</button></div>';
+}
+
+/* Einmal je Sitzung: den Offline-Speicher zur neuen Fassung zwingen und neu
+   laden. Ohne den Merker liefe die App in eine Endlosschleife, wenn der
+   Server wirklich alte Dateien ausliefert. */
+function bausteineRichten() {
+  var merker = 'sw_mix';
+  try {
+    if (sessionStorage.getItem(merker)) { bausteineMelden(); return; }
+    sessionStorage.setItem(merker, '1');
+  } catch (e) { bausteineMelden(); return; }
+
+  if (navigator.onLine === false || !('serviceWorker' in navigator)) { bausteineMelden(); return; }
+
+  var fertig = false;
+  var neuladen = function () {
+    if (fertig) return;
+    fertig = true;
+    // Wer gerade tippt, bekommt keinen Neustart untergeschoben.
+    if (benutzerAktiv) { bausteineMelden(); return; }
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', neuladen);
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ typ: 'aktualisieren' });
+  }
+  (navigator.serviceWorker.getRegistration
+    ? navigator.serviceWorker.getRegistration().then(function (reg) { return reg && reg.update(); })
+    : Promise.resolve()
+  ).catch(function () { /* auch ohne Erfolg wird gleich neu geladen */ });
+  setTimeout(neuladen, 2500);
+}
+
 function boot() {
+  /* Ganz am Anfang: Passen die Programmdateien zusammen? Erst danach darf
+     irgendetwas eine der neueren Funktionen anfassen. */
+  var gemischt = bausteinePruefen();
+  document.addEventListener('pointerdown', function () { benutzerAktiv = true; },
+    { once: true, capture: true });
+
   if (load(K_THEME, 'dark') === 'light') document.body.classList.add('light');
   grossSetzen(!!load(K_GROSS, false));
   state.admin = !!load(K_ADMIN, false);
@@ -6981,6 +7069,9 @@ function boot() {
   updateNetz();
   initLocation();
   setInterval(function () { if (state.geo === 'ok') { $('geoSub').textContent = accuracySub(); renderMessage(); } }, 30000);
+
+  // Erst wenn die Rettung steht, kümmert sich die App um sich selbst.
+  if (gemischt) bausteineRichten();
 
   // Bewusst kein Begrüßungsfenster: Beim Öffnen soll sofort der Rettungspunkt
   // dastehen, nicht ein Text, den man erst wegtippen muss. Hilfe steckt im „?".

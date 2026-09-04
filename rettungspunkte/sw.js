@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-651a02a1';
+var CACHE = 'rettungspunkte-7f99372d';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
@@ -120,17 +120,34 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Alles andere: erst Speicher (schnell und offline sicher), dann Netz.
+  /* Alles andere: erst Speicher (schnell und offline sicher), dann Netz.
+
+     Für die Programmdateien wird der Speicher dabei im Hintergrund
+     nachgezogen. Grund: index.html kommt aus dem Netz, damit Aktualisierungen
+     ankommen — die übrigen Dateien aus dem Speicher. Nach einer
+     Aktualisierung ergab das für einen Lauf eine neue index.html mit alten
+     Bausteinen; in 0.15.0 ließ sich dadurch kein Mast mehr öffnen. Ausgeliefert
+     wird weiterhin sofort die gespeicherte Fassung — der Flugmodus-Start
+     bleibt unangetastet —, aber der Speicher holt auf, ohne auf den nächsten
+     Worker zu warten. */
+  var istProgramm = PFLICHT.some(function (u) {
+    return url.pathname === new URL(u, self.location).pathname;
+  });
+
   e.respondWith(
     caches.match(req).then(function (treffer) {
-      if (treffer) return treffer;
-      return fetch(req).then(function (a) {
+      var ausDemNetz = fetch(req).then(function (a) {
         if (a && a.ok && a.status === 200 && a.type === 'basic') {
           var kopie = a.clone();
           caches.open(CACHE).then(function (c) { c.put(req, kopie); });
         }
         return a;
-      }).catch(function () {
+      });
+      if (treffer) {
+        if (istProgramm) e.waitUntil(ausDemNetz.catch(function () { return null; }));
+        return treffer;
+      }
+      return ausDemNetz.catch(function () {
         return new Response('', { status: 504, statusText: 'offline' });
       });
     })

@@ -1,6 +1,6 @@
 {
-  "versionCode": 34,
-  "versionName": "0.15.0",
+  "versionCode": 35,
+  "versionName": "0.15.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Wo darf der Lkw lang: Die Zuwegungen aus der Karte der Baustelle hängen jetzt am Mast. Die Mastakte nennt den Weg, seine Länge und den Abzweig; „Zum Weganfang\" führt bis an ein Ende der Zuwegung statt quer über den Acker zum Mast. Im Lageplan ist der Weg hervorgehoben, und beim Fahren steht darüber, ob man noch auf der Zuwegung ist. Beschränkungen (Höhe, Gewicht, Breite) lassen sich am Weg eintragen und gelten dann für alle Masten daran. Wo kein Weg eingezeichnet ist, sagt die App das ausdrücklich."
+  "notes": "Behebt: Nach dem Update auf 0.15.0 liess sich beim ersten Start kein Mast mehr oeffnen — die App hatte die neue index.html, aber noch die alte geo.js aus dem Offline-Speicher. Die Mastakte geht jetzt auch dann auf, die App erkennt den Zustand, sagt ihn und holt die neuen Dateien nach. Zusatzanzeigen koennen keine Grundfunktion mehr blockieren."
 }
