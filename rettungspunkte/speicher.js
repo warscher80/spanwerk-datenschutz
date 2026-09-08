@@ -99,6 +99,26 @@ var SpieSpeicher = (function () {
 
   /* Ablegen heißt: Angaben und Datei in EINEM Vorgang. Bricht er ab, ist
      nichts halb da — kein Eintrag ohne Datei, keine Datei ohne Eintrag. */
+  /* Dateien werden als rohe Bytes abgelegt, nicht als Blob.
+
+     Grund: Nicht jede Browser-Maschine nimmt einen Blob in der Ablage an —
+     in der WebKit-Maschine der Prüfungen scheitert genau das, und zwar mit
+     einem leeren Fehler, der die ganze Ablage blockiert. Bytes nimmt jede.
+     Der Dateityp steht daneben, statt im Blob zu stecken; damit ist er auch
+     dann noch da, wenn er beim Import gefehlt hat — das iPhone zeigt sonst
+     „Unknown" statt des Plans.
+
+     Ältere Ablagen enthalten noch Blobs; dateiHolen kommt mit beidem klar. */
+  function alsBytes(datei) {
+    if (!datei) return Promise.resolve(null);
+    if (datei instanceof ArrayBuffer) return Promise.resolve(datei);
+    if (datei.buffer && typeof datei.byteLength === 'number') {
+      return Promise.resolve(datei.slice().buffer);      // eigene Kopie, kein Ausschnitt
+    }
+    if (typeof datei.arrayBuffer === 'function') return datei.arrayBuffer();
+    return Promise.resolve(null);
+  }
+
   function dokAblegen(dok, datei) {
     var eintrag = {
       id: dok.id || kennung(),
@@ -115,10 +135,15 @@ var SpieSpeicher = (function () {
       art: dok.art || '',
       abgelegt: dok.abgelegt || Date.now()
     };
-    return lauf(['dokumente', 'dateien'], 'readwrite', function (t) {
-      t.objectStore('dokumente').put(eintrag);
-      if (datei) t.objectStore('dateien').put({ id: eintrag.id, datei: datei });
-      return eintrag;
+    return alsBytes(datei).then(function (bytes) {
+      if (bytes && !eintrag.groesse) eintrag.groesse = bytes.byteLength;
+      return lauf(['dokumente', 'dateien'], 'readwrite', function (t) {
+        t.objectStore('dokumente').put(eintrag);
+        if (bytes) {
+          t.objectStore('dateien').put({ id: eintrag.id, bytes: bytes, mime: eintrag.mime });
+        }
+        return eintrag;
+      });
     });
   }
 
@@ -167,7 +192,11 @@ var SpieSpeicher = (function () {
   function dateiHolen(id) {
     return bereit().then(function (d) {
       return anfrage(d.transaction('dateien').objectStore('dateien').get(id));
-    }).then(function (e) { return e ? e.datei : null; });
+    }).then(function (e) {
+      if (!e) return null;
+      if (e.bytes) return new Blob([e.bytes], { type: e.mime || '' });
+      return e.datei || null;                 // ältere Ablage: dort steckt ein Blob
+    });
   }
 
   /* ---------- Mastdaten (Typ, Abschnitt, Status, Bemerkung) ---------- */

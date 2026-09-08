@@ -1,6 +1,6 @@
 {
-  "versionCode": 41,
-  "versionName": "0.18.2",
+  "versionCode": 42,
+  "versionName": "0.19.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Behebt: Die untere Leiste blieb beim Scrollen mitten im Bild stehen. Kopf und Navigation sind jetzt deckend und ohne Milchglas-Effekt — das war unter iOS der Auslöser. Dazu kein Gummiband mehr am Seitenende und kein versehentliches Neuladen durch Ziehen von oben. Außerdem aus 0.18: In der Spanntabelle das Seil antippen und daraus einen Regulierwert mit dem Sollwert aus dieser Zeile machen."
+  "notes": "Pläne sind jetzt am Handy zu lesen. Statt „Unknown — Dokument\" zeichnet die App das PDF selbst: Seiten blättern, Größer, Kleiner, Einpassen — im Gerät und ohne Internet. Außerdem bekommt jede Datei ihren Dateityp, auch wenn er beim Import gefehlt hat, und die Ablage speichert Dateien robuster."
 }

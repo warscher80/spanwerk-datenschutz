@@ -728,6 +728,10 @@
   .planbox{position:fixed;inset:0;z-index:75;background:#000;display:none;flex-direction:column}
   .planbox.on{display:flex}
   .planbild{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:#111}
+  #planPdfBild{display:block;margin:auto;background:#fff;
+    box-shadow:0 2px 18px -6px rgba(0,0,0,.6)}
+  .planladen{padding:26px 18px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5}
+  .planseite{font-size:12.5px;font-weight:800;color:var(--muted);padding:0 4px;align-self:center}
   .planbild img{max-width:none;transform-origin:center center;display:block}
   .planbild iframe, .planbild embed{width:100%;height:100%;border:0;background:#fff}
   .planfuss2{background:#000;color:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -1394,7 +1398,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.18.2';
+var VERSION = '0.19.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6906,7 +6910,130 @@ function dokWegFragen(id) {
    PLANANSICHT
    ========================================================================= */
 
-var plan2 = { id: '', url: '', zoom: 1, dreh: 0 };
+var plan2 = { id: '', url: '', datei: null, zoom: 1, dreh: 0 };
+
+/* ---------- PDF im Gerät anzeigen ----------
+
+   Am iPhone blieb der PDF-Rahmen leer, und der Ausweg „in neuem Tab" endete
+   bei „Unknown — Dokument": Safari zeigt PDFs aus dem Offline-Speicher weder
+   in einem Rahmen noch zuverlässig in einem eigenen Tab. Auf einer Baustelle
+   ist ein Plan, den man nicht lesen kann, dasselbe wie kein Plan.
+
+   Deshalb zeichnet die App das PDF jetzt selbst — mit pdf.js auf eine
+   Leinwand. Das läuft im Gerät, ohne Internet, und sieht auf jedem Telefon
+   gleich aus.
+
+   Die Bibliothek wird erst geladen, wenn wirklich ein PDF geöffnet wird
+   (1,8 MB). Sie steht deshalb NICHT unter den Pflichtdateien: Ohne sie
+   startet, ortet und meldet die App genauso — nur Pläne ansehen geht dann
+   nicht, und das sagt sie dann auch. */
+
+var pdfLib = null, pdfLaedt = null;
+var pdfAkt = { doc: null, seite: 1, seiten: 1, zoom: 1, laeuft: false };
+
+function pdfBibliothek() {
+  if (pdfLib) return Promise.resolve(pdfLib);
+  if (pdfLaedt) return pdfLaedt;
+  pdfLaedt = import('./pdfjs.mjs').then(function (m) {
+    var lib = m.default || m;
+    // Der Rechenknecht läuft in einem eigenen Faden, damit die Anzeige beim
+    // Zeichnen eines A0-Blattes nicht stehenbleibt.
+    if (lib.GlobalWorkerOptions) lib.GlobalWorkerOptions.workerSrc = './pdfjs-worker.mjs';
+    pdfLib = lib;
+    return lib;
+  }).catch(function (e) { pdfLaedt = null; throw e; });
+  return pdfLaedt;
+}
+
+function pdfOeffnen(datei, dateiname) {
+  var bild = $('planBild');
+  bild.innerHTML = '<div class="planladen">Plan wird geöffnet …</div>';
+  $('planWerkzeuge').innerHTML = '';
+
+  return pdfBibliothek().then(function (lib) {
+    return datei.arrayBuffer().then(function (puffer) {
+      return lib.getDocument({ data: new Uint8Array(puffer) }).promise;
+    });
+  }).then(function (doc) {
+    pdfAkt.doc = doc; pdfAkt.seiten = doc.numPages; pdfAkt.seite = 1; pdfAkt.zoom = 1;
+    bild.innerHTML = '<canvas id="planPdfBild"></canvas>';
+    pdfWerkzeuge();
+    return pdfZeichnen(true);
+  }).catch(function (e) {
+    /* Kein Halbwissen: Wenn die Anzeige nicht geht, steht das da — mit dem
+       Weg, der noch bleibt. */
+    bild.innerHTML = '<div class="planladen"><b>Dieser Plan lässt sich hier nicht anzeigen.</b><br>' +
+      esc(String(e && e.message || e)) + '<br><br>Ohne Internet fehlt womöglich die ' +
+      'Anzeige-Bibliothek — einmal mit Netz öffnen, dann bleibt sie im Gerät.</div>';
+    $('planWerkzeuge').innerHTML =
+      '<button class="btn" onclick="planExtern()">Woanders öffnen</button>';
+  });
+}
+
+function pdfWerkzeuge() {
+  $('planWerkzeuge').innerHTML =
+    (pdfAkt.seiten > 1
+      ? '<button class="btn" onclick="pdfSeite(-1)">◀</button>' +
+        '<span class="planseite" id="planSeite"></span>' +
+        '<button class="btn" onclick="pdfSeite(1)">▶</button>'
+      : '') +
+    '<button class="btn" onclick="pdfZoom(1.5)">Größer</button>' +
+    '<button class="btn" onclick="pdfZoom(1/1.5)">Kleiner</button>' +
+    '<button class="btn" onclick="pdfPassend()">Einpassen</button>';
+}
+
+/* Auf ein A0-Blatt gehört Auflösung: Ein Bewehrungsplan ist unbrauchbar,
+   wenn die Maße verschwimmen. Begrenzt wird trotzdem — sonst sprengt die
+   Leinwand den Speicher des Telefons. */
+var PDF_MAX_PUNKTE = 16e6;
+
+function pdfZeichnen(einpassen) {
+  if (!pdfAkt.doc || pdfAkt.laeuft) return Promise.resolve();
+  pdfAkt.laeuft = true;
+  return pdfAkt.doc.getPage(pdfAkt.seite).then(function (seite) {
+    var c = $('planPdfBild'); if (!c) return;
+    var rahmen = $('planBild').getBoundingClientRect();
+    var roh = seite.getViewport({ scale: 1 });
+    if (einpassen) {
+      pdfAkt.zoom = Math.min(rahmen.width / roh.width, rahmen.height / roh.height) || 1;
+    }
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var skala = pdfAkt.zoom * dpr;
+    var sicht = seite.getViewport({ scale: skala });
+    if (sicht.width * sicht.height > PDF_MAX_PUNKTE) {
+      skala = skala * Math.sqrt(PDF_MAX_PUNKTE / (sicht.width * sicht.height));
+      sicht = seite.getViewport({ scale: skala });
+    }
+    c.width = Math.max(1, Math.round(sicht.width));
+    c.height = Math.max(1, Math.round(sicht.height));
+    c.style.width = Math.round(sicht.width / dpr) + 'px';
+    c.style.height = Math.round(sicht.height / dpr) + 'px';
+    var s = $('planSeite');
+    if (s) s.textContent = pdfAkt.seite + ' / ' + pdfAkt.seiten;
+    return seite.render({ canvasContext: c.getContext('2d'), viewport: sicht }).promise;
+  }).then(function () { pdfAkt.laeuft = false; })
+    .catch(function () { pdfAkt.laeuft = false; });
+}
+
+function pdfSeite(schritt) {
+  var n = pdfAkt.seite + schritt;
+  if (n < 1 || n > pdfAkt.seiten) return;
+  pdfAkt.seite = n;
+  pdfZeichnen(false);
+}
+
+function pdfZoom(f) {
+  pdfAkt.zoom = Math.max(0.05, Math.min(8, pdfAkt.zoom * f));
+  pdfZeichnen(false);
+}
+
+function pdfPassend() { pdfZeichnen(true); }
+
+function pdfSchliessen() {
+  if (pdfAkt.doc && pdfAkt.doc.destroy) { try { pdfAkt.doc.destroy(); } catch (e) {} }
+  pdfAkt.doc = null; pdfAkt.seite = 1; pdfAkt.seiten = 1; pdfAkt.laeuft = false;
+}
+
 
 function planOeffnen(id) {
   var d = null;
@@ -6917,6 +7044,11 @@ function planOeffnen(id) {
     if (!datei) { toast('Datei fehlt in der Ablage'); return; }
     planFreigeben();
     plan2.id = id; plan2.zoom = 1; plan2.dreh = 0;
+    /* Auch schon abgelegte Dateien ohne Typangabe werden hier gerettet —
+       sonst müsste man sie neu importieren, um sie lesen zu können. */
+    var typ = D.mimeFuer(d.dateiname, datei.type || d.mime);
+    if (typ && datei.type !== typ) datei = new Blob([datei], { type: typ });
+    plan2.datei = datei;
     plan2.url = URL.createObjectURL(datei);
 
     /* Alte Revision? Dann steht das ganz oben und rot, mit dem Weg zur
@@ -6949,12 +7081,9 @@ function planOeffnen(id) {
         '<button class="btn" onclick="planDrehen()">Drehen</button>' +
         '<button class="btn" onclick="planPassend()">Einpassen</button>';
     } else {
-      /* PDF: Der Browser zeigt es selbst an, so gut er kann. Auf manchen
-         Geräten (vor allem am iPhone) bleibt der Rahmen leer — dann führt der
-         Knopf in einen eigenen Tab, statt zu behaupten, es ginge. */
-      bild.innerHTML = '<iframe id="planPdf" title="' + esc(d.dateiname) + '" src="' + plan2.url + '"></iframe>';
-      $('planWerkzeuge').innerHTML =
-        '<button class="btn" onclick="planExtern()">In neuem Tab öffnen</button>';
+      /* PDF: von der App selbst gezeichnet. Der frühere Rahmen blieb am
+         iPhone leer, und der Ausweg „neuer Tab" endete bei „Unknown". */
+      pdfOeffnen(plan2.datei || datei, d.dateiname);
     }
     $('planBox').classList.add('on');
     wachVerlaengern();
@@ -6976,8 +7105,10 @@ function planBildSetzen() {
 function planExtern() { if (plan2.url) window.open(plan2.url, '_blank'); }
 
 function planFreigeben() {
+  pdfSchliessen();
   if (plan2.url) { try { URL.revokeObjectURL(plan2.url); } catch (e) { /* egal */ } }
   plan2.url = '';
+  plan2.datei = null;
 }
 
 function planSchliessen() {
@@ -7377,7 +7508,10 @@ function paketUebernehmen(ziel, ergaenzen) {
         var mast = q.mastSchluessel ? mastFinden(q.mastSchluessel) : null;
         if (mast) { q.mastSchluessel = mast.key; q.mastNr = mast.nr; }
         var f = $('pkStand'); if (f) f.textContent = (++n) + ' von ' + gesamt + ' Dokumenten …';
-        return S.dokAblegen(q, new Blob([datei], { type: dok.mime || '' })).catch(function () { return null; });
+        // Ohne Typangabe zeigt das iPhone „Unknown" statt des Plans.
+        var typ = D.mimeFuer(q.dateiname, dok.mime);
+        q.mime = typ;
+        return S.dokAblegen(q, new Blob([datei], { type: typ })).catch(function () { return null; });
       });
     });
   }

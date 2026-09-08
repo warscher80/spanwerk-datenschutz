@@ -301,6 +301,22 @@ var SpieDok = (function () {
 
   function istErlaubt(name, mime) { return !!dateiArt(name, mime); }
 
+  /* Der Dateityp aus der Endung.
+
+     Ohne ihn liefert der Browser eine Datei „ohne Art" aus, und das iPhone
+     zeigt statt des Plans „Unknown — Dokument". Genau so ist es passiert:
+     Ein Paket aus dem Büro brachte die Pläne ohne Typangabe mit, und am
+     Handy war der Plan nicht zu lesen. Die App verlässt sich deshalb nicht
+     mehr darauf, dass der Typ mitgeliefert wird. */
+  var TYPEN = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+                png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+
+  function mimeFuer(name, mime) {
+    if (mime && mime !== 'application/octet-stream') return mime;
+    var e = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    return (e && TYPEN[e[1]]) || mime || '';
+  }
+
   return {
     KATEGORIEN: KATEGORIEN,
     GRUPPEN: GRUPPEN,
@@ -318,6 +334,7 @@ var SpieDok = (function () {
     dateiAuswerten: dateiAuswerten,
     pruefbedarf: pruefbedarf,
     dateiArt: dateiArt,
+    mimeFuer: mimeFuer,
     istErlaubt: istErlaubt
   };
 })();
