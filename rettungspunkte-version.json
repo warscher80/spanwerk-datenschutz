@@ -1,6 +1,6 @@
 {
-  "versionCode": 50,
-  "versionName": "0.25.0",
+  "versionCode": 51,
+  "versionName": "0.25.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Die Unterlagen kommen jetzt MIT der App. Bisher mussten Pläne und Spanntabellen als Paket eingelesen werden — das entfällt: Beim ersten Start trägt die App sie selbst nach, ohne einen Knopfdruck. Für Blatzheim sind das fünf Gründungspläne und fünf Spanntabellen (EUROPTEN, 09.11.2022). Die eigene Baustelle wechselt dabei nicht, die Rettung wartet nicht, und beim zweiten Start kommt nichts doppelt. In der Verwaltung steht unter „Mitgelieferte Unterlagen“, was angekommen ist. Die App ist dadurch rund 5 MB größer."
+  "notes": "Die Unterlagen kommen jetzt MIT der App. Bisher mussten Pläne und Spanntabellen als Paket eingelesen werden — das entfällt: Beim ersten Start trägt die App sie selbst nach, ohne einen Knopfdruck. Für Blatzheim sind das fünf Gründungspläne und fünf Spanntabellen (EUROPTEN, 09.11.2022). Die eigene Baustelle wechselt dabei nicht, die Rettung wartet nicht, und beim zweiten Start kommt nichts doppelt. In der Verwaltung steht unter „Mitgelieferte Unterlagen“, was angekommen ist. Die App ist dadurch rund 5 MB größer. Nachtrag 0.25.1: Eine mitgelieferte Lieferung steht jetzt nur noch an einer Stelle — Service Worker und Ausliefer-Werkzeug lesen dieselbe Liste wie die App. So kann keine Datei mehr vergessen werden, und auf der Baustelle fehlt kein Plan."
 }

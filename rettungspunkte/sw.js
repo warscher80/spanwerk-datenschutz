@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-b2f245c3';
+var CACHE = 'rettungspunkte-dd6d4a0a';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
@@ -35,7 +35,7 @@ var PFLICHT = [
    würde sich sonst wegen einer Bequemlichkeitsfunktion als „nicht offline
    einsatzbereit" bezeichnen. */
 var KUER = [
-  './unterlagen-blatzheim.zip',
+  './daten-unterlagen.js',
   './jsqr.js',
   /* pdf.js zeichnet die Pläne im Gerät. 1,8 MB — nützlich, aber kein Grund,
      den Offline-Betrieb abzulehnen: Ohne sie startet, ortet und meldet die
@@ -47,6 +47,20 @@ var KUER = [
   './icon-192.png',
   './icon-512.png'
 ];
+
+/* Die mitgelieferten Unterlagen (Pläne, Spanntabellen) stehen NICHT von Hand
+   in dieser Liste. Sie stünden sonst an vier Stellen — Liste, Worker,
+   Ausliefer-Werkzeug, App — und eine davon wird vergessen. Gelesen wird
+   deshalb dieselbe Liste, die auch die App liest.
+
+   Scheitert das, läuft der Worker trotzdem: Die Lieferung ist Kür, keine
+   Pflicht. Ohne sie startet, ortet und meldet die App genauso. */
+try {
+  importScripts('./daten-unterlagen.js');
+  (self.SPIE_UNTERLAGEN || []).forEach(function (u) {
+    if (u && u.datei && KUER.indexOf(u.datei) < 0) KUER.push(u.datei);
+  });
+} catch (e) { /* ohne Lieferung weiter — sie ist Kür */ }
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
