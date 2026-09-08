@@ -638,6 +638,11 @@
   .spanntab td{text-align:right;padding:5px 0 5px 10px;font-variant-numeric:tabular-nums;
     border-top:1px solid var(--line);font-size:calc(14px * var(--gross));white-space:nowrap}
   .spanntab td.seil{text-align:left;padding-left:0;font-weight:800}
+  /* 44 Pixel hoch und breit: Auf der Baustelle wird mit Handschuh getippt. */
+  .seilbtn{min-width:44px;min-height:44px;padding:0 10px;border-radius:10px;
+    border:1px solid var(--line);background:var(--card2);color:var(--txt);
+    font:inherit;font-weight:800;font-size:calc(15px * var(--gross));cursor:pointer}
+  .seilbtn:active{background:var(--blue);border-color:var(--blue);color:#fff}
   .spanntab td.wert{font-weight:800;font-size:calc(16px * var(--gross))}
   .spannfuss{font-size:11.5px;color:var(--muted2);margin-top:9px;line-height:1.45}
   .zuwegung.fehlt{border-color:var(--warn)}
@@ -1381,7 +1386,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.17.0';
+var VERSION = '0.18.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -5599,7 +5604,7 @@ function mastListeZeichnen() {
 /* ---------- Mastakte ---------- */
 
 var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '',
-             zuwegung: null, wegStamm: null, wegEnde: null, spannTemp: 10 };
+             zuwegung: null, wegStamm: null, wegEnde: null, spannTemp: 10, spannListe: [] };
 
 /* Merkzeichen für die Mastliste: welcher Mast hat eine eingeschränkte
    Zufahrt? Einmal je Baustelle geladen — die Liste soll auch bei tausend
@@ -6138,6 +6143,11 @@ function spannHtml() {
     (gruppen[k] || (gruppen[k] = { tabelle: x.tabelle, zeilen: [] })).zeilen.push(x);
   });
 
+  /* Die gezeigten Zeilen merken: „Ist eintragen" muss genau die Zeile
+     wiederfinden, die der Monteur vor sich hat — Seil, Feld und Temperatur. */
+  akte.spannListe = e;
+  akte.spannTemp = temp;
+
   var raus = '<div class="tempwahl"><span>Temperatur laut Tabelle</span>' + chips + '</div>';
 
   Object.keys(gruppen).forEach(function (k) {
@@ -6157,7 +6167,11 @@ function spannHtml() {
       g.zeilen.map(function (z) {
         var w = SpieSpann.beiTemperatur(z, temp);
         if (!w) return '';
-        return '<tr><td class="seil" title="' + esc(z.seil.seiltyp) + '">' + esc(z.seil.seil) + '</td>' +
+        /* Das Seil ist der Knopf. Ein eigener Knopf in der letzten Spalte war
+           auf einem 390-Pixel-Telefon nur nach seitlichem Rollen erreichbar —
+           die erste Spalte steht immer im Bild. */
+        return '<tr><td class="seil"><button class="seilbtn" title="' + esc(z.seil.seiltyp) +
+          '" onclick="spannIstEintragen(' + e.indexOf(z) + ')">' + esc(z.seil.seil) + '</button></td>' +
           '<td class="wert">' + zahl2(w.durchhang) + '</td>' +
           '<td>' + zahl2(w.durchhangRed) + '</td>' +
           (mitVersatz ? '<td>' + (w.versatz == null ? '—' : zahl2(w.versatz)) + '</td>' : '') +
@@ -6166,7 +6180,9 @@ function spannHtml() {
           '<td>' + zahl2(z.feld.spannweite) + '</td></tr>';
       }).join('') +
       '</tbody></table></div>' +
-      '<div class="spannfuss">Durchhang und Spannweite in m · Zug in N/mm²' +
+      '<div class="spannfuss"><b>Seil antippen</b>, um den gemessenen Wert einzutragen — ' +
+        'der Sollwert kommt dann aus dieser Zeile.<br>' +
+        'Durchhang und Spannweite in m · Zug in N/mm²' +
         (mitVersatz ? ' · Versatzmaß in m' : '') + '<br>' +
         esc(t.leitung || '') + (t.abschnitt ? ' · ' + esc(t.abschnitt) : '') + '<br>' +
         'Quelle: ' + esc(t.quelle || 'Spanntabelle') +
@@ -6178,6 +6194,30 @@ function spannHtml() {
   raus += '<div class="hint">Zwischenwerte rechnet die App nicht aus. Die Tabelle nennt ' +
     SpieSpann.temperaturen(e).length + ' Temperaturen; was dazwischen gilt, steht nicht darin.</div>';
   return raus;
+}
+
+/* Vom Sollwert zum gemessenen Wert — ohne Abtippen.
+
+   Der Sollwert wird aus der Tabelle übernommen, nicht errechnet, und die
+   Bezeichnung sagt vollständig, wofür er gilt: Seil, Feld und Temperatur.
+   Ein Regulierwert „Durchhang 9,03" ohne diese drei Angaben wäre in vier
+   Wochen nicht mehr zuzuordnen.
+
+   Eine Toleranz wird NICHT vorgeschlagen. Sie steht in den Unterlagen der
+   Baustelle; die App kennt sie nicht und erfindet sie auch nicht. */
+function spannIstEintragen(i) {
+  var e = (akte.spannListe || [])[i]; if (!e) return;
+  var w = SpieSpann.beiTemperatur(e, akte.spannTemp); if (!w) return;
+  var t = e.tabelle;
+  var temp = (w.temperatur > 0 ? '+' : '') + w.temperatur + ' °C';
+  wertBearbeiten('', {
+    bezeichnung: 'Durchhang Seil ' + e.seil.seil + ' · Feld ' + akte.mast.nr + '→' + e.nachMast +
+      ' · ' + temp,
+    soll: zahl2(w.durchhang),
+    einheit: 'm',
+    bemerkung: (t.zustand || '') + ' · Spannweite ' + zahl2(e.feld.spannweite) + ' m · ' +
+      'Soll aus ' + (t.quelle || 'Spanntabelle')
+  });
 }
 
 /* ---------- Import in der Verwaltung ---------- */
@@ -6429,6 +6469,34 @@ function bemerkungHtml() {
 /* ---------- Regulierwerte ----------
    Felder und Ablauf stehen. Fachliche Sollwerte und Toleranzen kommen aus den
    Unterlagen der Baustelle — die App erfindet hier nichts. */
+/* Zahl aus einem Eingabefeld: „9,03" und „9.03" sind dieselbe Zahl.
+   Alles andere (leer, „ca. 9", „—") ist keine und wird auch nicht dazu
+   gemacht. */
+function wertZahl(x) {
+  if (x == null) return null;
+  var t = String(x).trim().replace(',', '.');
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+  var n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+
+/* Ist minus Soll — eine Subtraktion, keine Beurteilung. Ob die Abweichung
+   zulässig ist, entscheidet die Toleranz aus den Unterlagen; ist keine
+   eingetragen, sagt die App dazu nichts. */
+function wertAbweichung(w) {
+  var soll = wertZahl(w.soll), ist = wertZahl(w.ist);
+  if (soll === null || ist === null) return null;
+  var d = ist - soll;
+  var tol = wertZahl(w.toleranz);
+  return {
+    diff: d,
+    text: (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(2).replace('.', ',') +
+          (w.einheit ? ' ' + w.einheit : ''),
+    tol: tol,
+    drin: tol === null ? null : Math.abs(d) <= Math.abs(tol)
+  };
+}
+
 function werteHtml() {
   var kopf = '<div class="btnrow" style="margin-top:0">' +
     '<button class="btn sm" onclick="wertBearbeiten(&#39;&#39;)">Wert hinzufügen</button></div>';
@@ -6445,6 +6513,15 @@ function werteHtml() {
       '<div class="doksub">Soll ' + esc(String(w.soll || '—')) + ' · Ist ' + esc(String(w.ist || '—')) +
         (w.einheit ? ' ' + esc(w.einheit) : '') +
         (w.toleranz ? ' · Toleranz ' + esc(String(w.toleranz)) : '') + '</div>' +
+      (function () {
+        var a = wertAbweichung(w);
+        if (!a) return '';
+        var f = a.drin === null ? 'var(--muted)' : (a.drin ? 'var(--ok)' : 'var(--bad)');
+        return '<div class="doksub" style="color:' + f + '"><b>Ist − Soll: ' + esc(a.text) + '</b>' +
+          (a.drin === null ? ' — ohne Toleranz beurteilt die App das nicht'
+                           : (a.drin ? ' — innerhalb der Toleranz' : ' — außerhalb der Toleranz')) +
+          '</div>';
+      })() +
       '<div class="doksub">' + (w.messdatum ? esc(w.messdatum) + ' · ' : '') +
         (w.bearbeiter ? esc(w.bearbeiter) + ' · ' : '') +
         '<b style="color:' + farbe + '">' + esc(w.status || 'offen') + '</b></div>' +
@@ -6454,11 +6531,14 @@ function werteHtml() {
   return zeilen + kopf;
 }
 
-function wertBearbeiten(id) {
+function wertBearbeiten(id, vorgabe) {
   var w = null;
   for (var i = 0; i < akte.werte.length; i++) if (akte.werte[i].id === id) w = akte.werte[i];
   w = w || { bezeichnung: '', soll: '', ist: '', einheit: '', toleranz: '',
              messdatum: new Date().toISOString().slice(0, 10), bearbeiter: '', bemerkung: '', status: 'offen' };
+  /* Eine Vorbelegung aus der Spanntabelle füllt Bezeichnung, Soll und
+     Einheit — den Istwert füllt der Mensch, sonst wäre er erfunden. */
+  if (vorgabe) { for (var k in vorgabe) if (Object.prototype.hasOwnProperty.call(vorgabe, k)) w[k] = vorgabe[k]; }
   /* Die Kennungen stehen hier ausgeschrieben und nicht als Argument einer
      Hilfsfunktion: Die Statikprüfung vergleicht $('…') gegen die id="…" im
      Text und findet dynamisch zusammengesetzte Kennungen nicht. Diese Prüfung

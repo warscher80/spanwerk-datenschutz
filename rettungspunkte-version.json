@@ -1,6 +1,6 @@
 {
-  "versionCode": 38,
-  "versionName": "0.17.0",
+  "versionCode": 39,
+  "versionName": "0.18.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Leitungsnummer je Baustelle: In der Karte heißt der Mast „18\", in den Unterlagen „4236/18\". Trägt man die Leitung (Bl.-Nr.) ein, gilt beides als derselbe Mast — die App rechnet beim Import vor, welche Nummer das auflöst, stellt es aber nicht selbst um. Außerdem neu: Unterlagen nachtragen. Ein Ergänzungspaket bringt Pläne, Mastdaten und Spanntabellen dazu, kann keine Baustelle ersetzen und löscht nichts."
+  "notes": "In der Spanntabelle das Seil antippen — daraus wird ein Regulierwert mit dem Sollwert aus genau dieser Zeile, samt Seil, Feld und Temperatur in der Bezeichnung. Istwert und Toleranz bleiben leer: den einen misst ein Mensch, die andere steht in den Unterlagen. Die Liste zeigt danach Ist minus Soll — ohne eingetragene Toleranz ohne Urteil."
 }
