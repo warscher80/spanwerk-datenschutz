@@ -183,6 +183,9 @@ var SpiePaket = (function () {
       paketVersion: PAKET_VERSION,
       erzeugt: daten.erzeugt || null,
       titel: daten.titel || '',
+      /* Ergänzungspaket: bringt Unterlagen nach, ersetzt nie eine Baustelle.
+         Ein Paket ohne Rettungspunkte darf keine überschreiben können. */
+      ergaenzung: !!daten.ergaenzung,
       punkte: daten.punkte || [],
       kontakte: daten.kontakte || [],
       wege: daten.wege || [],

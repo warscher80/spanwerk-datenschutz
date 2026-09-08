@@ -1055,6 +1055,18 @@
         <button class="bereich" onclick="setTab('masten')">
           <b>Masten</b><span id="vwMasten">Mastakten</span></button>
       </div>
+      <!-- In der Karte heißt der Mast „18", in den Unterlagen „4236/18".
+           Ohne diese Nummer kann die App nicht wissen, dass das derselbe
+           Mast ist — und sie rät es nicht. -->
+      <div class="field" style="margin-top:12px"><label>Leitung dieser Baustelle (Bl.-Nr.)</label>
+        <div style="display:flex;gap:8px">
+          <input class="inp" id="leitungFeld" inputmode="numeric" placeholder="z. B. 4236"
+                 style="flex:1" onchange="leitungSpeichern()">
+          <button class="btn sm" onclick="leitungSpeichern()">Merken</button>
+        </div>
+      </div>
+      <div class="hint" id="leitungHinweis">Steht auf jedem Plan im Schriftfeld („Bl. 4236").
+        Mit ihr gilt „4236/18" aus den Unterlagen als derselbe Mast wie „18" in der Karte.</div>
     </div>
     <!-- Der Weg vom Büro auf die Baustelle, solange es keine gemeinsame
          Ablage gibt — und danach der Inhalt genau dieses Ordners. -->
@@ -1369,7 +1381,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.16.1';
+var VERSION = '0.17.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1394,7 +1406,8 @@ var K_THEME = 'spie_theme', K_SEEN = 'spie_onboarded', K_ADMIN = 'spie_admin',
     K_LETZTE_POS = 'spie_letzte_position', K_WACH = 'spie_bildschirm_wach';
 
 // Je Baustelle — werden beim Wechsel umgehängt.
-var K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_WEGE, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT;
+var K_POINTS, K_CONTACTS, K_SITE, K_PAKET, K_WEGE, K_MIGRATION, K_SICHERUNG, K_NOTRUF_GESETZT,
+    K_LEITUNG;
 
 function schluesselSetzen(id) {
   var anhang = (id && id !== BAUSTELLE_ERSTE) ? '__' + id : '';
@@ -1406,6 +1419,7 @@ function schluesselSetzen(id) {
   K_MIGRATION      = 'spie_migration' + anhang;
   K_SICHERUNG      = 'spie_sicherung' + anhang;
   K_NOTRUF_GESETZT = 'spie_notruf_gesetzt' + anhang;
+  K_LEITUNG        = 'spie_leitung' + anhang;
 }
 schluesselSetzen(BAUSTELLE_ERSTE);
 
@@ -1421,6 +1435,7 @@ var state = {
   gpsHeadingTs: 0,
   points: [],
   wege: [],            // Zuwegungen dieser Baustelle für den Lageplan
+  leitung: '',         // Nummer der Leitung dieser Baustelle, z. B. 4236
   contacts: [],
   site: '',
   editPoint: null,
@@ -1673,6 +1688,11 @@ function baustelleLaden(id) {
   state.wege = load(K_WEGE, null);
   state.contacts = load(K_CONTACTS, []) || [];
   state.site = load(K_SITE, '') || '';
+  /* Die Nummer der Leitung („Bl. 4236"). Steht in den Unterlagen des
+     Auftraggebers vor jeder Mastnummer, in der Karte der Baustelle meist
+     nicht. Ohne sie kann die App nicht wissen, ob „18" und „4236/18"
+     derselbe Mast sind — sie rät es deshalb auch nicht. */
+  state.leitung = String(load(K_LEITUNG, '') || '').trim();
 
   // Nur die erste Baustelle bekommt die mitgelieferten Daten. Jede weitere
   // startet leer und wird über den Import gefüllt — erfundene Punkte gibt es
@@ -5498,7 +5518,15 @@ function mastenAlle() {
 function mastFinden(key) {
   var k = D.mastSchluessel(key);
   var alle = mastenAlle();
-  for (var i = 0; i < alle.length; i++) if (alle[i].key === k) return alle[i];
+  var i;
+  for (i = 0; i < alle.length; i++) if (alle[i].key === k) return alle[i];
+  /* Zweiter Anlauf mit der Leitungsnummer: „4236/18" aus den Unterlagen ist
+     derselbe Mast wie „18" in der Karte — aber nur, wenn jemand für diese
+     Baustelle eingetragen hat, dass sie die Leitung 4236 ist. */
+  if (!state.leitung) return null;
+  for (i = 0; i < alle.length; i++) {
+    if (D.mastPasst(alle[i].key, k, state.leitung)) return alle[i];
+  }
   return null;
 }
 
@@ -6060,7 +6088,7 @@ function spannLaden() {
 
 function spannAmMast() {
   if (!akte.mast || typeof SpieSpann === 'undefined') return [];
-  return SpieSpann.felderAmMast(spannAlle, akte.mast.nr);
+  return SpieSpann.felderAmMast(spannAlle, akte.mast.nr, state.leitung);
 }
 
 function spannTempWahl(t) { akte.spannTemp = Number(t); akteBereich('spann', true); }
@@ -6194,6 +6222,45 @@ function spannUebernehmen() {
 
 function spannVerwerfen() { spannImport = null; renderSpannVerwaltung(); }
 
+/* Passen die Mastnummern der Datei nicht, liegt es fast immer daran, dass
+   die Karte nur „18" kennt und die Unterlagen „4236/18". Diese Funktion
+   rechnet nach, welche Leitungsnummer das auflösen würde — und WIE VIELE
+   Masten dann wirklich passen. Ohne Treffer wird nichts vorgeschlagen. */
+function leitungVorschlag(schluesselDerDatei) {
+  if (state.leitung) return null;
+  var kandidaten = {};
+  (schluesselDerDatei || []).forEach(function (k) {
+    var m = String(k).match(/^(\d{3,4})\/(.+)$/);
+    if (m) kandidaten[m[1]] = true;
+  });
+  var beste = null;
+  Object.keys(kandidaten).forEach(function (l) {
+    var treffer = 0;
+    (schluesselDerDatei || []).forEach(function (k) {
+      var alle = mastenAlle();
+      for (var i = 0; i < alle.length; i++) {
+        if (D.mastPasst(alle[i].key, k, l)) { treffer++; return; }
+      }
+    });
+    if (treffer > 0 && (!beste || treffer > beste.treffer)) {
+      beste = { leitung: l, treffer: treffer, gesamt: schluesselDerDatei.length };
+    }
+  });
+  return beste;
+}
+
+function leitungUebernehmen(l) {
+  var f = $('leitungFeld');
+  if (f) f.value = l;
+  state.leitung = l;
+  save(K_LEITUNG, l);
+  wegCacheLeeren();
+  mastListeZeichnen();
+  renderVerwaltung();
+  renderSpannVerwaltung();
+  toast('Leitung ' + l + ' gemerkt');
+}
+
 function spannWeg(id) {
   S.spannLoeschen(aktiveBaustelle(), id)
     .then(spannLaden)
@@ -6219,6 +6286,7 @@ function renderSpannVerwaltung(fehler) {
     Object.keys(inDatei).forEach(function (k) {
       (mastFinden(k) ? vorhanden : fehlend).push(inDatei[k]);
     });
+    var rat = leitungVorschlag(Object.keys(inDatei));
     teile += '<div class="vorschau"><h4>Vorschau</h4>' +
       '<div class="vzeile"><b>' + b.tabellen + '</b> Tabellen · <b>' + b.seile + '</b> Seile · <b>' +
         b.felder + '</b> Spannfelder</div>' +
@@ -6239,7 +6307,18 @@ function renderSpannVerwaltung(fehler) {
             : '— <b>hier ist noch kein Mast erfasst</b>. Vermutlich ist die falsche ' +
               'Baustelle offen: oben im Kopf auf den Namen tippen und wechseln.') +
           ' Die Tabellen werden trotzdem gespeichert; sie erscheinen aber nur an Masten, ' +
-          'die es in dieser Baustelle gibt.</div></div>'
+          'die es in dieser Baustelle gibt.</div>' +
+          /* Der Regelfall: In der Datei steht „4236/18", in der Karte „18".
+             Die App rechnet vor, wie viele dann passen würden, und lässt den
+             Menschen entscheiden — sie stellt es nicht selbst um. */
+          (rat
+            ? '<div class="psub" style="margin-top:8px"><b>Vermutlich fehlt nur die ' +
+              'Leitungsnummer.</b> Trägt man <b>' + esc(rat.leitung) + '</b> als Leitung dieser ' +
+              'Baustelle ein, passen <b>' + rat.treffer + ' von ' + rat.gesamt + '</b> Masten.' +
+              '<div class="btnrow"><button class="btn sm" onclick="leitungUebernehmen(&#39;' +
+              esc(rat.leitung) + '&#39;)">Als Leitung ' + esc(rat.leitung) + ' zuordnen</button></div></div>'
+            : '') +
+          '</div>'
         : '') +
       (b.verworfen.length
         ? '<div class="vzeile"><b style="color:var(--bad)">' + b.verworfen.length + '</b> Zeilen ' +
@@ -6827,6 +6906,27 @@ function datumDeutsch(iso) {
   return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso || '');
 }
 
+/* Die Leitungsnummer gehört zur Baustelle und wird von Hand eingetragen —
+   sie aus den Daten zu erraten hieße, zwei Masten gleichzusetzen, die es
+   vielleicht gar nicht sind. */
+function leitungSpeichern() {
+  var f = $('leitungFeld'); if (!f) return;
+  var wert = (f.value || '').trim();
+  if (wert && !/^\d{3,4}$/.test(wert)) {
+    toast('Die Leitungsnummer ist drei- oder vierstellig, z. B. 4236');
+    return;
+  }
+  state.leitung = wert;
+  save(K_LEITUNG, wert);
+  f.value = wert;
+  wegCacheLeeren();
+  mastListeZeichnen();
+  zufahrtMarkenLaden().then(mastListeZeichnen);
+  renderSpannVerwaltung();
+  if (akte.key) renderMastakte();
+  toast(wert ? 'Leitung ' + wert + ' gemerkt' : 'Leitungsnummer entfernt');
+}
+
 function renderVerwaltung() {
   var z = zaehlung();
   var setz = function (id, text) { var e = $(id); if (e) e.textContent = text; };
@@ -6835,6 +6935,7 @@ function renderVerwaltung() {
   setz('vwDok', dokAlle.length + ' Dokumente');
   setz('vwMasten', mastenAlle().length + ' Masten');
   setz('spannCount', String(spannAlle.length));
+  var lf = $('leitungFeld'); if (lf && lf !== document.activeElement) lf.value = state.leitung || '';
 }
 
 function renderUebersicht() {
@@ -7037,6 +7138,12 @@ function paketVorschau() {
   var d = r.daten;
   var gleiche = baustellen().filter(function (b) { return b.titel === d.titel; })[0];
 
+  /* Ein Ergänzungspaket bringt Unterlagen NACH — Pläne, Mastdaten,
+     Spanntabellen —, aber keine Rettungspunkte. Es darf deshalb niemals
+     eine Baustelle ersetzen: Wer Pläne nachliefert, will nicht die
+     Rettungspunkte verlieren. */
+  if (d.ergaenzung) { paketErgaenzungVorschau(r, d); return; }
+
   openOv('<h2>Baustelle aus Datei</h2>' +
     '<div class="vzeile"><b>' + esc(d.titel || '(ohne Namen)') + '</b></div>' +
     (d.erzeugt ? '<div class="psub">Gepackt am ' + esc(new Date(d.erzeugt).toLocaleString('de-DE')) + '</div>' : '') +
@@ -7060,13 +7167,57 @@ function paketVorschau() {
 
 function paketAbbrechen() { paketEinlesen = null; closeOv(); }
 
-/* ziel = '' → neue Baustelle, sonst die Kennung der zu ersetzenden. */
-function paketUebernehmen(ziel) {
+/* Vorschau für ein Ergänzungspaket: Was kommt dazu, und an welchen Masten
+   landet es wirklich? Ein Plan, dessen Mast es hier nicht gibt, wird
+   genannt — er verschwindet nicht stillschweigend in einer Ablage. */
+function paketErgaenzungVorschau(r, d) {
+  var dok = d.dokumente || [];
+  var treffer = 0, ohne = [];
+  dok.forEach(function (x) {
+    if (x.mastSchluessel && mastFinden(x.mastSchluessel)) treffer++;
+    else ohne.push(x.mastNr || x.mastSchluessel || x.dateiname);
+  });
+  var rat = leitungVorschlag(dok.map(function (x) { return x.mastSchluessel; })
+    .filter(Boolean));
+
+  openOv('<h2>Unterlagen nachtragen</h2>' +
+    '<div class="vzeile"><b>' + esc(d.titel || 'Ergänzung') + '</b></div>' +
+    (d.erzeugt ? '<div class="psub">Gepackt am ' +
+      esc(new Date(d.erzeugt).toLocaleString('de-DE')) + '</div>' : '') +
+    '<div class="vzeile">' + dok.length + ' Dokumente · ' + (d.mastdaten || []).length +
+      ' Mastdaten · ' + (d.spanntabellen || []).length + ' Spanntabellen</div>' +
+    '<div class="vzeile">Ziel: <b>' + esc(baustelleName(aktiveBaustelle()) || 'diese Baustelle') +
+      '</b> — es wird <b>nichts gelöscht</b>, nur ergänzt.</div>' +
+    '<div class="vzeile"><b style="color:' + (treffer ? 'var(--ok)' : 'var(--bad)') + '">' +
+      treffer + '</b> von ' + dok.length + ' Dokumenten finden ihren Mast' +
+      (ohne.length ? '<div class="psub">Ohne Mast in dieser Baustelle: ' +
+        esc(ohne.slice(0, 8).join(', ')) + (ohne.length > 8 ? ' …' : '') +
+        ' — sie landen unter „Dokumente" ohne Zuordnung.</div>' : '') +
+      (rat ? '<div class="psub" style="margin-top:6px"><b>Vermutlich fehlt die Leitungsnummer.</b> ' +
+        'Mit <b>' + esc(rat.leitung) + '</b> passen ' + rat.treffer + ' von ' + rat.gesamt + '.' +
+        '<div class="btnrow"><button class="btn sm" onclick="leitungUebernehmen(&#39;' +
+        esc(rat.leitung) + '&#39;); paketVorschau();">Als Leitung ' + esc(rat.leitung) +
+        ' zuordnen</button></div></div>' : '') +
+      '</div>' +
+    (r.fehlend.length
+      ? '<div class="warnbox" style="margin:10px 0"><b>' + r.fehlend.length +
+        ' Dateien fehlen im Paket.</b></div>' : '') +
+    '<div class="btnrow">' +
+      '<button class="btn ghost" onclick="paketAbbrechen()">Abbrechen</button>' +
+      '<button class="btn primary" onclick="paketUebernehmen(aktiveBaustelle(), true)">' +
+      'Hier ergänzen</button>' +
+    '</div>');
+}
+
+/* ziel = '' → neue Baustelle, sonst die Kennung der zu ersetzenden.
+   ergaenzen = true → nichts löschen, nichts überschreiben, nur dazulegen. */
+function paketUebernehmen(ziel, ergaenzen) {
   var r = paketEinlesen; if (!r) return;
   var d = r.daten;
   var titel = d.titel || 'Baustelle aus Datei';
 
-  openOv('<h2>Wird übernommen …</h2><p id="pkStand">Baustelle wird angelegt …</p>');
+  openOv('<h2>Wird übernommen …</h2><p id="pkStand">' +
+    (ergaenzen ? 'Unterlagen werden nachgetragen …' : 'Baustelle wird angelegt …') + '</p>');
 
   var id = ziel;
   if (!id) {
@@ -7076,30 +7227,35 @@ function paketUebernehmen(ziel) {
   }
 
   var vorher = aktiveBaustelle();
-  /* Die Punkte gehen in das Fach der Zielbaustelle — ohne sie vorher zu
-     laden, sonst zeigt die App kurz fremde Daten an. */
-  schluesselSetzen(id);
-  save(K_POINTS, (d.punkte || []).map(function (p) {
-    var q = {}; for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) q[k] = p[k];
-    if (!q.uid) q.uid = uid();
-    return q;
-  }));
-  save(K_CONTACTS, d.kontakte || []);
-  save(K_WEGE, d.wege || []);
-  save(K_SITE, titel);
-  schluesselSetzen(vorher);
+  if (!ergaenzen) {
+    /* Die Punkte gehen in das Fach der Zielbaustelle — ohne sie vorher zu
+       laden, sonst zeigt die App kurz fremde Daten an. */
+    schluesselSetzen(id);
+    save(K_POINTS, (d.punkte || []).map(function (p) {
+      var q = {}; for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) q[k] = p[k];
+      if (!q.uid) q.uid = uid();
+      return q;
+    }));
+    save(K_CONTACTS, d.kontakte || []);
+    save(K_WEGE, d.wege || []);
+    save(K_SITE, titel);
+    schluesselSetzen(vorher);
 
-  var alle = baustellen().map(function (b) { return b.id === id ? { id: id, titel: titel } : b; });
-  save(K_BAUSTELLEN, alle);
+    var alle = baustellen().map(function (b) { return b.id === id ? { id: id, titel: titel } : b; });
+    save(K_BAUSTELLEN, alle);
+  }
 
   var arbeit = Promise.resolve();
   if (S && S.verfuegbar()) {
-    // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne nebeneinander.
-    if (ziel) arbeit = S.baustelleLeeren(id).catch(function () { return null; });
+    // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne
+    // nebeneinander. Beim Ergänzen wird NIE geräumt — das ist der ganze Sinn.
+    if (ziel && !ergaenzen) arbeit = S.baustelleLeeren(id).catch(function () { return null; });
     arbeit = arbeit.then(function () { return S.platzSichern().catch(function () { return null; }); });
     (d.mastdaten || []).forEach(function (m) {
       arbeit = arbeit.then(function () {
-        return S.mastdatenSetzen(id, m.mastSchluessel, m).catch(function () { return null; });
+        var mast = mastFinden(m.mastSchluessel);
+        return S.mastdatenSetzen(id, mast ? mast.key : m.mastSchluessel, m)
+          .catch(function () { return null; });
       });
     });
     (d.spanntabellen || []).forEach(function (t) {
@@ -7119,6 +7275,12 @@ function paketUebernehmen(ziel) {
         if (!datei) return null;                    // fehlende Datei: schon gemeldet
         var q = {}; for (var k in dok) if (Object.prototype.hasOwnProperty.call(dok, k)) q[k] = dok[k];
         q.baustelle = id;
+        /* Die Unterlagen des Auftraggebers führen „4236/18", die Karte der
+           Baustelle „18". Abgelegt wird unter der Schreibweise DIESER
+           Baustelle — sonst hängt der Plan an einer Nummer, die es hier
+           nicht gibt, und taucht in keiner Mastakte auf. */
+        var mast = q.mastSchluessel ? mastFinden(q.mastSchluessel) : null;
+        if (mast) { q.mastSchluessel = mast.key; q.mastNr = mast.nr; }
         var f = $('pkStand'); if (f) f.textContent = (++n) + ' von ' + gesamt + ' Dokumenten …';
         return S.dokAblegen(q, new Blob([datei], { type: dok.mime || '' })).catch(function () { return null; });
       });

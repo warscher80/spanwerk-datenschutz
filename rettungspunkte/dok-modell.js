@@ -83,6 +83,40 @@ var SpieDok = (function () {
     return s.toUpperCase();
   }
 
+  /* ---------- Zwei Schreibweisen für denselben Mast ----------
+
+     In der Karte einer Baustelle heißt der Mast oft nur „18". In den
+     Unterlagen des Auftraggebers heißt derselbe Mast „4236/18" — mit der
+     Nummer der Leitung davor (Bl. 4236). Beides ist richtig, und ohne die
+     Leitungsnummer lässt sich nicht entscheiden, ob „18" und „4236/18"
+     derselbe Mast sind: In einer anderen Baustelle könnte „18" ein Mast der
+     Leitung 4100 sein.
+
+     Deshalb wird hier NICHT geraten. Die Leitungsnummer trägt jemand für die
+     Baustelle ein; erst dann gelten die beiden Schreibweisen als gleich. */
+  function mastPasst(a, b, leitung) {
+    var ka = mastSchluessel(a), kb = mastSchluessel(b);
+    if (!ka || !kb) return false;
+    if (ka === kb) return true;
+    var l = String(leitung == null ? '' : leitung).trim();
+    if (!l) return false;
+    var ohne = function (k) {
+      var m = String(k).match(/^(\d{3,4})\/(.+)$/);
+      return (m && m[1] === l) ? m[2] : k;
+    };
+    return ohne(ka) === ohne(kb);
+  }
+
+  /* Die Nummer, unter der ein Mast in DIESER Baustelle geführt wird —
+     „4236/18" wird zu „18", wenn die Baustelle die Leitung 4236 ist. */
+  function mastOhneLeitung(nr, leitung) {
+    var k = mastSchluessel(nr);
+    var l = String(leitung == null ? '' : leitung).trim();
+    if (!l) return k;
+    var m = k.match(/^(\d{3,4})\/(.+)$/);
+    return (m && m[1] === l) ? m[2] : k;
+  }
+
   /* ---------- Revisionen ----------
      Üblich sind Buchstaben (A, B, C …) und Zahlen (1, 2, 3 …). Beides muss
      sich ordnen lassen; gemischt wird nicht gerechnet: Buchstaben gelten als
@@ -275,6 +309,8 @@ var SpieDok = (function () {
     kategorie: kategorie,
     kategorieName: kategorieName,
     mastSchluessel: mastSchluessel,
+    mastPasst: mastPasst,
+    mastOhneLeitung: mastOhneLeitung,
     revisionRang: revisionRang,
     aktuelle: aktuelle,
     nachKategorie: nachKategorie,

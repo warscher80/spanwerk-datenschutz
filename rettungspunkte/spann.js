@@ -99,14 +99,19 @@ var SpieSpann = (function () {
   /* ---------- Was gilt an DIESEM Mast? ----------
      Geliefert werden die Spannfelder, die an diesem Mast BEGINNEN — die
      Werte in der Zeile gehören zur Spannweite bis zum nächsten Mast. */
-  function felderAmMast(tabellen, mastNr) {
+  function felderAmMast(tabellen, mastNr, leitung) {
     var key = schluessel(mastNr);
     if (!key) return [];
+    var passt = function (a) {
+      if (schluessel(a) === key) return true;
+      return (typeof SpieDok !== 'undefined' && SpieDok.mastPasst)
+        ? SpieDok.mastPasst(a, key, leitung) : false;
+    };
     var raus = [];
     (tabellen || []).forEach(function (t) {
       (t.seile || []).forEach(function (s) {
         (s.felder || []).forEach(function (f, i) {
-          if (schluessel(f.mast) !== key) return;
+          if (!passt(f.mast)) return;
           var naechster = null;
           for (var j = i + 1; j < s.felder.length; j++) { naechster = s.felder[j]; break; }
           raus.push({ tabelle: t, seil: s, feld: f, nachMast: naechster ? naechster.mast : t.nach });

@@ -1,6 +1,6 @@
 {
-  "versionCode": 37,
-  "versionName": "0.16.1",
+  "versionCode": 38,
+  "versionName": "0.17.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Behebt: Beim Einlesen der Spanntabellen tat \"Übernehmen\" nichts. Die App hatte die neue index.html, aber noch die alte speicher.js aus dem Offline-Speicher — die Prüfung fragte nur, ob es das Modul gibt, nicht in welcher Fassung. Jetzt wird die Fassung geprüft, und \"Übernehmen\" sagt Bescheid, statt lautlos nichts zu tun. Die Import-Vorschau nennt außerdem die Baustelle beim Namen und zeigt Beispiele der hiesigen Mastnummern, damit man sieht, wenn die falsche Baustelle offen ist."
+  "notes": "Leitungsnummer je Baustelle: In der Karte heißt der Mast „18\", in den Unterlagen „4236/18\". Trägt man die Leitung (Bl.-Nr.) ein, gilt beides als derselbe Mast — die App rechnet beim Import vor, welche Nummer das auflöst, stellt es aber nicht selbst um. Außerdem neu: Unterlagen nachtragen. Ein Ergänzungspaket bringt Pläne, Mastdaten und Spanntabellen dazu, kann keine Baustelle ersetzen und löscht nichts."
 }
