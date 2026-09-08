@@ -1,6 +1,6 @@
 {
-  "versionCode": 45,
-  "versionName": "0.21.0",
+  "versionCode": 46,
+  "versionName": "0.22.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Weniger Stromverbrauch: Der Kompass ist nur noch dort angemeldet, wo ein Richtungspfeil zu sehen ist — auf dem Rettungsbildschirm und im Lageplan. Beim Lesen eines Plans oder in der Verwaltung ist er aus; er meldete sonst bis zu 60-mal in der Sekunde ins Leere. Beim Zurückwechseln läuft er sofort wieder."
+  "notes": "Pläne lassen sich jetzt wirklich lesen. Beim Hineinzoomen wurde ein A0-Blatt bisher ab etwa dem Vierfachen nicht mehr größer — die Anzeige hing an der Speichergrenze der Zeichenfläche. Jetzt wird nur noch der Ausschnitt gezeichnet, den man gerade sieht: beliebig weit heranfahren, die Schrift bleibt scharf. Mit einem Finger lässt sich der Plan wieder schieben (das war versehentlich abgeschaltet). Und ein Querblatt legt sich auf dem stehenden Telefon selbst quer — doppelt so groß, nichts abgeschnitten; ein Knopf „Drehen“ und das Drehen des Geräts gehen weiter von Hand."
 }

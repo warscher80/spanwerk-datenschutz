@@ -745,14 +745,20 @@
   .planbox{position:fixed;inset:0;z-index:75;background:#000;display:none;flex-direction:column}
   .planbox.on{display:flex}
   .planbild{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:#111}
-  #planPdfBild{display:block;margin:auto;background:#fff;
+  /* Das Blatt ist der weiße Papierbogen in voller Größe; die Leinwand zeigt
+     nur den Ausschnitt, den man gerade sieht. Sonst müsste ein A0-Blatt beim
+     Hineinzoomen als Ganzes in den Speicher — es passt dort nicht hinein und
+     wurde deshalb kleiner und unschärfer, je näher man heranging. */
+  #planBlatt{position:relative;margin:auto;flex:0 0 auto;background:#fff;
     box-shadow:0 2px 18px -6px rgba(0,0,0,.6)}
+  #planPdfBild{position:absolute;left:0;top:0;display:block}
   .planladen{padding:26px 18px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5}
   .planseite{font-size:12.5px;font-weight:800;color:var(--muted);padding:0 4px;align-self:center}
   .planhinweis{font-size:11.5px;color:var(--muted2);align-self:center;padding-left:4px}
-  /* Der Plan darf mit zwei Fingern gezogen werden, ohne dass der Browser
-     dazwischenfunkt. */
-  .planbild{touch-action:none}
+  /* Zwei Finger gehören der App (Aufziehen), ein Finger dem Browser
+     (Schieben). „none" hätte auch das Schieben abgeschaltet — dann kommt man
+     an einem vergrößerten A0-Blatt nirgendwo hin. */
+  .planbild{touch-action:pan-x pan-y}
   .planbild img{max-width:none;transform-origin:center center;display:block}
   .planbild iframe, .planbild embed{width:100%;height:100%;border:0;background:#fff}
   .planfuss2{background:#000;color:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -1419,7 +1425,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.21.0';
+var VERSION = '0.22.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7006,7 +7012,8 @@ var plan2 = { id: '', url: '', datei: null, zoom: 1, dreh: 0 };
    nicht, und das sagt sie dann auch. */
 
 var pdfLib = null, pdfLaedt = null;
-var pdfAkt = { doc: null, seite: 1, seiten: 1, zoom: 1, laeuft: false };
+var pdfAkt = { doc: null, seite: 1, seiten: 1, zoom: 1, dreh: 0, laeuft: false,
+  nach: null, fenster: null };
 
 function pdfBibliothek() {
   if (pdfLib) return Promise.resolve(pdfLib);
@@ -7033,7 +7040,25 @@ function pdfOeffnen(datei, dateiname) {
     });
   }).then(function (doc) {
     pdfAkt.doc = doc; pdfAkt.seiten = doc.numPages; pdfAkt.seite = 1; pdfAkt.zoom = 1;
-    bild.innerHTML = '<canvas id="planPdfBild"></canvas>';
+    bild.innerHTML = '<div id="planBlatt"><canvas id="planPdfBild"></canvas></div>';
+    /* Ein A0-Blatt liegt quer, das Telefon steht hochkant. Eingepasst blieb
+       davon ein schmales Band in der Bildmitte übrig — vollständig, aber
+       unlesbar, und zwei Drittel des Bildschirms schwarz.
+
+       Deshalb wird ein Querblatt auf einem hochkant gehaltenen Gerät gedreht
+       gezeigt. Die lange Blattkante liegt dann auf der langen
+       Bildschirmkante: bei einem A0-Blatt auf einem 390 × 736 großen
+       Ausschnitt fast das Doppelte an Größe, ohne dass etwas verloren geht.
+       Wer das nicht will, dreht mit einem Tipp zurück.
+
+       Erst entscheiden, DANN zeichnen — sonst steht das Blatt schon quer im
+       Bild, während die Drehung noch berechnet wird. */
+    pdfAkt.dreh = 0; pdfDrehHand = false;
+    var k0 = bild.getBoundingClientRect();
+    pdfSchirmLage = k0.width > k0.height ? 'quer' : 'hoch';
+    return pdfAutoDrehen();
+  }).then(function () {
+    bild.onscroll = pdfGerollt;
     bild.ontouchstart = planFingerStart;
     bild.ontouchmove = planFingerZug;
     bild.ontouchend = planFingerEnde;
@@ -7060,6 +7085,7 @@ function pdfWerkzeuge() {
       : '') +
     '<button class="btn" onclick="pdfZoom(1.5)">Größer</button>' +
     '<button class="btn" onclick="pdfZoom(1/1.5)">Kleiner</button>' +
+    '<button class="btn" onclick="pdfDrehen()">Drehen</button>' +
     '<button class="btn" onclick="pdfPassend()">Einpassen</button>' +
     '<span class="planhinweis">mit zwei Fingern aufziehen · Doppeltipp</span>';
 }
@@ -7070,31 +7096,94 @@ function pdfWerkzeuge() {
 var PDF_MAX_PUNKTE = 16e6;
 
 function pdfZeichnen(einpassen) {
-  if (!pdfAkt.doc || pdfAkt.laeuft) return Promise.resolve();
+  if (!pdfAkt.doc) return Promise.resolve();
+  /* Ein A0-Blatt braucht Sekunden. Wer in dieser Zeit dreht oder das Gerät
+     kippt, bekam bisher gar nichts: Der zweite Auftrag fiel stillschweigend
+     unter den Tisch, und der Plan blieb in der alten Größe stehen. Gemerkt
+     wird deshalb der letzte Wunsch — und gleich nach dem Zeichnen geholt. */
+  if (pdfAkt.laeuft) { pdfAkt.nach = !!einpassen; return Promise.resolve(); }
   pdfAkt.laeuft = true;
   return pdfAkt.doc.getPage(pdfAkt.seite).then(function (seite) {
-    var c = $('planPdfBild'); if (!c) return;
-    var rahmen = $('planBild').getBoundingClientRect();
-    var roh = seite.getViewport({ scale: 1 });
+    var c = $('planPdfBild'), blatt = $('planBlatt'), r = $('planBild');
+    if (!c || !blatt || !r) return;
+    /* pdf.js versteht „rotation" ABSOLUT, nicht als Zuschlag. Viele
+       Zeichnungen tragen selbst schon eine Drehung (dieses A0-Blatt liegt im
+       PDF hochkant und wird per Eigendrehung quer gezeigt). Wer hier 90
+       einsetzt, hebt genau diese Eigendrehung auf — das Blatt sah dann
+       unverändert aus. Gedreht wird deshalb um die Eigendrehung HERUM. */
+    var drehung = (((seite.rotate || 0) + pdfAkt.dreh) % 360 + 360) % 360;
+    var roh = seite.getViewport({ scale: 1, rotation: drehung });
     if (einpassen) {
-      pdfAkt.zoom = Math.min(rahmen.width / roh.width, rahmen.height / roh.height) || 1;
+      pdfAkt.zoom = Math.min(r.clientWidth / roh.width, r.clientHeight / roh.height) || 1;
     }
+
+    // Der Papierbogen in voller Größe — er allein bestimmt, wie weit man rollt.
+    var bw = Math.max(1, Math.round(roh.width * pdfAkt.zoom));
+    var bh = Math.max(1, Math.round(roh.height * pdfAkt.zoom));
+    blatt.style.width = bw + 'px'; blatt.style.height = bh + 'px';
+
+    /* Gezeichnet wird nur, was zu sehen ist — mit etwas Rand, damit ein
+       kurzer Wisch nicht sofort ins Leere läuft. So bleibt die Schrift auch
+       bei starker Vergrößerung scharf: Das Blatt wächst, die Leinwand nicht. */
+    var f = pdfFensterMasse(blatt, r, bw, bh);
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var skala = pdfAkt.zoom * dpr;
-    var sicht = seite.getViewport({ scale: skala });
-    if (sicht.width * sicht.height > PDF_MAX_PUNKTE) {
-      skala = skala * Math.sqrt(PDF_MAX_PUNKTE / (sicht.width * sicht.height));
-      sicht = seite.getViewport({ scale: skala });
+    var skala = dpr;
+    if (f.w * f.h * dpr * dpr > PDF_MAX_PUNKTE) {
+      skala = dpr * Math.sqrt(PDF_MAX_PUNKTE / (f.w * f.h * dpr * dpr));
     }
-    c.width = Math.max(1, Math.round(sicht.width));
-    c.height = Math.max(1, Math.round(sicht.height));
-    c.style.width = Math.round(sicht.width / dpr) + 'px';
-    c.style.height = Math.round(sicht.height / dpr) + 'px';
+    c.style.left = f.x + 'px'; c.style.top = f.y + 'px';
+    c.style.width = f.w + 'px'; c.style.height = f.h + 'px';
+    c.width = Math.max(1, Math.round(f.w * skala));
+    c.height = Math.max(1, Math.round(f.h * skala));
+    pdfAkt.fenster = f;
+
+    var sicht = seite.getViewport({ scale: pdfAkt.zoom * skala, rotation: drehung });
     var s = $('planSeite');
     if (s) s.textContent = pdfAkt.seite + ' / ' + pdfAkt.seiten;
-    return seite.render({ canvasContext: c.getContext('2d'), viewport: sicht }).promise;
-  }).then(function () { pdfAkt.laeuft = false; })
-    .catch(function () { pdfAkt.laeuft = false; });
+    var g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    return seite.render({ canvasContext: g, viewport: sicht,
+      transform: [1, 0, 0, 1, -f.x * skala, -f.y * skala] }).promise;
+  }).then(pdfNachholen, pdfNachholen);
+}
+
+/* Welcher Teil des Blattes ist gerade zu sehen — plus Rand, auf das Blatt
+   begrenzt. Alle Maße in Bildschirmpunkten des Blattes. */
+var PDF_RAND = 180;
+
+function pdfFensterMasse(blatt, r, bw, bh) {
+  var kb = blatt.getBoundingClientRect(), kr = r.getBoundingClientRect();
+  var lx = kr.left - kb.left, ly = kr.top - kb.top;
+  var x0 = Math.max(0, Math.min(bw - 1, Math.floor(lx - PDF_RAND)));
+  var y0 = Math.max(0, Math.min(bh - 1, Math.floor(ly - PDF_RAND)));
+  var x1 = Math.max(x0 + 1, Math.min(bw, Math.ceil(lx + kr.width + PDF_RAND)));
+  var y1 = Math.max(y0 + 1, Math.min(bh, Math.ceil(ly + kr.height + PDF_RAND)));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, bw: bw, bh: bh };
+}
+
+/* Beim Rollen nachzeichnen, sobald der sichtbare Teil an den Rand des
+   gezeichneten Stücks kommt. Nicht bei jedem Pixel — das Blatt hat Rand. */
+var pdfRollUhr = 0;
+
+function pdfGerollt() {
+  if (!pdfAkt.doc || pdfAkt.laeuft) return;
+  var blatt = $('planBlatt'), r = $('planBild'), f = pdfAkt.fenster;
+  if (!blatt || !r || !f) return;
+  var kb = blatt.getBoundingClientRect(), kr = r.getBoundingClientRect();
+  var lx = kr.left - kb.left, ly = kr.top - kb.top;
+  var drin = lx >= f.x - 1 && ly >= f.y - 1 &&
+             lx + kr.width <= f.x + f.w + 1 && ly + kr.height <= f.y + f.h + 1;
+  if (drin) return;
+  if (pdfRollUhr) clearTimeout(pdfRollUhr);
+  pdfRollUhr = setTimeout(function () { pdfRollUhr = 0; pdfZeichnen(false); }, 90);
+}
+
+function pdfNachholen() {
+  pdfAkt.laeuft = false;
+  if (pdfAkt.nach === null) return;
+  var e = pdfAkt.nach; pdfAkt.nach = null;
+  return pdfZeichnen(e);
 }
 
 /* ---------- Zwei Finger auf dem Plan ----------
@@ -7162,22 +7251,22 @@ function planFingerZug(e) {
   if (!zwei.aktiv || e.touches.length !== 2) return;
   e.preventDefault();
   var f = planAbstand(e.touches) / zwei.start;
-  var c = $('planPdfBild'); if (!c) return;
+  var b = $('planBlatt'); if (!b) return;
   // Nur dehnen — scharf gezeichnet wird beim Loslassen.
-  c.style.transformOrigin = '0 0';
-  c.style.transform = 'scale(' + f + ')';
+  b.style.transformOrigin = '0 0';
+  b.style.transform = 'scale(' + f + ')';
 }
 
 function planFingerEnde(e) {
   if (!zwei.aktiv) return;
   if (e.touches && e.touches.length > 0) return;
   zwei.aktiv = false;
-  var c = $('planPdfBild');
+  var b = $('planBlatt');
   var f = 1;
-  if (c) {
-    var m = (c.style.transform || '').match(/scale\(([\d.]+)\)/);
+  if (b) {
+    var m = (b.style.transform || '').match(/scale\(([\d.]+)\)/);
     f = m ? parseFloat(m[1]) : 1;
-    c.style.transform = ''; c.style.transformOrigin = '';
+    b.style.transform = ''; b.style.transformOrigin = '';
   }
   var neu = Math.max(0.05, Math.min(8, zwei.zoom0 * f));
   if (Math.abs(neu - pdfAkt.zoom) < 0.001) return;
@@ -7186,10 +7275,10 @@ function planFingerEnde(e) {
 
 /* Der Maßstab, bei dem das ganze Blatt ins Bild passt. */
 function planPassZoom() {
-  var r = $('planBild'), c = $('planPdfBild');
-  if (!r || !c || !pdfAkt.zoom) return 1;
-  var breiteRoh = parseFloat(c.style.width) / pdfAkt.zoom;
-  var hoeheRoh = parseFloat(c.style.height) / pdfAkt.zoom;
+  var r = $('planBild'), b = $('planBlatt');
+  if (!r || !b || !pdfAkt.zoom) return 1;
+  var breiteRoh = parseFloat(b.style.width) / pdfAkt.zoom;
+  var hoeheRoh = parseFloat(b.style.height) / pdfAkt.zoom;
   if (!breiteRoh || !hoeheRoh) return 1;
   return Math.min(r.clientWidth / breiteRoh, r.clientHeight / hoeheRoh) || 1;
 }
@@ -7198,7 +7287,10 @@ function pdfSeite(schritt) {
   var n = pdfAkt.seite + schritt;
   if (n < 1 || n > pdfAkt.seiten) return;
   pdfAkt.seite = n;
-  pdfZeichnen(false);
+  /* Ein Plansatz mischt hoch- und querformatige Blätter. Die Lage wird
+     deshalb je Blatt neu entschieden — es sei denn, jemand hat selbst
+     gedreht. */
+  pdfAutoDrehen().then(function () { pdfZeichnen(false); });
 }
 
 function pdfZoom(f) {
@@ -7213,9 +7305,66 @@ function pdfZoom(f) {
 
 function pdfPassend() { pdfZeichnen(true); }
 
+/* Vierteldrehung von Hand. Danach mischt sich die App nicht mehr ein: Wer
+   selbst gedreht hat, will es so. */
+function pdfDrehen() {
+  pdfDrehHand = true;
+  pdfAkt.dreh = (pdfAkt.dreh + 90) % 360;
+  pdfZeichnen(true);
+}
+
+/* Die Drehung, bei der das Blatt den Bildschirm am besten füllt.
+
+   Ein A0-Blatt liegt quer, ein hochkant gehaltenes Telefon nicht. Ohne
+   Drehung blieb ein schmales Band in der Bildmitte übrig — vollständig, aber
+   unlesbar, und zwei Drittel schwarz. Quer gelegt ist dasselbe Blatt doppelt
+   so groß.
+
+   Dreht der Nutzer das Gerät, dreht die App zurück: Im Querformat füllt das
+   Blatt aufrecht am besten, und dann steht auch die Schrift richtig. */
+var pdfDrehHand = false;
+
+function pdfAutoDrehen() {
+  if (!pdfAkt.doc || pdfDrehHand) return Promise.resolve(false);
+  return pdfAkt.doc.getPage(pdfAkt.seite).then(function (seite) {
+    var v = seite.getViewport({ scale: 1 });          // wie das Blatt gedacht ist
+    var r = $('planBild');
+    if (!r) return false;
+    var k = r.getBoundingClientRect();
+    var blattQuer = v.width > v.height;
+    var schirmQuer = k.width > k.height;
+    var soll = (blattQuer && !schirmQuer) ? 90 : 0;
+    if (soll === pdfAkt.dreh) return false;
+    pdfAkt.dreh = soll;
+    return true;
+  }).catch(function () { return false; });
+}
+
+/* Gerät gedreht: neu entscheiden und neu einpassen.
+
+   Nur bei einem echten Wechsel hoch/quer. „resize" kommt am Telefon auch,
+   wenn beim Scrollen die Adressleiste ein- oder ausfährt — wer darauf neu
+   einpasst, wirft dem Nutzer bei jeder Bewegung seinen Ausschnitt weg. */
+var pdfSchirmLage = '';
+
+function pdfSchirmGedreht() {
+  if (!pdfAkt.doc) return;
+  var r = $('planBild'); if (!r) return;
+  var k = r.getBoundingClientRect();
+  var lage = k.width > k.height ? 'quer' : 'hoch';
+  if (lage === pdfSchirmLage) return;
+  pdfSchirmLage = lage;
+  pdfAutoDrehen().then(function () { pdfZeichnen(true); });
+}
+window.addEventListener('resize', function () {
+  if (typeof pdfSchirmGedreht === 'function') pdfSchirmGedreht();
+});
+
 function pdfSchliessen() {
   if (pdfAkt.doc && pdfAkt.doc.destroy) { try { pdfAkt.doc.destroy(); } catch (e) {} }
-  pdfAkt.doc = null; pdfAkt.seite = 1; pdfAkt.seiten = 1; pdfAkt.laeuft = false;
+  pdfAkt.doc = null; pdfAkt.seite = 1; pdfAkt.seiten = 1; pdfAkt.dreh = 0;
+  pdfAkt.laeuft = false; pdfAkt.nach = null; pdfAkt.fenster = null;
+  pdfDrehHand = false;
 }
 
 
