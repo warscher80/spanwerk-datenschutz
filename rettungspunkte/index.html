@@ -1425,7 +1425,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.22.1';
+var VERSION = '0.23.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7810,6 +7810,22 @@ function paketUebernehmen(ziel, ergaenzen) {
     save(K_BAUSTELLEN, alle);
   }
 
+  /* Spanntabellen aus einem Paket gingen bisher UNGEPRÜFT in die Ablage —
+     anders als beim Import einer Tabellendatei. Damit landeten auch Zeilen
+     ohne Werte in der Mastakte (der letzte Mast eines Abschnitts trägt keine
+     Spannweite), und beim Anzeigen brach die Akte ab. Für sicherheitsrelevante
+     Werte gilt hier dieselbe Prüfung wie überall: Was nicht vollständig ist,
+     wird nicht gespeichert und steht im Bericht. */
+  var spannRoh = d.spanntabellen || [];
+  var spannListe = spannRoh, spannVerworfen = [];
+  if (spannRoh.length && typeof SpieSpann !== 'undefined' && SpieSpann.pruefen) {
+    var spannPruef = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION,
+                                         tabellen: spannRoh });
+    spannListe = spannPruef.tabellen || [];
+    spannVerworfen = (spannPruef.bericht && spannPruef.bericht.verworfen) || [];
+  }
+  var spannAngekommen = 0;
+  var spannErwartet = spannRoh.length;
   var arbeit = Promise.resolve();
   if (S && S.verfuegbar()) {
     // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne
@@ -7823,8 +7839,21 @@ function paketUebernehmen(ziel, ergaenzen) {
           .catch(function () { return null; });
       });
     });
-    (d.spanntabellen || []).forEach(function (t) {
-      arbeit = arbeit.then(function () { return S.spannSetzen(id, t).catch(function () { return null; }); });
+    /* Die Tabellen aus einem Paket bringen nicht zwingend eine Kennung mit —
+       das Blatzheim-Paket tat es nicht. Ohne Kennung legen sich alle auf
+       denselben Platz: fünf hinein, eine heraus, ohne ein Wort. Die Kennung
+       wird deshalb hier vergeben (aus dem, was in der Datei steht), und was
+       trotzdem nicht ankommt, steht am Ende im Bericht. */
+    spannListe.forEach(function (t, i) {
+      arbeit = arbeit.then(function () {
+        var q = {}; for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) q[k] = t[k];
+        if (!q.id && typeof SpieSpann !== 'undefined' && SpieSpann.kennung) {
+          q.id = SpieSpann.kennung(q, i);
+        }
+        return S.spannSetzen(id, q)
+          .then(function () { spannAngekommen++; })
+          .catch(function () { return null; });
+      });
     });
     (d.werte || []).forEach(function (w) {
       arbeit = arbeit.then(function () {
@@ -7865,7 +7894,25 @@ function paketUebernehmen(ziel, ergaenzen) {
     openOv('<h2>Baustelle übernommen</h2>' +
       '<div class="vzeile"><b>' + esc(titel) + '</b> ist jetzt die aktive Baustelle.</div>' +
       '<div class="vzeile">' + z.gesamt + ' Punkte · ' + state.contacts.length + ' Nummern · ' +
-        dokAlle.length + ' Dokumente</div>' +
+        dokAlle.length + ' Dokumente' +
+        (spannErwartet ? ' · ' + spannAngekommen + ' von ' + spannErwartet +
+          ' Spanntabellen' : '') + '</div>' +
+      /* Was nicht angekommen ist, darf nicht untergehen — weder eine ganze
+         Tabelle noch eine einzelne Zeile. Wer am Mast einen Reguliermaß-Wert
+         erwartet und keinen findet, hält das sonst für „gibt es nicht". */
+      (spannErwartet && (spannAngekommen < spannErwartet || spannVerworfen.length)
+        ? '<div class="warnbox" style="margin:10px 0">' +
+          (spannAngekommen < spannErwartet
+            ? (spannErwartet - spannAngekommen) + ' von ' + spannErwartet +
+              ' <b>Spanntabellen wurden nicht gespeichert.</b> Die Reguliermaße ' +
+              'dieser Abschnitte fehlen in der Mastakte — bitte melden.'
+            : '<b>Einzelne Zeilen wurden nicht übernommen</b>, weil ihre Werte ' +
+              'nicht vollständig sind. Sie erscheinen in keiner Mastakte.') +
+          (spannVerworfen.length
+            ? '<br>' + esc(spannVerworfen.slice(0, 4).join(' · ')) +
+              (spannVerworfen.length > 4 ? ' … (' + spannVerworfen.length + ' Meldungen)' : '')
+            : '') + '</div>'
+        : '') +
       (z.ungeprueft
         ? '<div class="warnbox" style="margin:10px 0">' + z.ungeprueft + ' Punkte sind ' +
           '<b>ungeprüft</b> und werden für Rettungspunkt, Mast und Meldung nicht verwendet. ' +

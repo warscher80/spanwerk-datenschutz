@@ -76,7 +76,7 @@ var SpieSpann = (function () {
       }).filter(function (s) { return s.felder.length > 0; });
       bericht.seile += seile.length;
       return {
-        id: text(t.quelle) || ('tabelle-' + (ti + 1)),
+        id: kennung(t, ti),
         quelle: text(t.quelle), leitung: text(t.leitung), abschnitt: text(t.abschnitt),
         zustand: text(t.zustand), von: text(t.von), nach: text(t.nach),
         ausgabedatum: text(t.ausgabedatum), bearbeiter: text(t.bearbeiter),
@@ -94,6 +94,25 @@ var SpieSpann = (function () {
                bericht: bericht, tabellen: [] };
     }
     return { ok: true, fehler: '', bericht: bericht, tabellen: gut };
+  }
+
+  /* ---------- Kennung einer Tabelle ----------
+
+     Jede Tabelle braucht eine eigene Kennung, sonst legen sich mehrere im
+     Speicher auf denselben Platz und nur die letzte bleibt übrig. Genau das
+     ist mit dem Blatzheim-Paket passiert: fünf Tabellen hinein, eine heraus.
+
+     Erfunden wird dabei nichts — die Kennung kommt aus dem, was in der Datei
+     steht: Dateiname der Quelle, sonst Leitung mit Abschnitt und Zustand,
+     und erst wenn nicht einmal das dasteht, eine laufende Nummer. */
+  function kennung(t, i) {
+    if (!t) return 'tabelle-' + ((i || 0) + 1);
+    var eigen = text(t.id) || text(t.quelle);
+    if (eigen) return eigen;
+    var teile = [text(t.leitung), text(t.von), text(t.nach), text(t.zustand)]
+      .filter(function (x) { return !!x; });
+    if (teile.length) return teile.join(' · ');
+    return 'tabelle-' + ((i || 0) + 1);
   }
 
   /* ---------- Was gilt an DIESEM Mast? ----------
@@ -157,6 +176,7 @@ var SpieSpann = (function () {
   return {
     VERSION: VERSION,
     pruefen: pruefen,
+    kennung: kennung,
     felderAmMast: felderAmMast,
     mastenInTabellen: mastenInTabellen,
     beiTemperatur: beiTemperatur,

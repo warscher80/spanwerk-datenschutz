@@ -233,7 +233,13 @@ var SpieSpeicher = (function () {
      App ergänzt nur, zu welcher Baustelle und wann es importiert wurde. */
 
   function spannSetzen(baustelle, tabelle) {
-    var satz = { baustelle: String(baustelle), id: String(tabelle.id),
+    /* Ohne eigene Kennung landen alle Tabellen auf demselben Platz — aus
+       fünf wird eine, und niemand merkt es. Lieber laut abbrechen. */
+    var id = (tabelle && tabelle.id != null) ? String(tabelle.id) : '';
+    if (!id || id === 'undefined' || id === 'null') {
+      return Promise.reject(new Error('Spanntabelle ohne Kennung — nicht gespeichert'));
+    }
+    var satz = { baustelle: String(baustelle), id: id,
                  importiert: new Date().toISOString(), tabelle: tabelle };
     return lauf(['spanntabellen'], 'readwrite', function (t) {
       t.objectStore('spanntabellen').put(satz);
