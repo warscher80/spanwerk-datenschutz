@@ -1419,7 +1419,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.20.1';
+var VERSION = '0.21.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -2970,10 +2970,46 @@ function startCompass() {
 }
 var compassAttached = false;
 function attachCompass() {
-  if (compassAttached) return;
-  compassAttached = true;
-  window.addEventListener('deviceorientationabsolute', onOrient, true);
-  window.addEventListener('deviceorientation', onOrient, true);
+  kompassErlaubt = true;
+  kompassBedarfPruefen();
+}
+
+/* ---------- Kompass nur, wenn ihn jemand sieht ----------
+
+   Der Kompass ist ein Sensor: Er meldet bis zu 60-mal in der Sekunde, und
+   das kostet Strom, solange er angemeldet ist — unabhängig davon, ob die
+   Meldungen jemanden erreichen.
+
+   Gebraucht wird er an genau zwei Stellen: für den Richtungspfeil auf dem
+   Rettungsbildschirm und für den Lageplan. Wer zwanzig Minuten in einem
+   Gründungsplan liest, braucht ihn nicht — und genau das ist auf der
+   Baustelle der Normalfall.
+
+   Er wird deshalb an- und abgemeldet, statt dauerhaft zu laufen. Beim
+   Wechsel auf die Rettung ist er sofort wieder da: Die Meldungen kommen im
+   Takt von Millisekunden, nicht von Sekunden. */
+var kompassErlaubt = false;      // Freigabe steht (am iPhone nach dem Tippen)
+
+function kompassGebraucht() {
+  if (typeof plan !== 'undefined' && plan.offen) return true;      // Lageplan
+  var planOffen = document.getElementById('planBox');
+  if (planOffen && planOffen.classList.contains('on')) return false;  // Plan liest niemand mit Pfeil
+  var notfall = document.getElementById('tab-notfall');
+  return !!(notfall && notfall.classList.contains('on'));
+}
+
+function kompassBedarfPruefen() {
+  if (!window.DeviceOrientationEvent || !kompassErlaubt) return;
+  var soll = kompassGebraucht();
+  if (soll === compassAttached) return;
+  if (soll) {
+    window.addEventListener('deviceorientationabsolute', onOrient, true);
+    window.addEventListener('deviceorientation', onOrient, true);
+  } else {
+    window.removeEventListener('deviceorientationabsolute', onOrient, true);
+    window.removeEventListener('deviceorientation', onOrient, true);
+  }
+  compassAttached = soll;
 }
 /* Der Kompass meldet bis zu 60-mal in der Sekunde. Jedes Mal den Pfeil und den
    Lageplan neu zu zeichnen kostet spürbar Strom und bringt nichts: Kein Mensch
@@ -3412,6 +3448,7 @@ var plan = { spanne: 1200, offen: false, weg: null, wegMast: null };
 function planOpen() {
   if (!state.pos) { toast('Erst den Standort einschalten'); return; }
   plan.offen = true;
+  if (typeof kompassBedarfPruefen === 'function') kompassBedarfPruefen();
   $('planOv').classList.add('on');
   planFit();
   window.addEventListener('resize', planDraw);
@@ -3420,6 +3457,7 @@ function planOpen() {
 function planClose() {
   plan.offen = false;
   plan.weg = null; plan.wegMast = null;
+  if (typeof kompassBedarfPruefen === 'function') kompassBedarfPruefen();
   $('planOv').classList.remove('on');
   window.removeEventListener('resize', planDraw);
 }
@@ -4891,6 +4929,8 @@ function setTab(name) {
   if (name === 'info') renderVerwaltung();
   if (name === 'masten') { mastListeZeichnen(); zufahrtMarkenLaden().then(mastListeZeichnen); }
   if (name === 'dokumente') dokListeZeichnen();
+  // Der Kompass läuft nur, wo ein Pfeil zu sehen ist.
+  if (typeof kompassBedarfPruefen === 'function') kompassBedarfPruefen();
 }
 
 /* Installationswege: Android-App zum Herunterladen, iPhone über
@@ -5377,6 +5417,13 @@ function akkuAnzeigen() {
     z.push('Im Hintergrund läuft nichts: Ortung und Bildschirmsperre werden nach ' +
            '30 Sekunden angehalten. Deshalb braucht die App <b>keine Ausnahme von der ' +
            'Akku-Optimierung</b> und keinen Hintergrund-Standort.');
+    /* Was die App im Vordergrund NICHT tut, gehört genauso hierher: Sonst
+       liest man „im Hintergrund läuft nichts" und hält alles Übrige für
+       unvermeidlich. */
+    z.push('Auch im Vordergrund läuft nur, was gerade gebraucht wird: Der ' +
+           '<b>Kompass ist nur auf dem Rettungsbildschirm und im Lageplan</b> ' +
+           'angemeldet. Wer einen Plan liest oder in der Verwaltung ist, hat ihn aus — ' +
+           'er meldet sonst bis zu 60-mal in der Sekunde ins Leere.');
     box.innerHTML = z.join('<br>');
   }
   var spar = $('sparBox');
@@ -7223,6 +7270,7 @@ function planOeffnen(id) {
       pdfOeffnen(plan2.datei || datei, d.dateiname);
     }
     $('planBox').classList.add('on');
+    kompassBedarfPruefen();          // beim Lesen braucht niemand den Pfeil
     wachVerlaengern();
   }).catch(function (e) { toast('Nicht zu öffnen: ' + (e && e.message || e)); });
 }
@@ -7255,6 +7303,7 @@ function planSchliessen() {
   $('planWarn').innerHTML = '';
   planFreigeben();
   plan2.id = '';
+  kompassBedarfPruefen();
 }
 
 /* =========================================================================

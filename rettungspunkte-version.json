@@ -1,6 +1,6 @@
 {
-  "versionCode": 44,
-  "versionName": "0.20.1",
+  "versionCode": 45,
+  "versionName": "0.21.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Pläne mit zwei Fingern aufziehen: während der Bewegung schnell, beim Loslassen wieder scharf gezeichnet. Doppeltipp vergrößert an der getippten Stelle, noch einmal holt das ganze Blatt zurück. Dazu aus 0.20.0: Die untere Leiste schwebt nicht mehr und kann beim Scrollen nicht verrutschen."
+  "notes": "Weniger Stromverbrauch: Der Kompass ist nur noch dort angemeldet, wo ein Richtungspfeil zu sehen ist — auf dem Rettungsbildschirm und im Lageplan. Beim Lesen eines Plans oder in der Verwaltung ist er aus; er meldete sonst bis zu 60-mal in der Sekunde ins Leere. Beim Zurückwechseln läuft er sofort wieder."
 }
