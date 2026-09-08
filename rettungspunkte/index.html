@@ -1369,7 +1369,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.16.0';
+var VERSION = '0.16.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6041,9 +6041,17 @@ function dokGruppenHtml(gruppen) {
 var spannAlle = [];            // alle Tabellen dieser Baustelle
 var spannImport = null;        // geprüfte Datei, die auf Übernahme wartet
 
+var SPANN_NICHT_BEREIT = 'Die App wurde gerade aktualisiert und ist noch nicht ' +
+  'vollständig geladen. Bitte einmal neu laden, dann geht das Einlesen.';
+
+function spannBereit() {
+  return !!(S && S.verfuegbar() && typeof S.spannSetzen === 'function' &&
+            typeof SpieSpann !== 'undefined');
+}
+
 function spannLaden() {
   spannAlle = [];
-  if (!S || !S.verfuegbar()) return Promise.resolve([]);
+  if (!spannBereit()) return Promise.resolve([]);
   return S.spannVonBaustelle(aktiveBaustelle()).then(function (liste) {
     spannAlle = (liste || []).map(function (s) { return s.tabelle; });
     return spannAlle;
@@ -6165,6 +6173,10 @@ function spannDateiGewaehlt(ev) {
 
 function spannUebernehmen() {
   if (!spannImport) return;
+  /* Fehlt die passende speicher.js, gäbe es hier einen Fehler mitten im
+     Knopfdruck — und auf dem Bildschirm keine Regung. Lieber eine klare
+     Ansage als ein Knopf, der nichts tut. */
+  if (!spannBereit()) { renderSpannVerwaltung(SPANN_NICHT_BEREIT); return; }
   var b = aktiveBaustelle();
   Promise.all(spannImport.tabellen.map(function (t) { return S.spannSetzen(b, t); }))
     .then(function () {
@@ -6196,11 +6208,13 @@ function renderSpannVerwaltung(fehler) {
   var box = $('spannBox'); if (!box) return;
   var teile = '';
 
+  if (!fehler && !spannBereit()) fehler = SPANN_NICHT_BEREIT;
   if (fehler) teile += '<div class="warnbox">' + esc(fehler) + '</div>';
 
   if (spannImport) {
     var b = spannImport.bericht;
     var inDatei = SpieSpann.mastenInTabellen(spannImport.tabellen);
+    var eigene = mastenAlle().map(function (m) { return m.nr; });
     var vorhanden = [], fehlend = [];
     Object.keys(inDatei).forEach(function (k) {
       (mastFinden(k) ? vorhanden : fehlend).push(inDatei[k]);
@@ -6208,13 +6222,24 @@ function renderSpannVerwaltung(fehler) {
     teile += '<div class="vorschau"><h4>Vorschau</h4>' +
       '<div class="vzeile"><b>' + b.tabellen + '</b> Tabellen · <b>' + b.seile + '</b> Seile · <b>' +
         b.felder + '</b> Spannfelder</div>' +
-      '<div class="vzeile"><b style="color:var(--ok)">' + vorhanden.length + '</b> Masten gibt es in ' +
-        'dieser Baustelle</div>' +
+      '<div class="vzeile"><b style="color:' + (vorhanden.length ? 'var(--ok)' : 'var(--bad)') + '">' +
+        vorhanden.length + '</b> Masten gibt es in dieser Baustelle' +
+        (vorhanden.length ? '' :
+          '<div class="psub">Keine einzige Mastnummer der Datei kommt hier vor. ' +
+          'Meist ist die falsche Baustelle offen — oben im Kopf umschalten.</div>') + '</div>' +
       (fehlend.length
         ? '<div class="vzeile"><b style="color:var(--warn)">' + fehlend.length + '</b> Masten sind hier ' +
           'unbekannt: ' + esc(fehlend.slice(0, 10).join(', ')) + (fehlend.length > 10 ? ' …' : '') +
-          '<div class="psub">Die Tabellen werden trotzdem gespeichert — sie erscheinen aber nur an ' +
-          'Masten, die es in dieser Baustelle gibt. Passt die Schreibweise der Mastnummern?</div></div>'
+          /* Der häufigste Fehler ist die falsche Baustelle oder eine andere
+             Schreibweise. Beides sieht man erst, wenn daneben steht, wie die
+             Masten HIER heißen. */
+          '<div class="psub">In der Baustelle „' + esc(baustelleName(aktiveBaustelle())) + '" heißen ' +
+          'die Masten ' + (eigene.length
+            ? 'zum Beispiel <b>' + esc(eigene.slice(0, 6).join('</b>, <b>')) + '</b>.'
+            : '— <b>hier ist noch kein Mast erfasst</b>. Vermutlich ist die falsche ' +
+              'Baustelle offen: oben im Kopf auf den Namen tippen und wechseln.') +
+          ' Die Tabellen werden trotzdem gespeichert; sie erscheinen aber nur an Masten, ' +
+          'die es in dieser Baustelle gibt.</div></div>'
         : '') +
       (b.verworfen.length
         ? '<div class="vzeile"><b style="color:var(--bad)">' + b.verworfen.length + '</b> Zeilen ' +
@@ -7245,12 +7270,22 @@ function updateNetz() {
       aber nur, solange niemand sie gerade bedient. Im Notfall reißt ihr
       niemand den Bildschirm unter der Hand weg. */
 
+/* Geprüft wird NICHT, ob es das Modul gibt, sondern ob es die Fassung ist,
+   die diese index.html erwartet — also jeweils die zuletzt hinzugekommene
+   Funktion. „Modul vorhanden" reichte in 0.16.0 nicht: speicher.js war die
+   alte Fassung, die Prüfung war zufrieden, und „Übernehmen" tat lautlos
+   nichts. Wer hier eine neue Funktion in einem Modul benutzt, trägt sie in
+   diese Liste ein. */
 var BAUSTEINE = [
   ['geo.js',        function () { return typeof G.zuwegungZuMast === 'function'; }],
-  ['speicher.js',   function () { return typeof SpieSpeicher !== 'undefined'; }],
-  ['dok-modell.js', function () { return typeof SpieDok !== 'undefined'; }],
-  ['paket.js',      function () { return typeof SpiePaket !== 'undefined'; }],
-  ['spann.js',      function () { return typeof SpieSpann !== 'undefined'; }]
+  ['speicher.js',   function () { return typeof SpieSpeicher !== 'undefined' &&
+                                         typeof SpieSpeicher.spannSetzen === 'function'; }],
+  ['dok-modell.js', function () { return typeof SpieDok !== 'undefined' &&
+                                         typeof SpieDok.dateiAuswerten === 'function'; }],
+  ['paket.js',      function () { return typeof SpiePaket !== 'undefined' &&
+                                         typeof SpiePaket.paketBauen === 'function'; }],
+  ['spann.js',      function () { return typeof SpieSpann !== 'undefined' &&
+                                         typeof SpieSpann.pruefen === 'function'; }]
 ];
 var bausteineFehlen = [];
 var benutzerAktiv = false;
