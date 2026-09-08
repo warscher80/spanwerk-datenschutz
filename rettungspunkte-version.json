@@ -1,6 +1,6 @@
 {
-  "versionCode": 39,
-  "versionName": "0.18.0",
+  "versionCode": 40,
+  "versionName": "0.18.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "In der Spanntabelle das Seil antippen — daraus wird ein Regulierwert mit dem Sollwert aus genau dieser Zeile, samt Seil, Feld und Temperatur in der Bezeichnung. Istwert und Toleranz bleiben leer: den einen misst ein Mensch, die andere steht in den Unterlagen. Die Liste zeigt danach Ist minus Soll — ohne eingetragene Toleranz ohne Urteil."
+  "notes": "In der Spanntabelle das Seil antippen — daraus wird ein Regulierwert mit dem Sollwert aus genau dieser Zeile, samt Seil, Feld und Temperatur in der Bezeichnung. Istwert und Toleranz bleiben leer: den einen misst ein Mensch, die andere steht in den Unterlagen. Die Liste zeigt danach Ist minus Soll — ohne eingetragene Toleranz ohne Urteil. Mastnummern erscheinen durchgängig in der Schreibweise der Baustelle."
 }

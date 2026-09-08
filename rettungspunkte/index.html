@@ -1386,7 +1386,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.18.0';
+var VERSION = '0.18.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6112,6 +6112,13 @@ function zahl2(v) {
   return (v == null || isNaN(v)) ? '—' : Number(v).toFixed(2).replace('.', ',');
 }
 
+/* Mastnummern in der Schreibweise DIESER Baustelle. Sonst steht in der
+   Bezeichnung „Feld 18 → 4236/19" — halb so, halb so, und wer den Wert in
+   vier Wochen liest, hält es für zwei verschiedene Zählungen. */
+function mastHier(nr) {
+  return (D.mastOhneLeitung ? D.mastOhneLeitung(nr, state.leitung) : nr) || nr;
+}
+
 function spannHtml() {
   var e = spannAmMast();
 
@@ -6157,9 +6164,9 @@ function spannHtml() {
 
     raus += '<div class="spanngruppe">' +
       '<div class="spannkopf"><b>' + esc(t.zustand || 'Spanntabelle') + '</b>' +
-        '<span>Feld ' + esc(akte.mast.nr) + ' → ' + esc(nach) + '</span></div>' +
+        '<span>Feld ' + esc(akte.mast.nr) + ' → ' + esc(mastHier(nach)) + '</span></div>' +
       '<div class="spannwarn">Die Werte gelten für das Spannfeld <b>ab diesem Mast</b> ' +
-        'bis Mast ' + esc(nach) + ' — nicht für den Mast selbst.</div>' +
+        'bis Mast ' + esc(mastHier(nach)) + ' — nicht für den Mast selbst.</div>' +
       '<div class="spanntab"><table><thead><tr>' +
         '<th>Seil</th><th>Durchhang</th><th>red.</th>' +
         (mitVersatz ? '<th>Versatz</th>' : '') +
@@ -6211,8 +6218,8 @@ function spannIstEintragen(i) {
   var t = e.tabelle;
   var temp = (w.temperatur > 0 ? '+' : '') + w.temperatur + ' °C';
   wertBearbeiten('', {
-    bezeichnung: 'Durchhang Seil ' + e.seil.seil + ' · Feld ' + akte.mast.nr + '→' + e.nachMast +
-      ' · ' + temp,
+    bezeichnung: 'Durchhang Seil ' + e.seil.seil + ' · Feld ' + akte.mast.nr + '→' +
+      mastHier(e.nachMast) + ' · ' + temp,
     soll: zahl2(w.durchhang),
     einheit: 'm',
     bemerkung: (t.zustand || '') + ' · Spannweite ' + zahl2(e.feld.spannweite) + ' m · ' +
