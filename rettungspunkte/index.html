@@ -749,6 +749,10 @@
     box-shadow:0 2px 18px -6px rgba(0,0,0,.6)}
   .planladen{padding:26px 18px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5}
   .planseite{font-size:12.5px;font-weight:800;color:var(--muted);padding:0 4px;align-self:center}
+  .planhinweis{font-size:11.5px;color:var(--muted2);align-self:center;padding-left:4px}
+  /* Der Plan darf mit zwei Fingern gezogen werden, ohne dass der Browser
+     dazwischenfunkt. */
+  .planbild{touch-action:none}
   .planbild img{max-width:none;transform-origin:center center;display:block}
   .planbild iframe, .planbild embed{width:100%;height:100%;border:0;background:#fff}
   .planfuss2{background:#000;color:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -1415,7 +1419,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.20.0';
+var VERSION = '0.20.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6983,6 +6987,10 @@ function pdfOeffnen(datei, dateiname) {
   }).then(function (doc) {
     pdfAkt.doc = doc; pdfAkt.seiten = doc.numPages; pdfAkt.seite = 1; pdfAkt.zoom = 1;
     bild.innerHTML = '<canvas id="planPdfBild"></canvas>';
+    bild.ontouchstart = planFingerStart;
+    bild.ontouchmove = planFingerZug;
+    bild.ontouchend = planFingerEnde;
+    bild.ontouchcancel = planFingerEnde;
     pdfWerkzeuge();
     return pdfZeichnen(true);
   }).catch(function (e) {
@@ -7005,7 +7013,8 @@ function pdfWerkzeuge() {
       : '') +
     '<button class="btn" onclick="pdfZoom(1.5)">Größer</button>' +
     '<button class="btn" onclick="pdfZoom(1/1.5)">Kleiner</button>' +
-    '<button class="btn" onclick="pdfPassend()">Einpassen</button>';
+    '<button class="btn" onclick="pdfPassend()">Einpassen</button>' +
+    '<span class="planhinweis">mit zwei Fingern aufziehen · Doppeltipp</span>';
 }
 
 /* Auf ein A0-Blatt gehört Auflösung: Ein Bewehrungsplan ist unbrauchbar,
@@ -7041,6 +7050,103 @@ function pdfZeichnen(einpassen) {
     .catch(function () { pdfAkt.laeuft = false; });
 }
 
+/* ---------- Zwei Finger auf dem Plan ----------
+
+   Ein A0-Blatt auf einem 390-Pixel-Telefon ist eingepasst zwar vollständig,
+   aber unlesbar. Wer eine Bewehrungsangabe sucht, zieht sie mit zwei Fingern
+   auf — das ist die Bewegung, die jeder kennt, und mit Handschuh die
+   einzige, die zuverlässig klappt.
+
+   Während der Bewegung wird die Leinwand nur gedehnt (schnell, aber
+   unscharf); losgelassen wird neu gezeichnet, damit die Maße wieder scharf
+   dastehen. Und der Punkt zwischen den Fingern bleibt stehen — sonst
+   springt einem das Blatt unter der Hand weg. */
+
+var zwei = { aktiv: false, start: 0, zoom0: 1, mx: 0, my: 0, sl: 0, st: 0, tipp: 0 };
+
+function planAbstand(t) {
+  var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy) || 1;
+}
+
+function planZoomAnkern(neu, mx, my) {
+  /* mx/my: der Punkt, der stehenbleiben soll — in Bildschirmkoordinaten.
+     Umgerechnet auf das Blatt, damit er nach dem Zoomen wieder dort liegt. */
+  var r = $('planBild'); if (!r) return;
+  var kasten = r.getBoundingClientRect();
+  var vorher = pdfAkt.zoom;
+  var f = neu / vorher;
+  var x = r.scrollLeft + (mx - kasten.left);
+  var y = r.scrollTop + (my - kasten.top);
+  pdfAkt.zoom = neu;
+  pdfZeichnen(false).then(function () {
+    r.scrollLeft = x * f - (mx - kasten.left);
+    r.scrollTop = y * f - (my - kasten.top);
+  });
+}
+
+function planFingerStart(e) {
+  var t = e.touches;
+  if (t.length === 2) {
+    var r = $('planBild');
+    zwei.aktiv = true;
+    zwei.start = planAbstand(t);
+    zwei.zoom0 = pdfAkt.zoom;
+    zwei.mx = (t[0].clientX + t[1].clientX) / 2;
+    zwei.my = (t[0].clientY + t[1].clientY) / 2;
+    zwei.sl = r.scrollLeft; zwei.st = r.scrollTop;
+    e.preventDefault();
+    return;
+  }
+  if (t.length === 1) {
+    // Doppeltipp: hinein, und beim zweiten Mal wieder ganz aufs Blatt.
+    var jetzt = Date.now();
+    if (jetzt - zwei.tipp < 320) {
+      zwei.tipp = 0;
+      var passend = planPassZoom();
+      if (pdfAkt.zoom > passend * 1.2) pdfPassend();
+      else planZoomAnkern(Math.min(8, pdfAkt.zoom * 2.5), t[0].clientX, t[0].clientY);
+      e.preventDefault();
+    } else zwei.tipp = jetzt;
+  }
+}
+
+function planFingerZug(e) {
+  if (!zwei.aktiv || e.touches.length !== 2) return;
+  e.preventDefault();
+  var f = planAbstand(e.touches) / zwei.start;
+  var c = $('planPdfBild'); if (!c) return;
+  // Nur dehnen — scharf gezeichnet wird beim Loslassen.
+  c.style.transformOrigin = '0 0';
+  c.style.transform = 'scale(' + f + ')';
+}
+
+function planFingerEnde(e) {
+  if (!zwei.aktiv) return;
+  if (e.touches && e.touches.length > 0) return;
+  zwei.aktiv = false;
+  var c = $('planPdfBild');
+  var f = 1;
+  if (c) {
+    var m = (c.style.transform || '').match(/scale\(([\d.]+)\)/);
+    f = m ? parseFloat(m[1]) : 1;
+    c.style.transform = ''; c.style.transformOrigin = '';
+  }
+  var neu = Math.max(0.05, Math.min(8, zwei.zoom0 * f));
+  if (Math.abs(neu - pdfAkt.zoom) < 0.001) return;
+  planZoomAnkern(neu, zwei.mx, zwei.my);
+}
+
+/* Der Maßstab, bei dem das ganze Blatt ins Bild passt. */
+function planPassZoom() {
+  var r = $('planBild'), c = $('planPdfBild');
+  if (!r || !c || !pdfAkt.zoom) return 1;
+  var breiteRoh = parseFloat(c.style.width) / pdfAkt.zoom;
+  var hoeheRoh = parseFloat(c.style.height) / pdfAkt.zoom;
+  if (!breiteRoh || !hoeheRoh) return 1;
+  return Math.min(r.clientWidth / breiteRoh, r.clientHeight / hoeheRoh) || 1;
+}
+
 function pdfSeite(schritt) {
   var n = pdfAkt.seite + schritt;
   if (n < 1 || n > pdfAkt.seiten) return;
@@ -7049,8 +7155,13 @@ function pdfSeite(schritt) {
 }
 
 function pdfZoom(f) {
-  pdfAkt.zoom = Math.max(0.05, Math.min(8, pdfAkt.zoom * f));
-  pdfZeichnen(false);
+  var r = $('planBild');
+  var k = r ? r.getBoundingClientRect() : null;
+  var neu = Math.max(0.05, Math.min(8, pdfAkt.zoom * f));
+  // Um die Bildmitte zoomen, nicht um die linke obere Ecke: Sonst wandert
+  // die Stelle, die man gerade ansieht, aus dem Bild.
+  if (k) planZoomAnkern(neu, k.left + k.width / 2, k.top + k.height / 2);
+  else { pdfAkt.zoom = neu; pdfZeichnen(false); }
 }
 
 function pdfPassend() { pdfZeichnen(true); }

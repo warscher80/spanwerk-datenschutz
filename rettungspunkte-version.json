@@ -1,6 +1,6 @@
 {
-  "versionCode": 43,
-  "versionName": "0.20.0",
+  "versionCode": 44,
+  "versionName": "0.20.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Die untere Leiste bleibt beim Scrollen unten — jetzt strukturell: Der Bildschirm ist eine Spalte aus Kopf, Inhalt und Leiste; nur der Inhalt rollt. Die Leiste schwebt nicht mehr und kann deshalb nicht mehr verrutschen. Außerdem aus 0.19: Pläne werden von der App selbst gezeichnet und sind am Handy lesbar."
+  "notes": "Pläne mit zwei Fingern aufziehen: während der Bewegung schnell, beim Loslassen wieder scharf gezeichnet. Doppeltipp vergrößert an der getippten Stelle, noch einmal holt das ganze Blatt zurück. Dazu aus 0.20.0: Die untere Leiste schwebt nicht mehr und kann beim Scrollen nicht verrutschen."
 }
