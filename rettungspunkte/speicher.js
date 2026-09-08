@@ -18,7 +18,7 @@ var SpieSpeicher = (function () {
   'use strict';
 
   var DB_NAME = 'spie-baustelle';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;   // 2: Spanntabellen
   var db = null, oeffnend = null;
 
   function verfuegbar() {
@@ -55,6 +55,13 @@ var SpieSpeicher = (function () {
         }
         if (!d.objectStoreNames.contains('einstellungen')) {
           d.createObjectStore('einstellungen', { keyPath: 'schluessel' });
+        }
+        /* Spanntabellen (Reguliermaße) je Baustelle. Eigener Speicher, weil
+           eine Tabelle mehrere hundert Kilobyte hat und nichts davon in die
+           Rettung eingeht — sie darf den Start nie aufhalten. */
+        if (!d.objectStoreNames.contains('spanntabellen')) {
+          var sp = d.createObjectStore('spanntabellen', { keyPath: ['baustelle', 'id'] });
+          sp.createIndex('baustelle', 'baustelle', { unique: false });
         }
       };
       a.onsuccess = function () { db = a.result; ja(db); };
@@ -192,6 +199,32 @@ var SpieSpeicher = (function () {
     });
   }
 
+  /* ---------- Spanntabellen ----------
+     Abgelegt wird, was der Auftraggeber berechnet hat — unverändert. Die
+     App ergänzt nur, zu welcher Baustelle und wann es importiert wurde. */
+
+  function spannSetzen(baustelle, tabelle) {
+    var satz = { baustelle: String(baustelle), id: String(tabelle.id),
+                 importiert: new Date().toISOString(), tabelle: tabelle };
+    return lauf(['spanntabellen'], 'readwrite', function (t) {
+      t.objectStore('spanntabellen').put(satz);
+    }).then(function () { return satz; });
+  }
+
+  function spannVonBaustelle(baustelle) {
+    var id = String(baustelle);
+    return bereit().then(function (d) {
+      return anfrage(d.transaction('spanntabellen').objectStore('spanntabellen')
+        .index('baustelle').getAll(IDBKeyRange.only(id)));
+    }).then(function (l) { return l || []; });
+  }
+
+  function spannLoeschen(baustelle, id) {
+    return lauf(['spanntabellen'], 'readwrite', function (t) {
+      t.objectStore('spanntabellen').delete([String(baustelle), String(id)]);
+    });
+  }
+
   /* ---------- Regulierwerte ---------- */
 
   function werteVonMast(baustelle, mastSchluessel) {
@@ -255,7 +288,7 @@ var SpieSpeicher = (function () {
     var id = String(baustelle);
     return dokVonBaustelle(id).then(function (dokumente) {
       var ids = dokumente.map(function (d) { return d.id; });
-      return lauf(['dokumente', 'dateien', 'werte', 'mastdaten'], 'readwrite', function (t) {
+      return lauf(['dokumente', 'dateien', 'werte', 'mastdaten', 'spanntabellen'], 'readwrite', function (t) {
         var dok = t.objectStore('dokumente'), dat = t.objectStore('dateien');
         ids.forEach(function (x) { dok.delete(x); dat.delete(x); });
         var w = t.objectStore('werte').index('baustelle').openCursor(IDBKeyRange.only(id));
@@ -267,6 +300,8 @@ var SpieSpeicher = (function () {
           if (c.value && c.value.baustelle === id) c.delete();
           c.continue();
         };
+        var sp = t.objectStore('spanntabellen').index('baustelle').openCursor(IDBKeyRange.only(id));
+        sp.onsuccess = function (e) { var c = e.target.result; if (c) { c.delete(); c.continue(); } };
         return ids.length;
       });
     });
@@ -303,6 +338,9 @@ var SpieSpeicher = (function () {
     mastdatenHolen: mastdatenHolen,
     mastdatenSetzen: mastdatenSetzen,
     mastdatenAlle: mastdatenAlle,
+    spannSetzen: spannSetzen,
+    spannVonBaustelle: spannVonBaustelle,
+    spannLoeschen: spannLoeschen,
     werteVonMast: werteVonMast,
     werteVonBaustelle: werteVonBaustelle,
     wertSetzen: wertSetzen,

@@ -1,6 +1,6 @@
 {
-  "versionCode": 35,
-  "versionName": "0.15.1",
+  "versionCode": 36,
+  "versionName": "0.16.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Behebt: Nach dem Update auf 0.15.0 liess sich beim ersten Start kein Mast mehr oeffnen — die App hatte die neue index.html, aber noch die alte geo.js aus dem Offline-Speicher. Die Mastakte geht jetzt auch dann auf, die App erkennt den Zustand, sagt ihn und holt die neuen Dateien nach. Zusatzanzeigen koennen keine Grundfunktion mehr blockieren."
+  "notes": "Spanntabellen: Die Reguliermaße aus der Berechnung des Auftraggebers stehen jetzt in der Mastakte. Temperatur wählen — dann je Seil Durchhang, Zugspannung und Spannweite, bei Seil in Rollen auch das Versatzmaß, mit Quelle und Ausgabedatum. Eingelesen wird eine JSON-Datei aus den Spanntabellen-PDFs (Verwaltung → Spanntabellen). Die App rechnet nichts nach und interpoliert nicht zwischen den Temperaturspalten; Masten ohne eigene Tabelle bekommen keinen Nachbarwert."
 }

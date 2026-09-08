@@ -615,6 +615,31 @@
   .zuwegung .btnrow{margin-top:8px}
   .wegchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px}
   .wegchips>span{flex:1 0 100%;font-size:12.5px;color:var(--muted)}
+
+  /* ---- Spanntabelle ----
+     Eine Zahlentafel, die am Mast im Stehen abgelesen wird: große Ziffern
+     für den Durchhang, alles andere daneben. Breite Tabellen scrollen in
+     sich selbst, damit die Seite nicht seitlich wandert. */
+  .tempwahl{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:12px}
+  .tempwahl>span{flex:1 0 100%;font-size:12.5px;color:var(--muted)}
+  /* Rot bleibt der Rettung vorbehalten — eine ausgewählte Temperatur ist
+     keine Warnung. */
+  .chip.an{background:var(--blue);border-color:var(--blue);color:#fff}
+  .spanngruppe{border:1px solid var(--line);border-radius:var(--r-s);padding:11px 12px;margin-bottom:12px}
+  .spannkopf{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+  .spannkopf b{font-size:13px;letter-spacing:.4px;color:var(--blue)}
+  .spannkopf span{font-size:13px;font-weight:700}
+  .spannwarn{font-size:12.5px;color:var(--muted);margin:5px 0 9px}
+  .spanntab{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .spanntab table{border-collapse:collapse;width:100%;min-width:420px}
+  .spanntab th{font-size:11px;letter-spacing:.3px;color:var(--muted2);text-align:right;
+    font-weight:700;padding:0 0 6px 10px;white-space:nowrap}
+  .spanntab th:first-child{text-align:left;padding-left:0}
+  .spanntab td{text-align:right;padding:5px 0 5px 10px;font-variant-numeric:tabular-nums;
+    border-top:1px solid var(--line);font-size:calc(14px * var(--gross));white-space:nowrap}
+  .spanntab td.seil{text-align:left;padding-left:0;font-weight:800}
+  .spanntab td.wert{font-weight:800;font-size:calc(16px * var(--gross))}
+  .spannfuss{font-size:11.5px;color:var(--muted2);margin-top:9px;line-height:1.45}
   .zuwegung.fehlt{border-color:var(--warn)}
   .zuwegung.fehlt b{color:var(--warn)}
   .zuwegung .lauf{font-weight:800;color:var(--ok)}
@@ -1045,6 +1070,21 @@
       <input id="pkDatei" type="file" accept=".zip,application/zip" style="display:none"
              onchange="paketDateiGewaehlt(event)">
     </div>
+    <!-- Reguliermaße: Die Zahlen kommen aus der Berechnung des Auftraggebers
+         und werden hier nur eingelesen. Die App gibt keine Sollwerte vor. -->
+    <div class="card">
+      <h3>Spanntabellen <span class="badge grey" id="spannCount">0</span></h3>
+      <div class="hint" style="margin-bottom:10px">Die Reguliermaße des Auftraggebers als
+        <b>JSON</b> — aus den Spanntabellen-PDFs erzeugt mit
+        <code>tools/spanntabelle-zu-json.py</code>. Sie erscheinen dann in der Mastakte
+        unter „Spanntabelle".</div>
+      <div class="btnrow">
+        <button class="btn primary" onclick="document.getElementById('spannDatei').click()">Spanntabelle einlesen</button>
+      </div>
+      <input id="spannDatei" type="file" accept=".json,application/json" style="display:none"
+             onchange="spannDateiGewaehlt(event)">
+      <div id="spannBox" style="margin-top:10px"></div>
+    </div>
     <div class="card">
       <h3>So funktioniert die App</h3>
       <div class="howto">
@@ -1320,6 +1360,7 @@
 <script src="geo.js"></script>
 <script src="dok-modell.js"></script>
 <script src="speicher.js"></script>
+<script src="spann.js"></script>
 <script src="paket.js"></script>
 <script>
 'use strict';
@@ -1328,7 +1369,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.15.1';
+var VERSION = '0.16.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1674,6 +1715,9 @@ function baustelleLaden(id) {
   akte.key = ''; akte.mast = null; akte.dokumente = []; akte.werte = []; akte.stamm = null;
   mastZufahrtMarken = {};
   if (typeof zufahrtMarkenLaden === 'function') zufahrtMarkenLaden().then(mastListeZeichnen);
+  if (typeof spannLaden === 'function') {
+    spannLaden().then(function () { renderSpannVerwaltung(); renderVerwaltung(); });
+  }
   if (typeof dokumenteLaden === 'function') {
     dokumenteLaden().then(function () {
       dokListeZeichnen(); renderUebersicht();
@@ -5527,7 +5571,7 @@ function mastListeZeichnen() {
 /* ---------- Mastakte ---------- */
 
 var akte = { key: '', mast: null, dokumente: [], werte: [], stamm: null, offen: '',
-             zuwegung: null, wegStamm: null, wegEnde: null };
+             zuwegung: null, wegStamm: null, wegEnde: null, spannTemp: 10 };
 
 /* Merkzeichen für die Mastliste: welcher Mast hat eine eingeschränkte
    Zufahrt? Einmal je Baustelle geladen — die Liste soll auch bei tausend
@@ -5919,6 +5963,8 @@ function renderAkteBereiche() {
   var offeneWerte = akte.werte.filter(function (w) { return w.status !== 'fertig'; }).length;
 
   box.innerHTML = '<h3 style="margin-top:0">Mastakte</h3><div class="bereiche">' +
+    b('spann', 'Spanntabelle', spannAmMast().length
+        ? spannAmMast().length + ' Spannfelder' : (spannAlle.length ? 'dieser Mast fehlt' : 'keine hinterlegt')) +
     b('werte', 'Regulierwerte', akte.werte.length
         ? stueck(akte.werte.length, 'Wert', 'Werte') + (offeneWerte ? ' · ' + offeneWerte + ' offen' : '')
         : 'noch keine') +
@@ -5938,6 +5984,7 @@ function akteBereich(id, behalten) {
   akte.offen = (akte.offen === id && !behalten) ? '' : id;
   var ziel = $('akteInhalt'); if (!ziel) return;
   if (!akte.offen) { ziel.innerHTML = ''; return; }
+  if (id === 'spann') { ziel.innerHTML = spannHtml(); return; }
   if (id === 'werte') { ziel.innerHTML = werteHtml(); return; }
   if (id === 'bemerkungen') { ziel.innerHTML = bemerkungHtml(); return; }
   var gruppen = id === 'gruendung' ? ['Gründung']
@@ -5978,6 +6025,222 @@ function dokGruppenHtml(gruppen) {
       '<button class="chip blue" onclick="planOeffnen(&#39;' + esc(a.id) + '&#39;)">Öffnen</button>' +
       '</div>';
   }).join('');
+}
+
+/* ---------- Spanntabellen (Reguliermaße) ----------
+
+   Was hier steht, hat der Auftraggeber gerechnet: Bei welcher Temperatur
+   muss das Seil wie weit durchhängen. Die App rechnet nichts nach, rundet
+   nichts und interpoliert nicht zwischen den Temperaturspalten — sie zeigt
+   die Spalte, die in der Tabelle steht, und sonst nichts.
+
+   Die Werte einer Zeile gehören zum Spannfeld, das an DIESEM Mast beginnt
+   und am nächsten endet. Das steht überall dabei, wo Werte stehen: Wer sie
+   dem falschen Feld zuordnet, reguliert das falsche Seil. */
+
+var spannAlle = [];            // alle Tabellen dieser Baustelle
+var spannImport = null;        // geprüfte Datei, die auf Übernahme wartet
+
+function spannLaden() {
+  spannAlle = [];
+  if (!S || !S.verfuegbar()) return Promise.resolve([]);
+  return S.spannVonBaustelle(aktiveBaustelle()).then(function (liste) {
+    spannAlle = (liste || []).map(function (s) { return s.tabelle; });
+    return spannAlle;
+  }).catch(function () { return []; });
+}
+
+function spannAmMast() {
+  if (!akte.mast || typeof SpieSpann === 'undefined') return [];
+  return SpieSpann.felderAmMast(spannAlle, akte.mast.nr);
+}
+
+function spannTempWahl(t) { akte.spannTemp = Number(t); akteBereich('spann', true); }
+
+/* Die Temperaturen, die es wirklich gibt — und die Vorauswahl. 10 °C ist
+   keine fachliche Empfehlung, sondern nur die Spalte, die am häufigsten
+   gebraucht wird; sie steht auch so dran. */
+function spannTemp(eintraege) {
+  var moeglich = SpieSpann.temperaturen(eintraege);
+  if (!moeglich.length) return null;
+  if (moeglich.indexOf(akte.spannTemp) >= 0) return akte.spannTemp;
+  return moeglich.indexOf(10) >= 0 ? 10 : moeglich[0];
+}
+
+function zahl2(v) {
+  return (v == null || isNaN(v)) ? '—' : Number(v).toFixed(2).replace('.', ',');
+}
+
+function spannHtml() {
+  var e = spannAmMast();
+
+  if (!e.length) {
+    if (!spannAlle.length) {
+      return '<div class="empty">Für diese Baustelle ist keine Spanntabelle hinterlegt. ' +
+        'Die Reguliermaße kommen aus der Berechnung des Auftraggebers; die App gibt keine vor.</div>' +
+        '<div class="btnrow"><button class="btn sm" onclick="setTab(&#39;info&#39;)">' +
+        'Spanntabelle in der Verwaltung laden</button></div>';
+    }
+    var drin = Object.keys(SpieSpann.mastenInTabellen(spannAlle)).sort();
+    return '<div class="empty"><b>Mast ' + esc(akte.mast.nr) + ' kommt in den hinterlegten ' +
+      'Spanntabellen nicht vor.</b><br>Enthalten sind ' + drin.length + ' Masten: ' +
+      esc(drin.slice(0, 12).join(', ')) + (drin.length > 12 ? ' …' : '') +
+      '<br>Es wird kein Wert eines Nachbarmastes angezeigt.</div>';
+  }
+
+  var temp = spannTemp(e);
+  var chips = SpieSpann.temperaturen(e).map(function (t) {
+    return '<button class="chip' + (t === temp ? ' an' : '') +
+      '" onclick="spannTempWahl(' + t + ')">' + (t > 0 ? '+' : '') + t + ' °C</button>';
+  }).join('');
+
+  // Nach Tabelle gruppieren: „in Klemmen" und „in Rollen" sind zwei
+  // verschiedene Zustände und dürfen nie in einer Liste stehen.
+  var gruppen = {};
+  e.forEach(function (x) {
+    var k = x.tabelle.id;
+    (gruppen[k] || (gruppen[k] = { tabelle: x.tabelle, zeilen: [] })).zeilen.push(x);
+  });
+
+  var raus = '<div class="tempwahl"><span>Temperatur laut Tabelle</span>' + chips + '</div>';
+
+  Object.keys(gruppen).forEach(function (k) {
+    var g = gruppen[k], t = g.tabelle;
+    var mitVersatz = g.zeilen.some(function (z) { return !!z.feld.versatz; });
+    var nach = g.zeilen[0].nachMast;
+
+    raus += '<div class="spanngruppe">' +
+      '<div class="spannkopf"><b>' + esc(t.zustand || 'Spanntabelle') + '</b>' +
+        '<span>Feld ' + esc(akte.mast.nr) + ' → ' + esc(nach) + '</span></div>' +
+      '<div class="spannwarn">Die Werte gelten für das Spannfeld <b>ab diesem Mast</b> ' +
+        'bis Mast ' + esc(nach) + ' — nicht für den Mast selbst.</div>' +
+      '<div class="spanntab"><table><thead><tr>' +
+        '<th>Seil</th><th>Durchhang</th><th>red.</th>' +
+        (mitVersatz ? '<th>Versatz</th>' : '') +
+        '<th>Zug</th><th>red.</th><th>Spannweite</th></tr></thead><tbody>' +
+      g.zeilen.map(function (z) {
+        var w = SpieSpann.beiTemperatur(z, temp);
+        if (!w) return '';
+        return '<tr><td class="seil" title="' + esc(z.seil.seiltyp) + '">' + esc(z.seil.seil) + '</td>' +
+          '<td class="wert">' + zahl2(w.durchhang) + '</td>' +
+          '<td>' + zahl2(w.durchhangRed) + '</td>' +
+          (mitVersatz ? '<td>' + (w.versatz == null ? '—' : zahl2(w.versatz)) + '</td>' : '') +
+          '<td>' + zahl2(w.zug) + '</td>' +
+          '<td>' + zahl2(w.zugRed) + '</td>' +
+          '<td>' + zahl2(z.feld.spannweite) + '</td></tr>';
+      }).join('') +
+      '</tbody></table></div>' +
+      '<div class="spannfuss">Durchhang und Spannweite in m · Zug in N/mm²' +
+        (mitVersatz ? ' · Versatzmaß in m' : '') + '<br>' +
+        esc(t.leitung || '') + (t.abschnitt ? ' · ' + esc(t.abschnitt) : '') + '<br>' +
+        'Quelle: ' + esc(t.quelle || 'Spanntabelle') +
+        (t.ausgabedatum ? ' · ' + esc(t.ausgabedatum) : '') +
+        (t.ueberziehungsfaktor ? ' · Überziehungsfaktor ' + esc(t.ueberziehungsfaktor) : '') +
+        '</div></div>';
+  });
+
+  raus += '<div class="hint">Zwischenwerte rechnet die App nicht aus. Die Tabelle nennt ' +
+    SpieSpann.temperaturen(e).length + ' Temperaturen; was dazwischen gilt, steht nicht darin.</div>';
+  return raus;
+}
+
+/* ---------- Import in der Verwaltung ---------- */
+
+function spannDateiGewaehlt(ev) {
+  var f = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!f) return;
+  var leser = new FileReader();
+  leser.onerror = function () { toast('Datei nicht lesbar'); };
+  leser.onload = function () {
+    var roh;
+    try { roh = JSON.parse(String(leser.result)); }
+    catch (e) { spannImport = null; renderSpannVerwaltung('Die Datei ist kein lesbares JSON.'); return; }
+    var p = SpieSpann.pruefen(roh);
+    spannImport = p.ok ? p : null;
+    renderSpannVerwaltung(p.ok ? '' : p.fehler);
+  };
+  leser.readAsText(f);
+}
+
+function spannUebernehmen() {
+  if (!spannImport) return;
+  var b = aktiveBaustelle();
+  Promise.all(spannImport.tabellen.map(function (t) { return S.spannSetzen(b, t); }))
+    .then(function () {
+      spannImport = null;
+      return spannLaden();
+    })
+    .then(function () {
+      renderSpannVerwaltung();
+      renderUebersicht();
+      if (akte.key) { akte.spannTemp = akte.spannTemp || 10; renderMastakte(); }
+      toast('Spanntabellen übernommen');
+    })
+    .catch(function (e) { renderSpannVerwaltung('Nicht gespeichert: ' + (e && e.message || e)); });
+}
+
+function spannVerwerfen() { spannImport = null; renderSpannVerwaltung(); }
+
+function spannWeg(id) {
+  S.spannLoeschen(aktiveBaustelle(), id)
+    .then(spannLaden)
+    .then(function () { renderSpannVerwaltung(); if (akte.key) renderMastakte(); toast('Tabelle entfernt'); });
+}
+
+/* Die Vorschau nennt beim Namen, was ankommt — und vor allem, welche Masten
+   der aktuellen Baustelle davon getroffen werden. Eine Tabelle, deren
+   Mastnummern zu keiner Baustelle passen, ist der wahrscheinlichste Fehler
+   beim Import; sie darf nicht als Erfolg durchgehen. */
+function renderSpannVerwaltung(fehler) {
+  var box = $('spannBox'); if (!box) return;
+  var teile = '';
+
+  if (fehler) teile += '<div class="warnbox">' + esc(fehler) + '</div>';
+
+  if (spannImport) {
+    var b = spannImport.bericht;
+    var inDatei = SpieSpann.mastenInTabellen(spannImport.tabellen);
+    var vorhanden = [], fehlend = [];
+    Object.keys(inDatei).forEach(function (k) {
+      (mastFinden(k) ? vorhanden : fehlend).push(inDatei[k]);
+    });
+    teile += '<div class="vorschau"><h4>Vorschau</h4>' +
+      '<div class="vzeile"><b>' + b.tabellen + '</b> Tabellen · <b>' + b.seile + '</b> Seile · <b>' +
+        b.felder + '</b> Spannfelder</div>' +
+      '<div class="vzeile"><b style="color:var(--ok)">' + vorhanden.length + '</b> Masten gibt es in ' +
+        'dieser Baustelle</div>' +
+      (fehlend.length
+        ? '<div class="vzeile"><b style="color:var(--warn)">' + fehlend.length + '</b> Masten sind hier ' +
+          'unbekannt: ' + esc(fehlend.slice(0, 10).join(', ')) + (fehlend.length > 10 ? ' …' : '') +
+          '<div class="psub">Die Tabellen werden trotzdem gespeichert — sie erscheinen aber nur an ' +
+          'Masten, die es in dieser Baustelle gibt. Passt die Schreibweise der Mastnummern?</div></div>'
+        : '') +
+      (b.verworfen.length
+        ? '<div class="vzeile"><b style="color:var(--bad)">' + b.verworfen.length + '</b> Zeilen ' +
+          'unvollständig und übergangen<div class="psub">' +
+          esc(b.verworfen.slice(0, 5).join(' · ')) + '</div></div>'
+        : '') +
+      '<div class="btnrow"><button class="btn ghost" onclick="spannVerwerfen()">Abbrechen</button>' +
+      '<button class="btn primary" onclick="spannUebernehmen()">Übernehmen</button></div></div>';
+  }
+
+  if (!spannAlle.length) {
+    teile += '<div class="empty">Keine Spanntabelle hinterlegt.</div>';
+  } else {
+    teile += spannAlle.map(function (t) {
+      var felder = t.seile.reduce(function (a, s) { return a + s.felder.length; }, 0);
+      return '<div class="dokzeile"><div class="dokinfo">' +
+        '<div class="doktitel">' + esc(t.von || '?') + ' → ' + esc(t.nach || '?') + ' · ' +
+          esc(t.zustand || '') + '</div>' +
+        '<div class="doksub">' + t.seile.length + ' Seile · ' + felder + ' Spannfelder' +
+          (t.ausgabedatum ? ' · ' + esc(t.ausgabedatum) : '') + '</div>' +
+        '<div class="doksub">' + esc(t.quelle || '') + '</div>' +
+        '</div><button class="chip" onclick="spannWeg(&#39;' + esc(t.id) + '&#39;)">Entfernen</button></div>';
+    }).join('');
+  }
+
+  box.innerHTML = teile;
 }
 
 /* ---------- Stammdaten des Mastes ---------- */
@@ -6546,6 +6809,7 @@ function renderVerwaltung() {
   setz('vwNummern', state.contacts.length + ' Nummern');
   setz('vwDok', dokAlle.length + ' Dokumente');
   setz('vwMasten', mastenAlle().length + ' Masten');
+  setz('spannCount', String(spannAlle.length));
 }
 
 function renderUebersicht() {
@@ -6642,12 +6906,16 @@ function paketExportieren() {
     ? Promise.all([
         S.dokVonBaustelle(baustelle).catch(function () { return []; }),
         S.mastdatenAlle(baustelle).catch(function () { return []; }),
-        S.werteVonBaustelle(baustelle).catch(function () { return []; })
+        S.werteVonBaustelle(baustelle).catch(function () { return []; }),
+        S.spannVonBaustelle(baustelle).catch(function () { return []; })
       ])
-    : Promise.resolve([[], [], []]);
+    : Promise.resolve([[], [], [], []]);
 
   holen.then(function (r) {
     var dokumente = r[0], mastdaten = r[1], werte = r[2];
+    // Die Reguliermaße gehören zur Baustelle wie die Pläne — ohne sie
+    // steht der Trupp am Mast ohne Sollwert.
+    var spann = (r[3] || []).map(function (x) { return x.tabelle; });
     var f = $('expStand');
     if (f) f.textContent = dokumente.length + ' Dokumente werden gepackt …';
     // Die Dateien einzeln holen — nicht alle auf einmal in den Speicher.
@@ -6667,6 +6935,7 @@ function paketExportieren() {
         wege: state.wege || [],
         mastdaten: mastdaten,
         werte: werte,
+        spanntabellen: spann,
         dokumente: dokumente
       }, dateien);
     }).then(function (teile) {
@@ -6807,6 +7076,9 @@ function paketUebernehmen(ziel) {
       arbeit = arbeit.then(function () {
         return S.mastdatenSetzen(id, m.mastSchluessel, m).catch(function () { return null; });
       });
+    });
+    (d.spanntabellen || []).forEach(function (t) {
+      arbeit = arbeit.then(function () { return S.spannSetzen(id, t).catch(function () { return null; }); });
     });
     (d.werte || []).forEach(function (w) {
       arbeit = arbeit.then(function () {
@@ -6977,7 +7249,8 @@ var BAUSTEINE = [
   ['geo.js',        function () { return typeof G.zuwegungZuMast === 'function'; }],
   ['speicher.js',   function () { return typeof SpieSpeicher !== 'undefined'; }],
   ['dok-modell.js', function () { return typeof SpieDok !== 'undefined'; }],
-  ['paket.js',      function () { return typeof SpiePaket !== 'undefined'; }]
+  ['paket.js',      function () { return typeof SpiePaket !== 'undefined'; }],
+  ['spann.js',      function () { return typeof SpieSpann !== 'undefined'; }]
 ];
 var bausteineFehlen = [];
 var benutzerAktiv = false;
@@ -7057,6 +7330,7 @@ function boot() {
      ausdrücklich NICHT. */
   mastListeZeichnen(); renderUebersicht(); renderVerwaltung();
   zufahrtMarkenLaden().then(mastListeZeichnen);
+  spannLaden().then(function () { renderSpannVerwaltung(); renderVerwaltung(); });
   dokumenteLaden().then(function () { dokListeZeichnen(); renderUebersicht(); renderVerwaltung(); });
 
   wachAnzeigen();

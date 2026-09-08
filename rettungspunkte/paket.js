@@ -188,6 +188,8 @@ var SpiePaket = (function () {
       wege: daten.wege || [],
       mastdaten: daten.mastdaten || [],
       werte: daten.werte || [],
+      // Die Reguliermaße gehören zur Baustelle wie die Pläne.
+      spanntabellen: daten.spanntabellen || [],
       dokumente: (daten.dokumente || []).map(function (d) {
         var q = {}; for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k)) q[k] = d[k];
         q.datei = 'dateien/' + d.id + '.' + dateiEndung(d.dateiname);
