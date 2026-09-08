@@ -1,6 +1,6 @@
 {
-  "versionCode": 42,
-  "versionName": "0.19.0",
+  "versionCode": 43,
+  "versionName": "0.20.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Pläne sind jetzt am Handy zu lesen. Statt „Unknown — Dokument\" zeichnet die App das PDF selbst: Seiten blättern, Größer, Kleiner, Einpassen — im Gerät und ohne Internet. Außerdem bekommt jede Datei ihren Dateityp, auch wenn er beim Import gefehlt hat, und die Ablage speichert Dateien robuster."
+  "notes": "Die untere Leiste bleibt beim Scrollen unten — jetzt strukturell: Der Bildschirm ist eine Spalte aus Kopf, Inhalt und Leiste; nur der Inhalt rollt. Die Leiste schwebt nicht mehr und kann deshalb nicht mehr verrutschen. Außerdem aus 0.19: Pläne werden von der App selbst gezeichnet und sind am Handy lesbar."
 }

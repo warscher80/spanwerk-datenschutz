@@ -64,7 +64,19 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
   }
+  /* Der Bildschirm ist eine Spalte: Kopf, Inhalt, Leiste.
+
+     Vorher hingen Kopf und Leiste mit „position:fixed"/„sticky" über dem
+     Inhalt. Auf dem iPhone stand die Leiste dadurch beim Rollen plötzlich
+     mitten im Bild — zweimal gemeldet. Feste Elemente sind dort seit jeher
+     heikel: Sie liegen in einer eigenen Ebene, und Safari malt sie beim
+     Rollen gern an der alten Stelle weiter.
+
+     Jetzt braucht die Leiste kein „fixed" mehr. Sie ist schlicht die letzte
+     Zeile einer bildschirmhohen Spalte, und gerollt wird nur die mittlere.
+     Was nicht schwebt, kann auch nicht verrutschen. */
   html,body{margin:0;padding:0;overscroll-behavior-y:none}
+  html{height:100%}
   body{
     background:var(--bg);
     color:var(--txt);
@@ -79,6 +91,10 @@
     font-feature-settings:"tnum" 1;
     padding-bottom:0;
     -webkit-user-select:none;user-select:none;
+    display:flex;flex-direction:column;
+    height:100vh;
+    height:100dvh;          /* folgt der Leiste von Safari, wenn sie ein- und ausfährt */
+    overflow:hidden;        /* gerollt wird NUR der Inhalt zwischen Kopf und Leiste */
     /* Kein Gummiband am Seitenende: Beim Überdehnen bleiben feste Leisten
        unter iOS gern an der falschen Stelle stehen. Nebenbei verhindert es
        das versehentliche Neuladen durch Ziehen von oben — auf dem
@@ -94,7 +110,7 @@
   body.light::before{background:radial-gradient(120% 100% at 50% 0%, rgba(226,0,26,.09) 0%, rgba(226,0,26,0) 60%)}
 
   header{
-    position:sticky;top:0;z-index:30;
+    flex:0 0 auto;z-index:30;
     /* Deckend, KEIN backdrop-filter.
 
        Milchglas auf einer festen Leiste ist unter iOS ein bekannter
@@ -160,12 +176,13 @@
     background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
   .iconbtn svg{width:18px;height:18px}
 
-  main{padding:12px 12px 0}
-  /* Die Navigation liegt fest am unteren Rand — der Inhalt braucht darunter
-     Platz, sonst ist der letzte Eintrag nicht erreichbar. */
-  main, .tabpane{padding-bottom:calc(var(--navhoehe) + 24px + env(safe-area-inset-bottom))}
+  /* Der einzige Bereich, der rollt. Die Leiste steht darunter und wird
+     nicht überdeckt — deshalb braucht der Inhalt auch keinen Platz mehr
+     „unter" ihr, nur noch etwas Luft. */
+  main{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+    padding:12px 12px 24px}
   .tabpane{padding-bottom:0}
-  main{padding-bottom:calc(var(--navhoehe) + 24px + env(safe-area-inset-bottom))}
   .tabpane{display:none}
   .tabpane.on{display:block;animation:fade .18s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -324,8 +341,8 @@
     background:linear-gradient(180deg,var(--accent),#c40017);color:#fff;cursor:pointer}
 
   /* ---- Navigation ---- */
-  /* Deckend und ohne Milchglas — siehe Begründung beim header. */
-  nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
+  /* Letzte Zeile der Spalte, nicht schwebend — siehe die Begründung oben. */
+  nav{flex:0 0 auto;z-index:40;display:flex;
     background:var(--bg2);
     border-top:1px solid var(--line);
     box-shadow:0 -8px 26px -18px rgba(0,0,0,.85);
@@ -1398,7 +1415,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.19.0';
+var VERSION = '0.20.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4836,6 +4853,15 @@ function showHelp() {
   );
 }
 
+/* Gerollt wird der Inhaltsbereich, nicht das Fenster: Seit Kopf und Leiste
+   feste Zeilen einer bildschirmhohen Spalte sind, rollt das Fenster gar
+   nicht mehr. window.scrollTo hätte hier nichts mehr bewirkt. */
+function nachObenRollen() {
+  var m = document.querySelector('main');
+  if (m) m.scrollTop = 0;
+  try { window.scrollTo(0, 0); } catch (e) { /* ältere Browser */ }
+}
+
 function setTab(name) {
   var panes = document.querySelectorAll('.tabpane');
   for (var i = 0; i < panes.length; i++) panes[i].classList.toggle('on', panes[i].id === 'tab-' + name);
@@ -4854,7 +4880,7 @@ function setTab(name) {
       if (btns[m].getAttribute('data-tab') === 'masten') btns[m].classList.add('on');
     }
   }
-  window.scrollTo(0, 0);
+  nachObenRollen();
   if (name === 'punkte') renderPoints();
   if (name === 'kontakte') renderContacts();
   if (name === 'uebersicht') renderUebersicht();
@@ -5510,7 +5536,7 @@ function rettungOeffnen() {
   if (typeof scanSchliessen === 'function' && scan && scan.lauf) scanSchliessen();
   closeOv();
   setTab('notfall');
-  window.scrollTo(0, 0);
+  nachObenRollen();
 }
 
 /* ---------- Masten ---------- */
@@ -5658,7 +5684,7 @@ function mastOeffnen(key) {
   // Der Weg zu diesem Mast steht in der Karte und braucht keine Datenbank.
   akte.zuwegung = mastZuwegung(m); akte.wegStamm = null; akte.wegEnde = null;
   setTab('mastakte');
-  window.scrollTo(0, 0);
+  nachObenRollen();
   renderMastakte();
   if (!S || !S.verfuegbar()) return;
   var baustelle = aktiveBaustelle();
