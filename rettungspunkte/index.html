@@ -1428,7 +1428,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.25.1';
+var VERSION = '0.25.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7914,6 +7914,9 @@ function unterlagenNachtragen() {
         dokListeZeichnen(); renderUebersicht();
       });
       spannLaden().then(function () { renderSpannVerwaltung(); });
+      /* Legt eine Lieferung eine Baustelle an, muss sie auch in der Liste
+         stehen — sonst sieht man sie erst nach einem Neustart. */
+      baustellenAnzeigen();
       renderVerwaltung();
       toast('Mitgelieferte Unterlagen übernommen');
     } else {
