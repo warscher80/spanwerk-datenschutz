@@ -64,7 +64,7 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
   }
-  html,body{margin:0;padding:0}
+  html,body{margin:0;padding:0;overscroll-behavior-y:none}
   body{
     background:var(--bg);
     color:var(--txt);
@@ -79,6 +79,11 @@
     font-feature-settings:"tnum" 1;
     padding-bottom:0;
     -webkit-user-select:none;user-select:none;
+    /* Kein Gummiband am Seitenende: Beim Überdehnen bleiben feste Leisten
+       unter iOS gern an der falschen Stelle stehen. Nebenbei verhindert es
+       das versehentliche Neuladen durch Ziehen von oben — auf dem
+       Rettungsbildschirm das Letzte, was jemand gebrauchen kann. */
+    overscroll-behavior-y:none;
   }
   /* Ein sehr leiser Lichtschein oben — gibt der Seite Tiefe, ohne zu leuchten. */
   body::before{
@@ -90,16 +95,20 @@
 
   header{
     position:sticky;top:0;z-index:30;
-    /* Milchglas in schlichtem rgba: jeder Browser versteht es, und der
-       Kontrast bleibt nachmessbar. */
-    background:rgba(20,29,38,.985);
-    -webkit-backdrop-filter:saturate(1.6) blur(14px);
-    backdrop-filter:saturate(1.6) blur(14px);
+    /* Deckend, KEIN backdrop-filter.
+
+       Milchglas auf einer festen Leiste ist unter iOS ein bekannter
+       Stolperstein: Safari legt so eine Leiste in eine eigene Ebene und malt
+       sie beim Rollen an der alten Stelle weiter — gemeldet als „untere
+       Leiste geht mit beim Runterscrollen", mit der Navigation mitten im
+       Bild. Der Hintergrund war ohnehin zu 98,5 % deckend; sichtbar geht
+       nichts verloren. */
+    background:var(--bg2);
     border-bottom:3px solid var(--spie-red);      /* SPIE-Akzentlinie */
     padding:calc(8px + env(safe-area-inset-top)) 12px 9px;
     display:flex;align-items:center;gap:11px;
   }
-  body.light header{background:rgba(255,255,255,.985)}
+  body.light header{background:var(--card)}
   .logo{width:40px;height:40px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
     background:var(--spie-red)}
   .logo svg{width:24px;height:24px;display:block}
@@ -315,14 +324,13 @@
     background:linear-gradient(180deg,var(--accent),#c40017);color:#fff;cursor:pointer}
 
   /* ---- Navigation ---- */
+  /* Deckend und ohne Milchglas — siehe Begründung beim header. */
   nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
-    background:rgba(20,29,38,.985);
-    -webkit-backdrop-filter:saturate(1.6) blur(16px);
-    backdrop-filter:saturate(1.6) blur(16px);
+    background:var(--bg2);
     border-top:1px solid var(--line);
     box-shadow:0 -8px 26px -18px rgba(0,0,0,.85);
     padding-bottom:env(safe-area-inset-bottom)}
-  body.light nav{background:rgba(255,255,255,.985)}
+  body.light nav{background:var(--card)}
   nav button{flex:1;border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:800;
     padding:9px 2px 8px;min-height:56px;cursor:pointer;position:relative;
     display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -1386,7 +1394,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.18.1';
+var VERSION = '0.18.2';
 var G = window.SpieGeo;
 
 /* =========================================================================

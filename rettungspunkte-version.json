@@ -1,6 +1,6 @@
 {
-  "versionCode": 40,
-  "versionName": "0.18.1",
+  "versionCode": 41,
+  "versionName": "0.18.2",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "In der Spanntabelle das Seil antippen — daraus wird ein Regulierwert mit dem Sollwert aus genau dieser Zeile, samt Seil, Feld und Temperatur in der Bezeichnung. Istwert und Toleranz bleiben leer: den einen misst ein Mensch, die andere steht in den Unterlagen. Die Liste zeigt danach Ist minus Soll — ohne eingetragene Toleranz ohne Urteil. Mastnummern erscheinen durchgängig in der Schreibweise der Baustelle."
+  "notes": "Behebt: Die untere Leiste blieb beim Scrollen mitten im Bild stehen. Kopf und Navigation sind jetzt deckend und ohne Milchglas-Effekt — das war unter iOS der Auslöser. Dazu kein Gummiband mehr am Seitenende und kein versehentliches Neuladen durch Ziehen von oben. Außerdem aus 0.18: In der Spanntabelle das Seil antippen und daraus einen Regulierwert mit dem Sollwert aus dieser Zeile machen."
 }
