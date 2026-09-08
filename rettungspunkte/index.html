@@ -1425,7 +1425,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.22.0';
+var VERSION = '0.22.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7407,6 +7407,10 @@ function planOeffnen(id) {
     var bild = $('planBild');
     var art = d.art || D.dateiArt(d.dateiname, d.mime);
     if (art === 'bild') {
+      /* Die Fingergriffe gehören dem PDF-Betrachter. Bleiben sie auf einem
+         Bild liegen, fängt er Zwei-Finger-Griffe ab und tut dann nichts. */
+      bild.onscroll = null; bild.ontouchstart = null; bild.ontouchmove = null;
+      bild.ontouchend = null; bild.ontouchcancel = null;
       bild.innerHTML = '<img id="planImg" alt="' + esc(d.dateiname) + '" src="' + plan2.url + '">';
       $('planWerkzeuge').innerHTML =
         '<button class="btn" onclick="planZoom2(1.4)">Größer</button>' +

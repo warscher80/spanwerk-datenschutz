@@ -1,6 +1,6 @@
 {
-  "versionCode": 46,
-  "versionName": "0.22.0",
+  "versionCode": 47,
+  "versionName": "0.22.1",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Pläne lassen sich jetzt wirklich lesen. Beim Hineinzoomen wurde ein A0-Blatt bisher ab etwa dem Vierfachen nicht mehr größer — die Anzeige hing an der Speichergrenze der Zeichenfläche. Jetzt wird nur noch der Ausschnitt gezeichnet, den man gerade sieht: beliebig weit heranfahren, die Schrift bleibt scharf. Mit einem Finger lässt sich der Plan wieder schieben (das war versehentlich abgeschaltet). Und ein Querblatt legt sich auf dem stehenden Telefon selbst quer — doppelt so groß, nichts abgeschnitten; ein Knopf „Drehen“ und das Drehen des Geräts gehen weiter von Hand."
+  "notes": "Pläne lassen sich jetzt wirklich lesen. Beim Hineinzoomen wurde ein A0-Blatt bisher ab etwa dem Vierfachen nicht mehr größer — die Anzeige hing an der Speichergrenze der Zeichenfläche. Jetzt wird nur noch der Ausschnitt gezeichnet, den man gerade sieht: beliebig weit heranfahren, die Schrift bleibt scharf. Mit einem Finger lässt sich der Plan wieder schieben (das war versehentlich abgeschaltet). Und ein Querblatt legt sich auf dem stehenden Telefon selbst quer — doppelt so groß, nichts abgeschnitten; ein Knopf „Drehen“ und das Drehen des Geräts gehen weiter von Hand. Nachtrag 0.22.1: Nach dem Lesen eines Plans fing der PDF-Betrachter auf einem anschließend geöffneten Bild noch Zwei-Finger-Griffe ab und tat dabei nichts — das ist behoben."
 }
