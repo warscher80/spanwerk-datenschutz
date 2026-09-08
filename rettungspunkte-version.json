@@ -1,6 +1,6 @@
 {
-  "versionCode": 48,
-  "versionName": "0.23.0",
+  "versionCode": 49,
+  "versionName": "0.24.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Spanntabellen: Aus einem Paket kam bisher nur EINE Tabelle an — die Tabellen hatten keine eigene Kennung und überschrieben einander lautlos. Außerdem wurden sie, anders als beim Import einer Tabellendatei, gar nicht geprüft; dadurch standen auch Zeilen ohne Werte in der Mastakte. Beides ist behoben: Jede Tabelle bekommt eine eigene Kennung, jede Zeile wird geprüft, und der Übernahmebericht sagt „x von y Spanntabellen“ und nennt, was nicht übernommen wurde. Wichtig: Wer das alte Blatzheim-Paket schon eingelesen hat, muss das neue einlesen — die fehlenden Tabellen sind sonst weiterhin nicht im Gerät."
+  "notes": "Erster Schritt zur Baustellenplattform — und der beginnt damit, die vorhandenen Daten abzusichern. Kein Schreibvorgang beim Übernehmen eines Pakets verschwindet mehr lautlos: Der Bericht sagt jetzt „x von y“ für Mastdaten, Spanntabellen, Regulierwerte und Dokumente. Datensätze ohne Mastnummer werden abgewiesen statt übereinandergelegt. Die Stammdaten werden geprüft, bevor sie gespeichert werden — neu sind Masthöhe und Projekt; „ca. 60“ wird abgelehnt statt als Zahl abgelegt. Rettung und Kompass sind unverändert."
 }

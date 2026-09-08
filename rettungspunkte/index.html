@@ -1417,6 +1417,7 @@
 <script src="dok-modell.js"></script>
 <script src="speicher.js"></script>
 <script src="spann.js"></script>
+<script src="mast-modell.js"></script>
 <script src="paket.js"></script>
 <script>
 'use strict';
@@ -1425,7 +1426,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.23.0';
+var VERSION = '0.24.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -5995,6 +5996,7 @@ function renderMastakte() {
   $('akteFakten').innerHTML =
     fakt('Masttyp', st.typ) +
     fakt('Abschnitt', st.abschnitt) +
+    fakt('Masthöhe', SpieMast.masse(st.masthoehe, 'm')) +
     fakt('Koordinaten', G.formatDec(m.punkt.lat, m.punkt.lon)) +
     fakt('Status', st.status) +
     (m.geprueft ? '' :
@@ -6537,6 +6539,11 @@ function mastdatenBearbeiten() {
   openOv('<h2>Mast ' + esc(akte.mast ? akte.mast.nr : akte.key) + '</h2>' +
     '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
     '<div class="field"><label>Abschnitt</label><input class="inp" id="mdAbschnitt" value="' + esc(st.abschnitt || '') + '" placeholder="z. B. Abschnitt 2"></div>' +
+    '<div class="field"><label>Projekt</label><input class="inp" id="mdProjekt" value="' + esc(st.projekt || '') + '" placeholder="z. B. Blatzheim"></div>' +
+    /* Masthöhe, nicht Durchfahrtshöhe — die steht weiter unten bei der
+       Zufahrt und bedeutet etwas ganz anderes. */
+    '<div class="field"><label>Masthöhe (m)</label><input class="inp" id="mdMasthoehe" inputmode="decimal" value="' +
+      esc(st.masthoehe == null ? '' : String(st.masthoehe).replace('.', ',')) + '" placeholder="z. B. 62,5"></div>' +
     '<div class="field"><label>Arbeits-/Montagestatus</label><input class="inp" id="mdStatus" value="' + esc(st.status || '') + '" placeholder="z. B. Gründung fertig"></div>' +
 
     zufahrtFelder(st) +
@@ -6551,12 +6558,19 @@ function mastdatenSpeichern() {
   var daten = zufahrtWerte();
   daten.typ = ($('mdTyp').value || '').trim();
   daten.abschnitt = ($('mdAbschnitt').value || '').trim();
+  daten.projekt = ($('mdProjekt').value || '').trim();
+  daten.masthoehe = ($('mdMasthoehe').value || '').trim();
   daten.status = ($('mdStatus').value || '').trim();
   daten.bemerkung = ($('mdBemerkung').value || '').trim();
-  S.mastdatenSetzen(aktiveBaustelle(), akte.key, daten).then(function (e) {
+
+  /* Geprüft wird vor dem Speichern, nicht danach. „ca. 60" ist keine Höhe;
+     so etwas stillschweigend als Zahl abzulegen wäre schlimmer, als es
+     abzulehnen. Was nicht durchgeht, steht auf dem Bildschirm. */
+  var p = SpieMast.pruefen(daten);
+  S.mastdatenSetzen(aktiveBaustelle(), akte.key, p.werte).then(function (e) {
     akte.stamm = e; closeOv(); renderMastakte();
     zufahrtMarkenLaden().then(mastListeZeichnen);
-    toast('Gespeichert');
+    toast(p.meldungen.length ? p.meldungen[0] : 'Gespeichert');
   }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
 }
 
@@ -7824,8 +7838,18 @@ function paketUebernehmen(ziel, ergaenzen) {
     spannListe = spannPruef.tabellen || [];
     spannVerworfen = (spannPruef.bericht && spannPruef.bericht.verworfen) || [];
   }
-  var spannAngekommen = 0;
-  var spannErwartet = spannRoh.length;
+  /* Was hineingeht, muss auch ankommen — und wenn nicht, muss es dastehen.
+     Neun Schreibvorgänge endeten hier auf „Fehler egal". So verschwanden vier
+     von fünf Spanntabellen, ohne ein Wort, und die App meldete „übernommen".
+     Gezählt wird deshalb jede Art einzeln; der Bericht nennt jede Lücke. */
+  var eingang = {
+    mastdaten:     { name: 'Mastdaten',      soll: (d.mastdaten || []).length, ist: 0 },
+    spanntabellen: { name: 'Spanntabellen',  soll: spannRoh.length,            ist: 0 },
+    werte:         { name: 'Regulierwerte',  soll: (d.werte || []).length,     ist: 0 },
+    dokumente:     { name: 'Dokumente',      soll: (d.dokumente || []).length, ist: 0 }
+  };
+  var kam = function (art) { return function () { eingang[art].ist++; }; };
+  var egal = function () { return null; };
   var arbeit = Promise.resolve();
   if (S && S.verfuegbar()) {
     // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne
@@ -7836,7 +7860,7 @@ function paketUebernehmen(ziel, ergaenzen) {
       arbeit = arbeit.then(function () {
         var mast = mastFinden(m.mastSchluessel);
         return S.mastdatenSetzen(id, mast ? mast.key : m.mastSchluessel, m)
-          .catch(function () { return null; });
+          .then(kam('mastdaten'), egal);
       });
     });
     /* Die Tabellen aus einem Paket bringen nicht zwingend eine Kennung mit —
@@ -7850,16 +7874,14 @@ function paketUebernehmen(ziel, ergaenzen) {
         if (!q.id && typeof SpieSpann !== 'undefined' && SpieSpann.kennung) {
           q.id = SpieSpann.kennung(q, i);
         }
-        return S.spannSetzen(id, q)
-          .then(function () { spannAngekommen++; })
-          .catch(function () { return null; });
+        return S.spannSetzen(id, q).then(kam('spanntabellen'), egal);
       });
     });
     (d.werte || []).forEach(function (w) {
       arbeit = arbeit.then(function () {
         var q = {}; for (var k in w) if (Object.prototype.hasOwnProperty.call(w, k)) q[k] = w[k];
         q.baustelle = id;
-        return S.wertSetzen(q).catch(function () { return null; });
+        return S.wertSetzen(q).then(kam('werte'), egal);
       });
     });
     var n = 0, gesamt = (d.dokumente || []).length;
@@ -7879,7 +7901,7 @@ function paketUebernehmen(ziel, ergaenzen) {
         // Ohne Typangabe zeigt das iPhone „Unknown" statt des Plans.
         var typ = D.mimeFuer(q.dateiname, dok.mime);
         q.mime = typ;
-        return S.dokAblegen(q, new Blob([datei], { type: typ })).catch(function () { return null; });
+        return S.dokAblegen(q, new Blob([datei], { type: typ })).then(kam('dokumente'), egal);
       });
     });
   }
@@ -7893,26 +7915,12 @@ function paketUebernehmen(ziel, ergaenzen) {
     var z = zaehlung();
     openOv('<h2>Baustelle übernommen</h2>' +
       '<div class="vzeile"><b>' + esc(titel) + '</b> ist jetzt die aktive Baustelle.</div>' +
-      '<div class="vzeile">' + z.gesamt + ' Punkte · ' + state.contacts.length + ' Nummern · ' +
-        dokAlle.length + ' Dokumente' +
-        (spannErwartet ? ' · ' + spannAngekommen + ' von ' + spannErwartet +
-          ' Spanntabellen' : '') + '</div>' +
+      '<div class="vzeile">' + z.gesamt + ' Punkte · ' + state.contacts.length +
+        ' Nummern' + eingangZeile(eingang) + '</div>' +
       /* Was nicht angekommen ist, darf nicht untergehen — weder eine ganze
          Tabelle noch eine einzelne Zeile. Wer am Mast einen Reguliermaß-Wert
          erwartet und keinen findet, hält das sonst für „gibt es nicht". */
-      (spannErwartet && (spannAngekommen < spannErwartet || spannVerworfen.length)
-        ? '<div class="warnbox" style="margin:10px 0">' +
-          (spannAngekommen < spannErwartet
-            ? (spannErwartet - spannAngekommen) + ' von ' + spannErwartet +
-              ' <b>Spanntabellen wurden nicht gespeichert.</b> Die Reguliermaße ' +
-              'dieser Abschnitte fehlen in der Mastakte — bitte melden.'
-            : '<b>Einzelne Zeilen wurden nicht übernommen</b>, weil ihre Werte ' +
-              'nicht vollständig sind. Sie erscheinen in keiner Mastakte.') +
-          (spannVerworfen.length
-            ? '<br>' + esc(spannVerworfen.slice(0, 4).join(' · ')) +
-              (spannVerworfen.length > 4 ? ' … (' + spannVerworfen.length + ' Meldungen)' : '')
-            : '') + '</div>'
-        : '') +
+      eingangWarnung(eingang, spannVerworfen) +
       (z.ungeprueft
         ? '<div class="warnbox" style="margin:10px 0">' + z.ungeprueft + ' Punkte sind ' +
           '<b>ungeprüft</b> und werden für Rettungspunkt, Mast und Meldung nicht verwendet. ' +
@@ -7923,6 +7931,38 @@ function paketUebernehmen(ziel, ergaenzen) {
     openOv('<h2>Übernahme fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
   });
+}
+
+/* „141 Punkte · 5 Nummern · 5 von 5 Spanntabellen · 5 von 5 Dokumenten".
+   Genannt wird nur, was im Paket war — und immer beide Zahlen, damit eine
+   Lücke im selben Blick steht wie der Erfolg. */
+function eingangZeile(eingang) {
+  return Object.keys(eingang).map(function (art) {
+    var e = eingang[art];
+    if (!e.soll) return '';
+    return ' · ' + e.ist + ' von ' + e.soll + ' ' + e.name;
+  }).join('');
+}
+
+function eingangWarnung(eingang, verworfen) {
+  var luecken = Object.keys(eingang).filter(function (art) {
+    return eingang[art].soll && eingang[art].ist < eingang[art].soll;
+  }).map(function (art) {
+    var e = eingang[art];
+    return (e.soll - e.ist) + ' von ' + e.soll + ' ' + e.name;
+  });
+  verworfen = verworfen || [];
+  if (!luecken.length && !verworfen.length) return '';
+  return '<div class="warnbox" style="margin:10px 0">' +
+    (luecken.length
+      ? '<b>Nicht alles ist angekommen:</b> ' + esc(luecken.join(', ')) +
+        ' wurden nicht gespeichert. Sie fehlen in der Mastakte — bitte melden.'
+      : '<b>Einzelne Zeilen wurden nicht übernommen</b>, weil ihre Werte nicht ' +
+        'vollständig sind. Sie erscheinen in keiner Mastakte.') +
+    (verworfen.length
+      ? '<br>' + esc(verworfen.slice(0, 4).join(' · ')) +
+        (verworfen.length > 4 ? ' … (' + verworfen.length + ' Meldungen)' : '')
+      : '') + '</div>';
 }
 
 /* Offline-Bereitschaft. Der Satz „funktioniert offline" darf erst erscheinen,
@@ -8062,7 +8102,9 @@ var BAUSTEINE = [
   ['paket.js',      function () { return typeof SpiePaket !== 'undefined' &&
                                          typeof SpiePaket.paketBauen === 'function'; }],
   ['spann.js',      function () { return typeof SpieSpann !== 'undefined' &&
-                                         typeof SpieSpann.pruefen === 'function'; }]
+                                         typeof SpieSpann.pruefen === 'function'; }],
+  ['mast-modell.js',function () { return typeof SpieMast !== 'undefined' &&
+                                         typeof SpieMast.pruefen === 'function'; }]
 ];
 var bausteineFehlen = [];
 var benutzerAktiv = false;

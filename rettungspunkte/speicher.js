@@ -18,7 +18,7 @@ var SpieSpeicher = (function () {
   'use strict';
 
   var DB_NAME = 'spie-baustelle';
-  var DB_VERSION = 2;   // 2: Spanntabellen
+  var DB_VERSION = 3;   // 2: Spanntabellen · 3: Index auf mastdaten
   var db = null, oeffnend = null;
 
   function verfuegbar() {
@@ -46,7 +46,17 @@ var SpieSpeicher = (function () {
           d.createObjectStore('dateien', { keyPath: 'id' });
         }
         if (!d.objectStoreNames.contains('mastdaten')) {
-          d.createObjectStore('mastdaten', { keyPath: ['baustelle', 'mastSchluessel'] });
+          var md = d.createObjectStore('mastdaten', { keyPath: ['baustelle', 'mastSchluessel'] });
+          md.createIndex('baustelle', 'baustelle', { unique: false });
+        } else {
+          /* Fassung 3: Bis dahin las mastdatenAlle das GANZE Fach und filterte
+             danach in JavaScript. Bei einer Baustelle fällt das nicht auf, bei
+             zehn Projekten mit tausenden Masten schon. Der Index wird
+             nachgetragen, ohne die Daten anzufassen. */
+          var vorhanden = a.transaction.objectStore('mastdaten');
+          if (!vorhanden.indexNames.contains('baustelle')) {
+            vorhanden.createIndex('baustelle', 'baustelle', { unique: false });
+          }
         }
         if (!d.objectStoreNames.contains('werte')) {
           var w = d.createObjectStore('werte', { keyPath: 'id' });
@@ -93,6 +103,13 @@ var SpieSpeicher = (function () {
 
   function kennung() {
     return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  /* Ein brauchbarer Schlüssel. „undefined" und „null" sind die beiden
+     Zeichenketten, die entstehen, wenn ein Feld fehlt und trotzdem durch
+     String() läuft — genau daran sind die Spanntabellen gescheitert. */
+  function schluesselGut(v) {
+    return !!v && v !== 'undefined' && v !== 'null';
   }
 
   /* ---------- Dokumente ---------- */
@@ -208,8 +225,16 @@ var SpieSpeicher = (function () {
     }).then(function (m) { return m || null; });
   }
 
+  /* Ohne Baustelle und Mastnummer gibt es keinen Platz in der Ablage — der
+     Datensatz legte sich sonst unter „undefined" über einen anderen. Dieselbe
+     Regel wie bei den Spanntabellen, aus demselben Grund. */
   function mastdatenSetzen(baustelle, mastSchluessel, daten) {
-    var e = { baustelle: String(baustelle), mastSchluessel: String(mastSchluessel) };
+    var b = baustelle == null ? '' : String(baustelle);
+    var m = mastSchluessel == null ? '' : String(mastSchluessel);
+    if (!schluesselGut(b) || !schluesselGut(m)) {
+      return Promise.reject(new Error('Mastdaten ohne Baustelle oder Mastnummer — nicht gespeichert'));
+    }
+    var e = { baustelle: b, mastSchluessel: m };
     Object.keys(daten || {}).forEach(function (k) {
       if (k !== 'baustelle' && k !== 'mastSchluessel') e[k] = daten[k];
     });
@@ -221,11 +246,17 @@ var SpieSpeicher = (function () {
   }
 
   function mastdatenAlle(baustelle) {
+    var id = String(baustelle);
     return bereit().then(function (d) {
-      return anfrage(d.transaction('mastdaten').objectStore('mastdaten').getAll());
-    }).then(function (liste) {
-      return (liste || []).filter(function (m) { return m.baustelle === String(baustelle); });
-    });
+      var f = d.transaction('mastdaten').objectStore('mastdaten');
+      // Über den Index, nicht über das ganze Fach (siehe Fassung 3).
+      if (f.indexNames.contains('baustelle')) {
+        return anfrage(f.index('baustelle').getAll(IDBKeyRange.only(id)));
+      }
+      return anfrage(f.getAll()).then(function (liste) {
+        return (liste || []).filter(function (m) { return m.baustelle === id; });
+      });
+    }).then(function (l) { return l || []; });
   }
 
   /* ---------- Spanntabellen ----------
@@ -236,10 +267,11 @@ var SpieSpeicher = (function () {
     /* Ohne eigene Kennung landen alle Tabellen auf demselben Platz — aus
        fünf wird eine, und niemand merkt es. Lieber laut abbrechen. */
     var id = (tabelle && tabelle.id != null) ? String(tabelle.id) : '';
-    if (!id || id === 'undefined' || id === 'null') {
+    var sb = baustelle == null ? '' : String(baustelle);
+    if (!schluesselGut(id) || !schluesselGut(sb)) {
       return Promise.reject(new Error('Spanntabelle ohne Kennung — nicht gespeichert'));
     }
-    var satz = { baustelle: String(baustelle), id: id,
+    var satz = { baustelle: sb, id: id,
                  importiert: new Date().toISOString(), tabelle: tabelle };
     return lauf(['spanntabellen'], 'readwrite', function (t) {
       t.objectStore('spanntabellen').put(satz);
@@ -277,10 +309,17 @@ var SpieSpeicher = (function () {
   }
 
   function wertSetzen(wert) {
+    /* Ein Regulierwert ohne Mast ist kein Wert, sondern eine Zahl ohne Ort —
+       und in einer Mastakte taucht er nie wieder auf. */
+    var wb = String((wert && wert.baustelle) || '');
+    var wm = String((wert && wert.mastSchluessel) || '');
+    if (!schluesselGut(wb) || !schluesselGut(wm)) {
+      return Promise.reject(new Error('Regulierwert ohne Baustelle oder Mastnummer — nicht gespeichert'));
+    }
     var e = {
       id: wert.id || kennung(),
-      baustelle: String(wert.baustelle || ''),
-      mastSchluessel: String(wert.mastSchluessel || ''),
+      baustelle: wb,
+      mastSchluessel: wm,
       bezeichnung: wert.bezeichnung || '',
       soll: wert.soll == null ? '' : wert.soll,
       ist: wert.ist == null ? '' : wert.ist,
