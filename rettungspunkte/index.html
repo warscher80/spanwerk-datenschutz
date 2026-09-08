@@ -1126,6 +1126,7 @@
       <input id="pkDatei" type="file" accept=".zip,application/zip" style="display:none"
              onchange="paketDateiGewaehlt(event)">
     </div>
+    <div class="card" id="verUnterlagen"></div>
     <!-- Reguliermaße: Die Zahlen kommen aus der Berechnung des Auftraggebers
          und werden hier nur eingelesen. Die App gibt keine Sollwerte vor. -->
     <div class="card">
@@ -1418,6 +1419,7 @@
 <script src="speicher.js"></script>
 <script src="spann.js"></script>
 <script src="mast-modell.js"></script>
+<script src="daten-unterlagen.js"></script>
 <script src="paket.js"></script>
 <script>
 'use strict';
@@ -1426,7 +1428,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.24.0';
+var VERSION = '0.25.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7507,6 +7509,8 @@ function leitungSpeichern() {
 }
 
 function renderVerwaltung() {
+  var vu = $('verUnterlagen');
+  if (vu) { var h = unterlagenHtml(); vu.innerHTML = h; vu.style.display = h ? '' : 'none'; }
   var z = zaehlung();
   var setz = function (id, text) { var e = $(id); if (e) e.textContent = text; };
   setz('vwPunkte', z.gesamt + ' Punkte · ' + z.geprueft + ' geprüft');
@@ -7788,6 +7792,271 @@ function paketErgaenzungVorschau(r, d) {
     '</div>');
 }
 
+/* ---------- Unterlagen, die mit der App kommen ----------
+
+   „Das machst alles du, ich lese nichts ein." — und das ist die richtige
+   Ansage: Auf der Baustelle liest niemand Pakete ein, und wer es vergisst,
+   steht ohne Gründungsplan am Mast. Was fest zu einer Baustelle gehört, wird
+   deshalb mitgeliefert und beim ersten Start selbst übernommen.
+
+   Vier Dinge, die dabei nicht passieren dürfen:
+   1. Die Rettungsanzeige darf nicht warten. Deshalb läuft das im Hintergrund,
+      lange nachdem der Rettungspunkt dasteht.
+   2. Die aktive Baustelle darf nicht wechseln. Wer die App aufmacht, sieht
+      seine Baustelle — nicht plötzlich eine andere.
+   3. Nichts darf doppelt ankommen. `stand` merkt sich, was schon da ist.
+   4. Ein Plan darf nicht an einem fremden Mast landen. Gesucht wird die
+      Mastnummer nur in DERSELBEN Baustelle. */
+
+var K_UNTERLAGEN = 'spie_unterlagen';
+
+/* Die Mastnummern-Suche für EINE bestimmte Baustelle — nicht für die gerade
+   aktive. „4236/18" aus den Unterlagen an einem Mast „18" einer ganz anderen
+   Baustelle festzumachen wäre schlimmer als gar keine Zuordnung. */
+function mastSucheFuer(baustelleId) {
+  var vorher = aktiveBaustelle();
+  schluesselSetzen(baustelleId);
+  var punkte = load(K_POINTS, []) || [];
+  var leitung = String(load(K_LEITUNG, '') || '').trim();
+  schluesselSetzen(vorher);
+
+  var masten = [];
+  punkte.forEach(function (p) {
+    if (kindOf(p) !== 'mast') return;
+    var nr = p.mastNr || p.name || '';
+    var key = D.mastSchluessel(nr);
+    if (!key) return;
+    masten.push({ punkt: p, nr: nr, key: key });
+  });
+
+  return function (roh) {
+    var k = D.mastSchluessel(roh), i;
+    for (i = 0; i < masten.length; i++) if (masten[i].key === k) return masten[i];
+    if (!leitung) return null;
+    for (i = 0; i < masten.length; i++) {
+      if (D.mastPasst(masten[i].key, k, leitung)) return masten[i];
+    }
+    return null;
+  };
+}
+
+function baustelleMitTitel(titel) {
+  var t = String(titel || '').trim().toLowerCase();
+  var treffer = null;
+  baustellen().forEach(function (b) {
+    if (!treffer && String(b.titel || '').trim().toLowerCase() === t) treffer = b.id;
+  });
+  return treffer;
+}
+
+/* Eine Lieferung nachtragen. Was dabei nicht ankommt, wird gezählt und steht
+   danach in der Verwaltung — dieselbe Strenge wie beim Einlesen von Hand. */
+function unterlageNachtragen(u, gemerkt) {
+  return fetch(u.datei).then(function (a) {
+    if (!a.ok) throw new Error('Datei nicht erreichbar (' + a.status + ')');
+    return a.blob();
+  }).then(function (blob) {
+    return SpiePaket.paketLesen(blob);
+  }).then(function (r) {
+    var id = baustelleMitTitel(u.baustelle) || baustelleAnlegen(u.baustelle);
+    if (!id) throw new Error('Baustelle „' + u.baustelle + '" ließ sich nicht anlegen');
+
+    /* Ohne Leitungsnummer kann die App nicht wissen, ob „18" und „4236/18"
+       derselbe Mast sind — und sie rät es auch nicht. Eine vorhandene
+       Eintragung wird nicht überschrieben. */
+    if (u.leitung) {
+      var vorher = aktiveBaustelle();
+      schluesselSetzen(id);
+      if (!String(load(K_LEITUNG, '') || '').trim()) save(K_LEITUNG, u.leitung);
+      schluesselSetzen(vorher);
+      if (id === aktiveBaustelle()) state.leitung = String(load(K_LEITUNG, '') || '').trim();
+    }
+
+    var w = paketDatenSchreiben(id, r.daten, r.dateien, mastSucheFuer(id));
+    return w.arbeit.then(function () {
+      var stand = { stand: u.stand, baustelle: id, titel: u.baustelle, was: u.was,
+                    am: Date.now(), eingang: {} };
+      Object.keys(w.eingang).forEach(function (art) {
+        if (w.eingang[art].soll) stand.eingang[art] = [w.eingang[art].ist, w.eingang[art].soll];
+      });
+      gemerkt[u.id] = stand;
+      save(K_UNTERLAGEN, gemerkt);
+      return stand;
+    });
+  });
+}
+
+function unterlagenNachtragen() {
+  if (typeof SPIE_UNTERLAGEN === 'undefined' || !SPIE_UNTERLAGEN.length) return Promise.resolve([]);
+  if (!S || !S.verfuegbar() || typeof SpiePaket === 'undefined') return Promise.resolve([]);
+  var gemerkt = load(K_UNTERLAGEN, {}) || {};
+  var offen = SPIE_UNTERLAGEN.filter(function (u) {
+    return !gemerkt[u.id] || gemerkt[u.id].stand !== u.stand;
+  });
+  if (!offen.length) return Promise.resolve([]);
+
+  var fertig = [], kette = Promise.resolve();
+  offen.forEach(function (u) {
+    kette = kette.then(function () {
+      return unterlageNachtragen(u, gemerkt).then(function (stand) { fertig.push(stand); })
+        .catch(function (e) {
+          /* Nicht stillschweigend: Wer die Unterlagen erwartet und sie nicht
+             findet, hält sie für nicht vorhanden. */
+          gemerkt[u.id] = { stand: 0, titel: u.baustelle, was: u.was,
+                            fehler: String((e && e.message) || e), am: Date.now() };
+          save(K_UNTERLAGEN, gemerkt);
+        });
+    });
+  });
+  return kette.then(function () {
+    if (fertig.length) {
+      dokumenteLaden().then(function () {
+        dokListeZeichnen(); renderUebersicht();
+      });
+      spannLaden().then(function () { renderSpannVerwaltung(); });
+      renderVerwaltung();
+      toast('Mitgelieferte Unterlagen übernommen');
+    } else {
+      renderVerwaltung();
+    }
+    return fertig;
+  });
+}
+
+/* Was mitgeliefert wurde und was davon ankam — in der Verwaltung, nicht in
+   einer Meldung, die nach drei Sekunden weg ist. */
+function unterlagenHtml() {
+  if (typeof SPIE_UNTERLAGEN === 'undefined' || !SPIE_UNTERLAGEN.length) return '';
+  var gemerkt = load(K_UNTERLAGEN, {}) || {};
+  var namen = { mastdaten: 'Mastdaten', spanntabellen: 'Spanntabellen',
+                werte: 'Regulierwerte', dokumente: 'Dokumente' };
+  var zeilen = SPIE_UNTERLAGEN.map(function (u) {
+    var g = gemerkt[u.id];
+    if (!g) {
+      return '<div class="vzeile"><b>' + esc(u.baustelle) + '</b><br>' +
+             esc(u.was) + '<br><i>wird beim nächsten Start nachgetragen</i></div>';
+    }
+    if (g.fehler) {
+      return '<div class="warnbox" style="margin:8px 0"><b>' + esc(u.baustelle) +
+             ' — nicht übernommen.</b><br>' + esc(g.was || '') + '<br>' + esc(g.fehler) + '</div>';
+    }
+    var teile = Object.keys(g.eingang || {}).map(function (art) {
+      return g.eingang[art][0] + ' von ' + g.eingang[art][1] + ' ' + (namen[art] || art);
+    });
+    var luecke = Object.keys(g.eingang || {}).some(function (art) {
+      return g.eingang[art][0] < g.eingang[art][1];
+    });
+    return '<div class="' + (luecke ? 'warnbox' : 'vzeile') + '" style="margin:8px 0">' +
+      '<b>' + esc(u.baustelle) + '</b> — Baustelle „' + esc(g.titel || u.baustelle) + '"<br>' +
+      esc(teile.join(' · ')) +
+      (luecke ? '<br><b>Nicht alles ist angekommen — bitte melden.</b>' : '') + '</div>';
+  });
+  return '<h3>Mitgelieferte Unterlagen</h3>' +
+    '<div class="hint">Kommen mit der App und werden beim ersten Start selbst ' +
+    'übernommen. Es muss nichts eingelesen werden.</div>' + zeilen.join('');
+}
+
+/* Die Ablage-Seite einer Übernahme: Mastdaten, Spanntabellen, Regulierwerte
+   und Dokumente in die Baustelle <id> schreiben.
+
+   Eine eigene Funktion, weil zwei Wege hierher führen: die Übernahme, die
+   jemand angestoßen hat, und die Unterlagen, die mit der App mitkommen.
+   Beide müssen gleich streng prüfen und gleich streng zählen — sonst hat der
+   eine Weg wieder die stillen Fehler, die der andere gerade losgeworden ist.
+
+   `mastSuche` sagt, in WELCHER Baustelle eine Mastnummer gesucht wird. Das
+   ist kein Beiwerk: „4236/18" aus den Unterlagen an einem Mast „18" einer
+   ganz anderen Baustelle festzumachen wäre schlimmer als gar keine
+   Zuordnung. */
+function paketDatenSchreiben(id, d, dateien, mastSuche, vorlauf) {
+  /* Spanntabellen aus einem Paket gingen bis 0.23.0 UNGEPRÜFT in die Ablage —
+     anders als beim Import einer Tabellendatei. Damit landeten auch Zeilen
+     ohne Werte in der Mastakte (der letzte Mast eines Abschnitts trägt keine
+     Spannweite), und beim Anzeigen brach die Akte ab. Für sicherheitsrelevante
+     Werte gilt hier dieselbe Prüfung wie überall: Was nicht vollständig ist,
+     wird nicht gespeichert und steht im Bericht. */
+  var spannRoh = d.spanntabellen || [];
+  var spannListe = spannRoh, spannVerworfen = [];
+  if (spannRoh.length && typeof SpieSpann !== 'undefined' && SpieSpann.pruefen) {
+    var spannPruef = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION,
+                                         tabellen: spannRoh });
+    spannListe = spannPruef.tabellen || [];
+    spannVerworfen = (spannPruef.bericht && spannPruef.bericht.verworfen) || [];
+  }
+
+  /* Was hineingeht, muss auch ankommen — und wenn nicht, muss es dastehen.
+     Neun Schreibvorgänge endeten hier auf „Fehler egal". So verschwanden vier
+     von fünf Spanntabellen, ohne ein Wort, und die App meldete „übernommen".
+     Gezählt wird deshalb jede Art einzeln; der Bericht nennt jede Lücke. */
+  var eingang = {
+    mastdaten:     { name: 'Mastdaten',      soll: (d.mastdaten || []).length, ist: 0 },
+    spanntabellen: { name: 'Spanntabellen',  soll: spannRoh.length,            ist: 0 },
+    werte:         { name: 'Regulierwerte',  soll: (d.werte || []).length,     ist: 0 },
+    dokumente:     { name: 'Dokumente',      soll: (d.dokumente || []).length, ist: 0 }
+  };
+  var kam = function (art) { return function () { eingang[art].ist++; }; };
+  var egal = function () { return null; };
+  var suche = mastSuche || function () { return null; };
+
+  var arbeit = vorlauf || Promise.resolve();
+  if (!S || !S.verfuegbar()) {
+    return { arbeit: arbeit, eingang: eingang, verworfen: spannVerworfen };
+  }
+  arbeit = arbeit.then(function () { return S.platzSichern().catch(function () { return null; }); });
+
+  (d.mastdaten || []).forEach(function (m) {
+    arbeit = arbeit.then(function () {
+      var mast = suche(m.mastSchluessel);
+      return S.mastdatenSetzen(id, mast ? mast.key : m.mastSchluessel, m)
+        .then(kam('mastdaten'), egal);
+    });
+  });
+
+  /* Die Tabellen aus einem Paket bringen nicht zwingend eine Kennung mit —
+     das Blatzheim-Paket tat es nicht. Ohne Kennung legen sich alle auf
+     denselben Platz: fünf hinein, eine heraus, ohne ein Wort. */
+  spannListe.forEach(function (t, i) {
+    arbeit = arbeit.then(function () {
+      var q = {}; for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) q[k] = t[k];
+      if (!q.id && typeof SpieSpann !== 'undefined' && SpieSpann.kennung) {
+        q.id = SpieSpann.kennung(q, i);
+      }
+      return S.spannSetzen(id, q).then(kam('spanntabellen'), egal);
+    });
+  });
+
+  (d.werte || []).forEach(function (w) {
+    arbeit = arbeit.then(function () {
+      var q = {}; for (var k in w) if (Object.prototype.hasOwnProperty.call(w, k)) q[k] = w[k];
+      q.baustelle = id;
+      return S.wertSetzen(q).then(kam('werte'), egal);
+    });
+  });
+
+  var n = 0, gesamt = (d.dokumente || []).length;
+  (d.dokumente || []).forEach(function (dok) {
+    arbeit = arbeit.then(function () {
+      var datei = (dateien || {})[dok.id];
+      if (!datei) return null;                    // fehlende Datei: schon gemeldet
+      var q = {}; for (var k in dok) if (Object.prototype.hasOwnProperty.call(dok, k)) q[k] = dok[k];
+      q.baustelle = id;
+      /* Die Unterlagen des Auftraggebers führen „4236/18", die Karte der
+         Baustelle „18". Abgelegt wird unter der Schreibweise DIESER
+         Baustelle — sonst hängt der Plan an einer Nummer, die es hier nicht
+         gibt, und taucht in keiner Mastakte auf. */
+      var mast = q.mastSchluessel ? suche(q.mastSchluessel) : null;
+      if (mast) { q.mastSchluessel = mast.key; q.mastNr = mast.nr; }
+      var f = $('pkStand'); if (f) f.textContent = (++n) + ' von ' + gesamt + ' Dokumenten …';
+      // Ohne Typangabe zeigt das iPhone „Unknown" statt des Plans.
+      var typ = D.mimeFuer(q.dateiname, dok.mime);
+      q.mime = typ;
+      return S.dokAblegen(q, new Blob([datei], { type: typ })).then(kam('dokumente'), egal);
+    });
+  });
+
+  return { arbeit: arbeit, eingang: eingang, verworfen: spannVerworfen };
+}
+
 /* ziel = '' → neue Baustelle, sonst die Kennung der zu ersetzenden.
    ergaenzen = true → nichts löschen, nichts überschreiben, nur dazulegen. */
 function paketUebernehmen(ziel, ergaenzen) {
@@ -7824,87 +8093,14 @@ function paketUebernehmen(ziel, ergaenzen) {
     save(K_BAUSTELLEN, alle);
   }
 
-  /* Spanntabellen aus einem Paket gingen bisher UNGEPRÜFT in die Ablage —
-     anders als beim Import einer Tabellendatei. Damit landeten auch Zeilen
-     ohne Werte in der Mastakte (der letzte Mast eines Abschnitts trägt keine
-     Spannweite), und beim Anzeigen brach die Akte ab. Für sicherheitsrelevante
-     Werte gilt hier dieselbe Prüfung wie überall: Was nicht vollständig ist,
-     wird nicht gespeichert und steht im Bericht. */
-  var spannRoh = d.spanntabellen || [];
-  var spannListe = spannRoh, spannVerworfen = [];
-  if (spannRoh.length && typeof SpieSpann !== 'undefined' && SpieSpann.pruefen) {
-    var spannPruef = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION,
-                                         tabellen: spannRoh });
-    spannListe = spannPruef.tabellen || [];
-    spannVerworfen = (spannPruef.bericht && spannPruef.bericht.verworfen) || [];
-  }
-  /* Was hineingeht, muss auch ankommen — und wenn nicht, muss es dastehen.
-     Neun Schreibvorgänge endeten hier auf „Fehler egal". So verschwanden vier
-     von fünf Spanntabellen, ohne ein Wort, und die App meldete „übernommen".
-     Gezählt wird deshalb jede Art einzeln; der Bericht nennt jede Lücke. */
-  var eingang = {
-    mastdaten:     { name: 'Mastdaten',      soll: (d.mastdaten || []).length, ist: 0 },
-    spanntabellen: { name: 'Spanntabellen',  soll: spannRoh.length,            ist: 0 },
-    werte:         { name: 'Regulierwerte',  soll: (d.werte || []).length,     ist: 0 },
-    dokumente:     { name: 'Dokumente',      soll: (d.dokumente || []).length, ist: 0 }
-  };
-  var kam = function (art) { return function () { eingang[art].ist++; }; };
-  var egal = function () { return null; };
-  var arbeit = Promise.resolve();
-  if (S && S.verfuegbar()) {
-    // Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne
-    // nebeneinander. Beim Ergänzen wird NIE geräumt — das ist der ganze Sinn.
-    if (ziel && !ergaenzen) arbeit = S.baustelleLeeren(id).catch(function () { return null; });
-    arbeit = arbeit.then(function () { return S.platzSichern().catch(function () { return null; }); });
-    (d.mastdaten || []).forEach(function (m) {
-      arbeit = arbeit.then(function () {
-        var mast = mastFinden(m.mastSchluessel);
-        return S.mastdatenSetzen(id, mast ? mast.key : m.mastSchluessel, m)
-          .then(kam('mastdaten'), egal);
-      });
-    });
-    /* Die Tabellen aus einem Paket bringen nicht zwingend eine Kennung mit —
-       das Blatzheim-Paket tat es nicht. Ohne Kennung legen sich alle auf
-       denselben Platz: fünf hinein, eine heraus, ohne ein Wort. Die Kennung
-       wird deshalb hier vergeben (aus dem, was in der Datei steht), und was
-       trotzdem nicht ankommt, steht am Ende im Bericht. */
-    spannListe.forEach(function (t, i) {
-      arbeit = arbeit.then(function () {
-        var q = {}; for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) q[k] = t[k];
-        if (!q.id && typeof SpieSpann !== 'undefined' && SpieSpann.kennung) {
-          q.id = SpieSpann.kennung(q, i);
-        }
-        return S.spannSetzen(id, q).then(kam('spanntabellen'), egal);
-      });
-    });
-    (d.werte || []).forEach(function (w) {
-      arbeit = arbeit.then(function () {
-        var q = {}; for (var k in w) if (Object.prototype.hasOwnProperty.call(w, k)) q[k] = w[k];
-        q.baustelle = id;
-        return S.wertSetzen(q).then(kam('werte'), egal);
-      });
-    });
-    var n = 0, gesamt = (d.dokumente || []).length;
-    (d.dokumente || []).forEach(function (dok) {
-      arbeit = arbeit.then(function () {
-        var datei = r.dateien[dok.id];
-        if (!datei) return null;                    // fehlende Datei: schon gemeldet
-        var q = {}; for (var k in dok) if (Object.prototype.hasOwnProperty.call(dok, k)) q[k] = dok[k];
-        q.baustelle = id;
-        /* Die Unterlagen des Auftraggebers führen „4236/18", die Karte der
-           Baustelle „18". Abgelegt wird unter der Schreibweise DIESER
-           Baustelle — sonst hängt der Plan an einer Nummer, die es hier
-           nicht gibt, und taucht in keiner Mastakte auf. */
-        var mast = q.mastSchluessel ? mastFinden(q.mastSchluessel) : null;
-        if (mast) { q.mastSchluessel = mast.key; q.mastNr = mast.nr; }
-        var f = $('pkStand'); if (f) f.textContent = (++n) + ' von ' + gesamt + ' Dokumenten …';
-        // Ohne Typangabe zeigt das iPhone „Unknown" statt des Plans.
-        var typ = D.mimeFuer(q.dateiname, dok.mime);
-        q.mime = typ;
-        return S.dokAblegen(q, new Blob([datei], { type: typ })).then(kam('dokumente'), egal);
-      });
-    });
-  }
+  /* Beim Ersetzen zuerst räumen: sonst stehen alte und neue Pläne
+     nebeneinander. Beim Ergänzen wird NIE geräumt — das ist der ganze Sinn. */
+  var raeumen = (ziel && !ergaenzen && S && S.verfuegbar())
+    ? S.baustelleLeeren(id).catch(function () { return null; })
+    : Promise.resolve();
+  var vorbereitet = paketDatenSchreiben(id, d, r.dateien, mastFinden, raeumen);
+  var arbeit = vorbereitet.arbeit;
+  var eingang = vorbereitet.eingang, spannVerworfen = vorbereitet.verworfen;
 
   arbeit.then(function () {
     paketEinlesen = null;
@@ -8104,7 +8300,8 @@ var BAUSTEINE = [
   ['spann.js',      function () { return typeof SpieSpann !== 'undefined' &&
                                          typeof SpieSpann.pruefen === 'function'; }],
   ['mast-modell.js',function () { return typeof SpieMast !== 'undefined' &&
-                                         typeof SpieMast.pruefen === 'function'; }]
+                                         typeof SpieMast.pruefen === 'function'; }],
+  ['daten-unterlagen.js', function () { return typeof SPIE_UNTERLAGEN !== 'undefined'; }]
 ];
 var bausteineFehlen = [];
 var benutzerAktiv = false;
@@ -8200,6 +8397,11 @@ function boot() {
 
   // Erst wenn die Rettung steht, kümmert sich die App um sich selbst.
   if (gemischt) bausteineRichten();
+
+  /* Mitgelieferte Unterlagen zuletzt: Sie sind mehrere Megabyte groß, und
+     kein Megabyte darf zwischen dem Öffnen der App und dem Rettungspunkt
+     stehen. */
+  setTimeout(function () { unterlagenNachtragen(); }, 2500);
 
   // Bewusst kein Begrüßungsfenster: Beim Öffnen soll sofort der Rettungspunkt
   // dastehen, nicht ein Text, den man erst wegtippen muss. Hilfe steckt im „?".

@@ -1,6 +1,6 @@
 {
-  "versionCode": 49,
-  "versionName": "0.24.0",
+  "versionCode": 50,
+  "versionName": "0.25.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Erster Schritt zur Baustellenplattform — und der beginnt damit, die vorhandenen Daten abzusichern. Kein Schreibvorgang beim Übernehmen eines Pakets verschwindet mehr lautlos: Der Bericht sagt jetzt „x von y“ für Mastdaten, Spanntabellen, Regulierwerte und Dokumente. Datensätze ohne Mastnummer werden abgewiesen statt übereinandergelegt. Die Stammdaten werden geprüft, bevor sie gespeichert werden — neu sind Masthöhe und Projekt; „ca. 60“ wird abgelehnt statt als Zahl abgelegt. Rettung und Kompass sind unverändert."
+  "notes": "Die Unterlagen kommen jetzt MIT der App. Bisher mussten Pläne und Spanntabellen als Paket eingelesen werden — das entfällt: Beim ersten Start trägt die App sie selbst nach, ohne einen Knopfdruck. Für Blatzheim sind das fünf Gründungspläne und fünf Spanntabellen (EUROPTEN, 09.11.2022). Die eigene Baustelle wechselt dabei nicht, die Rettung wartet nicht, und beim zweiten Start kommt nichts doppelt. In der Verwaltung steht unter „Mitgelieferte Unterlagen“, was angekommen ist. Die App ist dadurch rund 5 MB größer."
 }

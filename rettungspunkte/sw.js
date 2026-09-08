@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-c96152d4';
+var CACHE = 'rettungspunkte-b2f245c3';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
@@ -35,6 +35,7 @@ var PFLICHT = [
    würde sich sonst wegen einer Bequemlichkeitsfunktion als „nicht offline
    einsatzbereit" bezeichnen. */
 var KUER = [
+  './unterlagen-blatzheim.zip',
   './jsqr.js',
   /* pdf.js zeichnet die Pläne im Gerät. 1,8 MB — nützlich, aber kein Grund,
      den Offline-Betrieb abzulehnen: Ohne sie startet, ortet und meldet die
