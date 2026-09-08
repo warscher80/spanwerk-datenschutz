@@ -572,7 +572,18 @@
      man einen Ordner hineinziehen mag. Eine eigene Büro-Oberfläche mit
      Seitenleiste und großen Tabellen ist der nächste Schritt, nicht dieser. */
   @media (min-width:900px){
-    main{max-width:1100px;margin:0 auto;padding-left:20px;padding-right:20px}
+    /* „width:100%" ist hier nicht überflüssig, sondern der ganze Punkt.
+       Seit der Bildschirm eine Spalte ist (0.20.0), ist main ein Flex-Element
+       — und ein Flex-Element mit „margin:0 auto" quer zur Richtung dehnt sich
+       NICHT mehr, es schrumpft auf seinen Inhalt. Am PC stand die App
+       dadurch als 346 Punkte schmaler Streifen mitten auf einem 1350 Punkte
+       breiten Bildschirm, statt die vorgesehenen 1100 zu nutzen. Aufgefallen
+       beim Aufzeichnen des Videos für den Auftraggeber. */
+    main{width:100%;max-width:1100px;margin:0 auto;padding-left:20px;padding-right:20px}
+    /* Ein Fenster mit einer Tabelle darin braucht Platz. Auf 460 Punkten
+       brach der Dateiname buchstabenweise um — am PC, wo gerade die Tabelle
+       gebraucht wird. Nur dort breiter; am Telefon bleibt alles wie es war. */
+    .ovbox.breit{max-width:980px}
     header{padding-left:20px;padding-right:20px}
     .dropzone{padding:48px 20px;min-height:210px}
     .droptext b{font-size:22px}
@@ -1428,7 +1439,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.25.2';
+var VERSION = '0.26.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4880,7 +4891,12 @@ function teilenAnbieten() {
    Overlay, Tabs, Theme, Start
    ========================================================================= */
 
-function openOv(html) { $('ovBox').innerHTML = html; $('ov').classList.add('on'); }
+function openOv(html, breit) {
+  var k = $('ovBox');
+  k.innerHTML = html;
+  k.classList.toggle('breit', !!breit);
+  $('ov').classList.add('on');
+}
 function closeOv() { $('ov').classList.remove('on'); }
 
 function confirmBox(title, sub, onYes, tastentext) {
@@ -6911,7 +6927,7 @@ function dokImportVorschau() {
     '<div class="btnrow">' +
       '<button class="btn ghost" onclick="dokImportAbbrechen()">Abbrechen</button>' +
       '<button class="btn primary" onclick="dokImportAusfuehren()">Importieren</button>' +
-    '</div>');
+    '</div>', true);
 }
 
 function dokReiheOffen(r) {

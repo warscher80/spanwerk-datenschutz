@@ -1,6 +1,6 @@
 {
-  "versionCode": 52,
-  "versionName": "0.25.2",
+  "versionCode": 53,
+  "versionName": "0.26.0",
   "apkUrl": "https://warscher80.github.io/spanwerk-datenschutz/Rettungspunkte.apk",
-  "notes": "Kleine Nachbesserung: Legt eine mitgelieferte Lieferung eine Baustelle an, steht sie jetzt sofort in der Liste unter „Baustellen“ — vorher erst nach einem Neustart. Sonst unverändert zu 0.25.1."
+  "notes": "Die App am Bildschirm: Am PC stand sie als schmaler Streifen (346 statt 1100 Punkte) mitten auf dem Bildschirm — ein Nebeneffekt des Spalten-Umbaus aus 0.20.0. Behoben. Außerdem ist die Import-Vorschau am PC jetzt 980 statt 460 Punkte breit: Die Tabelle mit Mastnummer, Art und Revision brach dort vorher buchstabenweise um. Am Telefon ändert sich nichts."
 }
