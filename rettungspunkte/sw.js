@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-1cf76038';
+var CACHE = 'rettungspunkte-baf5f81f';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
@@ -119,6 +119,13 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET') return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;      // fremde Adressen nicht anfassen
+
+  /* Der Lieferordner (lieferungen/liste.json und die ZIPs darin) geht
+     immer ans Netz und nie in diesen Speicher: Ein ersetztes ZIP muss beim
+     nächsten Start neu ankommen, und „erst Speicher, dann Netz" hätte
+     stur die alte Fassung ausgeliefert. Was daraus übernommen ist, liegt
+     ohnehin im Gerät (IndexedDB) — offline fehlt nichts. */
+  if (/\/lieferungen\//.test(url.pathname)) return;
 
   // Seitenaufrufe: erst Netz (damit Updates ankommen), sonst Speicher.
   if (req.mode === 'navigate') {

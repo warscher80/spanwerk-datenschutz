@@ -20,7 +20,7 @@
 var SPIE_UNTERLAGEN = [
   {
     id: "blatzheim-2022",
-    stand: 2,
+    stand: 3,
     baustelle: "Blatzheim",
     leitung: "4236",
     datei: "./unterlagen-blatzheim.zip",

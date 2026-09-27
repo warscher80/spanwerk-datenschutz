@@ -1473,7 +1473,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.32.0';
+var VERSION = '0.33.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6302,13 +6302,30 @@ function akteBereich(id, behalten) {
   akte.offen = (akte.offen === id && !behalten) ? '' : id;
   var ziel = $('akteInhalt'); if (!ziel) return;
   if (!akte.offen) { ziel.innerHTML = ''; return; }
-  if (id === 'spann') { ziel.innerHTML = spannHtml(); return; }
   if (id === 'lageplan') { akte.offen = ''; mastImPlan(); return; }
-  if (id === 'bemerkungen') { ziel.innerHTML = bemerkungHtml(); return; }
-  var gruppen = id === 'gruendung' ? ['Gründung']
-              : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges', 'Fotos']
-              : ['Prüfung'];
-  ziel.innerHTML = dokGruppenHtml(gruppen);
+  if (id === 'spann') ziel.innerHTML = spannHtml();
+  else if (id === 'bemerkungen') ziel.innerHTML = bemerkungHtml();
+  else {
+    var gruppen = id === 'gruendung' ? ['Gründung']
+                : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges', 'Fotos']
+                : ['Prüfung'];
+    ziel.innerHTML = dokGruppenHtml(gruppen);
+  }
+  /* „Spanntabelle — wenn man drauf drückt, passiert nichts." Es passierte
+     etwas: Der Inhalt stand UNTER den Kacheln, und die Kacheln standen am
+     unteren Bildrand. Auf dem Telefon lag der Inhalt damit außerhalb des
+     Bildes. Wer eine Kachel antippt, bekommt den Inhalt jetzt ins Bild
+     gerollt — nur beim Antippen, nicht beim stillen Neuzeichnen. */
+  if (!behalten) akteInhaltZeigen();
+}
+
+function akteInhaltZeigen() {
+  var ziel = $('akteInhalt'); if (!ziel || !ziel.firstChild) return;
+  var r = ziel.getBoundingClientRect();
+  var unten = window.innerHeight - 90;                 // Reiterleiste abziehen
+  if (r.top < unten - 120 && r.top >= 0) return;       // schon gut zu sehen
+  try { ziel.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  catch (e) { ziel.scrollIntoView(true); }
 }
 
 function dokGruppenHtml(gruppen) {
@@ -7350,6 +7367,8 @@ function pdfZeichnen(einpassen) {
       var wb = r.clientWidth / roh.width, hb = r.clientHeight / roh.height;
       pdfAkt.zoom = (einpassen === 'ganz' ? Math.min(wb, hb) : Math.max(wb, hb)) || 1;
       fuellen = einpassen !== 'ganz';
+      pdfAkt.passZoom = pdfAkt.zoom; pdfAkt.passArt = einpassen;
+      pdfAkt.passMass = r.clientWidth + 'x' + r.clientHeight;
     }
 
     // Der Papierbogen in voller Größe — er allein bestimmt, wie weit man rollt.
@@ -7598,7 +7617,18 @@ function pdfSchirmGedreht() {
   var r = $('planBild'); if (!r) return;
   var k = r.getBoundingClientRect();
   var lage = k.width > k.height ? 'quer' : 'hoch';
-  if (lage === pdfSchirmLage) return;
+  if (lage === pdfSchirmLage) {
+    /* Keine Drehung, aber der Ausschnitt ist gewachsen — auf dem iPhone
+       fährt nach dem Öffnen die Browserleiste ein, und das Blatt, eben
+       noch bildfüllend, hing plötzlich mit schwarzen Streifen oben und
+       unten in der Mitte (vom Gerät gemeldet, 0.32.0). Neu einpassen,
+       aber NUR, solange der Nutzer nicht selbst gezoomt hat — sonst
+       nimmt ihm jede Adressleisten-Bewegung seinen Ausschnitt weg. */
+    var mass = r.clientWidth + 'x' + r.clientHeight;
+    var amPass = pdfAkt.passZoom && Math.abs(pdfAkt.zoom - pdfAkt.passZoom) < 1e-9;
+    if (amPass && pdfAkt.passMass && mass !== pdfAkt.passMass) pdfZeichnen(pdfAkt.passArt || true);
+    return;
+  }
   pdfSchirmLage = lage;
   pdfAutoDrehen().then(function () { pdfZeichnen(true); });
 }
@@ -7610,6 +7640,7 @@ function pdfSchliessen() {
   if (pdfAkt.doc && pdfAkt.doc.destroy) { try { pdfAkt.doc.destroy(); } catch (e) {} }
   pdfAkt.doc = null; pdfAkt.seite = 1; pdfAkt.seiten = 1; pdfAkt.dreh = 0;
   pdfAkt.laeuft = false; pdfAkt.nach = null; pdfAkt.fenster = null;
+  pdfAkt.passZoom = 0; pdfAkt.passArt = null; pdfAkt.passMass = '';
   pdfDrehHand = false;
 }
 
@@ -8138,9 +8169,10 @@ function unterlageNachtragen(u, gemerkt) {
     var w = paketDatenSchreiben(id, r.daten, r.dateien, mastSucheFuer(id));
     return w.arbeit.then(function () {
       var stand = { stand: u.stand, baustelle: id, titel: u.baustelle, was: u.was,
-                    am: Date.now(), eingang: {} };
+                    quelle: u.quelle || 'app', am: Date.now(), eingang: {} };
       if (karte.soll) stand.eingang.karte = [karte.ist, karte.soll];
       if (karte.behalten) stand.karteBehalten = true;
+      if (w.eingang.dubletten) stand.dubletten = w.eingang.dubletten;
       Object.keys(w.eingang).forEach(function (art) {
         if (w.eingang[art].soll) stand.eingang[art] = [w.eingang[art].ist, w.eingang[art].soll];
       });
@@ -8151,11 +8183,66 @@ function unterlageNachtragen(u, gemerkt) {
   });
 }
 
+/* ---------- Der Lieferordner ----------
+
+   „Der Monteur sollte keine Arbeit haben." Bis hierher endete der Weg aus
+   dem Büro bei einem ZIP, das der Monteur einlesen musste. Jetzt gibt es
+   neben den fest eingebauten Lieferungen (daten-unterlagen.js) einen
+   Ordner auf demselben Server wie die App: ./lieferungen/. Darin eine
+   Liste (liste.json) und je Baustelle ein ZIP — genau das ZIP, das
+   „Als Datei sichern" am PC erzeugt.
+
+   Die App schaut bei jedem Start mit Netz hinein. Ein ZIP, das sich
+   geändert hat (neuer ETag/Last-Modified des Servers, oder ein von Hand
+   erhöhter `stand` in der Liste), wird nachgetragen — mit derselben
+   Strenge, denselben Zählern und derselben Dubletten-Bereinigung wie eine
+   eingebaute Lieferung. Ohne Netz passiert nichts, und es fehlt nichts:
+   Was einmal nachgetragen ist, liegt im Gerät.
+
+   Das ist kein Server-Abgleich (kein Rückweg, keine Konflikte, keine
+   Benutzer) — es ist ein Briefkasten. Aber der Monteur macht damit: nichts. */
+var LIEFERORDNER = './lieferungen/';
+
+function lieferungenHolen() {
+  if (navigator.onLine === false) return Promise.resolve([]);
+  return fetch(LIEFERORDNER + 'liste.json', { cache: 'no-store' })
+    .then(function (a) { return a.ok ? a.json() : []; })
+    .catch(function () { return []; })
+    .then(function (liste) {
+      if (!Array.isArray(liste)) return [];
+      return Promise.all(liste.map(function (roh) {
+        var u = roh || {};
+        var datei = String(u.datei || '').replace(/^\.?\//, '');
+        var id = String(u.id || datei.replace(/\.zip$/i, '') || '').trim();
+        if (!datei || !id || !u.baustelle || /[\/\\]/.test(datei)) return null;   // nur Dateien IM Ordner
+        /* Der Stand kommt vom Server: Ein ersetztes ZIP hat einen neuen
+           ETag. Fehlt der (mancher Server gibt keinen), zählt `stand` aus
+           der Liste — den erhöht dann der Mensch beim Hochladen. */
+        return fetch(LIEFERORDNER + datei, { method: 'HEAD', cache: 'no-store' })
+          .then(function (a) {
+            if (!a.ok) return null;
+            var marke = a.headers.get('ETag') || a.headers.get('Last-Modified') || '';
+            return { id: 'ordner:' + id, quelle: 'ordner', stand: 'o' + (u.stand || 0) + ':' + marke,
+                     baustelle: String(u.baustelle), leitung: u.leitung ? String(u.leitung) : '',
+                     datei: LIEFERORDNER + datei, was: String(u.was || 'aus dem Lieferordner') };
+          }).catch(function () { return null; });
+      }));
+    }).then(function (l) { return l.filter(Boolean); })
+    .catch(function () { return []; });
+}
+
 function unterlagenNachtragen() {
-  if (typeof SPIE_UNTERLAGEN === 'undefined' || !SPIE_UNTERLAGEN.length) return Promise.resolve([]);
   if (!S || !S.verfuegbar() || typeof SpiePaket === 'undefined') return Promise.resolve([]);
+  var eingebaut = (typeof SPIE_UNTERLAGEN !== 'undefined' && SPIE_UNTERLAGEN.length) ? SPIE_UNTERLAGEN : [];
+  return lieferungenHolen().then(function (ordner) {
+    return unterlagenNachtragenAus(eingebaut.concat(ordner));
+  });
+}
+
+function unterlagenNachtragenAus(alle) {
+  if (!alle.length) return Promise.resolve([]);
   var gemerkt = load(K_UNTERLAGEN, {}) || {};
-  var offen = SPIE_UNTERLAGEN.filter(function (u) {
+  var offen = alle.filter(function (u) {
     return !gemerkt[u.id] || gemerkt[u.id].stand !== u.stand;
   });
   if (!offen.length) return Promise.resolve([]);
@@ -8167,7 +8254,7 @@ function unterlagenNachtragen() {
         .catch(function (e) {
           /* Nicht stillschweigend: Wer die Unterlagen erwartet und sie nicht
              findet, hält sie für nicht vorhanden. */
-          gemerkt[u.id] = { stand: 0, titel: u.baustelle, was: u.was,
+          gemerkt[u.id] = { stand: 0, titel: u.baustelle, was: u.was, quelle: u.quelle || 'app',
                             fehler: String((e && e.message) || e), am: Date.now() };
           save(K_UNTERLAGEN, gemerkt);
         });
@@ -8195,11 +8282,16 @@ function unterlagenNachtragen() {
 /* Was mitgeliefert wurde und was davon ankam — in der Verwaltung, nicht in
    einer Meldung, die nach drei Sekunden weg ist. */
 function unterlagenHtml() {
-  if (typeof SPIE_UNTERLAGEN === 'undefined' || !SPIE_UNTERLAGEN.length) return '';
   var gemerkt = load(K_UNTERLAGEN, {}) || {};
+  var eingebaut = (typeof SPIE_UNTERLAGEN !== 'undefined' && SPIE_UNTERLAGEN.length) ? SPIE_UNTERLAGEN : [];
+  /* Lieferungen aus dem Ordner stehen nur im Merker — die Liste dazu liegt
+     im Netz, und die Verwaltung muss auch ohne Netz stimmen. */
+  var ausOrdner = Object.keys(gemerkt).filter(function (k) { return k.indexOf('ordner:') === 0; })
+    .map(function (k) { var g = gemerkt[k]; return { id: k, baustelle: g.titel || k.slice(7), was: g.was || '', quelle: 'ordner' }; });
+  var alle = eingebaut.concat(ausOrdner);
   var namen = { karte: 'Punkten der Karte', mastdaten: 'Mastdaten', spanntabellen: 'Spanntabellen',
                 werte: 'Regulierwerte', dokumente: 'Dokumente' };
-  var zeilen = SPIE_UNTERLAGEN.map(function (u) {
+  var zeilen = alle.map(function (u) {
     var g = gemerkt[u.id];
     if (!g) {
       return '<div class="vzeile"><b>' + esc(u.baustelle) + '</b><br>' +
@@ -8212,11 +8304,14 @@ function unterlagenHtml() {
     var teile = Object.keys(g.eingang || {}).map(function (art) {
       return g.eingang[art][0] + ' von ' + g.eingang[art][1] + ' ' + (namen[art] || art);
     });
+    if (g.dubletten) teile.push(g.dubletten + ' doppelte Spanntabelle' + (g.dubletten === 1 ? '' : 'n') +
+                                ' (gleicher Inhalt, alte Kennung) ersetzt');
     var luecke = Object.keys(g.eingang || {}).some(function (art) {
       return g.eingang[art][0] < g.eingang[art][1];
     });
     return '<div class="' + (luecke ? 'warnbox' : 'vzeile') + '" style="margin:8px 0">' +
-      '<b>' + esc(u.baustelle) + '</b> — Baustelle „' + esc(g.titel || u.baustelle) + '"<br>' +
+      '<b>' + esc(u.baustelle) + '</b> — Baustelle „' + esc(g.titel || u.baustelle) + '"' +
+      (u.quelle === 'ordner' ? ' · <i>aus dem Lieferordner</i>' : '') + '<br>' +
       esc(teile.join(' · ')) +
       (g.karteBehalten
         ? '<br><i>Die Karte im Gerät war schon da und wurde behalten — die mitgelieferte ' +
@@ -8225,7 +8320,14 @@ function unterlagenHtml() {
   });
   return '<h3>Mitgelieferte Unterlagen</h3>' +
     '<div class="hint">Kommen mit der App und werden beim ersten Start selbst ' +
-    'übernommen. Es muss nichts eingelesen werden.</div>' + zeilen.join('');
+    'übernommen. Es muss nichts eingelesen werden.</div>' + zeilen.join('') +
+    /* Der Weg für den Projektleiter — nur im Büro-Modus, und mit der
+       ehrlichen Grenze: Es ist ein Briefkasten, kein Abgleich. */
+    '<div class="hint nurbuero" style="margin-top:12px"><b>Lieferordner.</b> Die App schaut bei ' +
+    'jedem Start mit Netz in <code>lieferungen/</code> neben der App. Der Projektleiter legt das ' +
+    'ZIP aus „Als Datei sichern" dort ab und trägt die Baustelle einmal in <code>liste.json</code> ein; ' +
+    'ein ersetztes ZIP wird beim nächsten Start jedes Handys von selbst nachgetragen. Der Monteur ' +
+    'liest nichts ein. Kein Rückweg, kein Abgleich — ein Briefkasten.</div>';
 }
 
 /* Die Ablage-Seite einer Übernahme: Mastdaten, Spanntabellen, Regulierwerte
@@ -8283,6 +8385,49 @@ function paketDatenSchreiben(id, d, dateien, mastSuche, vorlauf) {
         .then(kam('mastdaten'), egal);
     });
   });
+
+  /* Dieselbe Tabelle unter einer anderen Kennung wäre eine Dublette: Vom
+     Gerät gemeldet als „28 Spannfelder" statt 14 — die erste Lieferung
+     hatte die Tabellen noch ohne eigene Kennung abgelegt (Fassung 1, Kennung
+     aus dem Dateinamen), die zweite brachte sie mit Kennung, und beide
+     blieben stehen. Gleicher Dateiname (quelle) oder gleiche
+     Leitung·von·nach·Zustand = dieselbe Tabelle; die alte geht raus. */
+  /* Zwei Merkmale, die dieselbe Tabelle verraten — beide werden geprüft:
+     der Dateiname ohne den Zufallsvorsatz („3c9176d4-…"), den die Werkzeuge
+     verschieden vergeben, und das Spannfeld selbst (von · nach · Zustand).
+     Auf dem Gerät lagen die Tabellen einmal von Hand eingelesen (JSON) und
+     einmal aus der Lieferung — gleicher Inhalt, andere Kennung. */
+  var signaturen = function (t) {
+    if (!t) return [];
+    var aus = [];
+    var norm = function (x) { return String(x == null ? '' : x).trim().toLowerCase(); };
+    if (t.quelle) aus.push('q:' + norm(t.quelle).replace(/^[0-9a-f]{8}-/, ''));
+    var feld = [t.von, t.nach, t.zustand].map(norm);
+    if (feld[0] && feld[1]) aus.push('f:' + feld.join('·').replace(/\s+/g, ' '));
+    return aus;
+  };
+  eingang.dubletten = 0;
+  if (spannListe.length) {
+    arbeit = arbeit.then(function () {
+      return S.spannVonBaustelle(id).catch(function () { return []; });
+    }).then(function (vorhanden) {
+      var neue = {};
+      spannListe.forEach(function (t, i) {
+        var q = String(t.id || (typeof SpieSpann !== 'undefined' && SpieSpann.kennung ? SpieSpann.kennung(t, i) : ''));
+        signaturen(t).forEach(function (sig) { neue[sig] = q; });
+      });
+      var weg = (vorhanden || []).filter(function (v) {
+        return signaturen(v.tabelle).some(function (sig) { return neue[sig] && neue[sig] !== String(v.id); });
+      });
+      var k = Promise.resolve();
+      weg.forEach(function (v) {
+        k = k.then(function () {
+          return S.spannLoeschen(id, v.id).then(function () { eingang.dubletten++; }, egal);
+        });
+      });
+      return k;
+    });
+  }
 
   /* Die Tabellen aus einem Paket bringen nicht zwingend eine Kennung mit —
      das Blatzheim-Paket tat es nicht. Ohne Kennung legen sich alle auf
