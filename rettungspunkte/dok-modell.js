@@ -27,7 +27,12 @@ var SpieDok = (function () {
     { id: 'bewehrungsplan',  name: 'Bewehrungsplan',     gruppe: 'Gründung' },
     { id: 'mastbild',        name: 'Mastbild',           gruppe: 'Mast' },
     { id: 'montageplan',     name: 'Montageplan',        gruppe: 'Montage' },
-    { id: 'regulierplan',    name: 'Regulierplan',       gruppe: 'Montage' },
+    /* „Regulierplan = Spanntabelle." Die Reguliermaße stehen in der
+       Spanntabelle des Abschnitts; ein eigener „Regulierplan" existiert in
+       diesen Unterlagen nicht. Die Kennung bleibt für alte Ablagen, der Name
+       sagt, was gemeint ist. */
+    { id: 'spanntabelle',    name: 'Spanntabelle',       gruppe: 'Montage' },
+    { id: 'regulierplan',    name: 'Regulierplan (alt)', gruppe: 'Montage' },
     { id: 'seilzugplan',     name: 'Seilzugplan',        gruppe: 'Montage' },
     { id: 'abspann',         name: 'Abspannunterlagen',  gruppe: 'Montage' },
     { id: 'pruefprotokoll',  name: 'Prüfprotokoll',      gruppe: 'Prüfung' },
@@ -199,7 +204,8 @@ var SpieDok = (function () {
     [/bewehrung/i,                'bewehrungsplan'],
     [/mastbild|mastzeichnung/i,   'mastbild'],
     [/montage/i,                  'montageplan'],
-    [/regulier/i,                 'regulierplan'],
+    [/spanntabelle|spann_?tab/i,  'spanntabelle'],
+    [/regulier/i,                 'spanntabelle'],
     [/seilzug|seilmontage/i,      'seilzugplan'],
     [/abspann/i,                  'abspann'],
     [/pr(ü|ue)f|protokoll/i,      'pruefprotokoll'],
@@ -302,6 +308,7 @@ var SpieDok = (function () {
      Ein gescannter Plan hat keine Textebene. Dann kommt hier nichts zurück,
      und die Vorschau sagt es — geraten wird nicht. */
   var SCHRIFTFELD_TITEL = [
+    [/spanntabelle/i,                                    'spanntabelle'],
     [/schal-?\s*und\s*bewehrungsplan|bewehrungsplan/i, 'bewehrungsplan'],
     [/plattenfundament|fundamentplan/i,                  'fundamentplan'],
     [/bohrpfahlgr(ü|ue)ndung|gr(ü|ue)ndungsplan/i,       'gruendungsplan'],
@@ -355,6 +362,13 @@ var SpieDok = (function () {
     }
     var bl = out.text.match(/\bBl\.\s*(\d{3,4})\b/);
     if (bl) out.leitung = bl[1];
+    /* Eine Spanntabelle hat kein „Mast Nr.", sondern einen Abschnitt „von
+       Mast 4236/18 nach Mast 4236/20". Abgelegt wird sie an dem Mast, an dem
+       das Feld beginnt — dort zeigt die Mastakte auch die Spannfelder. */
+    if (!out.mast) {
+      var ab = out.text.match(/Abschnitt:\s*von\s+Mast\s+(\S+)\s+nach\s+Mast\s+(\S+)/i);
+      if (ab) { out.mast = ab[1]; out.nach = ab[2]; out.mastVoll = true; }
+    }
     for (var k = 0; k < SCHRIFTFELD_TITEL.length; k++) {
       if (SCHRIFTFELD_TITEL[k][0].test(out.text)) { out.kategorie = SCHRIFTFELD_TITEL[k][1]; break; }
     }

@@ -1474,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.34.1';
+var VERSION = '0.34.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7095,7 +7095,7 @@ function schriftfeldEintragen(imp, r, sf) {
   if (!sf.hatText) { r.quelle = 'kein Text im Plan (gescannt) — Mast bitte von Hand'; return; }
   var teile = [];
   if (sf.mast) {
-    var voll = sf.leitung ? sf.leitung + '/' + sf.mast : sf.mast;
+    var voll = (sf.leitung && !sf.mastVoll) ? sf.leitung + '/' + sf.mast : sf.mast;
     var m = mastFinden(voll) || mastFinden(sf.mast);
     if (!r.beruehrt) {
       r.mast = m ? m.nr : voll;
@@ -7198,7 +7198,10 @@ function dokReiheOffen(r) {
   else if (r.mastSicher !== 'sicher') offen.push('Mast nur vermutet');
   else if (!mastFinden(r.mast)) offen.push('Mast nicht in dieser Baustelle');
   if (!r.kategorie) offen.push('Art fehlt');
-  if (!r.revision) offen.push('Revision fehlt');
+  /* Die Revision ist der Änderungsstand eines Plans (Index A, B, C …). Eine
+     Spanntabelle oder ein Foto hat keinen — dort ist „Revision fehlt" kein
+     Hinweis, sondern Lärm. Das Ausgabedatum steht im Datum. */
+  if (!r.revision && r.kategorie !== 'spanntabelle' && r.kategorie !== 'foto') offen.push('Revision fehlt');
   return offen;
 }
 
