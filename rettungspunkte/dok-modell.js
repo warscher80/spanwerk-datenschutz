@@ -277,6 +277,90 @@ var SpieDok = (function () {
     return out;
   }
 
+  /* ---------- Das Schriftfeld eines Plans ----------
+
+     „In den ganzen Plänen steht unten der Mast mit Nummer." Stimmt — und die
+     Dateien heißen trotzdem „145052.pdf". Der Dateiname ist also die
+     schlechtere Quelle. Hier wird gelesen, was im Blatt steht.
+
+     Gelesen werden die Textkästchen, die pdf.js liefert (getTextContent):
+     jedes mit Text, Lage und Laufrichtung. Zwei Dinge sind dabei nicht
+     verhandelbar:
+
+     1. Die Nummer wird ÜBER DIE LAGE gefunden, nicht über den Fließtext.
+        In diesen Zeichnungen steht „Mast Nr. 3 1" — die Ziffern sind einzeln
+        gesetzt. Ein Ausdruck über den Text las daraus Mast 3 statt Mast 31:
+        ein Gründungsplan am falschen Mast. Deshalb: die Kästchen rechts der
+        Beschriftung, in Laufrichtung, Ziffern zusammensetzen, solange sie
+        dicht stehen; die erste Lücke oder das erste Nicht-Ziffern-Kästchen
+        beendet die Nummer.
+     2. Die Laufrichtung kommt aus der Transformationsmatrix jedes Kästchens.
+        Die Blatzheimer Blätter liegen um 270° gedreht — „rechts von der
+        Beschriftung" ist dort „unten im Koordinatensystem". Wer mit x/y
+        rechnet statt mit der Laufrichtung, findet nichts oder das Falsche.
+
+     Ein gescannter Plan hat keine Textebene. Dann kommt hier nichts zurück,
+     und die Vorschau sagt es — geraten wird nicht. */
+  var SCHRIFTFELD_TITEL = [
+    [/schal-?\s*und\s*bewehrungsplan|bewehrungsplan/i, 'bewehrungsplan'],
+    [/plattenfundament|fundamentplan/i,                  'fundamentplan'],
+    [/bohrpfahlgr(ü|ue)ndung|gr(ü|ue)ndungsplan/i,       'gruendungsplan'],
+    [/montageplan/i,                                     'montageplan']
+  ];
+
+  function schriftfeldAusItems(items) {
+    var w = [];
+    (items || []).forEach(function (i) {
+      if (!i || !i.str || !String(i.str).trim() || !i.transform) return;
+      var t = i.transform, a = t[0], b = t[1];
+      var len = Math.sqrt(a * a + b * b) || 1;
+      w.push({ s: String(i.str).trim(), x: t[4], y: t[5], dx: a / len, dy: b / len,
+               w: i.width || 0 });
+    });
+    var out = { mast: '', leitung: '', kategorie: '', text: w.map(function (i) { return i.s; }).join(' '),
+                hatText: w.length > 0 };
+
+    /* Kästchen in Laufrichtung hinter einer Beschriftung — nur Ziffern,
+       zusammengesetzt, bis eine Lücke (> 14 Einheiten) oder ein anderes
+       Zeichen kommt. */
+    function ziffernNach(label) {
+      var px = -label.dy, py = label.dx;
+      var kand = [];
+      w.forEach(function (c) {
+        if (c === label) return;
+        var rx = c.x - label.x, ry = c.y - label.y;
+        var quer = rx * px + ry * py, laengs = rx * label.dx + ry * label.dy;
+        if (Math.abs(quer) < 6 && laengs > label.w - 1 && laengs < label.w + 260) {
+          kand.push({ c: c, p: laengs });
+        }
+      });
+      kand.sort(function (a, b) { return a.p - b.p; });
+      var aus = '', ende = null;
+      for (var i = 0; i < kand.length; i++) {
+        if (!/^\d+$/.test(kand[i].c.s)) break;
+        if (ende !== null && kand[i].p - ende > 14) break;
+        aus += kand[i].c.s;
+        ende = kand[i].p + kand[i].c.w;
+      }
+      return aus;
+    }
+
+    for (var i = 0; i < w.length && !out.mast; i++) {
+      var label = null;
+      if (/^mast[\s_-]*nr\.?:?$/i.test(w[i].s)) label = w[i];
+      else if (/^nr\.?:?$/i.test(w[i].s) && i > 0 && /^mast$/i.test(w[i - 1].s)) label = w[i];
+      if (!label) continue;
+      var z = ziffernNach(label);
+      if (z) out.mast = String(parseInt(z, 10));      // führende Nullen sind Schreibweise
+    }
+    var bl = out.text.match(/\bBl\.\s*(\d{3,4})\b/);
+    if (bl) out.leitung = bl[1];
+    for (var k = 0; k < SCHRIFTFELD_TITEL.length; k++) {
+      if (SCHRIFTFELD_TITEL[k][0].test(out.text)) { out.kategorie = SCHRIFTFELD_TITEL[k][1]; break; }
+    }
+    return out;
+  }
+
   /* Was muss der Mensch anfassen? Alles, was fehlt oder nur vermutet ist. */
   function pruefbedarf(vorschlag) {
     var offen = [];
@@ -343,7 +427,8 @@ var SpieDok = (function () {
     pruefbedarf: pruefbedarf,
     dateiArt: dateiArt,
     mimeFuer: mimeFuer,
-    istErlaubt: istErlaubt
+    istErlaubt: istErlaubt,
+    schriftfeldAusItems: schriftfeldAusItems
   };
 })();
 

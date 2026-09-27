@@ -574,7 +574,7 @@
      nicht durch.
 
      Was NIE verschwindet: Notfall, Rettungspunkte, Kompass, Koordinaten,
-     Mast suchen, Mastakte, Plaene lesen, Regulierwerte lesen, Baustelle
+     Mast suchen, Mastakte, Plaene lesen, Spanntabelle lesen, Baustelle
      wechseln, Paket einlesen. Der Monteur verliert nichts, was er braucht. */
   body.nurlesen .nurbuero{display:none !important}
   /* Kurz aufleuchten, wenn der Riegel hierher geschickt hat — sonst sucht
@@ -1271,7 +1271,7 @@
         <span>Büro-Modus — Bearbeiten, Löschen und Importieren erlauben</span>
       </label>
       <div class="hint">Der <b>Projektleiter</b> trägt im Büro am PC ein: Pläne, Mastdaten,
-        Regulierwerte, Punkte und Nummern. Daraus baut er das <b>Baustellenpaket</b>.
+        Spanntabellen, Punkte und Nummern. Daraus baut er das <b>Baustellenpaket</b>.
         Der <b>Monteur</b> liest es am Handy — er kann zwischen den Baustellen wechseln und
         Pakete einlesen, aber nichts ändern. So verstellt am Mast niemand versehentlich etwas.
         <br><br>
@@ -1468,7 +1468,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.29.0';
+var VERSION = '0.31.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3839,8 +3839,8 @@ function renderAdmin() {
     anz.innerHTML = nurLesen()
       ? '<b>Baustelle — nur lesen</b><span class="psub">Ansehen, Rettungspunkt, Meldung, ' +
         'Baustelle wechseln. Geändert wird nichts.</span>'
-      : '<b>Büro — Bearbeiten möglich</b><span class="psub">Pläne ablegen, Mastdaten und ' +
-        'Regulierwerte pflegen, Baustellenpaket bauen.</span>';
+      : '<b>Büro — Bearbeiten möglich</b><span class="psub">Pläne ablegen, Mastdaten pflegen, ' +
+        'Baustellenpaket bauen.</span>';
   }
   var undo = $('undoBtn');
   if (undo) undo.hidden = !load(K_SICHERUNG, null);
@@ -6055,6 +6055,20 @@ function renderAkteZuwegung() {
     '</div>';
 }
 
+/* Der Lageplan mit diesem Mast im Bild. Gibt es eine Zuwegung, wird sie
+   hervorgehoben (wie „Weg im Lageplan"); sonst wird der Ausschnitt so
+   gewählt, dass Standort und Mast beide drin sind. Der Lageplan hat den
+   eigenen Standort als Mittelpunkt — ohne ihn gibt es keinen. */
+function mastImPlan() {
+  if (!akte.mast) return;
+  if (akte.zuwegung) { zuwegungImPlan(); return; }
+  if (!state.pos) { toast('Erst den Standort einschalten'); return; }
+  planOpen();
+  var d = G.distance(state.pos.lat, state.pos.lon, akte.mast.punkt.lat, akte.mast.punkt.lon);
+  plan.spanne = Math.max(300, Math.min(20000, d * 2.6));
+  planDraw();
+}
+
 /* Den Weg dieses Mastes im Lageplan hervorheben. Der Lageplan braucht den
    eigenen Standort — ohne ihn hat er keinen Mittelpunkt. */
 function zuwegungImPlan() {
@@ -6250,14 +6264,20 @@ function renderAkteBereiche() {
   };
   // „1 Unterlagen" liest sich wie ein Fehler und ist auch einer.
   var stueck = function (n, eins, viele) { return n + ' ' + (n === 1 ? eins : viele); };
-  var offeneWerte = akte.werte.filter(function (w) { return w.status !== 'fertig'; }).length;
+  /* „Regulierwerte kannst du raus machen, das ist dasselbe wie Spanntabelle."
+     Stimmt: Die Soll-Werte STEHEN in der Spanntabelle, und den Ist-Wert
+     trägt auf dieser Baustelle niemand ins Handy. Die Kachel ist weg; an
+     ihrer Stelle der Lageplan mit diesem Mast — der wurde gefragt. Die
+     Ablage für Werte (speicher.js, Paket) bleibt, damit ein älteres Paket
+     nicht plötzlich Daten verliert. */
+  var lageplanText = !state.pos ? 'Standort fehlt'
+    : (akte.zuwegung ? 'mit Zuwegung' : G.formatDistance(G.distance(state.pos.lat, state.pos.lon,
+                                                         akte.mast.punkt.lat, akte.mast.punkt.lon)) + ' von hier');
 
   box.innerHTML = '<h3 style="margin-top:0">Mastakte</h3><div class="bereiche">' +
     b('spann', 'Spanntabelle', spannAmMast().length
         ? spannAmMast().length + ' Spannfelder' : (spannAlle.length ? 'dieser Mast fehlt' : 'keine hinterlegt')) +
-    b('werte', 'Regulierwerte', akte.werte.length
-        ? stueck(akte.werte.length, 'Wert', 'Werte') + (offeneWerte ? ' · ' + offeneWerte + ' offen' : '')
-        : 'noch keine') +
+    b('lageplan', 'Lageplan', lageplanText) +
     b('gruendung', 'Gründung', stueck(zahlIn(['Gründung']), 'Unterlage', 'Unterlagen')) +
     /* Keine eigene Fläche für Fotos: Am Mast wird nicht fotografiert (Ansage
        des Betreibers). Bilder, die aus dem Büro kommen, verschwinden trotzdem
@@ -6275,7 +6295,7 @@ function akteBereich(id, behalten) {
   var ziel = $('akteInhalt'); if (!ziel) return;
   if (!akte.offen) { ziel.innerHTML = ''; return; }
   if (id === 'spann') { ziel.innerHTML = spannHtml(); return; }
-  if (id === 'werte') { ziel.innerHTML = werteHtml(); return; }
+  if (id === 'lageplan') { akte.offen = ''; mastImPlan(); return; }
   if (id === 'bemerkungen') { ziel.innerHTML = bemerkungHtml(); return; }
   var gruppen = id === 'gruendung' ? ['Gründung']
               : id === 'plaene'    ? ['Mast', 'Montage', 'Sonstiges', 'Fotos']
@@ -6434,12 +6454,10 @@ function spannHtml() {
         /* Das Seil ist der Knopf. Ein eigener Knopf in der letzten Spalte war
            auf einem 390-Pixel-Telefon nur nach seitlichem Rollen erreichbar —
            die erste Spalte steht immer im Bild. */
-        /* Im Baustellen-Modus bleibt der Seilname stehen, aber ohne Knopf:
-           Ein Knopf, der nur einen Riegel zeigt, ist schlimmer als keiner. */
-        return '<tr><td class="seil">' + (nurLesen()
-          ? '<span class="seilbtn ruhig" title="' + esc(z.seil.seiltyp) + '">' + esc(z.seil.seil) + '</span>'
-          : '<button class="seilbtn" title="' + esc(z.seil.seiltyp) +
-            '" onclick="spannIstEintragen(' + e.indexOf(z) + ')">' + esc(z.seil.seil) + '</button>') + '</td>' +
+        /* Das Seil ist Beschriftung, kein Knopf mehr: Der Weg „Ist eintragen"
+           in die Regulierwerte ist mit den Regulierwerten weggefallen. */
+        return '<tr><td class="seil"><span class="seilbtn ruhig" title="' + esc(z.seil.seiltyp) + '">' +
+          esc(z.seil.seil) + '</span></td>' +
           '<td class="wert">' + zahl2(w.durchhang) + '</td>' +
           '<td>' + zahl2(w.durchhangRed) + '</td>' +
           (mitVersatz ? '<td>' + (w.versatz == null ? '—' : zahl2(w.versatz)) + '</td>' : '') +
@@ -6462,31 +6480,6 @@ function spannHtml() {
   raus += '<div class="hint">Zwischenwerte rechnet die App nicht aus. Die Tabelle nennt ' +
     SpieSpann.temperaturen(e).length + ' Temperaturen; was dazwischen gilt, steht nicht darin.</div>';
   return raus;
-}
-
-/* Vom Sollwert zum gemessenen Wert — ohne Abtippen.
-
-   Der Sollwert wird aus der Tabelle übernommen, nicht errechnet, und die
-   Bezeichnung sagt vollständig, wofür er gilt: Seil, Feld und Temperatur.
-   Ein Regulierwert „Durchhang 9,03" ohne diese drei Angaben wäre in vier
-   Wochen nicht mehr zuzuordnen.
-
-   Eine Toleranz wird NICHT vorgeschlagen. Sie steht in den Unterlagen der
-   Baustelle; die App kennt sie nicht und erfindet sie auch nicht. */
-function spannIstEintragen(i) {
-  if (!darfAendern('Einen Istwert einzutragen')) return;
-  var e = (akte.spannListe || [])[i]; if (!e) return;
-  var w = SpieSpann.beiTemperatur(e, akte.spannTemp); if (!w) return;
-  var t = e.tabelle;
-  var temp = (w.temperatur > 0 ? '+' : '') + w.temperatur + ' °C';
-  wertBearbeiten('', {
-    bezeichnung: 'Durchhang Seil ' + e.seil.seil + ' · Feld ' + akte.mast.nr + '→' +
-      mastHier(e.nachMast) + ' · ' + temp,
-    soll: zahl2(w.durchhang),
-    einheit: 'm',
-    bemerkung: (t.zustand || '') + ' · Spannweite ' + zahl2(e.feld.spannweite) + ' m · ' +
-      'Soll aus ' + (t.quelle || 'Spanntabelle')
-  });
 }
 
 /* ---------- Import in der Verwaltung ---------- */
@@ -6751,144 +6744,6 @@ function bemerkungHtml() {
     '</div><div class="btnrow nurbuero"><button class="btn sm" onclick="mastdatenBearbeiten()">Bemerkung bearbeiten</button></div>';
 }
 
-/* ---------- Regulierwerte ----------
-   Felder und Ablauf stehen. Fachliche Sollwerte und Toleranzen kommen aus den
-   Unterlagen der Baustelle — die App erfindet hier nichts. */
-/* Zahl aus einem Eingabefeld: „9,03" und „9.03" sind dieselbe Zahl.
-   Alles andere (leer, „ca. 9", „—") ist keine und wird auch nicht dazu
-   gemacht. */
-function wertZahl(x) {
-  if (x == null) return null;
-  var t = String(x).trim().replace(',', '.');
-  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
-  var n = parseFloat(t);
-  return isFinite(n) ? n : null;
-}
-
-/* Ist minus Soll — eine Subtraktion, keine Beurteilung. Ob die Abweichung
-   zulässig ist, entscheidet die Toleranz aus den Unterlagen; ist keine
-   eingetragen, sagt die App dazu nichts. */
-function wertAbweichung(w) {
-  var soll = wertZahl(w.soll), ist = wertZahl(w.ist);
-  if (soll === null || ist === null) return null;
-  var d = ist - soll;
-  var tol = wertZahl(w.toleranz);
-  return {
-    diff: d,
-    text: (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(2).replace('.', ',') +
-          (w.einheit ? ' ' + w.einheit : ''),
-    tol: tol,
-    drin: tol === null ? null : Math.abs(d) <= Math.abs(tol)
-  };
-}
-
-function werteHtml() {
-  var kopf = '<div class="btnrow nurbuero" style="margin-top:0">' +
-    '<button class="btn sm" onclick="wertBearbeiten(&#39;&#39;)">Wert hinzufügen</button></div>';
-  if (!akte.werte.length) {
-    return '<div class="empty">Noch keine Regulierwerte. Soll- und Toleranzwerte stehen in den ' +
-      'Unterlagen der Baustelle; die App gibt keine vor.</div>' + kopf;
-  }
-  var zeilen = akte.werte.slice().sort(function (a, b) {
-    return String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de');
-  }).map(function (w) {
-    var farbe = w.status === 'fertig' ? 'var(--ok)' : w.status === 'abweichung' ? 'var(--bad)' : 'var(--warn)';
-    return '<div class="dokzeile"><div class="dokinfo">' +
-      '<div class="doktitel">' + esc(w.bezeichnung || 'Wert') + '</div>' +
-      '<div class="doksub">Soll ' + esc(String(w.soll || '—')) + ' · Ist ' + esc(String(w.ist || '—')) +
-        (w.einheit ? ' ' + esc(w.einheit) : '') +
-        (w.toleranz ? ' · Toleranz ' + esc(String(w.toleranz)) : '') + '</div>' +
-      (function () {
-        var a = wertAbweichung(w);
-        if (!a) return '';
-        var f = a.drin === null ? 'var(--muted)' : (a.drin ? 'var(--ok)' : 'var(--bad)');
-        return '<div class="doksub" style="color:' + f + '"><b>Ist − Soll: ' + esc(a.text) + '</b>' +
-          (a.drin === null ? ' — ohne Toleranz beurteilt die App das nicht'
-                           : (a.drin ? ' — innerhalb der Toleranz' : ' — außerhalb der Toleranz')) +
-          '</div>';
-      })() +
-      '<div class="doksub">' + (w.messdatum ? esc(w.messdatum) + ' · ' : '') +
-        (w.bearbeiter ? esc(w.bearbeiter) + ' · ' : '') +
-        '<b style="color:' + farbe + '">' + esc(w.status || 'offen') + '</b></div>' +
-      (w.bemerkung ? '<div class="doksub">' + esc(w.bemerkung) + '</div>' : '') +
-      '</div><button class="chip nurbuero" onclick="wertBearbeiten(&#39;' + esc(w.id) + '&#39;)">Ändern</button></div>';
-  }).join('');
-  return zeilen + kopf;
-}
-
-function wertBearbeiten(id, vorgabe) {
-  if (!darfAendern('Regulierwerte zu ändern')) return;
-  var w = null;
-  for (var i = 0; i < akte.werte.length; i++) if (akte.werte[i].id === id) w = akte.werte[i];
-  w = w || { bezeichnung: '', soll: '', ist: '', einheit: '', toleranz: '',
-             messdatum: new Date().toISOString().slice(0, 10), bearbeiter: '', bemerkung: '', status: 'offen' };
-  /* Eine Vorbelegung aus der Spanntabelle füllt Bezeichnung, Soll und
-     Einheit — den Istwert füllt der Mensch, sonst wäre er erfunden. */
-  if (vorgabe) { for (var k in vorgabe) if (Object.prototype.hasOwnProperty.call(vorgabe, k)) w[k] = vorgabe[k]; }
-  /* Die Kennungen stehen hier ausgeschrieben und nicht als Argument einer
-     Hilfsfunktion: Die Statikprüfung vergleicht $('…') gegen die id="…" im
-     Text und findet dynamisch zusammengesetzte Kennungen nicht. Diese Prüfung
-     hat in diesem Projekt schon echte Fehler gefunden — sie soll auch hier
-     greifen können. */
-  openOv('<h2>Regulierwert</h2>' +
-    '<div class="field"><label>Bezeichnung</label>' +
-      '<input class="inp" id="rwBez" value="' + esc(String(w.bezeichnung || '')) + '" placeholder="z. B. Durchhang Feld 12"></div>' +
-    '<div style="display:flex;gap:8px">' +
-      '<div style="flex:1"><div class="field"><label>Sollwert</label>' +
-        '<input class="inp" id="rwSoll" value="' + esc(String(w.soll == null ? '' : w.soll)) + '"></div></div>' +
-      '<div style="flex:1"><div class="field"><label>Istwert</label>' +
-        '<input class="inp" id="rwIst" value="' + esc(String(w.ist == null ? '' : w.ist)) + '"></div></div>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px">' +
-      '<div style="flex:1"><div class="field"><label>Einheit</label>' +
-        '<input class="inp" id="rwEinheit" value="' + esc(String(w.einheit || '')) + '" placeholder="m, mm, kN"></div></div>' +
-      '<div style="flex:1"><div class="field"><label>Toleranz</label>' +
-        '<input class="inp" id="rwTol" value="' + esc(String(w.toleranz == null ? '' : w.toleranz)) + '"></div></div>' +
-    '</div>' +
-    '<div class="field"><label>Messdatum</label>' +
-      '<input class="inp" id="rwDatum" type="date" value="' + esc(String(w.messdatum || '')) + '"></div>' +
-    '<div class="field"><label>Bearbeiter</label>' +
-      '<input class="inp" id="rwWer" value="' + esc(String(w.bearbeiter || '')) + '"></div>' +
-    '<div class="field"><label>Status</label><select id="rwStatus">' +
-      ['offen', 'gemessen', 'abweichung', 'fertig'].map(function (x) {
-        return '<option value="' + x + '"' + (w.status === x ? ' selected' : '') + '>' + x + '</option>';
-      }).join('') + '</select></div>' +
-    '<div class="field"><label>Bemerkung</label><textarea id="rwBem" rows="2">' + esc(w.bemerkung || '') + '</textarea></div>' +
-    '<div class="hint">Soll- und Toleranzwerte stehen in den Unterlagen der Baustelle. ' +
-    'Die App gibt keine vor und rechnet nichts nach.</div>' +
-    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
-    (w.id ? '<button class="btn red" onclick="wertWeg(&#39;' + esc(w.id) + '&#39;)">Löschen</button>' : '') +
-    '<button class="btn primary" onclick="wertSpeichern(&#39;' + esc(w.id || '') + '&#39;)">Speichern</button></div>');
-}
-
-function wertSpeichern(id) {
-  if (!darfAendern('Einen Regulierwert zu speichern')) return;
-  var w = {
-    id: id || '', baustelle: aktiveBaustelle(), mastSchluessel: akte.key,
-    bezeichnung: ($('rwBez').value || '').trim(),
-    soll: ($('rwSoll').value || '').trim(), ist: ($('rwIst').value || '').trim(),
-    einheit: ($('rwEinheit').value || '').trim(), toleranz: ($('rwTol').value || '').trim(),
-    messdatum: ($('rwDatum').value || '').trim(), bearbeiter: ($('rwWer').value || '').trim(),
-    status: $('rwStatus').value, bemerkung: ($('rwBem').value || '').trim()
-  };
-  if (!w.bezeichnung) { toast('Bitte eine Bezeichnung angeben'); return; }
-  S.wertSetzen(w).then(function () {
-    return S.werteVonMast(aktiveBaustelle(), akte.key);
-  }).then(function (liste) {
-    akte.werte = liste; akte.offen = 'werte'; closeOv(); renderMastakte(); toast('Gespeichert');
-  }).catch(function (e) { toast('Nicht gespeichert: ' + (e && e.message || e)); });
-}
-
-function wertWeg(id) {
-  if (!darfAendern('Einen Regulierwert zu löschen')) return;
-  S.wertLoeschen(id).then(function () {
-    return S.werteVonMast(aktiveBaustelle(), akte.key);
-  }).then(function (liste) {
-    akte.werte = liste; akte.offen = 'werte'; closeOv(); renderMastakte(); toast('Gelöscht');
-  });
-}
-
-
 /* =========================================================================
    DOKUMENTE — Ablegen, Revisionen, Ansehen
 
@@ -7098,6 +6953,107 @@ function dateienAufnehmen(dateien, mastVorgabe) {
     return;
   }
   dokImportVorschau();
+  schriftfelderLesen(dokImport);
+}
+
+/* ---------- Das Schriftfeld lesen ----------
+
+   „In den ganzen Plänen steht unten der Mast mit Nummer" — und die Dateien
+   heißen „145052.pdf". Der Dateiname ist ein Vorschlag, das Schriftfeld die
+   bessere Quelle. Deshalb liest die App nach dem Öffnen der Vorschau jeden
+   PDF-Plan einmal an (nur die erste Seite, nur den Text — kein Zeichnen) und
+   trägt nach, was sie findet. Die Vorschau bleibt offen und zeigt, woher jede
+   Zuordnung kommt.
+
+   Nicht überschrieben wird, was der Mensch in der Zwischenzeit angefasst hat.
+   Und gescannte Pläne ohne Textebene bleiben ehrlich leer: „kein Text im
+   Plan" statt einer geratenen Nummer. */
+function schriftfelderLesen(imp) {
+  if (!imp) return;
+  var pdfs = imp.reihen.filter(function (r) { return /\.pdf$/i.test(r.datei.name); });
+  if (!pdfs.length) return;
+  imp.schriftfeld = { offen: pdfs.length, gesamt: pdfs.length, ohne: 0 };
+  schriftfeldStand(imp);
+  /* Kommt die PDF-Bibliothek nicht (kein Netz beim ersten Öffnen, falsch
+     ausgelieferte Datei), bleibt die Vorschau trotzdem brauchbar: Dann gilt
+     der Dateiname, und jede Zeile sagt, dass das Schriftfeld nicht gelesen
+     werden konnte. Ein Fehler hier darf die Ablage nicht blockieren. */
+  var kette = pdfBibliothek().catch(function () { return null; });
+  pdfs.forEach(function (r) {
+    kette = kette.then(function (lib) {
+      if (dokImport !== imp) return lib;                     // Vorschau inzwischen zu
+      if (!lib) {
+        r.quelle = 'Schriftfeld nicht lesbar (PDF-Bibliothek nicht geladen) — es gilt der Dateiname';
+        imp.schriftfeld.ohne++;
+        return Promise.resolve().then(function () {
+          imp.schriftfeld.offen--;
+          schriftfeldReiheZeigen(imp, r); schriftfeldStand(imp);
+          return lib;
+        });
+      }
+      return r.datei.arrayBuffer().then(function (puffer) {
+        return lib.getDocument({ data: new Uint8Array(puffer) }).promise;
+      }).then(function (doc) {
+        return doc.getPage(1).then(function (pg) { return pg.getTextContent(); })
+          .then(function (tc) { try { doc.destroy(); } catch (e) {} return tc; });
+      }).then(function (tc) {
+        schriftfeldEintragen(imp, r, D.schriftfeldAusItems(tc.items));
+      }).catch(function (e) {
+        r.quelle = 'Plan nicht lesbar';
+      }).then(function () {
+        imp.schriftfeld.offen--;
+        if (dokImport === imp) { schriftfeldReiheZeigen(imp, r); schriftfeldStand(imp); }
+        return lib;
+      });
+    });
+  });
+}
+
+function schriftfeldEintragen(imp, r, sf) {
+  if (!sf.hatText) { r.quelle = 'kein Text im Plan (gescannt) — Mast bitte von Hand'; return; }
+  var teile = [];
+  if (sf.mast) {
+    var voll = sf.leitung ? sf.leitung + '/' + sf.mast : sf.mast;
+    var m = mastFinden(voll) || mastFinden(sf.mast);
+    if (!r.beruehrt) {
+      r.mast = m ? m.nr : voll;
+      r.mastSicher = 'sicher';
+    }
+    teile.push('Mast ' + voll + (m ? '' : ' — nicht in dieser Baustelle'));
+  } else {
+    teile.push('keine Mastnummer im Schriftfeld');
+  }
+  if (sf.kategorie) {
+    if (!r.beruehrt && (!r.kategorie || r.vorschlag.sicherheit.kategorie !== 'sicher')) r.kategorie = sf.kategorie;
+    teile.push(D.kategorieName(sf.kategorie));
+  }
+  r.quelle = 'aus dem Schriftfeld: ' + teile.join(' · ');
+}
+
+/* Nur die eine Zeile nachziehen — die ganze Tabelle neu zu bauen würde
+   löschen, was jemand gerade in eine andere Zeile getippt hat. */
+function schriftfeldReiheZeigen(imp, r) {
+  var i = imp.reihen.indexOf(r); if (i < 0) return;
+  var mast = $('impMast' + i), kat = $('impKat' + i), q = $('impQuelle' + i), offen = $('impOffen' + i);
+  if (mast && !r.beruehrt) mast.value = r.mast;
+  if (kat && !r.beruehrt) kat.value = r.kategorie;
+  if (q) q.textContent = r.quelle || '';
+  var o = dokReiheOffen(r);
+  if (offen) offen.innerHTML = o.length ? ' · <b style="color:var(--warn)">' + esc(o.join(', ')) + '</b>' : '';
+  var tr = mast && mast.closest ? mast.closest('tr') : null;
+  if (tr) tr.classList.toggle('offen', o.length > 0);
+}
+
+function schriftfeldStand(imp) {
+  var e = $('impSchriftfeld'); if (!e || !imp.schriftfeld) return;
+  var sf = imp.schriftfeld;
+  e.textContent = sf.offen
+    ? 'Schriftfelder werden gelesen … ' + (sf.gesamt - sf.offen) + ' von ' + sf.gesamt
+    : (sf.ohne
+        ? 'Schriftfelder konnten nicht gelesen werden (' + sf.ohne + ' von ' + sf.gesamt +
+          ' Plänen) — es gilt der Dateiname. Bitte kontrollieren.'
+        : 'Schriftfelder gelesen: ' + sf.gesamt + ' von ' + sf.gesamt + ' Plänen. Was dort stand, ' +
+          'ist eingetragen — bitte trotzdem kontrollieren.');
 }
 
 function dokImportVorschau() {
@@ -7111,8 +7067,9 @@ function dokImportVorschau() {
     var offen = dokReiheOffen(r);
     return '<tr' + (offen.length ? ' class="offen"' : '') + '>' +
       '<td><div class="doktitel" style="font-size:13px">' + esc(r.datei.name) + '</div>' +
-        '<div class="doksub">' + dateiGroesse(r.datei.size) +
-        (offen.length ? ' · <b style="color:var(--warn)">' + esc(offen.join(', ')) + '</b>' : '') + '</div></td>' +
+        '<div class="doksub">' + dateiGroesse(r.datei.size) + '<span id="impOffen' + i + '">' +
+        (offen.length ? ' · <b style="color:var(--warn)">' + esc(offen.join(', ')) + '</b>' : '') + '</span></div>' +
+        '<div class="doksub" id="impQuelle' + i + '">' + esc(r.quelle || '') + '</div></td>' +
       '<td><input list="mastVorschlaege" id="impMast' + i + '" value="' + esc(r.mast) + '" ' +
         'placeholder="Mast suchen …" oninput="dokReiheSetzen(' + i + ')"></td>' +
       '<td><select id="impKat' + i + '" onchange="dokReiheSetzen(' + i + ')">' +
@@ -7130,8 +7087,9 @@ function dokImportVorschau() {
 
   openOv(
     '<h2>' + dokImport.reihen.length + ' Dateien übernehmen</h2>' +
-    '<p>Was hier steht, ist aus den <b>Dateinamen gelesen</b> — ein Vorschlag, keine ' +
-    'Tatsache. Bitte kontrollieren und wo nötig ändern.</p>' +
+    '<p>Was hier steht, ist aus den <b>Dateinamen</b> und dem <b>Schriftfeld der Pläne</b> ' +
+    'gelesen — ein Vorschlag, keine Tatsache. Bitte kontrollieren und wo nötig ändern.</p>' +
+    '<div class="hint" id="impSchriftfeld" style="margin-bottom:8px"></div>' +
     (offeneReihen
       ? '<div class="warnbox" style="margin-bottom:10px"><b>' + offeneReihen + ' Zeilen sind ' +
         'unvollständig oder nur vermutet</b> — sie sind gelb hinterlegt.</div>' : '') +
@@ -7162,6 +7120,7 @@ function dokReiheOffen(r) {
 
 function dokReiheSetzen(i) {
   var r = dokImport && dokImport.reihen[i]; if (!r) return;
+  r.beruehrt = true;                       // ab jetzt gewinnt der Mensch, nicht das Schriftfeld
   var m = ($('impMast' + i).value || '').trim();
   if (m !== r.mast) { r.mast = m; r.mastSicher = 'sicher'; }   // von Hand = bestätigt
   r.kategorie = $('impKat' + i).value;
