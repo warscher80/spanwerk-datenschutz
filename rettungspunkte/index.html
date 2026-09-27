@@ -1468,7 +1468,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.28.0';
+var VERSION = '0.28.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1820,6 +1820,8 @@ function baustelleLaden(id) {
      müssen sie mitwechseln, sonst zeigt die Liste die Pläne der anderen
      Baustelle. */
   akte.key = ''; akte.mast = null; akte.dokumente = []; akte.werte = []; akte.stamm = null;
+  akte.zuwegung = null; akte.wegStamm = null; akte.wegEnde = null; akte.offen = '';
+  akteLeeren();
   mastZufahrtMarken = {};
   if (typeof zufahrtMarkenLaden === 'function') zufahrtMarkenLaden().then(mastListeZeichnen);
   if (typeof spannLaden === 'function') {
@@ -5858,6 +5860,28 @@ function zufahrtMarkenLaden() {
     });
     return mastZufahrtMarken;
   }).catch(function () { return {}; });
+}
+
+/* Eine offene Mastakte gehört zur ALTEN Baustelle.
+
+   Beim Wechsel wurde bisher nur `akte` zurückgesetzt — das Geschriebene blieb
+   stehen, weil renderMastakte() ohne Mast sofort zurückkehrt und nichts
+   überschreibt. Auf dem Bildschirm stand dann: Kopfzeile „Blatzheim", darunter
+   ein Mast aus der anderen Baustelle, mit DESSEN Koordinaten und DESSEN
+   Rettungspunkt. Gemeldet wurde es als „wieso sind keine Daten hinterlegt" —
+   die Daten lagen an der anderen Baustelle, der Mast gehörte gar nicht hierher.
+
+   Das ist die gefährlichste Art falscher Anzeige: Sie sieht richtig aus. Ein
+   Rettungspunkt unter dem Namen der falschen Baustelle darf nicht stehen
+   bleiben. Deshalb wird die Akte geleert, und wer gerade darauf schaut, landet
+   in der Mastliste der neuen Baustelle. */
+function akteLeeren() {
+  var t = $('akteTitel'); if (t) t.textContent = '—';
+  var dn = $('akteDropNr'); if (dn) dn.textContent = '—';
+  ['akteFakten', 'akteZuwegung', 'akteZufahrt', 'akteRettung', 'akteBereiche']
+    .forEach(function (id) { var e = $(id); if (e) e.innerHTML = ''; });
+  var pane = $('tab-mastakte');
+  if (pane && pane.classList.contains('on')) setTab('masten');
 }
 
 function mastOeffnen(key) {
