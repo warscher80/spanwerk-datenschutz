@@ -3645,6 +3645,9 @@ function planDraw() {
   var sicht = plan.spanne * 0.75;
   state.points.forEach(function (p) {
     if (kindOf(p) !== 'mast') return;
+    /* Der gewählte Mast ist oben schon grün gezeichnet und beschriftet. Ein
+       zweites, graues „Mast 18" darunter sah aus wie zwei Masten. */
+    if (plan.weg && plan.wegMast && plan.wegMast.punkt === p) return;
     var d = G.distance(lat0, lon0, p.lat, p.lon);
     if (d > sicht) return;
     var q = xy(p.lat, p.lon);
