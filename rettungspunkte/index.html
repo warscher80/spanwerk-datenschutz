@@ -7063,8 +7063,9 @@ function dokImportAusfuehren() {
         ? '<div class="vzeile"><b style="color:var(--bad)">' + fehler.length + '</b> fehlgeschlagen</div>' +
           '<div class="psub">' + fehler.slice(0, 5).map(esc).join('<br>') + '</div>'
         : '') +
-      '<p class="fineprint">Die Dateien liegen im Gerät. Zwischen PC und Handy werden sie ' +
-      'derzeit <b>nicht</b> übertragen — dafür fehlt eine gemeinsame Ablage.</p>' +
+      '<p class="fineprint">Die Dateien liegen in <b>diesem</b> Gerät. Von allein wandern sie ' +
+      'nicht weiter — dafür fehlt eine gemeinsame Ablage. Aufs Handy kommen sie über ' +
+      '<b>Baustellenpaket bauen</b>: Das ZIP enthält die Pläne selbst, nicht nur ihre Namen.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>');
   });
 }
