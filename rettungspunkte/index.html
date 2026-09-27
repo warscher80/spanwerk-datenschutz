@@ -1468,7 +1468,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.31.0';
+var VERSION = '0.32.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7330,14 +7330,29 @@ function pdfZeichnen(einpassen) {
        unverändert aus. Gedreht wird deshalb um die Eigendrehung HERUM. */
     var drehung = (((seite.rotate || 0) + pdfAkt.dreh) % 360 + 360) % 360;
     var roh = seite.getViewport({ scale: 1, rotation: drehung });
+    /* Zwei Arten von Einpassen:
+       'ganz'  — das ganze Blatt im Bild, nichts hängt heraus (Knopf „Einpassen").
+       sonst   — der Bildschirm wird AUSGEFÜLLT: die kürzere Seite passt, die
+                 längere hängt heraus und wird gerollt. Das ist die Ansicht
+                 beim Öffnen und nach dem Drehen. Vorher blieb beim stehenden
+                 Telefon ein Drittel des Bildschirms schwarz („Ausfüllen
+                 unten"): Ein Blatt 2384×3370 ist schmaler als der Schirm
+                 390×715 hoch — eingepasst über die Breite endete es bei
+                 551 Pixeln. Ein A0-Blatt ist bei 390 Pixeln Breite ohnehin
+                 nicht lesbar; der Platz gehört dem Blatt. */
+    var fuellen = false;
     if (einpassen) {
-      pdfAkt.zoom = Math.min(r.clientWidth / roh.width, r.clientHeight / roh.height) || 1;
+      var wb = r.clientWidth / roh.width, hb = r.clientHeight / roh.height;
+      pdfAkt.zoom = (einpassen === 'ganz' ? Math.min(wb, hb) : Math.max(wb, hb)) || 1;
+      fuellen = einpassen !== 'ganz';
     }
 
     // Der Papierbogen in voller Größe — er allein bestimmt, wie weit man rollt.
     var bw = Math.max(1, Math.round(roh.width * pdfAkt.zoom));
     var bh = Math.max(1, Math.round(roh.height * pdfAkt.zoom));
     blatt.style.width = bw + 'px'; blatt.style.height = bh + 'px';
+    // Ausgefüllt hängt eine Seite heraus — dann die Mitte zeigen, nicht den Rand.
+    if (fuellen) pdfMitteZeigen();
 
     /* Gezeichnet wird nur, was zu sehen ist — mit etwas Rand, damit ein
        kurzer Wisch nicht sofort ins Leere läuft. So bleibt die Schrift auch
@@ -7520,7 +7535,16 @@ function pdfZoom(f) {
   else { pdfAkt.zoom = neu; pdfZeichnen(false); }
 }
 
-function pdfPassend() { pdfZeichnen(true); }
+function pdfPassend() { pdfZeichnen('ganz'); }
+
+/* Nach dem Ausfüllen in die Blattmitte rollen: Wer öffnet, will die
+   Zeichnung sehen, nicht den linken Rand. Das Rollen löst das Nachzeichnen
+   des sichtbaren Fensters von selbst aus. */
+function pdfMitteZeigen() {
+  var r = $('planBild'), blatt = $('planBlatt'); if (!r || !blatt) return;
+  r.scrollLeft = Math.max(0, (blatt.offsetWidth - r.clientWidth) / 2);
+  r.scrollTop = Math.max(0, (blatt.offsetHeight - r.clientHeight) / 2);
+}
 
 /* Vierteldrehung von Hand. Danach mischt sich die App nicht mehr ein: Wer
    selbst gedreht hat, will es so. */
