@@ -933,10 +933,10 @@
       <h3>Pläne hochladen</h3>
       <div class="dropzone" id="dropZone"
            ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAbgelegt(event)">
-        <div class="droptext"><b>Pläne oder einen ganzen Ordner hierher ziehen</b><br>
-          <span class="hint">PDF, JPG, JPEG, PNG · Unterordner werden mitgelesen</span></div>
+        <div class="droptext"><b>Pläne, einen Ordner oder ein ZIP hierher ziehen</b><br>
+          <span class="hint">PDF, JPG, JPEG, PNG · Ordner und ZIP werden samt Unterordnern gelesen</span></div>
         <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
-        <input id="dokDatei" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+        <input id="dokDatei" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.zip,application/pdf,image/jpeg,image/png,application/zip"
                style="display:none" onchange="dateienGewaehlt(event)">
       </div>
     </div>
@@ -1474,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.34.0';
+var VERSION = '0.34.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6948,10 +6948,66 @@ function dateienAufnehmen(dateien, mastVorgabe) {
   }
   var liste = [].slice.call(dateien || []);
   if (!liste.length) return;
+  /* „Werden ZIP-Ordner oder normale Ordner eingefügt?" Beide. Ein ZIP, wie
+     es per Mail kommt, wird hier entpackt und wie ein Ordner behandelt —
+     nur ein Baustellenpaket (mit baustelle.json) nicht: Das gehört unter
+     „Datei einlesen", sonst landeten seine Pläne ohne Karte und Nummern. */
+  var zips = liste.filter(istZip), ohneZip = liste.filter(function (f) { return !istZip(f); });
+  if (!zips.length) { dateienVerarbeiten(ohneZip, mastVorgabe, []); return; }
+  var hinweise = [], kette = Promise.resolve(ohneZip);
+  zips.forEach(function (z) {
+    kette = kette.then(function (bisher) {
+      return zipEntpackenZuDateien(z).then(function (r) {
+        hinweise.push(r.hinweis);
+        return bisher.concat(r.dateien);
+      }, function (e) {
+        hinweise.push('„' + z.name + '" ließ sich nicht öffnen: ' + String(e && e.message || e));
+        return bisher;
+      });
+    });
+  });
+  kette.then(function (alle) { dateienVerarbeiten(alle, mastVorgabe, hinweise); });
+}
+
+function istZip(f) {
+  return /\.zip$/i.test(f.name || '') || f.type === 'application/zip' || f.type === 'application/x-zip-compressed';
+}
+
+/* Ein ZIP in einzelne Dateien auflösen. Unterordner im ZIP werden
+   mitgelesen; der Dateiname bleibt der Blattname ohne Pfad, weil das
+   Schriftfeld und der Dateiname daraus gelesen werden. */
+function zipEntpackenZuDateien(z) {
+  if (!PK || !PK.zipLesen) return Promise.reject(new Error('Paketfunktion nicht geladen'));
+  return PK.zipLesen(z).then(function (eintraege) {
+    var istPaket = eintraege.some(function (e) { return /(^|\/)baustelle\.json$/.test(e.name); });
+    if (istPaket) {
+      return { dateien: [], hinweis: '„' + z.name + '" ist ein Baustellenpaket — bitte unter ' +
+               'Verwaltung → „Datei einlesen" übernehmen, damit Karte und Nummern mitkommen.' };
+    }
+    var dateien = [];
+    eintraege.forEach(function (e) {
+      if (!e.name || /\/$/.test(e.name) || /(^|\/)__MACOSX\//.test(e.name) || /(^|\/)\.[^\/]*$/.test(e.name)) return;
+      var name = e.name.split('/').pop();
+      if (!D.istErlaubt(name, '')) return;
+      var typ = D.mimeFuer(name, '');
+      try { dateien.push(new File([e.daten], name, { type: typ })); } catch (x) { /* alter Browser: überspringen */ }
+    });
+    return { dateien: dateien, hinweis: 'aus „' + z.name + '" entpackt: ' + dateien.length + ' ' +
+             (dateien.length === 1 ? 'Datei' : 'Dateien') };
+  });
+}
+
+function dateienVerarbeiten(liste, mastVorgabe, hinweise) {
+  if (!liste.length && hinweise.length) {
+    openOv('<h2>Nichts zu übernehmen</h2><div class="psub">' + hinweise.map(esc).join('<br>') + '</div>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+    return;
+  }
   var abgelehnt = liste.filter(function (f) { return !D.istErlaubt(f.name, f.type); });
   var gut = liste.filter(function (f) { return D.istErlaubt(f.name, f.type); });
 
   dokImport = {
+    hinweise: hinweise || [],
     abgelehnt: abgelehnt,
     reihen: gut.map(function (f) {
       var v = D.dateiAuswerten(f.name);
@@ -7122,6 +7178,8 @@ function dokImportVorschau() {
     (dokImport.abgelehnt.length
       ? '<div class="hint" style="margin-bottom:10px">' + dokImport.abgelehnt.length +
         ' Dateien übersprungen (kein PDF/JPG/PNG).</div>' : '') +
+    ((dokImport.hinweise || []).length
+      ? '<div class="hint" style="margin-bottom:10px">' + dokImport.hinweise.map(esc).join('<br>') + '</div>' : '') +
     '<datalist id="mastVorschlaege">' +
       masten.slice(0, 2000).map(function (m) { return '<option value="' + esc(m.key) + '">'; }).join('') +
     '</datalist>' +
