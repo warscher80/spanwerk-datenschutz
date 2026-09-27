@@ -788,6 +788,11 @@
   .planladen{padding:26px 18px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5}
   .planseite{font-size:12.5px;font-weight:800;color:var(--muted);padding:0 4px;align-self:center}
   .planhinweis{font-size:11.5px;color:var(--muted2);align-self:center;padding-left:4px}
+  /* Auf dem Telefon brach der Hinweis „mit zwei Fingern aufziehen" in eine
+     zweite Zeile um und nahm dem Plan rund 40 Punkte Höhe — auf dem Gerät
+     sichtbar als schwarzer Streifen unter dem Blatt. Die Geste braucht
+     keinen Hinweis; am PC, wo Platz ist, bleibt er. */
+  @media (max-width:520px){ .planhinweis{display:none} }
   /* Zwei Finger gehören der App (Aufziehen), ein Finger dem Browser
      (Schieben). „none" hätte auch das Schieben abgeschaltet — dann kommt man
      an einem vergrößerten A0-Blatt nirgendwo hin. */
