@@ -565,6 +565,28 @@
   .bigblock.searching{border-color:var(--line);border-width:1px;background:var(--card)}
   .bigblock.searching .bigicon svg{stroke:var(--muted)}
 
+  /* ---- Büro und Baustelle ----
+     Der Projektleiter traegt im Buero ein, der Monteur liest auf der
+     Baustelle. Alles, was Daten der Baustelle AENDERT, traegt „nurbuero" und
+     verschwindet im Baustellen-Modus. Das Ausblenden ist die Hoeflichkeit —
+     die Sperre ist „darfAendern()" in jeder aendernden Funktion. Wer das
+     Ausblenden umgeht (Tastatur, alter Knopf, Konsole), kommt trotzdem
+     nicht durch.
+
+     Was NIE verschwindet: Notfall, Rettungspunkte, Kompass, Koordinaten,
+     Mast suchen, Mastakte, Plaene lesen, Regulierwerte lesen, Baustelle
+     wechseln, Paket einlesen. Der Monteur verliert nichts, was er braucht. */
+  body.nurlesen .nurbuero{display:none !important}
+  /* Kurz aufleuchten, wenn der Riegel hierher geschickt hat — sonst sucht
+     man die Karte in einer langen Seite. */
+  #modusKarte.hervor{outline:2px solid var(--accent);outline-offset:2px}
+  .seilbtn.ruhig{background:none;border:0;color:inherit;font:inherit;padding:0;cursor:default}
+  .modusbalken{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:9px 11px;border-radius:var(--r);border:1px solid var(--line);
+    background:var(--card2, rgba(127,127,127,.07));margin-bottom:10px}
+  .modusbalken b{font-size:calc(14px * var(--gross))}
+  .modusbalken .psub{margin:0}
+
   /* ---- Am PC ----
      Büro und Baustelle haben verschiedene Aufgaben, aber dieselben Daten.
      Was hier steht, ist die kleine, belastbare Anpassung: Inhalt nicht über
@@ -884,7 +906,7 @@
       <div class="hint" id="akteAnfahrtHinweis">Google Maps rechnet eine <b>Pkw-Route</b> und
         kennt keine Höhen- oder Gewichtsbeschränkungen. Braucht Internet; der Lageplan in der
         App geht auch ohne.</div>
-      <div class="btnrow"><button class="btn sm ghost" onclick="mastdatenBearbeiten()">Stammdaten bearbeiten</button></div>
+      <div class="btnrow nurbuero"><button class="btn sm ghost" onclick="mastdatenBearbeiten()">Stammdaten bearbeiten</button></div>
     </div>
     <!-- Rettung im Mast: kurz, mit Verweis auf die eine zentrale Rettung.
          Nicht die ganze Rettungsoberfläche hierher kopieren. -->
@@ -893,7 +915,7 @@
     <!-- Am PC: Datei auf die offene Mastakte ziehen, dann ist der Mast schon
          gewählt. Am Telefon zieht niemand Dateien — dort verschwindet der
          Hinweis (siehe .droptext in der Gestaltung). -->
-    <div class="card droptext" id="akteDrop">
+    <div class="card droptext nurbuero" id="akteDrop">
       <div class="hint">Plan für diesen Mast hierher ziehen — Mast <b id="akteDropNr">—</b>
         ist dann schon zugeordnet.</div>
     </div>
@@ -902,7 +924,7 @@
   <!-- ============ DOKUMENTE ============ -->
   <section class="tabpane" id="tab-dokumente">
     <h2 class="nurvorleser">Dokumente</h2>
-    <div class="card" id="dokImportKarte">
+    <div class="card nurbuero" id="dokImportKarte">
       <h3>Pläne hochladen</h3>
       <div class="dropzone" id="dropZone"
            ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAbgelegt(event)">
@@ -1059,9 +1081,9 @@
           <button class="btn sm ghost" id="undoBtn" onclick="rueckgaengig()" hidden>Letzte Änderung rückgängig</button>
         </div>
       </div>
-      <div id="adminHint" class="hint">Bearbeiten, Löschen und Importieren sind ausgeschaltet,
-        damit im Einsatz nichts versehentlich verändert wird. Einschalten im Reiter
-        <b>Info → Verwaltung</b>.</div>
+      <div id="adminHint" class="hint">Die App steht im <b>Baustellen-Modus</b>: Punkte werden
+        angesehen, nicht geändert. Die Daten kommen als Baustellenpaket aus dem Büro.
+        Umschalten unter <b>Verwaltung → Büro oder Baustelle</b>.</div>
     </div>
     <div class="card">
       <div class="plist" id="ptList"></div>
@@ -1113,14 +1135,14 @@
       <!-- In der Karte heißt der Mast „18", in den Unterlagen „4236/18".
            Ohne diese Nummer kann die App nicht wissen, dass das derselbe
            Mast ist — und sie rät es nicht. -->
-      <div class="field" style="margin-top:12px"><label>Leitung dieser Baustelle (Bl.-Nr.)</label>
+      <div class="field nurbuero" style="margin-top:12px"><label>Leitung dieser Baustelle (Bl.-Nr.)</label>
         <div style="display:flex;gap:8px">
           <input class="inp" id="leitungFeld" inputmode="numeric" placeholder="z. B. 4236"
                  style="flex:1" onchange="leitungSpeichern()">
           <button class="btn sm" onclick="leitungSpeichern()">Merken</button>
         </div>
       </div>
-      <div class="hint" id="leitungHinweis">Steht auf jedem Plan im Schriftfeld („Bl. 4236").
+      <div class="hint nurbuero" id="leitungHinweis">Steht auf jedem Plan im Schriftfeld („Bl. 4236").
         Mit ihr gilt „4236/18" aus den Unterlagen als derselbe Mast wie „18" in der Karte.</div>
     </div>
     <!-- Der Weg vom Büro auf die Baustelle, solange es keine gemeinsame
@@ -1131,7 +1153,7 @@
         Regulierwerte und alle Dokumente in <b>einer Datei</b>. Ein gewöhnliches ZIP —
         am PC lässt es sich öffnen.</div>
       <div class="btnrow">
-        <button class="btn" onclick="paketExportieren()">Als Datei sichern</button>
+        <button class="btn nurbuero" onclick="paketExportieren()">Als Datei sichern</button>
         <button class="btn primary" onclick="document.getElementById('pkDatei').click()">Datei einlesen</button>
       </div>
       <input id="pkDatei" type="file" accept=".zip,application/zip" style="display:none"
@@ -1142,11 +1164,11 @@
          und werden hier nur eingelesen. Die App gibt keine Sollwerte vor. -->
     <div class="card">
       <h3>Spanntabellen <span class="badge grey" id="spannCount">0</span></h3>
-      <div class="hint" style="margin-bottom:10px">Die Reguliermaße des Auftraggebers als
+      <div class="hint nurbuero" style="margin-bottom:10px">Die Reguliermaße des Auftraggebers als
         <b>JSON</b> — aus den Spanntabellen-PDFs erzeugt mit
         <code>tools/spanntabelle-zu-json.py</code>. Sie erscheinen dann in der Mastakte
         unter „Spanntabelle".</div>
-      <div class="btnrow">
+      <div class="btnrow nurbuero">
         <button class="btn primary" onclick="document.getElementById('spannDatei').click()">Spanntabelle einlesen</button>
       </div>
       <input id="spannDatei" type="file" accept=".json,application/json" style="display:none"
@@ -1198,7 +1220,7 @@
     <div class="card">
       <h3>Baustellen</h3>
       <div id="baustellenBox"></div>
-      <div class="btnrow">
+      <div class="btnrow nurbuero">
         <button class="btn blue sm" onclick="baustelleNeuFragen()">Neue Baustelle</button>
       </div>
       <div class="hint">Jede Baustelle hat eigene Punkte und eigene Nummern. Sie werden
@@ -1241,14 +1263,21 @@
       <div class="plist" id="offeneListe"></div>
     </div>
 
-    <div class="card">
-      <h3>Verwaltung</h3>
+    <div class="card" id="modusKarte">
+      <h3>Büro oder Baustelle</h3>
+      <div class="modusbalken" id="modusAnzeige"></div>
       <label class="schalter">
         <input type="checkbox" id="adminSchalter" role="switch" onchange="setAdmin(this.checked)">
-        <span>Bearbeiten, Löschen und Importieren erlauben</span>
+        <span>Büro-Modus — Bearbeiten, Löschen und Importieren erlauben</span>
       </label>
-      <div class="hint">Im Einsatz besser ausgeschaltet lassen. Ohne Verwaltung kann niemand
-        versehentlich Rettungspunkte ändern oder löschen; Ansehen, Karte und Notruf gehen immer.</div>
+      <div class="hint">Der <b>Projektleiter</b> trägt im Büro am PC ein: Pläne, Mastdaten,
+        Regulierwerte, Punkte und Nummern. Daraus baut er das <b>Baustellenpaket</b>.
+        Der <b>Monteur</b> liest es am Handy — er kann zwischen den Baustellen wechseln und
+        Pakete einlesen, aber nichts ändern. So verstellt am Mast niemand versehentlich etwas.
+        <br><br>
+        <b>Das ist kein Passwortschutz.</b> Es gibt keinen Server und keine Benutzerverwaltung —
+        der Schalter lässt sich hier jederzeit umlegen. Er schützt vor Versehen, nicht vor
+        Absicht. Ansehen, Rettungspunkt, Kompass und Notruf gehen in beiden Fällen.</div>
     </div>
     <div class="card">
       <h3>Vorschau ohne Standort</h3>
@@ -1439,7 +1468,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.27.0';
+var VERSION = '0.28.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -1846,8 +1875,8 @@ function baustellenAnzeigen() {
       '</div>' +
       '<div class="bsknoepfe">' +
         (an ? '' : '<button class="chip" onclick="baustelleWechseln(&#39;' + esc(b.id) + '&#39;)">Wechseln</button>') +
-        '<button class="chip" onclick="baustelleUmbenennen(&#39;' + esc(b.id) + '&#39;)" aria-label="Umbenennen">Name</button>' +
-        (alle.length > 1 ? '<button class="chip red" onclick="baustelleLoeschen(&#39;' + esc(b.id) + '&#39;)" aria-label="Löschen">Weg</button>' : '') +
+        '<button class="chip nurbuero" onclick="baustelleUmbenennen(&#39;' + esc(b.id) + '&#39;)" aria-label="Umbenennen">Name</button>' +
+        (alle.length > 1 ? '<button class="chip red nurbuero" onclick="baustelleLoeschen(&#39;' + esc(b.id) + '&#39;)" aria-label="Löschen">Weg</button>' : '') +
       '</div>' +
       '</div>';
   }).join('');
@@ -1881,6 +1910,7 @@ function baustellenWaehler() {
 }
 
 function baustelleNeuFragen() {
+  if (!darfAendern('Eine Baustelle anzulegen')) return;
   openOv('<h2>Neue Baustelle</h2>' +
     '<p>Sie startet <b>leer</b> — Punkte und Nummern kommen über „Punkte → Importieren" ' +
     'aus der Karte oder dem Aushang der neuen Baustelle. Erfundene Daten gibt es hier nicht.</p>' +
@@ -1905,6 +1935,7 @@ function istLink(text) {
 var neueBaustelleLink = '';
 
 function baustelleNeuOk() {
+  if (!darfAendern('Eine Baustelle anzulegen')) return;
   var titel = (($('bsNeu') || {}).value || '').trim();
   if (istLink(titel)) { baustelleAusLink(titel); return; }
   var id = baustelleAnlegen(titel);
@@ -1931,6 +1962,7 @@ function baustelleAusLink(link) {
 }
 
 function baustelleAusLinkOk() {
+  if (!darfAendern('Eine Baustelle anzulegen')) return;
   var name = (($('bsNeu2') || {}).value || '').trim();
   var id = baustelleAnlegen(name);
   if (!id) return;
@@ -1959,6 +1991,7 @@ function baustelleAnlegen(titel) {
 }
 
 function baustelleUmbenennen(id) {
+  if (!darfAendern('Eine Baustelle umzubenennen')) return;
   var alt = baustelleName(id);
   openOv('<h2>Baustelle umbenennen</h2>' +
     '<input class="inp" id="bsName" value="' + esc(alt) + '" aria-label="Name der Baustelle">' +
@@ -1968,6 +2001,7 @@ function baustelleUmbenennen(id) {
 }
 
 function baustelleUmbenennenOk(id) {
+  if (!darfAendern('Eine Baustelle umzubenennen')) return;
   var neu = (($('bsName') || {}).value || '').trim();
   if (!neu) { toast('Bitte einen Namen angeben'); return; }
   if (istLink(neu)) { toast('Ein Link ist kein Name der Baustelle'); return; }
@@ -1979,6 +2013,7 @@ function baustelleUmbenennenOk(id) {
 }
 
 function baustelleLoeschen(id) {
+  if (!darfAendern('Eine Baustelle zu löschen')) return;
   var alle = baustellen();
   if (alle.length < 2) { toast('Die letzte Baustelle bleibt'); return; }
   var name = baustelleName(id);
@@ -3726,6 +3761,48 @@ function ringSchritt(spanne) {
 
 function setPtFilter(kind) { state.ptFilter = kind; renderPoints(); }
 
+/* ---------- Büro oder Baustelle ----------
+
+   Zwei Sichten auf dieselben Daten, kein zweites Programm:
+
+   • Büro (state.admin = true): Der Projektleiter traegt ein — Plaene,
+     Mastdaten, Regulierwerte, Punkte, Nummern — und baut das Baustellenpaket.
+   • Baustelle (state.admin = false): Der Monteur liest. Er kann zwischen
+     den Baustellen wechseln und ein Paket einlesen; aendern kann er nichts.
+
+   Das ist ABSICHTLICH keine Sperre mit Passwort. Es gibt keinen Server und
+   keine Benutzerverwaltung — eine Sperre waere nur Anstrich. Es ist ein
+   Schalter, der verhindert, dass am Mast versehentlich etwas verstellt wird,
+   und er sagt auch genau das. Wer im Termin fragt, ob der Monteur das
+   umschalten kann: Ja, in zwei Schritten, und es steht offen dabei. */
+function nurLesen() { return !state.admin; }
+
+/* Der eine Riegel. Jede Funktion, die Baustellendaten aendert, ruft ihn als
+   erstes auf. Kein stilles Nichtstun: Wer darauf stoesst, erfaehrt warum und
+   wo der Schalter sitzt. */
+function darfAendern(was) {
+  if (!nurLesen()) return true;
+  openOv('<h2>Baustellen-Modus: nur lesen</h2>' +
+    '<p>' + esc(was || 'Diese Änderung') + ' ist am Handy ausgeschaltet. Die Daten kommen ' +
+    'aus dem Büro — als <b>Baustellenpaket</b> — und werden hier nur angesehen. So kann am ' +
+    'Mast nichts versehentlich verstellt werden.</p>' +
+    '<p class="psub">Ansehen, Rettungspunkt, Kompass, Koordinaten, Meldung und der Wechsel ' +
+    'zwischen den Baustellen gehen unverändert.</p>' +
+    '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Verstanden</button>' +
+    '<button class="btn ghost" onclick="closeOv();setTab(\'info\');modusFokus()">Modus ändern</button></div>');
+  return false;
+}
+
+/* Fuehrt zum Schalter, statt ihn nur zu erwaehnen. */
+function modusFokus() {
+  var k = $('modusKarte'); if (!k) return;
+  k.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  k.classList.add('hervor');
+  setTimeout(function () { k.classList.remove('hervor'); }, 2200);
+}
+
+function modusSetzen(wert) { setAdmin(wert === 'buero'); }
+
 /* Verwaltungsmodus: Im Einsatz soll niemand versehentlich Punkte löschen.
    Bearbeiten, Importieren und Zurücksetzen sind deshalb standardmäßig aus. */
 function setAdmin(an) {
@@ -3734,7 +3811,14 @@ function setAdmin(an) {
   renderAdmin();
   renderPoints();
   renderContacts();
-  toast(state.admin ? 'Verwaltung eingeschaltet' : 'Verwaltung ausgeschaltet');
+  /* Die neueren Bereiche zeichnen ihre Knoepfe selbst — sie muessen beim
+     Umschalten mitbekommen, dass sich die Sicht geaendert hat. Ohne das
+     blieben „Bearbeiten"-Knoepfe stehen, bis man den Reiter wechselt. */
+  try { baustellenAnzeigen(); } catch (e) {}
+  try { dokListeZeichnen(); } catch (e) {}
+  try { if (akte && akte.key) renderMastakte(); } catch (e) {}
+  try { renderSpannVerwaltung(); } catch (e) {}
+  toast(state.admin ? 'Büro-Modus: Bearbeiten möglich' : 'Baustellen-Modus: nur lesen');
 }
 
 function renderAdmin() {
@@ -3744,6 +3828,17 @@ function renderAdmin() {
   if (schalter) {
     schalter.checked = !!state.admin;
     schalter.setAttribute('aria-checked', state.admin ? 'true' : 'false');
+  }
+  /* Eine Klasse am body statt vieler „hidden"-Zuweisungen: Was nur ins Büro
+     gehoert, traegt „nurbuero" und verschwindet damit an einer Stelle. */
+  document.body.classList.toggle('nurlesen', nurLesen());
+  var anz = $('modusAnzeige');
+  if (anz) {
+    anz.innerHTML = nurLesen()
+      ? '<b>Baustelle — nur lesen</b><span class="psub">Ansehen, Rettungspunkt, Meldung, ' +
+        'Baustelle wechseln. Geändert wird nichts.</span>'
+      : '<b>Büro — Bearbeiten möglich</b><span class="psub">Pläne ablegen, Mastdaten und ' +
+        'Regulierwerte pflegen, Baustellenpaket bauen.</span>';
   }
   var undo = $('undoBtn');
   if (undo) undo.hidden = !load(K_SICHERUNG, null);
@@ -3758,6 +3853,7 @@ function sichern(grund) {
 }
 
 function rueckgaengig() {
+  if (!darfAendern('Eine Änderung rückgängig zu machen')) return;
   var s = load(K_SICHERUNG, null);
   if (!s || !s.punkte) { toast('Nichts zum Zurücknehmen'); return; }
   confirmBox('Letzte Änderung zurücknehmen?',
@@ -3866,6 +3962,7 @@ function copyPoint(id) {
 }
 
 function deletePoint(id) {
+  if (!darfAendern('Einen Punkt zu löschen')) return;
   var p = findPoint(id); if (!p) return;
   var art = KIND_LABEL[kindOf(p)] || kindOf(p);
   confirmBox('Punkt löschen?',
@@ -3893,12 +3990,14 @@ function speicherWarnung() {
 }
 
 function addHere() {
+  if (!darfAendern('Den Standort als Punkt zu speichern')) return;
   if (!state.pos) { toast('Kein Standort — zuerst aktivieren'); setTab('notfall'); return; }
   openPointForm(null, { lat: state.pos.lat, lon: state.pos.lon });
 }
 
 /* ---------- Formular für einen Punkt ---------- */
 function openPointForm(id, preset) {
+  if (!darfAendern('Einen Punkt zu bearbeiten')) return;
   var p = id ? findPoint(id) : null;
   var lat = p ? p.lat : (preset ? preset.lat : '');
   var lon = p ? p.lon : (preset ? preset.lon : '');
@@ -3926,6 +4025,7 @@ function fillHere() {
 }
 
 function savePointForm(id) {
+  if (!darfAendern('Einen Punkt zu speichern')) return;
   var p0 = id ? findPoint(id) : null;
   var c = G.parseCoords($('fCoord').value);
   if (!c) { toast('Koordinaten nicht lesbar'); return; }
@@ -3950,6 +4050,7 @@ function savePointForm(id) {
 
 /* ---------- Import / Export ---------- */
 function openImport() {
+  if (!darfAendern('Punkte zu importieren')) return;
   openOv(
     '<h2>Punkte laden</h2>' +
     '<button class="btn primary huge" onclick="scanOeffnen(\'karte\')">QR-Code scannen</button>' +
@@ -4368,6 +4469,7 @@ function importArtSetzen(wert) { importArt = wert; importVorschauZeigen(); }
 function importBestaetigungSetzen(an) { importBestaetigt = !!an; importVorschauZeigen(); }
 
 function runImport() {
+  if (!darfAendern('Punkte zu importieren')) return;
   var txt = $('fPaste').value;
   var ersetzen = $('fReplace').checked;
   var res = G.parsePoints(txt);
@@ -4464,6 +4566,7 @@ function importAlsNeueBaustelle() {
 }
 
 function importBaustelleAnlegen() {
+  if (!darfAendern('Eine Baustelle anzulegen')) return;
   var name = ($('fNeueB').value || '').trim();
   if (!name) { toast('Bitte einen Namen angeben'); return; }
   var id = baustelleAnlegen(name);
@@ -4736,6 +4839,7 @@ function renderNotrufQuelle() {
 }
 
 function notrufZuruecksetzen() {
+  if (!darfAendern('Die Nummern zurückzusetzen')) return;
   confirmBox('Nummern vom Aushang laden?',
     'Die gespeicherten Nummern werden durch die Liste vom Notfall-Aushang ersetzt.',
     function () {
@@ -4745,6 +4849,7 @@ function notrufZuruecksetzen() {
 }
 
 function openContactForm(id) {
+  if (!darfAendern('Eine Nummer zu bearbeiten')) return;
   var c = null;
   for (var i = 0; i < state.contacts.length; i++) if (state.contacts[i].uid === id) c = state.contacts[i];
   openOv(
@@ -4760,6 +4865,7 @@ function openContactForm(id) {
 }
 
 function saveContactForm(id) {
+  if (!darfAendern('Eine Nummer zu speichern')) return;
   var name = ($('kName').value || '').trim();
   var num = ($('kNum').value || '').trim();
   if (!name) { toast('Bezeichnung fehlt'); return; }
@@ -4771,6 +4877,7 @@ function saveContactForm(id) {
 }
 
 function deleteContact(id) {
+  if (!darfAendern('Eine Nummer zu löschen')) return;
   var c = null;
   for (var i = 0; i < state.contacts.length; i++) if (state.contacts[i].uid === id) c = state.contacts[i];
   if (!c) return;
@@ -5318,6 +5425,7 @@ function renderPaket() {
 }
 
 function paketZuruecksetzen() {
+  if (!darfAendern('Die Baustellendaten zurückzusetzen')) return;
   confirmBox('Auslieferungsstand laden?',
     'Alle gespeicherten Punkte werden durch die mitgelieferten Baustellendaten ersetzt.',
     function () {
@@ -5908,7 +6016,7 @@ function renderAkteZuwegung() {
       '<span>Weganfang ' + esc(G.compass(G.bearing(z.abzweig.lat, z.abzweig.lon, e.lat, e.lon))) +
         (abstand != null ? ' · ' + G.formatDistance(abstand) + ' von hier' : '') + '</span>' +
       '<button class="chip" onclick="wegEndeUmschalten()">Anderes Ende</button>' +
-      '<button class="chip" onclick="zuwegungBearbeiten()">Beschränkung am Weg</button>' +
+      '<button class="chip nurbuero" onclick="zuwegungBearbeiten()">Beschränkung am Weg</button>' +
     '</div>' +
     '<i>Welches Ende an der Straße liegt, weiß die App nicht — ab dem Weganfang ' +
       'gilt die eingezeichnete Zuwegung, nicht die Route von Google Maps.</i>' +
@@ -5961,6 +6069,7 @@ function planWegBand() {
    Mast, nur mit einem anderen Ablageort — und mit dem Hinweis, dass es für
    alle Masten an diesem Weg gilt. */
 function zuwegungBearbeiten() {
+  if (!darfAendern('Die Zuwegung zu ändern')) return;
   var z = akte.zuwegung; if (!z) return;
   var st = akte.wegStamm || {};
   openOv('<h2>Zuwegung „' + esc(z.name) + '"</h2>' +
@@ -5972,6 +6081,7 @@ function zuwegungBearbeiten() {
 }
 
 function zuwegungSpeichern() {
+  if (!darfAendern('Die Zuwegung zu speichern')) return;
   var z = akte.zuwegung; if (!z) return;
   S.mastdatenSetzen(aktiveBaustelle(), z.kennung, zufahrtWerte()).then(function (e) {
     akte.wegStamm = e; closeOv(); renderMastakte();
@@ -6042,7 +6152,7 @@ function renderAkteZufahrt() {
       '<b>Zufahrt für Lkw nicht erfasst.</b>' +
       '<i>Ob Höhe, Gewicht oder Breite hier begrenzt sind, weiß die App nicht — ' +
       'vor der Fahrt mit einem schweren Fahrzeug am Bau erfragen.</i>' +
-      '<div><button class="chip" onclick="mastdatenBearbeiten()">Eintragen</button></div></div>';
+      '<div><button class="chip nurbuero" onclick="mastdatenBearbeiten()">Eintragen</button></div></div>';
     return;
   }
   if (z.art === 'frei') {
@@ -6292,8 +6402,12 @@ function spannHtml() {
         /* Das Seil ist der Knopf. Ein eigener Knopf in der letzten Spalte war
            auf einem 390-Pixel-Telefon nur nach seitlichem Rollen erreichbar —
            die erste Spalte steht immer im Bild. */
-        return '<tr><td class="seil"><button class="seilbtn" title="' + esc(z.seil.seiltyp) +
-          '" onclick="spannIstEintragen(' + e.indexOf(z) + ')">' + esc(z.seil.seil) + '</button></td>' +
+        /* Im Baustellen-Modus bleibt der Seilname stehen, aber ohne Knopf:
+           Ein Knopf, der nur einen Riegel zeigt, ist schlimmer als keiner. */
+        return '<tr><td class="seil">' + (nurLesen()
+          ? '<span class="seilbtn ruhig" title="' + esc(z.seil.seiltyp) + '">' + esc(z.seil.seil) + '</span>'
+          : '<button class="seilbtn" title="' + esc(z.seil.seiltyp) +
+            '" onclick="spannIstEintragen(' + e.indexOf(z) + ')">' + esc(z.seil.seil) + '</button>') + '</td>' +
           '<td class="wert">' + zahl2(w.durchhang) + '</td>' +
           '<td>' + zahl2(w.durchhangRed) + '</td>' +
           (mitVersatz ? '<td>' + (w.versatz == null ? '—' : zahl2(w.versatz)) + '</td>' : '') +
@@ -6328,6 +6442,7 @@ function spannHtml() {
    Eine Toleranz wird NICHT vorgeschlagen. Sie steht in den Unterlagen der
    Baustelle; die App kennt sie nicht und erfindet sie auch nicht. */
 function spannIstEintragen(i) {
+  if (!darfAendern('Einen Istwert einzutragen')) return;
   var e = (akte.spannListe || [])[i]; if (!e) return;
   var w = SpieSpann.beiTemperatur(e, akte.spannTemp); if (!w) return;
   var t = e.tabelle;
@@ -6362,6 +6477,7 @@ function spannDateiGewaehlt(ev) {
 }
 
 function spannUebernehmen() {
+  if (!darfAendern('Spanntabellen einzulesen')) return;
   if (!spannImport) return;
   /* Fehlt die passende speicher.js, gäbe es hier einen Fehler mitten im
      Knopfdruck — und auf dem Bildschirm keine Regung. Lieber eine klare
@@ -6424,6 +6540,7 @@ function leitungUebernehmen(l) {
 }
 
 function spannWeg(id) {
+  if (!darfAendern('Eine Spanntabelle zu löschen')) return;
   S.spannLoeschen(aktiveBaustelle(), id)
     .then(spannLaden)
     .then(function () { renderSpannVerwaltung(); if (akte.key) renderMastakte(); toast('Tabelle entfernt'); });
@@ -6502,7 +6619,7 @@ function renderSpannVerwaltung(fehler) {
         '<div class="doksub">' + t.seile.length + ' Seile · ' + felder + ' Spannfelder' +
           (t.ausgabedatum ? ' · ' + esc(t.ausgabedatum) : '') + '</div>' +
         '<div class="doksub">' + esc(t.quelle || '') + '</div>' +
-        '</div><button class="chip" onclick="spannWeg(&#39;' + esc(t.id) + '&#39;)">Entfernen</button></div>';
+        '</div><button class="chip nurbuero" onclick="spannWeg(&#39;' + esc(t.id) + '&#39;)">Entfernen</button></div>';
     }).join('');
   }
 
@@ -6553,6 +6670,7 @@ function zufahrtWerte() {
 }
 
 function mastdatenBearbeiten() {
+  if (!darfAendern('Mastdaten zu ändern')) return;
   var st = akte.stamm || {};
   openOv('<h2>Mast ' + esc(akte.mast ? akte.mast.nr : akte.key) + '</h2>' +
     '<div class="field"><label>Masttyp</label><input class="inp" id="mdTyp" value="' + esc(st.typ || '') + '" placeholder="z. B. Tonne, Donau"></div>' +
@@ -6573,6 +6691,7 @@ function mastdatenBearbeiten() {
 }
 
 function mastdatenSpeichern() {
+  if (!darfAendern('Mastdaten zu speichern')) return;
   var daten = zufahrtWerte();
   daten.typ = ($('mdTyp').value || '').trim();
   daten.abschnitt = ($('mdAbschnitt').value || '').trim();
@@ -6597,7 +6716,7 @@ function bemerkungHtml() {
   return '<div class="dokinfo">' + (t
     ? '<div class="doksub" style="font-family:inherit;white-space:pre-line">' + esc(t) + '</div>'
     : '<div class="empty">Keine Bemerkung.</div>') +
-    '</div><div class="btnrow"><button class="btn sm" onclick="mastdatenBearbeiten()">Bemerkung bearbeiten</button></div>';
+    '</div><div class="btnrow nurbuero"><button class="btn sm" onclick="mastdatenBearbeiten()">Bemerkung bearbeiten</button></div>';
 }
 
 /* ---------- Regulierwerte ----------
@@ -6632,7 +6751,7 @@ function wertAbweichung(w) {
 }
 
 function werteHtml() {
-  var kopf = '<div class="btnrow" style="margin-top:0">' +
+  var kopf = '<div class="btnrow nurbuero" style="margin-top:0">' +
     '<button class="btn sm" onclick="wertBearbeiten(&#39;&#39;)">Wert hinzufügen</button></div>';
   if (!akte.werte.length) {
     return '<div class="empty">Noch keine Regulierwerte. Soll- und Toleranzwerte stehen in den ' +
@@ -6660,12 +6779,13 @@ function werteHtml() {
         (w.bearbeiter ? esc(w.bearbeiter) + ' · ' : '') +
         '<b style="color:' + farbe + '">' + esc(w.status || 'offen') + '</b></div>' +
       (w.bemerkung ? '<div class="doksub">' + esc(w.bemerkung) + '</div>' : '') +
-      '</div><button class="chip" onclick="wertBearbeiten(&#39;' + esc(w.id) + '&#39;)">Ändern</button></div>';
+      '</div><button class="chip nurbuero" onclick="wertBearbeiten(&#39;' + esc(w.id) + '&#39;)">Ändern</button></div>';
   }).join('');
   return zeilen + kopf;
 }
 
 function wertBearbeiten(id, vorgabe) {
+  if (!darfAendern('Regulierwerte zu ändern')) return;
   var w = null;
   for (var i = 0; i < akte.werte.length; i++) if (akte.werte[i].id === id) w = akte.werte[i];
   w = w || { bezeichnung: '', soll: '', ist: '', einheit: '', toleranz: '',
@@ -6710,6 +6830,7 @@ function wertBearbeiten(id, vorgabe) {
 }
 
 function wertSpeichern(id) {
+  if (!darfAendern('Einen Regulierwert zu speichern')) return;
   var w = {
     id: id || '', baustelle: aktiveBaustelle(), mastSchluessel: akte.key,
     bezeichnung: ($('rwBez').value || '').trim(),
@@ -6727,6 +6848,7 @@ function wertSpeichern(id) {
 }
 
 function wertWeg(id) {
+  if (!darfAendern('Einen Regulierwert zu löschen')) return;
   S.wertLoeschen(id).then(function () {
     return S.werteVonMast(aktiveBaustelle(), akte.key);
   }).then(function (liste) {
@@ -6904,6 +7026,7 @@ function dropAufMast(e) {
 }
 
 function dateienAufnehmen(dateien, mastVorgabe) {
+  if (!darfAendern('Pläne abzulegen')) return;
   if (!S || !S.verfuegbar()) {
     openOv('<h2>Keine Dateiablage</h2><p>Dieses Gerät bietet der App keine Ablage für Dateien ' +
       '(IndexedDB fehlt oder ist gesperrt). Punkte, Nummern und Rettung funktionieren weiter.</p>' +
@@ -7017,6 +7140,7 @@ function dokReiheSetzen(i) {
 function dokImportAbbrechen() { dokImport = null; closeOv(); }
 
 function dokImportAusfuehren() {
+  if (!darfAendern('Pläne abzulegen')) return;
   if (!dokImport) return;
   dokImport.reihen.forEach(function (r, i) { if ($('impMast' + i)) dokReiheSetzen(i); });
   var ohneMast = dokImport.reihen.filter(function (r) { return !r.mast; });
@@ -7071,6 +7195,7 @@ function dokImportAusfuehren() {
 }
 
 function dokWegFragen(id) {
+  if (!darfAendern('Ein Dokument zu löschen')) return;
   var d = null;
   dokAlle.forEach(function (x) { if (x.id === id) d = x; });
   if (!d) return;
@@ -7573,6 +7698,7 @@ function datumDeutsch(iso) {
    sie aus den Daten zu erraten hieße, zwei Masten gleichzusetzen, die es
    vielleicht gar nicht sind. */
 function leitungSpeichern() {
+  if (!darfAendern('Die Leitungsnummer zu ändern')) return;
   var f = $('leitungFeld'); if (!f) return;
   var wert = (f.value || '').trim();
   if (wert && !/^\d{3,4}$/.test(wert)) {
@@ -7687,6 +7813,7 @@ var PK = window.SpiePaket;
 var paketEinlesen = null;    // { daten, dateien, fehlend } zwischen Vorschau und Übernahme
 
 function paketExportieren() {
+  if (!darfAendern('Ein Baustellenpaket zu bauen')) return;
   if (!PK) { toast('Paketfunktion nicht geladen'); return; }
   var baustelle = aktiveBaustelle();
   var titel = baustelleName(baustelle) || 'Baustelle';
@@ -8450,7 +8577,23 @@ function boot() {
 
   if (load(K_THEME, 'dark') === 'light') document.body.classList.add('light');
   grossSetzen(!!load(K_GROSS, false));
-  state.admin = !!load(K_ADMIN, false);
+  /* Voreinstellung nur beim ALLERERSTEN Start, danach zaehlt das Gespeicherte.
+     Am Telefon ist der Baustellen-Modus richtig: Der Monteur liest. Am
+     breiten Bildschirm mit Maus sitzt der Projektleiter, der eintragen soll —
+     dort waere „nur lesen" beim ersten Oeffnen nur verwirrend. Umschalten
+     geht in beiden Faellen unter Verwaltung. */
+  var gemerkt = load(K_ADMIN, null);
+  if (gemerkt === null || gemerkt === undefined) {
+    var amPC = false;
+    try {
+      amPC = window.innerWidth >= 900 &&
+             window.matchMedia && window.matchMedia('(pointer:fine)').matches;
+    } catch (e) { amPC = false; }
+    state.admin = amPC;
+    save(K_ADMIN, state.admin);
+  } else {
+    state.admin = !!gemerkt;
+  }
   /* Die aktive Baustelle laden. Das übernimmt auch das, was früher hier stand:
      mitgelieferte Daten beim ersten Start, Migration, Notrufnummern, uid-
      Nachrüstung — aber nur für die erste Baustelle. */
