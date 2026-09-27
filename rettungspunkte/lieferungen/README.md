@@ -5,7 +5,20 @@ die App am PC unter **Verwaltung → Baustelle weitergeben → „Als Datei sich
 erzeugt. Die App auf jedem Handy schaut bei jedem Start mit Netz hier hinein
 und trägt nach, was neu ist. **Der Monteur liest nichts ein.**
 
-## So geht es
+## So geht es — kinderleicht
+
+In der App am PC (Büro-Modus): **Verwaltung → Baustelle weitergeben → „An die
+Handys senden"**. Ein Knopf. Die App packt die Baustelle, legt das ZIP hier
+ab und führt die Liste nach. Jedes Handy holt es beim nächsten Start mit Netz
+(sobald GitHub Pages die Datei ausliefert, meist nach ein bis zwei Minuten).
+
+**Einmalig einrichten** (nur auf dem PC, der senden soll): GitHub → Settings →
+Developer settings → Fine-grained tokens → „Generate new token" → nur dieses
+Repository, Berechtigung **Contents: Read and write** → Schlüssel kopieren →
+in der App unter „Versand einrichten" einfügen. Er bleibt auf diesem PC, geht
+nie ins Paket und nie in eine Datei.
+
+## So geht es von Hand (wenn der Knopf nicht geht)
 
 1. ZIP hier hochladen (GitHub: „Add file → Upload files", Datei hineinziehen).
    Ein späterer Stand: dieselbe Datei einfach ersetzen — der Server gibt ihr

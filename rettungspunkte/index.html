@@ -1157,6 +1157,7 @@
       <div class="hint" style="margin-bottom:10px">Punkte, Nummern, Wege, Mastdaten,
         Regulierwerte und alle Dokumente in <b>einer Datei</b>. Ein gewöhnliches ZIP —
         am PC lässt es sich öffnen.</div>
+      <div class="btnrow" id="versandKnoepfe"></div>
       <div class="btnrow">
         <button class="btn nurbuero" onclick="paketExportieren()">Als Datei sichern</button>
         <button class="btn primary" onclick="document.getElementById('pkDatei').click()">Datei einlesen</button>
@@ -1473,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.33.0';
+var VERSION = '0.34.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7771,6 +7772,7 @@ function leitungSpeichern() {
 }
 
 function renderVerwaltung() {
+  var vk = $('versandKnoepfe'); if (vk) vk.innerHTML = versandKnopfHtml();
   var vu = $('verUnterlagen');
   if (vu) { var h = unterlagenHtml(); vu.innerHTML = h; vu.style.display = h ? '' : 'none'; }
   var z = zaehlung();
@@ -7869,11 +7871,23 @@ var paketEinlesen = null;    // { daten, dateien, fehlend } zwischen Vorschau un
 function paketExportieren() {
   if (!darfAendern('Ein Baustellenpaket zu bauen')) return;
   if (!PK) { toast('Paketfunktion nicht geladen'); return; }
-  var baustelle = aktiveBaustelle();
-  var titel = baustelleName(baustelle) || 'Baustelle';
-
+  var titel = baustelleName(aktiveBaustelle()) || 'Baustelle';
   openOv('<h2>Baustelle als Datei</h2><p id="expStand">Wird gepackt …</p>');
+  paketBauenFuer(titel).then(function (e) {
+    paketAusgeben(e.blob, e.name, titel, e.dokumente.length);
+  }).catch(function (e) {
+    openOv('<h2>Packen fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+  });
+}
 
+/* Das Paket der aktiven Baustelle bauen: { blob, name, dokumente }. Ein
+   Weg für „Als Datei sichern" und „An die Handys senden" — beide müssen
+   dasselbe Paket ergeben, sonst zeigt die Vorführung etwas anderes als der
+   Betrieb. */
+function paketBauenFuer(titel) {
+  if (!PK) return Promise.reject(new Error('Paketfunktion nicht geladen'));
+  var baustelle = aktiveBaustelle();
   var holen = (S && S.verfuegbar())
     ? Promise.all([
         S.dokVonBaustelle(baustelle).catch(function () { return []; }),
@@ -7883,7 +7897,7 @@ function paketExportieren() {
       ])
     : Promise.resolve([[], [], [], []]);
 
-  holen.then(function (r) {
+  return holen.then(function (r) {
     var dokumente = r[0], mastdaten = r[1], werte = r[2];
     // Die Reguliermaße gehören zur Baustelle wie die Pläne — ohne sie
     // steht der Trupp am Mast ohne Sollwert.
@@ -7911,13 +7925,156 @@ function paketExportieren() {
         dokumente: dokumente
       }, dateien);
     }).then(function (teile) {
-      return { blob: new Blob(teile, { type: 'application/zip' }), dokumente: dokumente };
+      var name = 'Baustelle_' + titel.replace(/[^\wäöüÄÖÜß\- ]+/g, '').replace(/\s+/g, '_') + '.zip';
+      return { blob: new Blob(teile, { type: 'application/zip' }), name: name, dokumente: dokumente };
     });
-  }).then(function (e) {
-    var name = 'Baustelle_' + titel.replace(/[^\wäöüÄÖÜß\- ]+/g, '').replace(/\s+/g, '_') + '.zip';
-    paketAusgeben(e.blob, name, titel, e.dokumente.length);
+  });
+}
+
+/* ---------- An die Handys senden ----------
+
+   „Das müssen wir anders machen, kinderleicht." Der Lieferordner war der
+   richtige Briefkasten, aber der Weg hinein (Datei hochladen, Liste
+   pflegen) war Handarbeit für den Projektleiter. Jetzt macht es die App:
+   ein Knopf, und das Paket liegt im Ordner, die Liste ist nachgeführt, und
+   jedes Handy holt es beim nächsten Start.
+
+   Der Ordner liegt auf GitHub Pages, und GitHub hat eine Schnittstelle, mit
+   der sich Dateien in ein Repository schreiben lassen. Die App braucht dafür
+   einen Zugangsschlüssel des Kontoinhabers — EINMAL eingetragen, nur auf
+   diesem PC gespeichert, nie im Paket, nie in einer Datei. Wer ihn nicht
+   hat, sieht „Versand einrichten" statt eines Knopfes, der nichts tut.
+
+   Ehrlich dazu: Das ist kein Server, sondern GitHub als Ablage. Für die
+   Vorführung und den Pilot reicht das; für den Betrieb ist es die Frage, ob
+   SPIE einen eigenen Server stellt (UMBAUPLAN.md, Punkt B). */
+var K_VERSAND = 'spie_versand_schluessel';
+
+function versandZiel() {
+  if (window.SPIE_VERSAND) return window.SPIE_VERSAND;            // Prüfungen
+  var h = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  var teile = location.pathname.replace(/\/[^\/]*$/, '/').split('/').filter(Boolean);
+  if (!h || !teile.length) return null;
+  return { api: 'https://api.github.com', owner: h[1], repo: teile[0], zweig: 'main',
+           ordner: teile.slice(1).concat('lieferungen').join('/') + '/' };
+}
+
+function versandSchluessel() { try { return localStorage.getItem(K_VERSAND) || ''; } catch (e) { return ''; } }
+
+function versandEinrichten() {
+  var z = versandZiel();
+  openOv('<h2>Versand einrichten</h2>' +
+    (z ? '<p>Die Pakete gehen in den Lieferordner <code>' + esc(z.repo + '/' + z.ordner) + '</code> ' +
+         'auf GitHub. Dafür braucht die App einmal einen Zugangsschlüssel des Kontoinhabers.</p>'
+       : '<p class="warnbox">Diese App läuft nicht auf GitHub Pages — von hier kann nichts gesendet werden.</p>') +
+    '<div class="hint" style="margin-bottom:10px">GitHub → Settings → Developer settings → ' +
+      'Fine-grained tokens → „Generate new token": nur das Repository <b>' + esc(z ? z.repo : '…') + '</b>, ' +
+      'Berechtigung <b>Contents: Read and write</b>. Den Schlüssel hier einfügen — er bleibt auf diesem PC.</div>' +
+    '<input class="inp" id="versandFeld" type="password" placeholder="github_pat_…" autocomplete="off" ' +
+      'value="' + (versandSchluessel() ? '••••••••' : '') + '">' +
+    '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Abbrechen</button>' +
+    (versandSchluessel() ? '<button class="btn red" onclick="versandSchluesselSetzen(\'\')">Schlüssel löschen</button>' : '') +
+    '<button class="btn primary" onclick="versandSchluesselSetzen(document.getElementById(\'versandFeld\').value)">Speichern</button></div>');
+}
+
+function versandSchluesselSetzen(wert) {
+  wert = String(wert || '').trim();
+  if (wert === '••••••••') { closeOv(); return; }
+  try { if (wert) localStorage.setItem(K_VERSAND, wert); else localStorage.removeItem(K_VERSAND); } catch (e) {}
+  closeOv(); renderVerwaltung();
+  toast(wert ? 'Versand eingerichtet' : 'Schlüssel gelöscht');
+}
+
+function versandKnopfHtml() {
+  if (nurLesen()) return '';
+  var z = versandZiel();
+  if (!z) return '';
+  return versandSchluessel()
+    ? '<button class="btn primary nurbuero" onclick="paketVeroeffentlichen()">An die Handys senden</button>'
+    : '<button class="btn nurbuero" onclick="versandEinrichten()">Versand einrichten</button>';
+}
+
+/* GitHub-Inhalte lesen und schreiben. Fehler kommen als Klartext zurück,
+   nicht als Statuscode. */
+function githubAnfrage(z, pfad, optionen) {
+  var url = z.api + '/repos/' + z.owner + '/' + z.repo + '/contents/' + pfad;
+  var o = optionen || {};
+  var kopf = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + versandSchluessel(),
+               'X-GitHub-Api-Version': '2022-11-28' };
+  if (o.body) kopf['Content-Type'] = 'application/json';
+  return fetch(url + (o.method === 'GET' || !o.method ? '?ref=' + encodeURIComponent(z.zweig) : ''),
+               { method: o.method || 'GET', headers: kopf, body: o.body ? JSON.stringify(o.body) : undefined })
+    .then(function (a) {
+      if (a.status === 404 && (o.method || 'GET') === 'GET') return null;
+      if (a.status === 401 || a.status === 403) throw new Error('GitHub lehnt den Schlüssel ab (' + a.status + ') — unter „Versand einrichten" prüfen');
+      if (!a.ok) throw new Error('GitHub antwortet ' + a.status);
+      return a.json();
+    });
+}
+
+function bytesZuBase64(bytes) {
+  var s = '', STUECK = 0x8000;
+  for (var i = 0; i < bytes.length; i += STUECK) s += String.fromCharCode.apply(null, bytes.subarray(i, i + STUECK));
+  return btoa(s);
+}
+function base64ZuText(b64) {
+  var bin = atob(String(b64 || '').replace(/\s+/g, ''));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function paketVeroeffentlichen() {
+  if (!darfAendern('Ein Baustellenpaket zu senden')) return;
+  var z = versandZiel();
+  if (!z) { toast('Von hier kann nichts gesendet werden'); return; }
+  if (!versandSchluessel()) { versandEinrichten(); return; }
+  var titel = baustelleName(aktiveBaustelle()) || 'Baustelle';
+  var stand = function (t) { var f = $('sendStand'); if (f) f.textContent = t; };
+  openOv('<h2>An die Handys senden</h2><p id="sendStand">Paket wird gepackt …</p>');
+
+  var paket = null, eintrag = null;
+  paketBauenFuer(titel).then(function (e) {
+    paket = e;
+    stand('Paket wird hochgeladen (' + dateiGroesse(e.blob.size) + ') …');
+    return e.blob.arrayBuffer();
+  }).then(function (puffer) {
+    var pfad = z.ordner + paket.name;
+    return githubAnfrage(z, pfad).then(function (alt) {
+      return githubAnfrage(z, pfad, { method: 'PUT', body: {
+        message: 'Rettungspunkte: ' + titel + ' gesendet', branch: z.zweig,
+        content: bytesZuBase64(new Uint8Array(puffer)), sha: alt && alt.sha ? alt.sha : undefined } });
+    });
+  }).then(function () {
+    stand('Liste wird nachgeführt …');
+    var pfad = z.ordner + 'liste.json';
+    return githubAnfrage(z, pfad).then(function (alt) {
+      var liste = [];
+      if (alt && alt.content) { try { liste = JSON.parse(base64ZuText(alt.content)); } catch (e) { liste = []; } }
+      if (!Array.isArray(liste)) liste = [];
+      var id = String(titel).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+                 .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'baustelle';
+      var vorher = liste.filter(function (u) { return u && u.id === id; })[0];
+      eintrag = { id: id, baustelle: titel, leitung: state.leitung || '', datei: paket.name,
+                  was: state.points.length + ' Punkte · ' + paket.dokumente.length + ' Dokumente · Stand ' +
+                       new Date().toLocaleDateString('de-DE'),
+                  stand: ((vorher && Number(vorher.stand)) || 0) + 1 };
+      liste = liste.filter(function (u) { return !(u && u.id === id); }).concat([eintrag]);
+      var text = JSON.stringify(liste, null, 2) + '\n';
+      return githubAnfrage(z, pfad, { method: 'PUT', body: {
+        message: 'Rettungspunkte: Lieferliste — ' + titel, branch: z.zweig,
+        content: bytesZuBase64(new TextEncoder().encode(text)), sha: alt && alt.sha ? alt.sha : undefined } });
+    });
+  }).then(function () {
+    openOv('<h2>Gesendet</h2>' +
+      '<div class="vzeile"><b>' + esc(titel) + '</b> liegt im Lieferordner (Fassung ' + eintrag.stand + ').</div>' +
+      '<div class="vzeile">' + esc(eintrag.was) + '</div>' +
+      '<p class="fineprint">Jedes Handy holt es beim nächsten Start mit Netz — sobald GitHub Pages die ' +
+        'Datei ausliefert, meist nach ein bis zwei Minuten. Der Monteur muss nichts tun.</p>' +
+      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>');
   }).catch(function (e) {
-    openOv('<h2>Packen fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
+    openOv('<h2>Senden fehlgeschlagen</h2><p>' + esc(String(e && e.message || e)) + '</p>' +
+      '<p class="fineprint">Nichts ist verloren: „Als Datei sichern" geht weiterhin.</p>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
   });
 }
@@ -8835,6 +8992,15 @@ function boot() {
      kein Megabyte darf zwischen dem Öffnen der App und dem Rettungspunkt
      stehen. */
   setTimeout(function () { unterlagenNachtragen(); }, 2500);
+  /* Wer die App den ganzen Tag offen hat, startet sie nie neu. Deshalb auch
+     beim Zurückkommen in die App nachsehen — höchstens alle zehn Minuten. */
+  var letzterBlick = Date.now();
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
+    if (Date.now() - letzterBlick < 10 * 60 * 1000) return;
+    letzterBlick = Date.now();
+    unterlagenNachtragen();
+  });
 
   // Bewusst kein Begrüßungsfenster: Beim Öffnen soll sofort der Rettungspunkt
   // dastehen, nicht ein Text, den man erst wegtippen muss. Hilfe steckt im „?".
