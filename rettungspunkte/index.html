@@ -906,8 +906,8 @@
       <h3>Pläne hochladen</h3>
       <div class="dropzone" id="dropZone"
            ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAbgelegt(event)">
-        <div class="droptext"><b>Pläne hierher ziehen</b><br>
-          <span class="hint">PDF, JPG, JPEG, PNG · mehrere gleichzeitig</span></div>
+        <div class="droptext"><b>Pläne oder einen ganzen Ordner hierher ziehen</b><br>
+          <span class="hint">PDF, JPG, JPEG, PNG · Unterordner werden mitgelesen</span></div>
         <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
         <input id="dokDatei" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                style="display:none" onchange="dateienGewaehlt(event)">
@@ -1439,7 +1439,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.26.0';
+var VERSION = '0.27.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6817,11 +6817,77 @@ function dateiGroesse(n) {
 function dropUeber(e) { e.preventDefault(); e.currentTarget.classList.add('ueber'); }
 function dropWeg(e) { e.currentTarget.classList.remove('ueber'); }
 
+/* Ein ganzer Ordner, per Maus abgelegt.
+   dataTransfer.files enthaelt bei einem Ordner nur einen leeren Eintrag — der
+   Inhalt steckt in den Verzeichnis-Eintraegen. Wer den SPIE-Ordner aufs
+   Fenster zieht, soll nicht erst hineingehen und alles markieren muessen.
+   Die Eintraege muessen SOFORT gelesen werden: nach dem ersten await ist
+   dataTransfer.items leer. */
+function ablageEintraege(dt) {
+  if (!dt || !dt.items || !dt.items.length) return null;
+  var roh = [];
+  for (var i = 0; i < dt.items.length; i++) {
+    var it = dt.items[i];
+    if (!it.webkitGetAsEntry) return null;
+    var eintrag = it.webkitGetAsEntry();
+    if (eintrag) roh.push(eintrag);
+  }
+  return roh.length ? roh : null;
+}
+
+var ORDNER_MAX = 2000;   // Notbremse gegen einen versehentlich abgelegten Systemordner
+
+function ordnerLesen(eintraege) {
+  var raus = [];
+  function datei(e) {
+    return new Promise(function (ok) { e.file(function (f) { raus.push(f); ok(); }, function () { ok(); }); });
+  }
+  function ordner(e) {
+    var leser = e.createReader();
+    return new Promise(function (ok) {
+      /* readEntries liefert in Chrome hoechstens 100 Eintraege je Aufruf und
+         muss wiederholt werden, bis es nichts mehr gibt. */
+      function runde() {
+        leser.readEntries(function (teil) {
+          if (!teil.length) return ok();
+          gehen(teil).then(runde, function () { ok(); });
+        }, function () { ok(); });
+      }
+      runde();
+    });
+  }
+  function gehen(liste) {
+    var kette = Promise.resolve();
+    liste.forEach(function (e) {
+      kette = kette.then(function () {
+        if (raus.length >= ORDNER_MAX) return;
+        if (e.isFile) return datei(e);
+        if (e.isDirectory) return ordner(e);
+      });
+    });
+    return kette;
+  }
+  return gehen(eintraege).then(function () { return raus; });
+}
+
 function dropAbgelegt(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('ueber');
-  var dt = e.dataTransfer;
-  dateienAufnehmen(dt && dt.files ? dt.files : [], '');
+  ablageDateien(e.dataTransfer, '');
+}
+
+/* Gemeinsamer Weg fuer beide Ablagefelder. */
+function ablageDateien(dt, mastVorgabe) {
+  var eintraege = ablageEintraege(dt);
+  var fallback = dt && dt.files ? [].slice.call(dt.files) : [];
+  if (!eintraege) { dateienAufnehmen(fallback, mastVorgabe); return; }
+  ordnerLesen(eintraege).then(function (dateien) {
+    /* Findet das Auslesen nichts — etwa weil der Browser es verweigert —,
+       bleibt der alte Weg. Lieber die Dateien ohne Ordner als gar nichts. */
+    dateienAufnehmen(dateien.length ? dateien : fallback, mastVorgabe);
+  }, function () {
+    dateienAufnehmen(fallback, mastVorgabe);
+  });
 }
 
 function dateienGewaehlt(e) {
@@ -6834,8 +6900,7 @@ function dateienGewaehlt(e) {
 function dropAufMast(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('ueber');
-  var dt = e.dataTransfer;
-  dateienAufnehmen(dt && dt.files ? dt.files : [], akte.key);
+  ablageDateien(e.dataTransfer, akte.key);
 }
 
 function dateienAufnehmen(dateien, mastVorgabe) {
