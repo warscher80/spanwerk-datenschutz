@@ -173,9 +173,119 @@ var SpieSpann = (function () {
     return Object.keys(alle).map(Number).sort(function (a, b) { return a - b; });
   }
 
+  /* ---------- Die Spanntabelle aus dem PDF-Text ----------
+
+     Bis 0.34.2 las die Werte nur tools/spanntabelle-zu-json.py (Python,
+     pdfplumber). Das hier ist derselbe Leser, Zeile für Zeile, für den
+     Text, den pdf.js aus dem Blatt liefert. Derselbe Grundsatz: Es wird NUR
+     abgeschrieben, was im PDF steht. Nichts wird gerundet, umgerechnet,
+     interpoliert oder ergänzt. Was nicht sauber gelesen werden kann, bricht
+     mit Klartext ab — eine halb gelesene Spanntabelle wäre schlimmer als
+     keine.
+
+     Eingabe: ein Feld von Seitentexten (Zeilen mit \n), wie sie
+     pdfSeitenTexte() in der App aus den Textkästchen zusammensetzt. */
+  var ZAHL = '-?\\d+(?:[.,]\\d+)?';
+  var PAAR = new RegExp('(' + ZAHL + ')\\s*/\\s*(' + ZAHL + ')', 'g');
+
+  function zahl(t) { return parseFloat(String(t).replace(',', '.')); }
+
+  function paare(rest, wieviele) {
+    var a = [], b = [], m;
+    PAAR.lastIndex = 0;
+    while ((m = PAAR.exec(rest)) !== null) { a.push(zahl(m[1])); b.push(zahl(m[2])); }
+    if (a.length !== wieviele) {
+      throw new Error(wieviele + ' Wertepaare erwartet, ' + a.length + ' gelesen in: ' + String(rest).trim().slice(0, 120));
+    }
+    return [a, b];
+  }
+
+  function kopf(text, muster) {
+    var m = text.match(muster);
+    return m ? String(m[1]).trim() : '';
+  }
+
+  function seiteLesen(text) {
+    var zeilen = String(text || '').split('\n').map(function (z) { return z.replace(/\s+/g, ' ').trim(); })
+      .filter(Boolean);
+    var ganz = zeilen.join('\n');
+    var m = ganz.match(/Abschnitt:\s*von Mast\s+(\S+)\s+nach Mast\s+(\S+)\s+Seil:\s*([^:]+):\s*(.+)/);
+    if (!m) return null;                                  // Deckblatt ohne Tabelle
+    var temps = [];
+    var re = /TEMP\s*(-?\d+)\s*°C/g, t;
+    while ((t = re.exec(ganz)) !== null) temps.push(parseInt(t[1], 10));
+    if (!temps.length) throw new Error('Keine Temperaturspalten auf der Seite');
+    var n = temps.length;
+    var seite = { von: m[1], nach: m[2], seil: m[3].trim(), seiltyp: m[4].trim(),
+                  zustand: kopf(ganz, /Zustand:\s*(.+)/), temperaturen: temps, felder: [] };
+    [['sollquerschnitt', new RegExp('Sollquerschnitt:\\s*(' + ZAHL + ')\\s*mm')],
+     ['durchmesser', new RegExp('Durchmesser:\\s*(' + ZAHL + ')\\s*mm')],
+     ['seilgewicht', new RegExp('Gewicht:\\s*(' + ZAHL + ')\\s*kg/m')],
+     ['bruchkraft', new RegExp('Rechn\\. Bruchkraft:\\s*(' + ZAHL + ')\\s*kN')],
+     ['grenzzugspannung', new RegExp('Grenzzugspannung:\\s*(' + ZAHL + ')')],
+     ['mittelzugspannung', new RegExp('Mittelzugspannung:\\s*(' + ZAHL + ')')]
+    ].forEach(function (e) { var w = kopf(ganz, e[1]); if (w) seite[e[0]] = zahl(w); });
+
+    var aktuell = null;
+    var reMast = new RegExp('^Mast:\\s*(\\S+)\\s+Kettenlänge:\\s*(' + ZAHL + ')\\s*m\\s+Kettengewicht:\\s*(' + ZAHL + ')\\s*kg');
+    var reV = /^V\/V red\.\s*\(m\)(.*)/;
+    var reD = new RegExp('^Höhendifferenz:\\s*(' + ZAHL + ')\\s*m\\s+D/D red\\.\\s*\\(m\\)(.*)');
+    var reZ = new RegExp('^Spannweite:\\s*(' + ZAHL + ')\\s*m\\s+Z/Z red\\.\\s*\\(N/mm²\\)(.*)');
+    zeilen.forEach(function (z) {
+      var x;
+      if ((x = z.match(reMast))) {
+        aktuell = { mast: x[1], kettenlaenge: zahl(x[2]), kettengewicht: zahl(x[3]) };
+        seite.felder.push(aktuell); return;
+      }
+      if (!aktuell) return;
+      if ((x = z.match(reV))) { var v = paare(x[1], n); aktuell.versatz = v[0]; aktuell.versatzRed = v[1]; return; }
+      if ((x = z.match(reD))) { aktuell.hoehendifferenz = zahl(x[1]); var d = paare(x[2], n); aktuell.durchhang = d[0]; aktuell.durchhangRed = d[1]; return; }
+      if ((x = z.match(reZ))) { aktuell.spannweite = zahl(x[1]); var g = paare(x[2], n); aktuell.zug = g[0]; aktuell.zugRed = g[1]; return; }
+    });
+    return seite;
+  }
+
+  /* seiten: [Text je Seite]. Liefert { ok, tabelle, fehler }. */
+  function ausSeiten(seiten, quelle) {
+    try {
+      if (!seiten || !seiten.length) throw new Error('Keine Textebene im PDF (gescannt?)');
+      var erste = seiten[0] || '';
+      var tab = { art: 'spanntabelle', quelle: text(quelle) || 'Spanntabelle.pdf', id: text(quelle) || '',
+        ausgabedatum: kopf(erste, /Ausgabedatum:\s*(.+)/), bearbeiter: kopf(erste, /Bearbeiter:\s*(.+)/),
+        firma: kopf(erste, /Firma:\s*(.+)/), betreiber: kopf(erste, /Betreiber:\s*(.+)/),
+        leitung: kopf(erste, /Leitungsname:\s*(.+)/), abschnitt: kopf(erste, /Abschnitt:\s*(.+)/),
+        berechnungsgrundlage: kopf(erste, /Berechnungsgrundlage:\s*(.+)/),
+        ueberziehungsfaktor: kopf(erste, /Überziehungsfaktor:\s*(\S+\s*%)/),
+        temperaturreduktion: kopf(erste, /Temperaturreduktion:\s*(\S+\s*K)/),
+        rollengewicht: kopf(erste, new RegExp('Rollengewicht:\\s*(' + ZAHL + ')')),
+        seile: [] };
+      var offen = {};
+      seiten.forEach(function (st, i) {
+        var s;
+        try { s = seiteLesen(st); }
+        catch (e) { throw new Error('Seite ' + (i + 1) + ': ' + e.message); }
+        if (!s) return;
+        if (tab.zustand === undefined) tab.zustand = s.zustand;
+        if (tab.temperaturen === undefined) tab.temperaturen = s.temperaturen;
+        if (tab.von === undefined) tab.von = s.von;
+        if (tab.nach === undefined) tab.nach = s.nach;
+        if (s.temperaturen.join(',') !== tab.temperaturen.join(',')) throw new Error('Seite ' + (i + 1) + ': andere Temperaturspalten');
+        if (offen[s.seil]) { offen[s.seil].felder = offen[s.seil].felder.concat(s.felder); return; }
+        var seil = {};
+        Object.keys(s).forEach(function (k) { if (['von', 'nach', 'zustand', 'temperaturen'].indexOf(k) < 0) seil[k] = s[k]; });
+        offen[s.seil] = seil; tab.seile.push(seil);
+      });
+      if (!tab.seile.length) throw new Error('Keine Spanntabelle gefunden (kein „Abschnitt: von Mast … nach Mast … Seil:")');
+      return { ok: true, tabelle: tab, fehler: '' };
+    } catch (e) {
+      return { ok: false, tabelle: null, fehler: String(e && e.message || e) };
+    }
+  }
+
   return {
     VERSION: VERSION,
     pruefen: pruefen,
+    ausSeiten: ausSeiten,
     kennung: kennung,
     felderAmMast: felderAmMast,
     mastenInTabellen: mastenInTabellen,

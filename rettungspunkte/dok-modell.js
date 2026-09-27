@@ -367,6 +367,8 @@ var SpieDok = (function () {
        das Feld beginnt — dort zeigt die Mastakte auch die Spannfelder. */
     if (!out.mast) {
       var ab = out.text.match(/Abschnitt:\s*von\s+Mast\s+(\S+)\s+nach\s+Mast\s+(\S+)/i);
+      /* Das Deckblatt schreibt den Abschnitt kürzer: „…, 4236/18-4236/20". */
+      if (!ab) ab = out.text.match(/Abschnitt:[^\n]*?(\d{3,4}\/\d+)\s*-\s*(\d{3,4}\/\d+)/i);
       if (ab) { out.mast = ab[1]; out.nach = ab[2]; out.mastVoll = true; }
     }
     for (var k = 0; k < SCHRIFTFELD_TITEL.length; k++) {

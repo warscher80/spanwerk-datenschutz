@@ -1170,14 +1170,14 @@
          und werden hier nur eingelesen. Die App gibt keine Sollwerte vor. -->
     <div class="card">
       <h3>Spanntabellen <span class="badge grey" id="spannCount">0</span></h3>
-      <div class="hint nurbuero" style="margin-bottom:10px">Die Reguliermaße des Auftraggebers als
-        <b>JSON</b> — aus den Spanntabellen-PDFs erzeugt mit
-        <code>tools/spanntabelle-zu-json.py</code>. Sie erscheinen dann in der Mastakte
-        unter „Spanntabelle".</div>
+      <div class="hint nurbuero" style="margin-bottom:10px">Die Spanntabellen des Auftraggebers
+        als <b>PDF</b> (EUROPTEN-Ausgabe, mehrere auf einmal) oder als JSON. Die App liest die Werte
+        aus dem Blatt und zeigt sie zur Kontrolle, bevor etwas gespeichert wird. Sie erscheinen dann
+        in der Mastakte unter „Spanntabelle".</div>
       <div class="btnrow nurbuero">
         <button class="btn primary" onclick="document.getElementById('spannDatei').click()">Spanntabelle einlesen</button>
       </div>
-      <input id="spannDatei" type="file" accept=".json,application/json" style="display:none"
+      <input id="spannDatei" type="file" multiple accept=".pdf,.json,application/pdf,application/json" style="display:none"
              onchange="spannDateiGewaehlt(event)">
       <div id="spannBox" style="margin-top:10px"></div>
     </div>
@@ -1474,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.34.2';
+var VERSION = '0.35.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6511,9 +6511,12 @@ function spannHtml() {
 /* ---------- Import in der Verwaltung ---------- */
 
 function spannDateiGewaehlt(ev) {
-  var f = ev.target.files && ev.target.files[0];
+  var alle = [].slice.call(ev.target.files || []);
   ev.target.value = '';
-  if (!f) return;
+  if (!alle.length) return;
+  var pdfs = alle.filter(function (x) { return /\.pdf$/i.test(x.name) || x.type === 'application/pdf'; });
+  if (pdfs.length) { spannPdfsUebernehmenVorschau(pdfs); return; }
+  var f = alle[0];
   var leser = new FileReader();
   leser.onerror = function () { toast('Datei nicht lesbar'); };
   leser.onload = function () {
@@ -6525,6 +6528,19 @@ function spannDateiGewaehlt(ev) {
     renderSpannVerwaltung(p.ok ? '' : p.fehler);
   };
   leser.readAsText(f);
+}
+
+/* PDFs der Spanntabellen: lesen und in dieselbe Vorschau stellen wie eine
+   JSON. Was nicht lesbar ist, steht mit Grund dabei und wird nicht geraten. */
+function spannPdfsUebernehmenVorschau(pdfs) {
+  renderSpannVerwaltung('Spanntabellen werden gelesen … (' + pdfs.length + ' PDF)');
+  spannPdfLesen(pdfs).then(function (r) {
+    if (!r.tabellen.length) { spannImport = null; renderSpannVerwaltung('Keine Spanntabelle lesbar: ' + r.fehler.join(' · ')); return; }
+    var p = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION, tabellen: r.tabellen });
+    spannImport = p.ok ? p : null;
+    var hinweis = r.fehler.length ? 'Nicht lesbar: ' + r.fehler.join(' · ') : '';
+    renderSpannVerwaltung(p.ok ? hinweis : (p.fehler + (hinweis ? ' · ' + hinweis : '')));
+  });
 }
 
 function spannUebernehmen() {
@@ -7076,8 +7092,18 @@ function schriftfelderLesen(imp) {
       return r.datei.arrayBuffer().then(function (puffer) {
         return lib.getDocument({ data: new Uint8Array(puffer) }).promise;
       }).then(function (doc) {
-        return doc.getPage(1).then(function (pg) { return pg.getTextContent(); })
-          .then(function (tc) { try { doc.destroy(); } catch (e) {} return tc; });
+        /* Seite 1 UND 2: Bei einer Spanntabelle ist Seite 1 das Deckblatt,
+           der Abschnitt „von Mast … nach Mast …" steht erst auf Seite 2. */
+        var seiten = Math.min(2, doc.numPages), items = [], k = Promise.resolve();
+        for (var n = 1; n <= seiten; n++) {
+          (function (nr) {
+            k = k.then(function () {
+              return doc.getPage(nr).then(function (pg) { return pg.getTextContent(); })
+                .then(function (tc) { items = items.concat(tc.items); });
+            });
+          })(n);
+        }
+        return k.then(function () { try { doc.destroy(); } catch (e) {} return { items: items }; });
       }).then(function (tc) {
         schriftfeldEintragen(imp, r, D.schriftfeldAusItems(tc.items));
       }).catch(function (e) {
@@ -7089,6 +7115,58 @@ function schriftfelderLesen(imp) {
       });
     });
   });
+}
+
+/* Alle Seiten eines PDFs als Text, eine Zeile je Textzeile: Kästchen mit
+   (nahezu) gleicher Grundlinie bilden eine Zeile, von links nach rechts.
+   Das ist die Form, die der Spanntabellen-Leser (spann.js) erwartet. */
+function pdfSeitenTexte(datei) {
+  return pdfBibliothek().then(function (lib) {
+    return datei.arrayBuffer().then(function (puffer) {
+      return lib.getDocument({ data: new Uint8Array(puffer) }).promise;
+    });
+  }).then(function (doc) {
+    var seiten = [], kette = Promise.resolve();
+    for (var n = 1; n <= doc.numPages; n++) {
+      (function (nr) {
+        kette = kette.then(function () {
+          return doc.getPage(nr).then(function (pg) { return pg.getTextContent(); }).then(function (tc) {
+            var w = tc.items.filter(function (i) { return i.str && i.str.trim(); }).map(function (i) {
+              return { s: i.str, x: i.transform[4], y: i.transform[5], h: i.height || 8 };
+            });
+            // Nach Grundlinie gruppieren (von oben nach unten), innerhalb einer Zeile nach x.
+            w.sort(function (a, b) { return (b.y - a.y) || (a.x - b.x); });
+            var zeilen = [], akt = null;
+            w.forEach(function (i) {
+              if (!akt || Math.abs(akt.y - i.y) > Math.max(2, i.h * 0.5)) { akt = { y: i.y, teile: [] }; zeilen.push(akt); }
+              akt.teile.push(i);
+            });
+            seiten.push(zeilen.map(function (z) {
+              return z.teile.sort(function (a, b) { return a.x - b.x; }).map(function (i) { return i.s; }).join(' ');
+            }).join('\n'));
+          });
+        });
+      })(n);
+    }
+    return kette.then(function () { try { doc.destroy(); } catch (e) {} return seiten; });
+  });
+}
+
+/* Ein Spanntabellen-PDF: Werte lesen, prüfen, in die Vorschau der Verwaltung
+   stellen — derselbe Weg wie die JSON. Der Mensch sieht, was gelesen wurde,
+   und bestätigt. Nichts wird still gespeichert. */
+function spannPdfLesen(dateien) {
+  var liste = [].slice.call(dateien || []), tabellen = [], fehler = [];
+  var kette = Promise.resolve();
+  liste.forEach(function (f) {
+    kette = kette.then(function () {
+      return pdfSeitenTexte(f).then(function (seiten) {
+        var r = SpieSpann.ausSeiten(seiten, f.name);
+        if (r.ok) tabellen.push(r.tabelle); else fehler.push(f.name + ': ' + r.fehler);
+      }, function (e) { fehler.push(f.name + ': ' + String(e && e.message || e)); });
+    });
+  });
+  return kette.then(function () { return { tabellen: tabellen, fehler: fehler }; });
 }
 
 function schriftfeldEintragen(imp, r, sf) {
@@ -7160,10 +7238,8 @@ function dokImportVorschau() {
           return '<option value="' + k.id + '"' + (r.kategorie === k.id ? ' selected' : '') + '>' +
                  esc(k.name) + '</option>';
         }).join('') + '</select></td>' +
-      '<td><input id="impRev' + i + '" value="' + esc(r.revision) + '" placeholder="C" ' +
-        'oninput="dokReiheSetzen(' + i + ')" style="max-width:70px"></td>' +
-      '<td><input id="impDat' + i + '" type="date" value="' + esc(r.datum) + '" ' +
-        'oninput="dokReiheSetzen(' + i + ')"></td>' +
+      '<td><button class="chip" title="Diese Datei weglassen" aria-label="Weglassen" ' +
+        'onclick="dokReiheWeg(' + i + ')">×</button></td>' +
       '</tr>';
   }).join('');
 
@@ -7172,6 +7248,9 @@ function dokImportVorschau() {
     '<p>Was hier steht, ist aus den <b>Dateinamen</b> und dem <b>Schriftfeld der Pläne</b> ' +
     'gelesen — ein Vorschlag, keine Tatsache. Bitte kontrollieren und wo nötig ändern.</p>' +
     '<div class="hint" id="impSchriftfeld" style="margin-bottom:8px"></div>' +
+    (dokImport.sperre
+      ? '<div class="warnbox" id="impSperre" style="margin-bottom:10px"><b>Noch nicht importiert.</b> ' +
+        esc(dokImport.sperre) + '</div>' : '') +
     (offeneReihen
       ? '<div class="warnbox" style="margin-bottom:10px"><b>' + offeneReihen + ' Zeilen sind ' +
         'unvollständig oder nur vermutet</b> — sie sind gelb hinterlegt.</div>' : '') +
@@ -7184,7 +7263,7 @@ function dokImportVorschau() {
       masten.slice(0, 2000).map(function (m) { return '<option value="' + esc(m.key) + '">'; }).join('') +
     '</datalist>' +
     '<div class="impwrap"><table class="imptab">' +
-    '<tr><th>Datei</th><th>Mast</th><th>Art</th><th>Rev.</th><th>Datum</th></tr>' +
+    '<tr><th>Datei</th><th>Mast</th><th>Art</th><th></th></tr>' +
     zeilen + '</table></div>' +
     '<div class="btnrow">' +
       '<button class="btn ghost" onclick="dokImportAbbrechen()">Abbrechen</button>' +
@@ -7198,10 +7277,10 @@ function dokReiheOffen(r) {
   else if (r.mastSicher !== 'sicher') offen.push('Mast nur vermutet');
   else if (!mastFinden(r.mast)) offen.push('Mast nicht in dieser Baustelle');
   if (!r.kategorie) offen.push('Art fehlt');
-  /* Die Revision ist der Änderungsstand eines Plans (Index A, B, C …). Eine
-     Spanntabelle oder ein Foto hat keinen — dort ist „Revision fehlt" kein
-     Hinweis, sondern Lärm. Das Ausgabedatum steht im Datum. */
-  if (!r.revision && r.kategorie !== 'spanntabelle' && r.kategorie !== 'foto') offen.push('Revision fehlt');
+  /* Die Revision (Index A, B, C …) ist nicht notwendig: Wo sie im Blatt oder
+     im Dateinamen steht, wird sie gelesen; wo nicht, bleibt das Feld leer.
+     Gelb heißt „ein Mensch muss ran" — und das ist bei einer fehlenden
+     Revision nicht der Fall. */
   return offen;
 }
 
@@ -7211,8 +7290,19 @@ function dokReiheSetzen(i) {
   var m = ($('impMast' + i).value || '').trim();
   if (m !== r.mast) { r.mast = m; r.mastSicher = 'sicher'; }   // von Hand = bestätigt
   r.kategorie = $('impKat' + i).value;
-  r.revision = ($('impRev' + i).value || '').trim().toUpperCase();
-  r.datum = ($('impDat' + i).value || '').trim();
+  /* Revision und Datum stehen nicht mehr in der Vorschau („nicht relevant").
+     Was Dateiname oder Schriftfeld hergeben, bleibt im Hintergrund gesetzt. */
+  dokImport.sperre = '';
+}
+
+function dokReiheWeg(i) {
+  if (!dokImport || !dokImport.reihen[i]) return;
+  dokImport.reihen.forEach(function (r, k) { if ($('impMast' + k)) dokReiheSetzen(k); });
+  dokImport.reihen.splice(i, 1);
+  dokImport.sperre = '';
+  if (!dokImport.reihen.length) { dokImportAbbrechen(); return; }
+  dokImportVorschau();
+  schriftfeldStand(dokImport);
 }
 
 function dokImportAbbrechen() { dokImport = null; closeOv(); }
@@ -7223,7 +7313,14 @@ function dokImportAusfuehren() {
   dokImport.reihen.forEach(function (r, i) { if ($('impMast' + i)) dokReiheSetzen(i); });
   var ohneMast = dokImport.reihen.filter(function (r) { return !r.mast; });
   if (ohneMast.length) {
-    toast(ohneMast.length + ' Dateien ohne Mast — bitte zuordnen');
+    /* „Wenn ich auf Importieren drücke, passiert nichts." Es passierte eine
+       Meldung, drei Sekunden lang, unten am Rand. Jetzt steht es im Fenster
+       selbst, mit den Dateinamen, und die Zeilen sind markiert. */
+    dokImport.sperre = ohneMast.length + (ohneMast.length === 1 ? ' Datei hat' : ' Dateien haben') +
+      ' noch keinen Mast: ' + ohneMast.map(function (r) { return r.datei.name; }).join(', ') +
+      '. Bitte in der Spalte „Mast" eintragen — oder die Zeile mit „×" weglassen.';
+    dokImportVorschau();
+    var e = $('impSperre'); if (e) e.scrollIntoView({ block: 'nearest' });
     return;
   }
   var baustelle = aktiveBaustelle();
@@ -7233,6 +7330,22 @@ function dokImportAusfuehren() {
   openOv('<h2>Wird abgelegt …</h2><p id="impFortschritt">0 von ' + reihen.length + '</p>');
 
   var kette = S.platzSichern().catch(function () { return null; });
+  /* Spanntabellen-PDFs in der Ablage: Die Datei wird am Anfangsmast abgelegt
+     UND die Werte werden gelesen und gespeichert — mit derselben Prüfung wie
+     über „Spanntabelle einlesen". Nicht lesbar: nur die Datei, mit Hinweis. */
+  var spannErgebnis = { ok: 0, fehler: [] };
+  reihen.filter(function (r) { return r.kategorie === 'spanntabelle' && /\.pdf$/i.test(r.datei.name); })
+    .forEach(function (r) {
+      kette = kette.then(function () {
+        return spannPdfLesen([r.datei]).then(function (e) {
+          if (!e.tabellen.length) { spannErgebnis.fehler.push(e.fehler.join(' · ')); return; }
+          var p = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION, tabellen: e.tabellen });
+          if (!p.ok) { spannErgebnis.fehler.push(r.datei.name + ': ' + p.fehler); return; }
+          return Promise.all(p.tabellen.map(function (t) { return S.spannSetzen(baustelle, t); }))
+            .then(function () { spannErgebnis.ok++; }, function (x) { spannErgebnis.fehler.push(r.datei.name + ': ' + (x && x.message || x)); });
+        });
+      });
+    });
   reihen.forEach(function (r) {
     kette = kette.then(function () {
       return S.dokAblegen({
@@ -7254,6 +7367,8 @@ function dokImportAusfuehren() {
   });
 
   kette.then(function () { return dokumenteLaden(); }).then(function () {
+    return spannErgebnis.ok ? spannLaden().then(function () { renderSpannVerwaltung(); }) : null;
+  }).then(function () {
     dokImport = null;
     dokListeZeichnen(); renderUebersicht();
     if (akte.key) { return S.dokVonMast(baustelle, akte.key).then(function (l) {
@@ -7261,6 +7376,9 @@ function dokImportAusfuehren() {
   }).then(function () {
     openOv('<h2>Import fertig</h2>' +
       '<div class="vzeile"><b style="color:var(--ok)">' + fertig + '</b> Dokumente abgelegt</div>' +
+      (spannErgebnis.ok ? '<div class="vzeile"><b style="color:var(--ok)">' + spannErgebnis.ok + '</b> Spanntabellen mit Werten übernommen</div>' : '') +
+      (spannErgebnis.fehler.length ? '<div class="warnbox" style="margin:8px 0">Spanntabellen-Werte nicht lesbar (nur die Datei ist abgelegt): ' +
+        esc(spannErgebnis.fehler.join(' · ')) + '</div>' : '') +
       (fehler.length
         ? '<div class="vzeile"><b style="color:var(--bad)">' + fehler.length + '</b> fehlgeschlagen</div>' +
           '<div class="psub">' + fehler.slice(0, 5).map(esc).join('<br>') + '</div>'
