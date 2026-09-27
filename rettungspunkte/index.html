@@ -1468,7 +1468,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.28.1';
+var VERSION = '0.29.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3637,7 +3637,7 @@ function planDraw() {
       g.moveTo(ab[0], ab[1]); g.lineTo(zm[0], zm[1]); g.stroke(); g.setLineDash([]);
       g.fillStyle = farbe('--ok', '#2fc27a');
       g.beginPath(); g.arc(zm[0], zm[1], 5, 0, Math.PI * 2); g.fill();
-      beschrifte('Mast ' + plan.wegMast.nr, zm[0], zm[1], cTxt, 11);
+      beschrifte(mastTitel(plan.wegMast.nr), zm[0], zm[1], cTxt, 11);
     }
   }
 
@@ -4236,7 +4236,7 @@ function scanVerarbeiten(text) {
     var kandidat = String(text || '').match(/(?:mast[\s_.\-]*)?(\d{3,4}[\/\-_]\d{1,4}|\d{1,4})\s*$/i)
                 || String(text || '').match(/(\d{3,4}[\/\-_]\d{1,4}|\d{1,4})/);
     var m = kandidat ? mastFinden(kandidat[1]) : null;
-    if (m) { mastOeffnen(m.key); toast('Mast ' + m.nr); return; }
+    if (m) { mastOeffnen(m.key); toast(mastTitel(m.nr)); return; }
     openOv('<h2>QR-Code gelesen</h2>' +
       '<p>Darin steht kein Mast dieser Baustelle. Gelesen wurde:</p>' +
       '<div class="field"><textarea rows="3" readonly>' + esc(String(text).slice(0, 300)) + '</textarea></div>' +
@@ -4949,7 +4949,7 @@ function mastAnfahrt() {
 
 function mastKoordinatenKopieren() {
   var m = akte.mast; if (!m) return;
-  copyText('Mast ' + m.nr + '\n' + G.formatDec(m.punkt.lat, m.punkt.lon) + '\n' +
+  copyText(mastTitel(m.nr) + '\n' + G.formatDec(m.punkt.lat, m.punkt.lon) + '\n' +
     G.toUTM(m.punkt.lat, m.punkt.lon).text, 'Koordinaten kopiert');
 }
 
@@ -5730,6 +5730,14 @@ function rettungOeffnen() {
 /* Die Mastliste kommt aus den Punkten der Baustelle. Ungeprüfte Masten sind
    Arbeitsobjekte wie alle anderen — für die Rettung bleiben sie gesperrt,
    das entscheidet nearestList(), nicht diese Liste. */
+/* „Mast 18" heißt der Mast in der Blatzheimer Karte. Mit dem festen Vorsatz
+   stand dann „Mast Mast 18" in der Akte — eine Beschriftung, die vorschlägt,
+   dass jemand nicht hingeschaut hat. Der Vorsatz kommt nur, wo er fehlt. */
+function mastTitel(nr) {
+  var t = String(nr == null ? '' : nr).trim();
+  return /^(mast|mst)\b/i.test(t) ? t : 'Mast ' + t;
+}
+
 function mastenAlle() {
   var out = [];
   state.points.forEach(function (p) {
@@ -6138,7 +6146,7 @@ function zufahrtLage(st) {
 
 function renderMastakte() {
   var m = akte.mast; if (!m) return;
-  $('akteTitel').textContent = 'Mast ' + m.nr;
+  $('akteTitel').textContent = mastTitel(m.nr);
   var dn = $('akteDropNr'); if (dn) dn.textContent = m.nr;
 
   var st = akte.stamm || {};
@@ -7224,7 +7232,7 @@ function dokWegFragen(id) {
   dokAlle.forEach(function (x) { if (x.id === id) d = x; });
   if (!d) return;
   confirmBox('Dokument löschen?',
-    'Mast ' + mastAnzeige(d.mastSchluessel) + ' · ' + D.kategorieName(d.kategorie) +
+    mastTitel(mastAnzeige(d.mastSchluessel)) + ' · ' + D.kategorieName(d.kategorie) +
     (d.revision ? ' · Rev ' + d.revision : '') + '\n' + d.dateiname +
     '\n\nDas lässt sich nicht rückgängig machen.',
     function () {
@@ -7648,7 +7656,7 @@ function planOeffnen(id) {
       warn.className = ''; warn.innerHTML = '';
     }
 
-    $('planTitel').textContent = 'Mast ' + mastAnzeige(d.mastSchluessel) + ' · ' + D.kategorieName(d.kategorie) +
+    $('planTitel').textContent = mastTitel(mastAnzeige(d.mastSchluessel)) + ' · ' + D.kategorieName(d.kategorie) +
       (d.revision ? ' · Rev ' + d.revision : '');
 
     var bild = $('planBild');
@@ -8105,10 +8113,43 @@ function unterlageNachtragen(u, gemerkt) {
       if (id === aktiveBaustelle()) state.leitung = String(load(K_LEITUNG, '') || '').trim();
     }
 
+    /* Die Karte der Baustelle — Masten, Rettungspunkte, Zuwegungen — kommt
+       seit Fassung 2 mit (aus dem QR-Code der Baustelle, durch
+       daten-pruefung.js gelaufen wie die erste Baustelle). Zwei Regeln:
+
+       1. Sie geht VOR den Plänen hinein, sonst findet „4236/18" seinen
+          Mast „18" nicht und der Plan hängt an einer Nummer, die es in der
+          Mastliste nicht gibt — genau das war bis 0.28.1 der Fall.
+       2. Sie geht NUR in ein leeres Fach. Was jemand von Hand eingelesen
+          oder gegen den Aushang bestätigt hat, überschreibt eine Lieferung
+          nie. Dann bleibt die vorhandene Karte, und der Bericht sagt es. */
+    var karte = { name: 'Karte', soll: (r.daten.punkte || []).length, ist: 0, behalten: false };
+    if (karte.soll) {
+      var vorherK = aktiveBaustelle();
+      schluesselSetzen(id);
+      var vorhanden = load(K_POINTS, []) || [];
+      if (vorhanden.length) {
+        karte.ist = karte.soll; karte.behalten = true;
+      } else {
+        var pts = r.daten.punkte.map(paketPunkt);
+        save(K_POINTS, pts);
+        save(K_WEGE, r.daten.wege || []);
+        if (r.daten.karte) save(K_PAKET, r.daten.karte);
+        karte.ist = pts.length;
+      }
+      schluesselSetzen(vorherK);
+      /* Steht der Nutzer gerade auf dieser Baustelle, muss sie neu geladen
+         werden — sonst rechnet die Rettung weiter mit null Punkten, bis
+         jemand die App neu startet. */
+      if (id === aktiveBaustelle() && !karte.behalten) baustelleUebernehmen(id);
+    }
+
     var w = paketDatenSchreiben(id, r.daten, r.dateien, mastSucheFuer(id));
     return w.arbeit.then(function () {
       var stand = { stand: u.stand, baustelle: id, titel: u.baustelle, was: u.was,
                     am: Date.now(), eingang: {} };
+      if (karte.soll) stand.eingang.karte = [karte.ist, karte.soll];
+      if (karte.behalten) stand.karteBehalten = true;
       Object.keys(w.eingang).forEach(function (art) {
         if (w.eingang[art].soll) stand.eingang[art] = [w.eingang[art].ist, w.eingang[art].soll];
       });
@@ -8151,6 +8192,7 @@ function unterlagenNachtragen() {
          stehen — sonst sieht man sie erst nach einem Neustart. */
       baustellenAnzeigen();
       renderVerwaltung();
+      if (typeof mastListeZeichnen === 'function') mastListeZeichnen();
       toast('Mitgelieferte Unterlagen übernommen');
     } else {
       renderVerwaltung();
@@ -8164,7 +8206,7 @@ function unterlagenNachtragen() {
 function unterlagenHtml() {
   if (typeof SPIE_UNTERLAGEN === 'undefined' || !SPIE_UNTERLAGEN.length) return '';
   var gemerkt = load(K_UNTERLAGEN, {}) || {};
-  var namen = { mastdaten: 'Mastdaten', spanntabellen: 'Spanntabellen',
+  var namen = { karte: 'Punkten der Karte', mastdaten: 'Mastdaten', spanntabellen: 'Spanntabellen',
                 werte: 'Regulierwerte', dokumente: 'Dokumente' };
   var zeilen = SPIE_UNTERLAGEN.map(function (u) {
     var g = gemerkt[u.id];
@@ -8185,6 +8227,9 @@ function unterlagenHtml() {
     return '<div class="' + (luecke ? 'warnbox' : 'vzeile') + '" style="margin:8px 0">' +
       '<b>' + esc(u.baustelle) + '</b> — Baustelle „' + esc(g.titel || u.baustelle) + '"<br>' +
       esc(teile.join(' · ')) +
+      (g.karteBehalten
+        ? '<br><i>Die Karte im Gerät war schon da und wurde behalten — die mitgelieferte ' +
+          'hat sie nicht ersetzt.</i>' : '') +
       (luecke ? '<br><b>Nicht alles ist angekommen — bitte melden.</b>' : '') + '</div>';
   });
   return '<h3>Mitgelieferte Unterlagen</h3>' +

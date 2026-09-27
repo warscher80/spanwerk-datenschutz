@@ -74,6 +74,14 @@ var SpieDok = (function () {
   function mastSchluessel(nr) {
     var s = String(nr == null ? '' : nr).trim();
     if (!s) return '';
+    /* „Mast 18" ist die Schreibweise der Blatzheimer Karte, „18" die der
+       Mastliste und „4236/18" die der Unterlagen. Bis 0.29.0 wurde aus
+       „Mast 18" der Schlüssel „MAST 18" — und der passte zu keiner der beiden
+       anderen. Folge: Die mitgelieferten Gründungspläne hingen an einer
+       Nummer, die in keiner Mastakte vorkam. Das Wort ist Beschriftung, nicht
+       Nummer; es fällt weg. */
+    s = s.replace(/^(?:mast|mst)\.?\s*(?:nr\.?\s*[:.]?\s*)?/i, '');
+    if (!s) return '';
     var lang = s.match(/^(\d{3,4})\s*[\/\-_]\s*([A-Za-z]?)0*(\d+)([A-Za-z]?)$/);
     if (lang) {
       return lang[1] + '/' + (lang[2] || '').toUpperCase() + lang[3] + (lang[4] || '').toUpperCase();

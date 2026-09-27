@@ -20,11 +20,11 @@
 var SPIE_UNTERLAGEN = [
   {
     id: "blatzheim-2022",
-    stand: 1,
+    stand: 2,
     baustelle: "Blatzheim",
     leitung: "4236",
     datei: "./unterlagen-blatzheim.zip",
-    was: "5 Gründungspläne · 5 Spanntabellen (EUROPTEN, 09.11.2022)"
+    was: "Karte (46 Masten, 11 Rettungspunkte, 66 Zuwegungen — QR-Code der Baustelle) · 5 Gründungspläne · 5 Spanntabellen (EUROPTEN, 09.11.2022)"
   }
 ];
 
