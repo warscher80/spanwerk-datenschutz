@@ -1474,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.35.0';
+var VERSION = '0.35.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -7483,6 +7483,8 @@ function pdfOeffnen(datei, dateiname) {
     bild.ontouchend = planFingerEnde;
     bild.ontouchcancel = planFingerEnde;
     pdfWerkzeuge();
+    setTimeout(pdfNachmessen, 700);
+    setTimeout(pdfNachmessen, 1800);
     return pdfZeichnen(true);
   }).catch(function (e) {
     /* Kein Halbwissen: Wenn die Anzeige nicht geht, steht das da — mit dem
@@ -7739,7 +7741,25 @@ function pdfZoom(f) {
   else { pdfAkt.zoom = neu; pdfZeichnen(false); }
 }
 
-function pdfPassend() { pdfZeichnen('ganz'); }
+/* „Einpassen" füllt den Bildschirm — derselbe Zustand wie beim Öffnen. Vom
+   Gerät zweimal gemeldet („Zentrierung passt immer noch nicht"): Der Knopf
+   zeigte das ganze Blatt klein in der Mitte, und wenn dabei die Browserleiste
+   gerade eingeblendet war, blieb es danach klein UND schief. Das ganze Blatt
+   erreicht man weiter mit „Kleiner". */
+function pdfPassend() { pdfZeichnen(true); }
+
+/* Nach dem Öffnen noch einmal messen: Auf dem iPhone stimmt die Größe des
+   Ausschnitts in den ersten Sekunden oft noch nicht (Browserleiste fährt
+   ein, Layout kommt nach). Ist der Nutzer noch nicht selbst am Zoomen,
+   wird dann neu eingepasst — sonst bleibt das Blatt in der Größe des ersten,
+   falschen Ausschnitts stehen. */
+function pdfNachmessen() {
+  if (!pdfAkt.doc) return;
+  var r = $('planBild'); if (!r) return;
+  var mass = r.clientWidth + 'x' + r.clientHeight;
+  var amPass = pdfAkt.passZoom && Math.abs(pdfAkt.zoom - pdfAkt.passZoom) < 1e-9;
+  if (amPass && pdfAkt.passMass && mass !== pdfAkt.passMass) pdfZeichnen(pdfAkt.passArt || true);
+}
 
 /* Nach dem Ausfüllen in die Blattmitte rollen: Wer öffnet, will die
    Zeichnung sehen, nicht den linken Rand. Das Rollen löst das Nachzeichnen
@@ -7815,6 +7835,13 @@ function pdfSchirmGedreht() {
 window.addEventListener('resize', function () {
   if (typeof pdfSchirmGedreht === 'function') pdfSchirmGedreht();
 });
+/* iOS meldet das Ein- und Ausfahren der Browserleiste zuverlässiger über
+   den sichtbaren Ausschnitt als über „resize". */
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function () {
+    if (typeof pdfSchirmGedreht === 'function') pdfSchirmGedreht();
+  });
+}
 
 function pdfSchliessen() {
   if (pdfAkt.doc && pdfAkt.doc.destroy) { try { pdfAkt.doc.destroy(); } catch (e) {} }
