@@ -1474,7 +1474,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.35.1';
+var VERSION = '0.36.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6465,9 +6465,19 @@ function spannHtml() {
     var mitVersatz = g.zeilen.some(function (z) { return !!z.feld.versatz; });
     var nach = g.zeilen[0].nachMast;
 
+    /* Das Blatt des Auftraggebers dazu, wenn es am Mast liegt: Wer den
+       Zahlen der App nicht traut, sieht das Original. */
+    var blatt = null, quelle = String(t.quelle || t.id || '').toLowerCase();
+    (akte.dokumente || []).forEach(function (d) {
+      if (blatt) return;
+      if (d.kategorie === 'spanntabelle' && (String(d.dateiname || '').toLowerCase() === quelle ||
+          d.id === 'spann-' + quelle)) blatt = d;
+    });
     raus += '<div class="spanngruppe">' +
       '<div class="spannkopf"><b>' + esc(t.zustand || 'Spanntabelle') + '</b>' +
-        '<span>Feld ' + esc(akte.mast.nr) + ' → ' + esc(mastHier(nach)) + '</span></div>' +
+        '<span>Feld ' + esc(akte.mast.nr) + ' → ' + esc(mastHier(nach)) + '</span>' +
+        (blatt ? '<button class="chip" onclick="planOeffnen(&#39;' + esc(blatt.id) + '&#39;)">Blatt (PDF)</button>' : '') +
+      '</div>' +
       '<div class="spannwarn">Die Werte gelten für das Spannfeld <b>ab diesem Mast</b> ' +
         'bis Mast ' + esc(mastHier(nach)) + ' — nicht für den Mast selbst.</div>' +
       '<div class="spanntab"><table><thead><tr>' +
@@ -6492,15 +6502,11 @@ function spannHtml() {
           '<td>' + zahl2(z.feld.spannweite) + '</td></tr>';
       }).join('') +
       '</tbody></table></div>' +
-      '<div class="spannfuss"><b>Seil antippen</b>, um den gemessenen Wert einzutragen — ' +
-        'der Sollwert kommt dann aus dieser Zeile.<br>' +
-        'Durchhang und Spannweite in m · Zug in N/mm²' +
+      '<div class="spannfuss">Durchhang und Spannweite in m · Zug in N/mm²' +
         (mitVersatz ? ' · Versatzmaß in m' : '') + '<br>' +
         esc(t.leitung || '') + (t.abschnitt ? ' · ' + esc(t.abschnitt) : '') + '<br>' +
-        'Quelle: ' + esc(t.quelle || 'Spanntabelle') +
-        (t.ausgabedatum ? ' · ' + esc(t.ausgabedatum) : '') +
-        (t.ueberziehungsfaktor ? ' · Überziehungsfaktor ' + esc(t.ueberziehungsfaktor) : '') +
-        '</div></div>';
+        'Quelle: ' + esc(t.quelle || 'Spanntabelle') + (t.ausgabedatum ? ' · ' + esc(t.ausgabedatum) : '') + '</div>' +
+      '</div>';
   });
 
   raus += '<div class="hint">Zwischenwerte rechnet die App nicht aus. Die Tabelle nennt ' +
@@ -6532,8 +6538,16 @@ function spannDateiGewaehlt(ev) {
 
 /* PDFs der Spanntabellen: lesen und in dieselbe Vorschau stellen wie eine
    JSON. Was nicht lesbar ist, steht mit Grund dabei und wird nicht geraten. */
+/* „Spanntabellen hätte ich gerne auch als PDF drin." Die Werte allein
+   reichen nicht — das Blatt selbst gehört an den Mast, so wie es der
+   Auftraggeber ausgegeben hat. Gemerkt wird, welche Datei zu welcher
+   Tabelle gehört; beim Übernehmen geht die Datei mit. */
+var spannPdfDateien = {};
+
 function spannPdfsUebernehmenVorschau(pdfs) {
   renderSpannVerwaltung('Spanntabellen werden gelesen … (' + pdfs.length + ' PDF)');
+  spannPdfDateien = {};
+  [].slice.call(pdfs).forEach(function (f) { spannPdfDateien[f.name] = f; });
   spannPdfLesen(pdfs).then(function (r) {
     if (!r.tabellen.length) { spannImport = null; renderSpannVerwaltung('Keine Spanntabelle lesbar: ' + r.fehler.join(' · ')); return; }
     var p = SpieSpann.pruefen({ art: 'spanntabellen', version: SpieSpann.VERSION, tabellen: r.tabellen });
@@ -6541,6 +6555,13 @@ function spannPdfsUebernehmenVorschau(pdfs) {
     var hinweis = r.fehler.length ? 'Nicht lesbar: ' + r.fehler.join(' · ') : '';
     renderSpannVerwaltung(p.ok ? hinweis : (p.fehler + (hinweis ? ' · ' + hinweis : '')));
   });
+}
+
+function spannBlattEintrag(baustelle, von, datei) {
+  var m = mastFinden(von);
+  return { id: 'spann-' + String(datei.name).toLowerCase(), baustelle: baustelle,
+           mastSchluessel: m ? m.key : D.mastSchluessel(von), kategorie: 'spanntabelle',
+           dateiname: datei.name, art: 'pdf' };
 }
 
 function spannUebernehmen() {
@@ -6551,16 +6572,38 @@ function spannUebernehmen() {
      Ansage als ein Knopf, der nichts tut. */
   if (!spannBereit()) { renderSpannVerwaltung(SPANN_NICHT_BEREIT); return; }
   var b = aktiveBaustelle();
+  var blaetter = 0;
   Promise.all(spannImport.tabellen.map(function (t) { return S.spannSetzen(b, t); }))
     .then(function () {
-      spannImport = null;
+      /* Das Blatt dazu, am Mast, an dem das Feld beginnt. Feste Kennung aus
+         dem Dateinamen: Wer dieselbe Tabelle noch einmal einliest, ersetzt
+         das Blatt, statt es zu verdoppeln. */
+      var k = Promise.resolve();
+      spannImport.tabellen.forEach(function (t) {
+        var f = spannPdfDateien[t.quelle] || spannPdfDateien[t.id];
+        if (!f) return;
+        k = k.then(function () {
+          return S.dokAblegen(spannBlattEintrag(b, t.von, f), f).then(function () { blaetter++; }, function () { return null; });
+        });
+      });
+      return k;
+    })
+    .then(function () {
+      spannImport = null; spannPdfDateien = {};
       return spannLaden();
     })
+    .then(function () { return blaetter ? dokumenteLaden() : null; })
     .then(function () {
       renderSpannVerwaltung();
       renderUebersicht();
-      if (akte.key) { akte.spannTemp = akte.spannTemp || 10; renderMastakte(); }
-      toast('Spanntabellen übernommen');
+      if (blaetter) dokListeZeichnen();
+      if (akte.key) {
+        akte.spannTemp = akte.spannTemp || 10;
+        return S.dokVonMast(b, akte.key).then(function (l) { akte.dokumente = l; renderMastakte(); });
+      }
+    })
+    .then(function () {
+      toast('Spanntabellen übernommen' + (blaetter ? ' · ' + blaetter + ' Blatt' + (blaetter === 1 ? '' : 'ätter') + ' abgelegt' : ''));
     })
     .catch(function (e) { renderSpannVerwaltung('Nicht gespeichert: ' + (e && e.message || e)); });
 }
@@ -7349,6 +7392,7 @@ function dokImportAusfuehren() {
   reihen.forEach(function (r) {
     kette = kette.then(function () {
       return S.dokAblegen({
+        id: r.kategorie === 'spanntabelle' ? 'spann-' + String(r.datei.name).toLowerCase() : undefined,
         baustelle: baustelle,
         mastSchluessel: D.mastSchluessel(r.mast),
         kategorie: r.kategorie || 'sonstiges',
