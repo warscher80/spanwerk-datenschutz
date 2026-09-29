@@ -933,11 +933,12 @@
       <h3>Pläne hochladen</h3>
       <div class="dropzone" id="dropZone"
            ondragover="dropUeber(event)" ondragleave="dropWeg(event)" ondrop="dropAbgelegt(event)">
-        <div class="droptext"><b>Pläne, einen Ordner oder ein ZIP hierher ziehen</b><br>
-          <span class="hint">PDF, JPG, JPEG, PNG · Ordner und ZIP werden samt Unterordnern gelesen</span></div>
+        <div class="droptext"><b>Den ganzen Baustellenordner hierher ziehen</b> (oder einzelne Dateien, oder ein ZIP)<br>
+          <span class="hint">Die App sortiert selbst nach Mastnummer: Pläne und Spanntabellen nach dem
+          Schriftfeld, Fotos nach Datei- und Ordnername, die Karte (KML) über „Punkte laden".
+          Word, Excel und anderes landet unter „Sonstiges". Nichts wird ohne Vorschau gespeichert.</span></div>
         <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
-        <input id="dokDatei" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.zip,application/pdf,image/jpeg,image/png,application/zip"
-               style="display:none" onchange="dateienGewaehlt(event)">
+        <input id="dokDatei" type="file" multiple style="display:none" onchange="dateienGewaehlt(event)">
       </div>
     </div>
     <div class="card">
@@ -1474,7 +1475,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.36.0';
+var VERSION = '0.37.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -4741,7 +4742,11 @@ function importBestaetigen() {
       if (plan.offen) planDraw();
     }
     persistPoints();
+    /* Pläne, die schon vor der Karte abgelegt wurden, hängen jetzt an die
+       Masten der Karte um. */
+    dokumenteNachschluesseln();
     var wartende = nichtBestaetigte().length;
+    var naechsteKarte = karteAusDateiRest.length ? karteAusDateiRest[0] : null;
     openOv(
       '<h2>Import fertig</h2>' +
       '<div class="vzeile"><b>' + eingehend.length + '</b> Punkte übernommen ' +
@@ -4755,15 +4760,22 @@ function importBestaetigen() {
          „57 Datensätze, 0 geprüfte" liest, sucht sonst erst im Reiter Info
          nach dem Knopf. Die Bestätigung selbst bleibt ein eigener, bewusster
          Schritt mit derselben Nachfrage — nur der Weg dorthin ist kürzer. */
+      (naechsteKarte
+        ? '<div class="hint" style="margin:8px 0">Noch eine Karte aus dem Ordner: ' + esc(naechsteKarte.name) + '</div>' : '') +
       (wartende
         ? '<div class="warnbox" style="margin:10px 0"><b>' + wartende + ' Punkte warten auf ' +
           'die Bestätigung.</b> Bis dahin stehen sie nur in der Liste und werden für ' +
           'Rettungspunkt, Mast, Lageplan und Meldung <b>nicht</b> verwendet.</div>' +
           '<div class="btnrow">' +
             '<button class="btn ghost" onclick="closeOv()">Später</button>' +
+            (naechsteKarte
+              ? '<button class="btn" onclick="karteAusDateiLaden(karteAusDateiRest[0], karteAusDateiRest.slice(1))">Nächste Karte</button>' : '') +
             '<button class="btn primary" onclick="bestaetigenFragen()">Gegen den Aushang bestätigen</button>' +
           '</div>'
-        : '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>')
+        : '<div class="btnrow">' +
+            (naechsteKarte
+              ? '<button class="btn" onclick="karteAusDateiLaden(karteAusDateiRest[0], karteAusDateiRest.slice(1))">Nächste Karte</button>' : '') +
+            '<button class="btn primary" onclick="closeOv()">Fertig</button></div>')
     );
   } catch (e) {
     var sicherung = load(K_SICHERUNG, null);
@@ -6860,7 +6872,7 @@ function dokListeZeichnen() {
   var q = (($('dokSuche') || {}).value || '').trim().toLowerCase();
   var liste = dokAlle.filter(function (d) {
     if (!q) return true;
-    return (d.mastSchluessel + ' ' + D.kategorieName(d.kategorie) + ' ' + d.dateiname)
+    return (d.mastSchluessel + ' ' + dokMastTitel(d) + ' ' + D.kategorieName(d.kategorie) + ' ' + d.dateiname)
       .toLowerCase().indexOf(q) >= 0;
   });
   if (!liste.length) {
@@ -6878,7 +6890,7 @@ function dokListeZeichnen() {
   box.innerHTML = liste.slice(0, 200).map(function (d) {
     var jetzt = D.istAktuell(d, proMast[d.mastSchluessel] || []);
     return '<div class="dokzeile"><div class="dokinfo">' +
-      '<div class="doktitel">Mast ' + esc(mastAnzeige(d.mastSchluessel)) + ' · ' +
+      '<div class="doktitel">' + esc(dokMastTitel(d)) + ' · ' +
         esc(D.kategorieName(d.kategorie)) + '</div>' +
       '<div class="doksub">' +
         '<span class="rev ' + (jetzt ? 'jetzt' : 'alt') + '">' + (jetzt ? 'AKTUELL' : 'ERSETZT') +
@@ -6934,7 +6946,14 @@ var ORDNER_MAX = 2000;   // Notbremse gegen einen versehentlich abgelegten Syste
 function ordnerLesen(eintraege) {
   var raus = [];
   function datei(e) {
-    return new Promise(function (ok) { e.file(function (f) { raus.push(f); ok(); }, function () { ok(); }); });
+    return new Promise(function (ok) {
+      e.file(function (f) {
+        /* Der Ordnerpfad bleibt an der Datei: „Mast 18/Fundament.pdf" sagt,
+           wohin das Blatt gehört, auch wenn der Dateiname es nicht sagt. */
+        try { f.spiePfad = e.fullPath || f.name; } catch (x) { /* schreibgeschützt: dann ohne */ }
+        raus.push(f); ok();
+      }, function () { ok(); });
+    });
   }
   function ordner(e) {
     var leser = e.createReader();
@@ -7047,54 +7066,125 @@ function zipEntpackenZuDateien(z) {
     eintraege.forEach(function (e) {
       if (!e.name || /\/$/.test(e.name) || /(^|\/)__MACOSX\//.test(e.name) || /(^|\/)\.[^\/]*$/.test(e.name)) return;
       var name = e.name.split('/').pop();
-      if (!D.istErlaubt(name, '')) return;
+      if (!D.istErlaubt(name, '')) return;                 // Thumbs.db & Co.
       var typ = D.mimeFuer(name, '');
-      try { dateien.push(new File([e.daten], name, { type: typ })); } catch (x) { /* alter Browser: überspringen */ }
+      try {
+        var f = new File([e.daten], name, { type: typ });
+        try { f.spiePfad = e.name; } catch (x) { /* ohne Pfad */ }
+        dateien.push(f);
+      } catch (x) { /* alter Browser: überspringen */ }
     });
     return { dateien: dateien, hinweis: 'aus „' + z.name + '" entpackt: ' + dateien.length + ' ' +
              (dateien.length === 1 ? 'Datei' : 'Dateien') };
   });
 }
 
+/* „Ich lege den Ordner komplett ab, und du musst dich zurechtfinden:
+   Mastnummern suchen, dementsprechend einordnen und den Monteuren zur
+   Verfügung stellen."
+
+   Also wird hier nichts mehr abgewiesen, was ein Mensch in einen
+   Baustellenordner legt. Sortiert wird in dieser Reihenfolge:
+
+     1. Karte (KML/KMZ/GeoJSON) — das sind Punkte und Wege, keine Dokumente.
+        Sie gehen NACH den Dokumenten den gewohnten Weg über „Punkte laden",
+        mit Vorschau und Bestätigung gegen den Aushang. Ohne diesen Schritt
+        kommt kein Rettungspunkt in die App.
+     2. Der Mast: aus dem Dateinamen, sonst aus dem Ordnernamen (vermutet),
+        und bei PDF gleich danach aus dem Schriftfeld (das zählt mehr).
+     3. Die Art: aus Dateiname, Ordnername, Schriftfeld; Bilder sind Fotos;
+        Office-Dateien sind „Sonstiges".
+
+   Was am Ende keinen Mast hat, bleibt nicht liegen: Es wird unter
+   „Baustelle allgemein" abgelegt und ist so trotzdem am Handy. Nichts wird
+   still gespeichert — die Vorschau zeigt alles, und der Mensch drückt. */
 function dateienVerarbeiten(liste, mastVorgabe, hinweise) {
   if (!liste.length && hinweise.length) {
     openOv('<h2>Nichts zu übernehmen</h2><div class="psub">' + hinweise.map(esc).join('<br>') + '</div>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
     return;
   }
-  var abgelehnt = liste.filter(function (f) { return !D.istErlaubt(f.name, f.type); });
-  var gut = liste.filter(function (f) { return D.istErlaubt(f.name, f.type); });
+  var abgelehnt = [], karten = [], gut = [];
+  liste.forEach(function (f) {
+    var art = D.dateiArt(f.name, f.type);
+    if (!art) abgelehnt.push(f);
+    else if (art === 'karte') karten.push(f);
+    else gut.push(f);
+  });
 
   dokImport = {
     hinweise: hinweise || [],
     abgelehnt: abgelehnt,
+    karten: karten,
     reihen: gut.map(function (f) {
       var v = D.dateiAuswerten(f.name);
+      var art = D.dateiArt(f.name, f.type);
+      var quelle = '';
+      /* Der Ordner, in dem die Datei lag, ist der zweite Hinweis. */
+      var pf = D.pfadAuswerten(f.spiePfad || '');
+      if (!v.mastNr && pf.mastNr) {
+        v.mastNr = pf.mastNr; v.sicherheit.mastNr = 'vermutet';
+        quelle = 'Mast aus dem Ordner „' + pf.ordner + '"';
+      }
+      if (!v.kategorie && pf.kategorie) { v.kategorie = pf.kategorie; v.sicherheit.kategorie = 'vermutet'; }
+      if (!v.kategorie && art === 'datei') { v.kategorie = 'sonstiges'; v.sicherheit.kategorie = 'vermutet'; }
       /* In der Vorschau steht die Schreibweise der Baustelle, nicht der
          vereinheitlichte Schlüssel: Wer „2409/P001" kontrolliert, soll nicht
          „2409/P1" gegenlesen müssen. */
       var gefunden = v.mastNr ? mastFinden(v.mastNr) : null;
       return {
         datei: f,
+        art: art,
         vorschlag: v,
         mast: mastVorgabe || (gefunden ? gefunden.nr : (v.mastNr || '')),
         mastSicher: mastVorgabe ? 'sicher' : v.sicherheit.mastNr,
         kategorie: v.kategorie || '',
         revision: v.revision || '',
-        datum: v.datum || ''
+        datum: v.datum || '',
+        quelle: quelle
       };
     })
   };
-  if (!dokImport.reihen.length) {
+  if (!dokImport.reihen.length && !karten.length) {
     openOv('<h2>Keine passenden Dateien</h2>' +
-      '<p>Übernommen werden PDF, JPG, JPEG und PNG. Abgelehnt wurden:</p>' +
+      '<p>Das waren nur Systemdateien (Thumbs.db, desktop.ini, .DS_Store …):</p>' +
       '<div class="psub">' + abgelehnt.map(function (f) { return esc(f.name); }).join('<br>') + '</div>' +
       '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
     dokImport = null;
     return;
   }
+  if (!dokImport.reihen.length) {
+    /* Nur eine Karte im Ordner: direkt zu „Punkte laden". */
+    var k = karten; dokImport = null;
+    karteAusDateiLaden(k[0], k.slice(1));
+    return;
+  }
   dokImportVorschau();
   schriftfelderLesen(dokImport);
+}
+
+/* Die Zusammenfassung über der Tabelle: Was wurde gefunden, was ist noch
+   offen. Sie wird nach jedem gelesenen Schriftfeld nachgezogen. */
+function dokImportSumme(imp) {
+  if (!imp) return '';
+  var z = { plan: 0, spann: 0, foto: 0, sonst: 0, ohne: 0 };
+  imp.reihen.forEach(function (r) {
+    if (r.kategorie === 'spanntabelle') z.spann++;
+    else if (r.kategorie === 'foto' || (r.art === 'bild' && !r.kategorie)) z.foto++;
+    else if (r.art === 'pdf' && r.kategorie && r.kategorie !== 'sonstiges') z.plan++;
+    else z.sonst++;
+    if (!r.mast) z.ohne++;
+  });
+  var t = [];
+  if (z.plan) t.push(z.plan + (z.plan === 1 ? ' Plan' : ' Pläne'));
+  if (z.spann) t.push(z.spann + (z.spann === 1 ? ' Spanntabelle' : ' Spanntabellen'));
+  if (z.foto) t.push(z.foto + (z.foto === 1 ? ' Foto' : ' Fotos'));
+  if (z.sonst) t.push(z.sonst + (z.sonst === 1 ? ' sonstige Datei' : ' sonstige Dateien'));
+  if ((imp.karten || []).length) t.push((imp.karten.length === 1 ? 'Karte: ' : 'Karten: ') +
+    imp.karten.map(function (f) { return f.name; }).join(', '));
+  var text = 'Gefunden: ' + t.join(' · ');
+  if (z.ohne) text += ' — <b>' + z.ohne + (z.ohne === 1 ? ' Datei' : ' Dateien') + ' ohne Mast</b> → „Baustelle allgemein"';
+  return text;
 }
 
 /* ---------- Das Schriftfeld lesen ----------
@@ -7150,7 +7240,8 @@ function schriftfelderLesen(imp) {
       }).then(function (tc) {
         schriftfeldEintragen(imp, r, D.schriftfeldAusItems(tc.items));
       }).catch(function (e) {
-        r.quelle = 'Plan nicht lesbar';
+        /* Was Datei- oder Ordnername hergaben, bleibt stehen. */
+        r.quelle = (r.quelle ? r.quelle + ' · ' : '') + 'Schriftfeld nicht lesbar';
       }).then(function () {
         imp.schriftfeld.offen--;
         if (dokImport === imp) { schriftfeldReiheZeigen(imp, r); schriftfeldStand(imp); }
@@ -7213,7 +7304,11 @@ function spannPdfLesen(dateien) {
 }
 
 function schriftfeldEintragen(imp, r, sf) {
-  if (!sf.hatText) { r.quelle = 'kein Text im Plan (gescannt) — Mast bitte von Hand'; return; }
+  if (!sf.hatText) {
+    r.quelle = 'kein Text im Plan (gescannt)' +
+      (r.quelle ? ' · ' + r.quelle : (r.mast ? '' : ' — Mast bitte von Hand'));
+    return;
+  }
   var teile = [];
   if (sf.mast) {
     var voll = (sf.leitung && !sf.mastVoll) ? sf.leitung + '/' + sf.mast : sf.mast;
@@ -7245,6 +7340,7 @@ function schriftfeldReiheZeigen(imp, r) {
   if (offen) offen.innerHTML = o.length ? ' · <b style="color:var(--warn)">' + esc(o.join(', ')) + '</b>' : '';
   var tr = mast && mast.closest ? mast.closest('tr') : null;
   if (tr) tr.classList.toggle('offen', o.length > 0);
+  var su = $('impSumme'); if (su) su.innerHTML = dokImportSumme(imp);
 }
 
 function schriftfeldStand(imp) {
@@ -7288,9 +7384,16 @@ function dokImportVorschau() {
 
   openOv(
     '<h2>' + dokImport.reihen.length + ' Dateien übernehmen</h2>' +
-    '<p>Was hier steht, ist aus den <b>Dateinamen</b> und dem <b>Schriftfeld der Pläne</b> ' +
-    'gelesen — ein Vorschlag, keine Tatsache. Bitte kontrollieren und wo nötig ändern.</p>' +
+    '<p>Was hier steht, ist aus den <b>Dateinamen</b>, den <b>Ordnernamen</b> und dem ' +
+    '<b>Schriftfeld der Pläne</b> gelesen — ein Vorschlag, keine Tatsache. Bitte kontrollieren ' +
+    'und wo nötig ändern. Was keinen Mast bekommt, landet unter „Baustelle allgemein".</p>' +
+    '<div class="hint" id="impSumme" style="margin-bottom:6px">' + dokImportSumme(dokImport) + '</div>' +
     '<div class="hint" id="impSchriftfeld" style="margin-bottom:8px"></div>' +
+    ((dokImport.karten || []).length
+      ? '<div class="hint" style="margin-bottom:10px"><b>Karte im Ordner:</b> ' +
+        esc(dokImport.karten.map(function (f) { return f.name; }).join(', ')) +
+        '. Punkte und Wege daraus kommen nach dem Ablegen der Dokumente dran — mit ' +
+        'Vorschau und Bestätigung gegen den Aushang; vorher gilt kein Punkt.</div>' : '') +
     (dokImport.sperre
       ? '<div class="warnbox" id="impSperre" style="margin-bottom:10px"><b>Noch nicht importiert.</b> ' +
         esc(dokImport.sperre) + '</div>' : '') +
@@ -7299,7 +7402,9 @@ function dokImportVorschau() {
         'unvollständig oder nur vermutet</b> — sie sind gelb hinterlegt.</div>' : '') +
     (dokImport.abgelehnt.length
       ? '<div class="hint" style="margin-bottom:10px">' + dokImport.abgelehnt.length +
-        ' Dateien übersprungen (kein PDF/JPG/PNG).</div>' : '') +
+        (dokImport.abgelehnt.length === 1 ? ' Systemdatei übersprungen (' : ' Systemdateien übersprungen (') +
+        esc(dokImport.abgelehnt.slice(0, 4).map(function (f) { return f.name; }).join(', ')) +
+        (dokImport.abgelehnt.length > 4 ? ' …' : '') + ').</div>' : '') +
     ((dokImport.hinweise || []).length
       ? '<div class="hint" style="margin-bottom:10px">' + dokImport.hinweise.map(esc).join('<br>') + '</div>' : '') +
     '<datalist id="mastVorschlaege">' +
@@ -7316,7 +7421,7 @@ function dokImportVorschau() {
 
 function dokReiheOffen(r) {
   var offen = [];
-  if (!r.mast) offen.push('Mast fehlt');
+  if (!r.mast) offen.push('ohne Mast → Baustelle allgemein');
   else if (r.mastSicher !== 'sicher') offen.push('Mast nur vermutet');
   else if (!mastFinden(r.mast)) offen.push('Mast nicht in dieser Baustelle');
   if (!r.kategorie) offen.push('Art fehlt');
@@ -7336,6 +7441,7 @@ function dokReiheSetzen(i) {
   /* Revision und Datum stehen nicht mehr in der Vorschau („nicht relevant").
      Was Dateiname oder Schriftfeld hergeben, bleibt im Hintergrund gesetzt. */
   dokImport.sperre = '';
+  var su = $('impSumme'); if (su) su.innerHTML = dokImportSumme(dokImport);
 }
 
 function dokReiheWeg(i) {
@@ -7354,20 +7460,13 @@ function dokImportAusfuehren() {
   if (!darfAendern('Pläne abzulegen')) return;
   if (!dokImport) return;
   dokImport.reihen.forEach(function (r, i) { if ($('impMast' + i)) dokReiheSetzen(i); });
-  var ohneMast = dokImport.reihen.filter(function (r) { return !r.mast; });
-  if (ohneMast.length) {
-    /* „Wenn ich auf Importieren drücke, passiert nichts." Es passierte eine
-       Meldung, drei Sekunden lang, unten am Rand. Jetzt steht es im Fenster
-       selbst, mit den Dateinamen, und die Zeilen sind markiert. */
-    dokImport.sperre = ohneMast.length + (ohneMast.length === 1 ? ' Datei hat' : ' Dateien haben') +
-      ' noch keinen Mast: ' + ohneMast.map(function (r) { return r.datei.name; }).join(', ') +
-      '. Bitte in der Spalte „Mast" eintragen — oder die Zeile mit „×" weglassen.';
-    dokImportVorschau();
-    var e = $('impSperre'); if (e) e.scrollIntoView({ block: 'nearest' });
-    return;
-  }
+  /* Dateien ohne Mast blockieren nicht mehr („Wenn ich auf Importieren
+     drücke, passiert nichts"). Sie landen unter „Baustelle allgemein" —
+     sichtbar im Reiter Dokumente, und die Vorschau hat es angesagt. */
+  var ohneMast = dokImport.reihen.filter(function (r) { return !r.mast; }).length;
   var baustelle = aktiveBaustelle();
   var reihen = dokImport.reihen.slice();
+  var karten = (dokImport.karten || []).slice();
   var fertig = 0, fehler = [];
 
   openOv('<h2>Wird abgelegt …</h2><p id="impFortschritt">0 von ' + reihen.length + '</p>');
@@ -7391,10 +7490,15 @@ function dokImportAusfuehren() {
     });
   reihen.forEach(function (r) {
     kette = kette.then(function () {
+      /* Abgelegt wird unter dem Schlüssel DIESER Baustelle: „4236/18" aus
+         dem Schriftfeld ist der Mast „18" der Karte. Ist die Karte noch
+         nicht da, bleibt die lange Schreibweise — und wird nachgezogen,
+         sobald die Karte geladen ist (dokumenteNachschluesseln). */
+      var mastDa = r.mast ? mastFinden(r.mast) : null;
       return S.dokAblegen({
         id: r.kategorie === 'spanntabelle' ? 'spann-' + String(r.datei.name).toLowerCase() : undefined,
         baustelle: baustelle,
-        mastSchluessel: D.mastSchluessel(r.mast),
+        mastSchluessel: mastDa ? mastDa.key : D.mastSchluessel(r.mast),
         kategorie: r.kategorie || 'sonstiges',
         revision: r.revision,
         datum: r.datum,
@@ -7420,6 +7524,7 @@ function dokImportAusfuehren() {
   }).then(function () {
     openOv('<h2>Import fertig</h2>' +
       '<div class="vzeile"><b style="color:var(--ok)">' + fertig + '</b> Dokumente abgelegt</div>' +
+      (ohneMast ? '<div class="vzeile"><b>' + ohneMast + '</b> davon ohne Mast → „Baustelle allgemein" (Reiter Dokumente)</div>' : '') +
       (spannErgebnis.ok ? '<div class="vzeile"><b style="color:var(--ok)">' + spannErgebnis.ok + '</b> Spanntabellen mit Werten übernommen</div>' : '') +
       (spannErgebnis.fehler.length ? '<div class="warnbox" style="margin:8px 0">Spanntabellen-Werte nicht lesbar (nur die Datei ist abgelegt): ' +
         esc(spannErgebnis.fehler.join(' · ')) + '</div>' : '') +
@@ -7427,11 +7532,94 @@ function dokImportAusfuehren() {
         ? '<div class="vzeile"><b style="color:var(--bad)">' + fehler.length + '</b> fehlgeschlagen</div>' +
           '<div class="psub">' + fehler.slice(0, 5).map(esc).join('<br>') + '</div>'
         : '') +
-      '<p class="fineprint">Die Dateien liegen in <b>diesem</b> Gerät. Von allein wandern sie ' +
-      'nicht weiter — dafür fehlt eine gemeinsame Ablage. Aufs Handy kommen sie über ' +
-      '<b>Baustellenpaket bauen</b>: Das ZIP enthält die Pläne selbst, nicht nur ihre Namen.</p>' +
-      '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>');
+      '<p class="fineprint">Die Dateien liegen in <b>diesem</b> Gerät. Aufs Handy kommen sie mit ' +
+      '<b>„An die Handys senden"</b> im Reiter Verwaltung' +
+      (karten.length ? ' — am besten, nachdem die Karte geladen ist.' : '.') + '</p>' +
+      (karten.length
+        ? '<div class="warnbox" style="margin:8px 0"><b>Karte im Ordner: ' + esc(karten[0].name) + '</b>' +
+          (karten.length > 1 ? ' (und ' + (karten.length - 1) + ' weitere)' : '') +
+          '. Punkte und Wege daraus sind noch nicht geladen. Die Vorschau zeigt sie, bestätigt ' +
+          'wird gegen den Aushang.</div>' +
+          '<div class="btnrow"><button class="btn ghost" onclick="closeOv()">Später</button>' +
+          '<button class="btn primary" id="impKarteWeiter" onclick="karteAusDateiLaden(dokImportKarten[0], dokImportKarten.slice(1))">' +
+          'Weiter: Karte laden</button></div>'
+        : '<div class="btnrow"><button class="btn primary" onclick="closeOv()">Fertig</button></div>'));
+    dokImportKarten = karten;
   });
+}
+
+/* Die Karten aus dem letzten Ordner-Import — für den Knopf „Weiter: Karte laden". */
+var dokImportKarten = [];
+
+/* Eine Karte aus dem Ordner (KML, KMZ, GeoJSON) auf den gewohnten Weg
+   bringen: „Punkte laden" mit Vorschau. Kein Punkt wird hier gespeichert —
+   das tut erst importBestaetigen, und geprüft ist erst, was jemand gegen
+   den Aushang bestätigt hat. Mehrere Karten kommen nacheinander dran. */
+function karteAusDateiLaden(datei, weitere) {
+  if (!datei) return;
+  if (!darfAendern('Punkte zu importieren')) return;
+  var text = /\.kmz$/i.test(datei.name) && PK && PK.zipLesen
+    ? PK.zipLesen(datei).then(function (eintraege) {
+        var kml = eintraege.filter(function (e) { return /\.kml$/i.test(e.name); })[0];
+        if (!kml) throw new Error('Im KMZ steckt keine KML-Datei');
+        return new TextDecoder('utf-8').decode(kml.daten);
+      })
+    : datei.text();
+  text.then(function (txt) {
+    openImport();
+    var f = $('fPaste'); if (f) f.value = txt;
+    var link = $('fLink'); if (link) link.placeholder = 'Karte aus dem Ordner: ' + datei.name;
+    karteAusDateiRest = (weitere || []).slice();
+    runImport();
+  }).catch(function (e) {
+    openOv('<h2>Karte nicht lesbar</h2><p>„' + esc(datei.name) + '": ' + esc(String(e && e.message || e)) +
+      '</p><div class="btnrow"><button class="btn primary" onclick="closeOv()">Schließen</button></div>');
+  });
+}
+var karteAusDateiRest = [];
+
+/* Die Karte ist da (oder war schon da) — jetzt die Dokumente nachziehen,
+   die unter „4236/18" liegen, während die Karte den Mast „18" nennt.
+   Ohne diesen Schritt hinge der Plan an einer Nummer, die es in dieser
+   Baustelle nicht gibt, und tauchte in keiner Mastakte auf. */
+function dokumenteNachschluesseln() {
+  if (!S || !S.verfuegbar()) return Promise.resolve(0);
+  var b = aktiveBaustelle();
+  return S.dokVonBaustelle(b).then(function (liste) {
+    var k = Promise.resolve(), n = 0;
+    (liste || []).forEach(function (d) {
+      if (!d.mastSchluessel) return;
+      var m = mastFinden(d.mastSchluessel);
+      if (!m || m.key === d.mastSchluessel) return;
+      k = k.then(function () {
+        return S.dokAendern(d.id, { mastSchluessel: m.key }).then(function () { n++; }, function () {});
+      });
+    });
+    return k.then(function () {
+      if (!n) return 0;
+      return dokumenteLaden().then(function () { dokListeZeichnen(); renderUebersicht(); return n; });
+    });
+  }).catch(function () { return 0; });
+}
+
+/* Überschrift eines Dokuments: der Mast in der Schreibweise der Baustelle,
+   oder „Baustelle allgemein", wenn keiner zugeordnet ist. */
+function dokMastTitel(d) {
+  if (!d || !d.mastSchluessel) return 'Baustelle allgemein';
+  var t = mastTitel(mastAnzeige(d.mastSchluessel));
+  return mastFinden(d.mastSchluessel) ? t : t + ' (nicht in der Karte)';
+}
+
+/* Eine Datei, die die App nicht selbst zeigt (Word, Excel, DWG …), dem
+   Gerät übergeben: Am PC ein Download, am Handy die Teilen-/Öffnen-Ansicht. */
+function dateiWeitergeben(datei, name) {
+  var url = URL.createObjectURL(datei);
+  var a = document.createElement('a');
+  a.href = url; a.download = name || 'datei'; a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+  toast('Wird mit dem Programm des Geräts geöffnet');
 }
 
 function dokWegFragen(id) {
@@ -7903,12 +8091,16 @@ function planOeffnen(id) {
 
   S.dateiHolen(id).then(function (datei) {
     if (!datei) { toast('Datei fehlt in der Ablage'); return; }
-    planFreigeben();
-    plan2.id = id; plan2.zoom = 1; plan2.dreh = 0;
     /* Auch schon abgelegte Dateien ohne Typangabe werden hier gerettet —
        sonst müsste man sie neu importieren, um sie lesen zu können. */
     var typ = D.mimeFuer(d.dateiname, datei.type || d.mime);
     if (typ && datei.type !== typ) datei = new Blob([datei], { type: typ });
+    /* Word, Excel, DWG …: Die App zeigt das nicht selbst. Das Gerät soll es
+       mit seinem Programm öffnen — statt eines leeren Betrachters. */
+    var artVorab = d.art || D.dateiArt(d.dateiname, d.mime);
+    if (!D.zeigtSelbst(artVorab)) { dateiWeitergeben(datei, d.dateiname); return; }
+    planFreigeben();
+    plan2.id = id; plan2.zoom = 1; plan2.dreh = 0;
     plan2.datei = datei;
     plan2.url = URL.createObjectURL(datei);
 
@@ -7929,7 +8121,7 @@ function planOeffnen(id) {
       warn.className = ''; warn.innerHTML = '';
     }
 
-    $('planTitel').textContent = mastTitel(mastAnzeige(d.mastSchluessel)) + ' · ' + D.kategorieName(d.kategorie) +
+    $('planTitel').textContent = dokMastTitel(d) + ' · ' + D.kategorieName(d.kategorie) +
       (d.revision ? ' · Rev ' + d.revision : '');
 
     var bild = $('planBild');

@@ -247,7 +247,9 @@ var SpieDok = (function () {
        nur „2409" übrig — der Plan wäre an einem Mast gelandet, den es nicht
        gibt. */
     var lang = rest.match(/(^|[^A-Za-z0-9])(\d{3,4})[\/\-_]([A-Za-z]?\d{1,4}[A-Za-z]?)(?![A-Za-z0-9])/);
-    var mitWort = rest.match(/(?:mast|mst|m)[\s_.\-]*(\d{1,4})([A-Za-z]?)(?![A-Za-z0-9])/i);
+    /* Vor dem „M" darf kein Buchstabe stehen: „Blatzheim 3.pdf" ist kein
+       Mast 3 — das „m" gehört zum Ortsnamen. */
+    var mitWort = rest.match(/(?:^|[^A-Za-z])(?:mast|mst|m)[\s_.\-]*(\d{1,4})([A-Za-z]?)(?![A-Za-z0-9])/i);
     if (lang) {
       out.mastNr = mastSchluessel(lang[2] + '/' + lang[3]);
       out.sicherheit.mastNr = 'sicher';
@@ -259,7 +261,11 @@ var SpieDok = (function () {
     } else {
       /* Eine nackte Zahl bleibt ein Verdacht. Sie kann eine Blattnummer, eine
          laufende Nummer oder sonst etwas sein — der Mensch entscheidet. */
-      var nackt = rest.match(/(?:^|[\s_.\-])(\d{1,4})(?=$|[\s_.\-])/);
+      /* Nicht bei Kamera-Namen: „IMG_0001.jpg" ist das erste Bild der
+         Kamera, nicht Mast 1. Ein Foto ohne Mast landet unter „Baustelle
+         allgemein" — besser als an einem Mast, an dem es nichts zu suchen hat. */
+      var kamera = /^(img|dsc[nf]?|pxl|dcim|image|photo|foto|bild|pano|screenshot|whatsapp image|signal-)[_\- ]*\d/i.test(ohneEndung);
+      var nackt = kamera ? null : rest.match(/(?:^|[\s_.\-])(\d{1,4})(?=$|[\s_.\-])/);
       if (nackt) {
         out.mastNr = mastSchluessel(nackt[1]);
         out.sicherheit.mastNr = 'vermutet';
@@ -388,26 +394,55 @@ var SpieDok = (function () {
     return offen;
   }
 
-  /* ---------- Dateitypen ---------- */
+  /* ---------- Dateitypen ----------
+
+     „Ich lege den Ordner komplett ab, und du musst dich zurechtfinden." Also
+     scheitert hier keine Datei mehr an ihrer Endung. Vier Arten:
+
+       'pdf'   — Pläne, Spanntabellen, Protokolle: die App zeichnet sie selbst
+       'bild'  — Fotos: die App zeigt sie selbst
+       'karte' — KML, KMZ, GeoJSON: Punkte und Wege. Das ist kein Dokument,
+                 sondern die Karte der Baustelle; sie geht den Weg über
+                 „Punkte laden" — mit Vorschau und Bestätigung gegen den Aushang.
+       'datei' — alles andere (Word, Excel, DWG, Mails …): wird abgelegt und
+                 mitgeliefert, geöffnet mit dem Programm des Geräts.
+
+     Leer ('') bleibt nur der Abfall, den Windows und macOS in jeden Ordner
+     legen — Thumbs.db, desktop.ini, .DS_Store, Word-Sperrdateien (~$…). Der
+     soll weder in der Vorschau stehen noch aufs Handy wandern. */
   var ERLAUBT = [
-    { endung: 'pdf',  mime: 'application/pdf', art: 'pdf' },
-    { endung: 'jpg',  mime: 'image/jpeg',      art: 'bild' },
-    { endung: 'jpeg', mime: 'image/jpeg',      art: 'bild' },
-    { endung: 'png',  mime: 'image/png',       art: 'bild' }
+    { endung: 'pdf',     mime: 'application/pdf',                 art: 'pdf' },
+    { endung: 'jpg',     mime: 'image/jpeg',                      art: 'bild' },
+    { endung: 'jpeg',    mime: 'image/jpeg',                      art: 'bild' },
+    { endung: 'png',     mime: 'image/png',                       art: 'bild' },
+    { endung: 'gif',     mime: 'image/gif',                       art: 'bild' },
+    { endung: 'webp',    mime: 'image/webp',                      art: 'bild' },
+    { endung: 'kml',     mime: 'application/vnd.google-earth.kml+xml', art: 'karte' },
+    { endung: 'kmz',     mime: 'application/vnd.google-earth.kmz', art: 'karte' },
+    { endung: 'geojson', mime: 'application/geo+json',            art: 'karte' }
   ];
 
+  var ABFALL = /^(thumbs\.db|desktop\.ini|\.ds_store|\.directory|~\$.*|\._.*|.*\.(lnk|tmp|bak|ini|db|url|exe|dll|log|crdownload|part))$/i;
+
   function dateiArt(name, mime) {
-    var e = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    var n = String(name || '').toLowerCase().replace(/^.*[\/\\]/, '');
+    if (!n || ABFALL.test(n)) return '';
+    var e = n.match(/\.([a-z0-9]+)$/);
     var endung = e ? e[1] : '';
     for (var i = 0; i < ERLAUBT.length; i++) {
       if (ERLAUBT[i].endung === endung) return ERLAUBT[i].art;
     }
     if (/^image\//.test(mime || '')) return 'bild';
     if (mime === 'application/pdf') return 'pdf';
-    return '';
+    if (/kml|geo\+json/.test(mime || '')) return 'karte';
+    return 'datei';
   }
 
   function istErlaubt(name, mime) { return !!dateiArt(name, mime); }
+
+  /* Ist das ein Dokument, das die App selbst anzeigen kann? Alles andere
+     wird dem Gerät übergeben. */
+  function zeigtSelbst(art) { return art === 'pdf' || art === 'bild'; }
 
   /* Der Dateityp aus der Endung.
 
@@ -417,18 +452,51 @@ var SpieDok = (function () {
      Handy war der Plan nicht zu lesen. Die App verlässt sich deshalb nicht
      mehr darauf, dass der Typ mitgeliefert wird. */
   var TYPEN = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-                png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+                png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+                kml: 'application/vnd.google-earth.kml+xml',
+                kmz: 'application/vnd.google-earth.kmz',
+                geojson: 'application/geo+json', json: 'application/json',
+                txt: 'text/plain', csv: 'text/csv', xml: 'application/xml',
+                doc: 'application/msword',
+                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                xls: 'application/vnd.ms-excel',
+                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ppt: 'application/vnd.ms-powerpoint',
+                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                dwg: 'image/vnd.dwg', dxf: 'image/vnd.dxf',
+                msg: 'application/vnd.ms-outlook', eml: 'message/rfc822',
+                zip: 'application/zip' };
 
   function mimeFuer(name, mime) {
     if (mime && mime !== 'application/octet-stream') return mime;
     var e = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
-    return (e && TYPEN[e[1]]) || mime || '';
+    return (e && TYPEN[e[1]]) || mime || 'application/octet-stream';
+  }
+
+  /* ---------- Der Ordnername als Hinweis ----------
+     Ein SPIE-Ordner ist oft schon sortiert: „Mast 18/Fundament.pdf" oder
+     „Gründungspläne/4236-0018.pdf". Was der Dateiname nicht hergibt, gibt
+     vielleicht der Ordner her — vom innersten Ordner nach außen. Das bleibt
+     ein VERMUTETER Mast: Ein Ordner heißt schnell einmal „2022" oder
+     „Los 3", und das ist kein Mast. Das Schriftfeld des Plans zählt mehr. */
+  function pfadAuswerten(pfad) {
+    var teile = String(pfad || '').split(/[\/\\]/).filter(Boolean);
+    teile.pop();                                  // der Dateiname selbst
+    var out = { mastNr: '', kategorie: '', ordner: '' };
+    for (var i = teile.length - 1; i >= 0; i--) {
+      var v = dateiAuswerten(teile[i] + '.ordner');
+      if (!out.mastNr && v.mastNr && v.sicherheit.mastNr === 'sicher') { out.mastNr = v.mastNr; out.ordner = teile[i]; }
+      if (!out.kategorie && v.kategorie && v.sicherheit.kategorie === 'sicher') out.kategorie = v.kategorie;
+    }
+    return out;
   }
 
   return {
     KATEGORIEN: KATEGORIEN,
     GRUPPEN: GRUPPEN,
     ERLAUBT: ERLAUBT,
+    zeigtSelbst: zeigtSelbst,
+    pfadAuswerten: pfadAuswerten,
     alleKategorien: alleKategorien,
     kategorie: kategorie,
     kategorieName: kategorieName,
