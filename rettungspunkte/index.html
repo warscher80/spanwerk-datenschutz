@@ -754,6 +754,12 @@
   /* Am Telefon zieht niemand Dateien mit der Maus. Dort bleibt die Auswahl,
      der Ziehbereich verschwindet. */
   @media (pointer:coarse){ .droptext{display:none} .dropzone{border-style:solid;padding:14px} }
+  /* Wird etwas über das Fenster gezogen, sagt das ganze Fenster „hier
+     loslassen" — nicht nur das gestrichelte Feld, das man leicht verfehlt. */
+  body.ablageueber::after{content:'Loslassen: Ordner, Dateien oder ZIP werden abgelegt';
+    position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;background:rgba(226,0,26,.10);border:4px dashed var(--accent);
+    font-size:22px;font-weight:800;color:var(--fg);text-shadow:0 0 12px var(--bg)}
 
   .dokzeile{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
   .dokzeile:last-child{border-bottom:0}
@@ -937,7 +943,11 @@
           <span class="hint">Die App sortiert selbst nach Mastnummer: Pläne und Spanntabellen nach dem
           Schriftfeld, Fotos nach Datei- und Ordnername, die Karte (KML) über „Punkte laden".
           Word, Excel und anderes landet unter „Sonstiges". Nichts wird ohne Vorschau gespeichert.</span></div>
-        <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
+        <div class="btnrow" style="justify-content:center">
+          <button class="btn primary" onclick="document.getElementById('dokOrdner').click()">Ordner auswählen</button>
+          <button class="btn" onclick="document.getElementById('dokDatei').click()">Dateien auswählen</button>
+        </div>
+        <input id="dokOrdner" type="file" webkitdirectory multiple style="display:none" onchange="ordnerGewaehlt(event)">
         <input id="dokDatei" type="file" multiple style="display:none" onchange="dateienGewaehlt(event)">
       </div>
     </div>
@@ -1475,7 +1485,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.37.0';
+var VERSION = '0.37.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -6985,22 +6995,63 @@ function ordnerLesen(eintraege) {
 
 function dropAbgelegt(e) {
   e.preventDefault();
+  document.body.classList.remove('ablageueber'); ablageTiefe = 0;
   e.currentTarget.classList.remove('ueber');
   ablageDateien(e.dataTransfer, '');
 }
 
-/* Gemeinsamer Weg fuer beide Ablagefelder. */
+/* Ein gezogener Ordner steht in dataTransfer.files als EIN Eintrag ohne Typ,
+   ohne Größe, ohne Endung — ein Platzhalter, kein Dokument. */
+function istOrdnerPlatzhalter(f) {
+  return !!f && !f.type && !f.size && !/\.[A-Za-z0-9]{1,6}$/.test(f.name || '');
+}
+
+/* Gemeinsamer Weg fuer alle Ablagefelder — und für das ganze Fenster.
+
+   „Nichts passiert, wenn ich den Ordner reinziehe." Zwei Gründe kann das
+   haben, und beide bekommen jetzt eine Antwort statt Stille: Der Browser
+   gibt den Inhalt des Ordners nicht her (dann steht hier, was stattdessen
+   geht), oder das Lesen dauert bei einem großen Ordner ein paar Sekunden
+   (dann steht sofort „wird gelesen"). */
 function ablageDateien(dt, mastVorgabe) {
   var eintraege = ablageEintraege(dt);
   var fallback = dt && dt.files ? [].slice.call(dt.files) : [];
-  if (!eintraege) { dateienAufnehmen(fallback, mastVorgabe); return; }
+  var nurPlatzhalter = fallback.length && fallback.every(istOrdnerPlatzhalter);
+  if (!eintraege) {
+    if (nurPlatzhalter) { ordnerNichtLesbar(fallback); return; }
+    dateienAufnehmen(fallback.filter(function (f) { return !istOrdnerPlatzhalter(f); }), mastVorgabe);
+    return;
+  }
+  openOv('<h2>Ordner wird gelesen …</h2><p class="psub">Alle Unterordner werden durchgesehen. ' +
+    'Danach erscheint die Vorschau — nichts wird vorher gespeichert.</p>');
   ordnerLesen(eintraege).then(function (dateien) {
-    /* Findet das Auslesen nichts — etwa weil der Browser es verweigert —,
-       bleibt der alte Weg. Lieber die Dateien ohne Ordner als gar nichts. */
-    dateienAufnehmen(dateien.length ? dateien : fallback, mastVorgabe);
+    if (!dateien.length) {
+      if (nurPlatzhalter) { ordnerNichtLesbar(fallback); return; }
+      /* Findet das Auslesen nichts — etwa weil der Browser es verweigert —,
+         bleibt der alte Weg. Lieber die Dateien ohne Ordner als gar nichts. */
+      dateien = fallback.filter(function (f) { return !istOrdnerPlatzhalter(f); });
+    }
+    closeOv();
+    dateienAufnehmen(dateien, mastVorgabe);
   }, function () {
-    dateienAufnehmen(fallback, mastVorgabe);
+    closeOv();
+    if (nurPlatzhalter) { ordnerNichtLesbar(fallback); return; }
+    dateienAufnehmen(fallback.filter(function (f) { return !istOrdnerPlatzhalter(f); }), mastVorgabe);
   });
+}
+
+function ordnerNichtLesbar(platzhalter) {
+  var namen = platzhalter.map(function (f) { return f.name; }).filter(Boolean).join(', ');
+  openOv('<h2>Der Ordner kam nicht an</h2>' +
+    '<p>Dieser Browser gibt den Inhalt eines gezogenen Ordners' + (namen ? ' („' + esc(namen) + '")' : '') +
+    ' nicht her. Drei Wege, die immer gehen:</p>' +
+    '<ol style="margin:6px 0 10px 18px;line-height:1.5">' +
+    '<li><b>„Ordner auswählen"</b> drücken und den Ordner im Fenster wählen.</li>' +
+    '<li>Den Ordner öffnen, alles markieren (Strg+A) und die <b>Dateien</b> hierher ziehen.</li>' +
+    '<li>Den Ordner als <b>ZIP</b> packen (rechte Maustaste → Senden an → ZIP-komprimierter Ordner) und das ZIP ablegen.</li>' +
+    '</ol>' +
+    '<div class="btnrow"><button class="btn primary" onclick="closeOv(); document.getElementById(\'dokOrdner\').click()">Ordner auswählen</button>' +
+    '<button class="btn ghost" onclick="closeOv()">Schließen</button></div>');
 }
 
 function dateienGewaehlt(e) {
@@ -7008,10 +7059,60 @@ function dateienGewaehlt(e) {
   e.target.value = '';
 }
 
+/* „Ordner auswählen": der Weg ohne Ziehen. Der Browser liefert alle Dateien
+   des Ordners samt Unterordnern, mit ihrem Pfad (webkitRelativePath). */
+function ordnerGewaehlt(e) {
+  var liste = [].slice.call(e.target.files || []);
+  liste.forEach(function (f) {
+    try { if (!f.spiePfad && f.webkitRelativePath) f.spiePfad = f.webkitRelativePath; } catch (x) { /* ohne Pfad */ }
+  });
+  e.target.value = '';
+  if (!liste.length) { toast('Kein Ordner gewählt'); return; }
+  dateienAufnehmen(liste, '');
+}
+
+/* ---------- Ablegen überall im Fenster ----------
+   Das gestrichelte Feld ist klein, und wer den Ordner daneben loslässt,
+   sah bisher: nichts. Jetzt nimmt das ganze Fenster an — in jedem Reiter.
+   Auf der offenen Mastakte gilt deren Mast. Die eigenen Felder behalten
+   ihre Handler; hier wird nur gefangen, was sonst ins Leere fiele. */
+var ablageTiefe = 0;
+function ablageHatDateien(e) {
+  var dt = e.dataTransfer; if (!dt) return false;
+  var typen = dt.types ? [].slice.call(dt.types) : [];
+  return typen.indexOf('Files') >= 0;
+}
+function ablageUeberallEinrichten() {
+  document.addEventListener('dragenter', function (e) {
+    if (!ablageHatDateien(e)) return;
+    e.preventDefault(); ablageTiefe++;
+    document.body.classList.add('ablageueber');
+  });
+  document.addEventListener('dragover', function (e) {
+    if (!ablageHatDateien(e)) return;
+    e.preventDefault();                     // sonst öffnet der Browser die Datei selbst
+  });
+  document.addEventListener('dragleave', function (e) {
+    if (!ablageHatDateien(e)) return;
+    ablageTiefe = Math.max(0, ablageTiefe - 1);
+    if (!ablageTiefe) document.body.classList.remove('ablageueber');
+  });
+  document.addEventListener('drop', function (e) {
+    if (!ablageHatDateien(e)) return;
+    e.preventDefault();
+    ablageTiefe = 0; document.body.classList.remove('ablageueber');
+    var ziel = e.target && e.target.closest ? e.target.closest('.dropzone, #tab-mastakte') : null;
+    if (ziel) return;                       // hat einen eigenen Handler
+    var mastakteOffen = document.getElementById('tab-mastakte').classList.contains('on');
+    ablageDateien(e.dataTransfer, mastakteOffen && akte.key ? akte.key : '');
+  });
+}
+
 /* Auf einer offenen Mastakte ist der Mast schon bekannt — dann muss ihn
    niemand mehr auswählen. */
 function dropAufMast(e) {
   e.preventDefault();
+  document.body.classList.remove('ablageueber'); ablageTiefe = 0;
   e.currentTarget.classList.remove('ueber');
   ablageDateien(e.dataTransfer, akte.key);
 }
@@ -7121,7 +7222,7 @@ function dateienVerarbeiten(liste, mastVorgabe, hinweise) {
       var art = D.dateiArt(f.name, f.type);
       var quelle = '';
       /* Der Ordner, in dem die Datei lag, ist der zweite Hinweis. */
-      var pf = D.pfadAuswerten(f.spiePfad || '');
+      var pf = D.pfadAuswerten(f.spiePfad || f.webkitRelativePath || '');
       if (!v.mastNr && pf.mastNr) {
         v.mastNr = pf.mastNr; v.sicherheit.mastNr = 'vermutet';
         quelle = 'Mast aus dem Ordner „' + pf.ordner + '"';
@@ -9449,6 +9550,7 @@ function boot() {
 }
 
 document.addEventListener('DOMContentLoaded', boot);
+document.addEventListener('DOMContentLoaded', ablageUeberallEinrichten);
 </script>
 </body>
 </html>

@@ -246,7 +246,9 @@ var SpieDok = (function () {
        „2409/P001". Ohne den Buchstaben blieb von „2409-P001_Gruendung_RevA"
        nur „2409" übrig — der Plan wäre an einem Mast gelandet, den es nicht
        gibt. */
-    var lang = rest.match(/(^|[^A-Za-z0-9])(\d{3,4})[\/\-_]([A-Za-z]?\d{1,4}[A-Za-z]?)(?![A-Za-z0-9])/);
+    /* Die Leitungsnummer beginnt nie mit 0 (4236, 4225, 2409). Sonst wird
+       aus „DSC_0042_4236-0018.jpg" die Leitung 0042 mit Mast 4236. */
+    var lang = rest.match(/(^|[^A-Za-z0-9])([1-9]\d{2,3})[\/\-_]([A-Za-z]?\d{1,4}[A-Za-z]?)(?![A-Za-z0-9])/);
     /* Vor dem „M" darf kein Buchstabe stehen: „Blatzheim 3.pdf" ist kein
        Mast 3 — das „m" gehört zum Ortsnamen. */
     var mitWort = rest.match(/(?:^|[^A-Za-z])(?:mast|mst|m)[\s_.\-]*(\d{1,4})([A-Za-z]?)(?![A-Za-z0-9])/i);
@@ -429,6 +431,9 @@ var SpieDok = (function () {
     if (!n || ABFALL.test(n)) return '';
     var e = n.match(/\.([a-z0-9]+)$/);
     var endung = e ? e[1] : '';
+    /* Ohne Endung ist es kein Dokument aus einem Baustellenordner — meist
+       der gezogene Ordner selbst, den der Browser als leere „Datei" meldet. */
+    if (!endung && !mime) return '';
     for (var i = 0; i < ERLAUBT.length; i++) {
       if (ERLAUBT[i].endung === endung) return ERLAUBT[i].art;
     }
