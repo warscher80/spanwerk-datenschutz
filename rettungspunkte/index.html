@@ -1431,6 +1431,7 @@
     <span><i class="lg ma"></i> Mast</span>
     <span><i class="lg we"></i> Weg aus der Karte</span>
     <span><i class="lg we dick"></i> Weg zum gewählten Mast</span>
+    <button class="chip" id="planKarteBtn" onclick="planKarteUmschalten()" aria-label="Kartenhintergrund ein- oder ausschalten">Karte: an</button>
   </div>
 </div>
 
@@ -1486,7 +1487,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.38.2';
+var VERSION = '0.39.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3517,7 +3518,7 @@ function renderMessage() {
    Punkte, Entfernungsringe, Norden und einen Maßstab.
    ========================================================================= */
 
-var plan = { spanne: 1200, offen: false, weg: null, wegMast: null, mitte: null };
+var plan = { spanne: 1200, offen: false, weg: null, wegMast: null, mitte: null, karte: true };
 // Spanne = Breite des Ausschnitts in Metern
 // mitte  = Mittelpunkt der Ansicht {lat, lon}; null = der eigene Standort
 //          (dann folgt der Plan dem GPS, wie bisher)
@@ -3528,6 +3529,8 @@ function planOpen() {
   if (typeof kompassBedarfPruefen === 'function') kompassBedarfPruefen();
   $('planOv').classList.add('on');
   planFingerEinrichten();
+  try { var km = localStorage.getItem(K_PLAN_KARTE); if (km !== null) plan.karte = km !== '0'; } catch (e) { /* Standard: an */ }
+  planKarteKnopf();
   planFit();
   window.addEventListener('resize', planDraw);
 }
@@ -3553,6 +3556,95 @@ function planFit() {
   plan.spanne = Math.max(300, Math.min(20000, d * 2.6));
   plan.mitte = null;
   planDraw();
+}
+
+/* ---------- Kartenhintergrund, solange Netz da ist ----------
+
+   „Soll das so aussehen? Ohne Gelände?" Der Plan zeichnete nur die eigenen
+   Punkte — darum läuft er im Flugmodus. Jetzt legt er, solange Netz da
+   ist, Kartenkacheln von OpenStreetMap darunter. Ohne Netz bleibt alles wie
+   bisher: Was schon geladen ist, bleibt sichtbar, der Rest ist dunkel, und
+   die Rettung hängt nicht daran.
+
+   Grundsätze: Kein Kachel-Abruf ohne Netz und keiner, solange der Plan zu
+   ist. Höchstens ein paar Dutzend Kacheln je Bild. Die Kacheln sind fremde
+   Bilder (crossOrigin), damit das Canvas lesbar bleibt. Quellenhinweis im
+   Bild — das verlangt die OpenStreetMap-Lizenz. Für eine Pilot-Baustelle
+   ist der öffentliche Kachelserver in Ordnung; für viele Nutzer braucht es
+   einen eigenen Kartendienst mit Schlüssel (siehe README). */
+var K_PLAN_KARTE = 'spie_plan_karte';
+var planKacheln = { bilder: {}, reihenfolge: [], laufend: 0, gemalt: 0, warte: false };
+var KACHEL_MAX = 400, KACHEL_JE_BILD = 80, KACHEL_GLEICHZEITIG = 6;
+
+function kachelUrl() {
+  return window.SPIE_KACHELN || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+}
+function kachelVon(lat, lon, z) {
+  var n = Math.pow(2, z), r = lat * Math.PI / 180;
+  return { x: (lon + 180) / 360 * n, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n };
+}
+function kachelEcke(x, y, z) {
+  var n = Math.pow(2, z);
+  return { lon: x / n * 360 - 180, lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI };
+}
+function kachelHolen(z, x, y) {
+  var k = z + '/' + x + '/' + y, b = planKacheln.bilder[k];
+  if (b) return b.fertig ? b.bild : null;
+  if (navigator.onLine === false || !plan.offen || planKacheln.laufend >= KACHEL_GLEICHZEITIG) return null;
+  var bild = new Image();
+  bild.crossOrigin = 'anonymous';
+  b = { bild: bild, fertig: false };
+  planKacheln.bilder[k] = b; planKacheln.reihenfolge.push(k); planKacheln.laufend++;
+  if (planKacheln.reihenfolge.length > KACHEL_MAX) delete planKacheln.bilder[planKacheln.reihenfolge.shift()];
+  bild.onload = function () { b.fertig = true; planKacheln.laufend--; planBaldZeichnen(); };
+  bild.onerror = function () { delete planKacheln.bilder[k]; planKacheln.laufend--; };
+  bild.src = kachelUrl().replace('{z}', z).replace('{x}', x).replace('{y}', y);
+  return null;
+}
+function planBaldZeichnen() {
+  if (planKacheln.warte) return;
+  planKacheln.warte = true;
+  requestAnimationFrame(function () { planKacheln.warte = false; planDraw(); });
+}
+function planKarteUmschalten() {
+  plan.karte = !plan.karte;
+  try { localStorage.setItem(K_PLAN_KARTE, plan.karte ? '1' : '0'); } catch (e) { /* ohne Merker */ }
+  planKarteKnopf();
+  planDraw();
+}
+function planKarteKnopf() {
+  var b = $('planKarteBtn'); if (b) b.textContent = 'Karte: ' + (plan.karte ? 'an' : 'aus');
+}
+
+/* Die Kacheln unter den Plan legen. Gibt zurück, wie viele gezeichnet sind —
+   null heißt: Hintergrund ist aus. Die Lage jeder Kachel kommt aus derselben
+   Projektion wie alles andere (xy), damit Masten und Karte zusammenpassen. */
+function planKachelnZeichnen(g, xy, W, H, px, lat0, lon0, mProLon) {
+  if (!plan.karte) return null;
+  var dpr = window.devicePixelRatio || 1;
+  // Zoomstufe: ein Kachelpixel soll etwa einem Bildschirmpixel entsprechen.
+  var z = Math.round(Math.log(156543.03 * Math.cos(lat0 * Math.PI / 180) * px * dpr) / Math.LN2);
+  z = Math.max(4, Math.min(18, z));
+  var ecken = function (zz) {
+    var latN = lat0 + (H / 2) / (110540 * px), latS = lat0 - (H / 2) / (110540 * px);
+    var lonW = lon0 - (W / 2) / (mProLon * px), lonO = lon0 + (W / 2) / (mProLon * px);
+    var a = kachelVon(latN, lonW, zz), b = kachelVon(latS, lonO, zz);
+    return { x0: Math.floor(a.x), y0: Math.floor(a.y), x1: Math.floor(b.x), y1: Math.floor(b.y) };
+  };
+  var e = ecken(z);
+  while (z > 4 && (e.x1 - e.x0 + 1) * (e.y1 - e.y0 + 1) > KACHEL_JE_BILD) { z--; e = ecken(z); }
+  var n = Math.pow(2, z), gemalt = 0;
+  for (var x = e.x0; x <= e.x1; x++) {
+    for (var y = Math.max(0, e.y0); y <= Math.min(n - 1, e.y1); y++) {
+      var bild = kachelHolen(z, ((x % n) + n) % n, y);
+      if (!bild) continue;
+      var nw = kachelEcke(x, y, z), se = kachelEcke(x + 1, y + 1, z);
+      var p1 = xy(nw.lat, nw.lon), p2 = xy(se.lat, se.lon);
+      try { g.drawImage(bild, p1[0], p1[1], p2[0] - p1[0] + 0.5, p2[1] - p1[1] + 0.5); gemalt++; } catch (x2) { /* Bild kaputt */ }
+    }
+  }
+  planKacheln.gemalt = gemalt;
+  return gemalt;
 }
 
 /* ---------- Mit den Fingern: verschieben und zoomen ----------
@@ -3655,6 +3747,11 @@ function planDraw() {
      eingeblendet, war das erste Bild in der Höhe gestaucht und der eigene
      Standort saß nicht in der Mitte — bis zum nächsten GPS-Tick. */
   planWegBand();
+  /* Die Kopfzeile ebenfalls VOR dem Messen — ihre Länge entscheidet, ob sie
+     eine oder zwei Zeilen braucht, und damit über die Höhe des Canvas. Erst
+     mit dem Stand des letzten Bildes; stimmt er nicht mehr, wird unten
+     nachgemessen und noch einmal gezeichnet. */
+  planSubSetzen(planKacheln.gemalt);
   var c = $('planCanvas');
   var dpr = window.devicePixelRatio || 1;
   var b = c.getBoundingClientRect();
@@ -3707,6 +3804,14 @@ function planDraw() {
   };
   var ich = xy(state.pos.lat, state.pos.lon);      // der eigene Standort im Bild
   var meLat = state.pos.lat, meLon = state.pos.lon;
+
+  /* Kartenhintergrund, dann ein dunkler Schleier (im dunklen Thema), damit
+     die roten Punkte und weißen Schriften lesbar bleiben. */
+  var kacheln = planKachelnZeichnen(g, xy, W, H, px, lat0, lon0, mProLon);
+  if (kacheln) {
+    g.fillStyle = document.body.classList.contains('light') ? 'rgba(255,255,255,.18)' : 'rgba(10,14,18,.42)';
+    g.fillRect(0, 0, W, H);
+  }
 
   // Entfernungsringe in runden Schritten — um den eigenen Standort
   var schritt = ringSchritt(plan.spanne);
@@ -3901,7 +4006,26 @@ function planDraw() {
   g.fillStyle = cTxt; g.font = '12px -apple-system, Roboto, sans-serif';
   g.fillText(G.formatDistance(balken), 16, H - 32);
 
-  $('planSub').textContent = 'ohne Internet · Ausschnitt ' + G.formatDistance(plan.spanne) +
+  // Quellenhinweis — Pflicht bei OpenStreetMap-Kacheln
+  if (kacheln) {
+    g.font = '10px -apple-system, Roboto, sans-serif';
+    var qh = '© OpenStreetMap-Mitwirkende', qw = g.measureText(qh).width + 8;
+    g.fillStyle = cBg; g.globalAlpha = .7; g.fillRect(W - qw - 4, H - 16, qw, 14); g.globalAlpha = 1;
+    g.fillStyle = cTxt; g.fillText(qh, W - qw, H - 5);
+  }
+
+  planSubSetzen(kacheln);
+  /* Hat sich der Platz unter Kopfzeile und Band durch die neuen Texte
+     verändert, wäre dieses Bild gestaucht: noch einmal, mit dem richtigen Maß. */
+  var b2 = c.getBoundingClientRect();
+  if (Math.abs(b2.height - b.height) > 0.5 || Math.abs(b2.width - b.width) > 0.5) planBaldZeichnen();
+}
+
+function planSubSetzen(kacheln) {
+  var e = $('planSub'); if (!e) return;
+  e.textContent = (kacheln ? 'Karte: OpenStreetMap (braucht Netz)'
+      : !plan.karte ? 'Karte aus' : navigator.onLine !== false ? 'Karte wird geladen …' : 'ohne Internet') +
+    ' · Ausschnitt ' + G.formatDistance(plan.spanne) +
     (plan.mitte ? ' · verschoben — „Zentrieren" holt den Standort zurück' : ' · rote Linie = Luftlinie, kein Weg');
 }
 
