@@ -1486,7 +1486,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.38.0';
+var VERSION = '0.38.1';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3517,14 +3517,17 @@ function renderMessage() {
    Punkte, Entfernungsringe, Norden und einen Maßstab.
    ========================================================================= */
 
-var plan = { spanne: 1200, offen: false, weg: null, wegMast: null };
+var plan = { spanne: 1200, offen: false, weg: null, wegMast: null, mitte: null };
 // Spanne = Breite des Ausschnitts in Metern
+// mitte  = Mittelpunkt der Ansicht {lat, lon}; null = der eigene Standort
+//          (dann folgt der Plan dem GPS, wie bisher)
 
 function planOpen() {
   if (!state.pos) { toast('Erst den Standort einschalten'); return; }
   plan.offen = true;
   if (typeof kompassBedarfPruefen === 'function') kompassBedarfPruefen();
   $('planOv').classList.add('on');
+  planFingerEinrichten();
   planFit();
   window.addEventListener('resize', planDraw);
 }
@@ -3542,16 +3545,116 @@ function planZoom(f) {
   planDraw();
 }
 
-// Ausschnitt so wählen, dass der nächste Rettungspunkt sicher drin ist.
+// Ausschnitt so wählen, dass der nächste Rettungspunkt sicher drin ist —
+// und zurück auf den eigenen Standort („Zentrieren").
 function planFit() {
   var n = heroTarget();
   var d = n ? n.dist : 500;
   plan.spanne = Math.max(300, Math.min(20000, d * 2.6));
+  plan.mitte = null;
+  planDraw();
+}
+
+/* ---------- Mit den Fingern: verschieben und zoomen ----------
+
+   „Lageplan lässt sich nicht verschieben mit den Fingern." Bis jetzt hing
+   der Plan fest am eigenen Standort; es gab nur die Knöpfe Größer und
+   Weiter weg. Jetzt: ein Finger schiebt, zwei Finger ziehen auf, am PC
+   schiebt die Maus und das Rad zoomt. „Zentrieren" holt den Standort
+   zurück. Solange niemand geschoben hat, folgt der Plan dem GPS wie bisher.
+
+   Pointer-Ereignisse statt Touch-Ereignisse: ein Satz Handler für Finger
+   und Maus, und das Canvas hat touch-action:none, also fängt der Browser
+   nichts ab. */
+var planFinger = { zeiger: {}, start: null, eingerichtet: false };
+
+function planFingerEinrichten() {
+  if (planFinger.eingerichtet) return;
+  var c = $('planCanvas'); if (!c || !c.addEventListener) return;
+  planFinger.eingerichtet = true;
+  c.addEventListener('pointerdown', planZeigerStart);
+  c.addEventListener('pointermove', planZeigerZug);
+  c.addEventListener('pointerup', planZeigerEnde);
+  c.addEventListener('pointercancel', planZeigerEnde);
+  c.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    planZoomAn(e.deltaY > 0 ? 1.25 : 1 / 1.25, e.clientX, e.clientY);
+  }, { passive: false });
+}
+
+// Meter je Bildpunkt und Mittelpunkt — dieselbe Rechnung wie in planDraw.
+function planMassstab() {
+  var c = $('planCanvas'), b = c.getBoundingClientRect();
+  var px = Math.min(b.width, b.height) / plan.spanne;
+  var m = plan.mitte || state.pos;
+  return { px: px, mitte: m, mProLon: 111320 * Math.cos(m.lat * Math.PI / 180), rect: b };
+}
+
+function planLage() {
+  var z = Object.keys(planFinger.zeiger).map(function (k) { return planFinger.zeiger[k]; });
+  if (!z.length) return null;
+  if (z.length === 1) return { x: z[0].x, y: z[0].y, abstand: 0 };
+  var dx = z[1].x - z[0].x, dy = z[1].y - z[0].y;
+  return { x: (z[0].x + z[1].x) / 2, y: (z[0].y + z[1].y) / 2, abstand: Math.sqrt(dx * dx + dy * dy) };
+}
+
+function planZeigerStart(e) {
+  if (!plan.offen || !state.pos) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  planFinger.zeiger[e.pointerId] = { x: e.clientX, y: e.clientY };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { /* alter Browser */ }
+  var l = planLage();
+  planFinger.start = { x: l.x, y: l.y, abstand: l.abstand, spanne: plan.spanne,
+                       mitte: plan.mitte || { lat: state.pos.lat, lon: state.pos.lon } };
+  e.preventDefault();
+}
+
+function planZeigerZug(e) {
+  var z = planFinger.zeiger[e.pointerId]; if (!z || !planFinger.start) return;
+  z.x = e.clientX; z.y = e.clientY;
+  var l = planLage(), st = planFinger.start;
+  var m = planMassstab();
+  /* Zwei Finger: der Abstand bestimmt die Spanne, die Mitte zwischen den
+     Fingern schiebt. Ein Finger: nur schieben. */
+  if (st.abstand > 0 && l.abstand > 0) {
+    plan.spanne = Math.max(120, Math.min(60000, st.spanne * st.abstand / l.abstand));
+    m = planMassstab();
+  }
+  var dx = l.x - st.x, dy = l.y - st.y;
+  plan.mitte = { lat: st.mitte.lat + dy / (m.px * 110540),
+                 lon: st.mitte.lon - dx / (m.px * m.mProLon) };
+  planDraw();
+  e.preventDefault();
+}
+
+function planZeigerEnde(e) {
+  delete planFinger.zeiger[e.pointerId];
+  var l = planLage();
+  /* Hebt ein Finger von zweien ab, geht es mit dem anderen nahtlos weiter —
+     ohne Sprung, weil der Startpunkt neu gesetzt wird. */
+  planFinger.start = l ? { x: l.x, y: l.y, abstand: l.abstand, spanne: plan.spanne,
+                           mitte: plan.mitte || { lat: state.pos.lat, lon: state.pos.lon } } : null;
+}
+
+/* Zoomen um einen Bildpunkt (Mausrad): Der Ort unter dem Zeiger bleibt, wo er ist. */
+function planZoomAn(f, cx, cy) {
+  if (!plan.offen || !state.pos) return;
+  var m = planMassstab();
+  var ox = cx - (m.rect.left + m.rect.width / 2), oy = cy - (m.rect.top + m.rect.height / 2);
+  var vorherLat = m.mitte.lat - oy / (m.px * 110540), vorherLon = m.mitte.lon + ox / (m.px * m.mProLon);
+  plan.spanne = Math.max(120, Math.min(60000, plan.spanne * f));
+  var n = planMassstab();
+  plan.mitte = { lat: vorherLat + oy / (n.px * 110540), lon: vorherLon - ox / (n.px * n.mProLon) };
   planDraw();
 }
 
 function planDraw() {
   if (!plan.offen || !state.pos) return;
+  /* Das Fahrband ZUERST: Es erscheint beim ersten Zeichnen und macht das
+     Canvas darunter kleiner. Wurde erst gezeichnet und dann das Band
+     eingeblendet, war das erste Bild in der Höhe gestaucht und der eigene
+     Standort saß nicht in der Mitte — bis zum nächsten GPS-Tick. */
+  planWegBand();
   var c = $('planCanvas');
   var dpr = window.devicePixelRatio || 1;
   var b = c.getBoundingClientRect();
@@ -3592,22 +3695,26 @@ function planDraw() {
     g.fillText(t, lx, ly);
   }
 
-  // Meter → Bildpunkte, Norden oben
+  // Meter → Bildpunkte, Norden oben. Mittelpunkt der Ansicht ist der
+  // eigene Standort — oder, nach dem Schieben, die gemerkte Mitte.
   var mid = Math.min(W, H);
   var px = mid / plan.spanne;
-  var lat0 = state.pos.lat, lon0 = state.pos.lon;
+  var mitte = plan.mitte || state.pos;
+  var lat0 = mitte.lat, lon0 = mitte.lon;
   var mProLon = 111320 * Math.cos(lat0 * Math.PI / 180);
   var xy = function (lat, lon) {
     return [W / 2 + (lon - lon0) * mProLon * px, H / 2 - (lat - lat0) * 110540 * px];
   };
+  var ich = xy(state.pos.lat, state.pos.lon);      // der eigene Standort im Bild
+  var meLat = state.pos.lat, meLon = state.pos.lon;
 
-  // Entfernungsringe in runden Schritten
+  // Entfernungsringe in runden Schritten — um den eigenen Standort
   var schritt = ringSchritt(plan.spanne);
   g.strokeStyle = cLine; g.lineWidth = 1;
   g.font = '11px -apple-system, Roboto, sans-serif'; g.fillStyle = cMuted;
   for (var r = schritt; r <= plan.spanne; r += schritt) {
-    g.beginPath(); g.arc(W / 2, H / 2, r * px, 0, Math.PI * 2); g.stroke();
-    g.fillText(G.formatDistance(r), W / 2 + 4, H / 2 - r * px - 4);
+    g.beginPath(); g.arc(ich[0], ich[1], r * px, 0, Math.PI * 2); g.stroke();
+    g.fillText(G.formatDistance(r), ich[0] + 4, ich[1] - r * px - 4);
   }
 
   // Wege aus der Karte: durchgezogen, wenn sie aus einer Routenberechnung
@@ -3659,7 +3766,8 @@ function planDraw() {
     }
   }
 
-  // Masten zuerst (Hintergrund)
+  // Masten zuerst (Hintergrund). Sichtbar ist, was nahe der Mitte der
+  // Ansicht liegt — nach dem Schieben also auch, was vom Standort weit weg ist.
   var sicht = plan.spanne * 0.75;
   state.points.forEach(function (p) {
     if (kindOf(p) !== 'mast') return;
@@ -3693,9 +3801,9 @@ function planDraw() {
   if (ziel) {
     var z = xy(ziel.lat, ziel.lon);
     g.strokeStyle = cRot; g.lineWidth = 3.5; g.setLineDash([9, 7]);
-    g.beginPath(); g.moveTo(W / 2, H / 2); g.lineTo(z[0], z[1]); g.stroke();
+    g.beginPath(); g.moveTo(ich[0], ich[1]); g.lineTo(z[0], z[1]); g.stroke();
     g.setLineDash([]);
-    var mx = (W / 2 + z[0]) / 2, my = (H / 2 + z[1]) / 2;
+    var mx = (ich[0] + z[0]) / 2, my = (ich[1] + z[1]) / 2;
     var beschriftung = G.formatDistance(ziel.dist) + ' Luftlinie — kein Weg';
     g.font = '700 12px -apple-system, Roboto, sans-serif';
     var bw = g.measureText(beschriftung).width + 12;
@@ -3707,10 +3815,11 @@ function planDraw() {
     g.textAlign = 'start';
   }
 
-  // Rettungspunkte — groß, mit Nummer
-  var liste = G.nearest(ofKind('rp'), lat0, lon0);
+  // Rettungspunkte — groß, mit Nummer. Der nächste ist der nächste zum
+  // STANDORT (nicht zur Mitte der Ansicht); sichtbar ist, was nahe der Mitte liegt.
+  var liste = G.nearest(ofKind('rp'), meLat, meLon);
   liste.forEach(function (p, i) {
-    if (p.dist > sicht && i > 0) return;
+    if (i > 0 && G.distance(lat0, lon0, p.lat, p.lon) > sicht) return;
     var q = xy(p.lat, p.lon);
     var naechster = (i === 0);
     g.fillStyle = cRot;
@@ -3729,11 +3838,11 @@ function planDraw() {
   var acc = state.pos.accuracy;
   if (acc && acc * px > 6) {
     g.fillStyle = cBlau; g.globalAlpha = .16;
-    g.beginPath(); g.arc(W / 2, H / 2, acc * px, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(ich[0], ich[1], acc * px, 0, Math.PI * 2); g.fill();
     g.globalAlpha = 1;
   }
   g.fillStyle = cBlau;
-  g.beginPath(); g.arc(W / 2, H / 2, 9, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(ich[0], ich[1], 9, 0, Math.PI * 2); g.fill();
   g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.stroke();
 
   // Blickrichtung, falls Kompass oder Bewegung bekannt
@@ -3741,9 +3850,22 @@ function planDraw() {
   if (h != null) {
     var a = (h - 90) * Math.PI / 180;
     g.strokeStyle = cBlau; g.lineWidth = 3.5; g.beginPath();
-    g.moveTo(W / 2, H / 2);
-    g.lineTo(W / 2 + Math.cos(a) * 26, H / 2 + Math.sin(a) * 26);
+    g.moveTo(ich[0], ich[1]);
+    g.lineTo(ich[0] + Math.cos(a) * 26, ich[1] + Math.sin(a) * 26);
     g.stroke();
+  }
+
+  /* Ist der Standort aus dem Bild geschoben, zeigt ein blauer Pfeil am Rand,
+     wo er liegt — sonst sucht man ihn und drückt im Zweifel nicht
+     „Zentrieren", sondern schließt den Plan. */
+  if (ich[0] < 0 || ich[0] > W || ich[1] < 0 || ich[1] > H) {
+    var rx = Math.max(18, Math.min(W - 18, ich[0])), ry = Math.max(18, Math.min(H - 18, ich[1]));
+    var ra = Math.atan2(ich[1] - ry, ich[0] - rx);
+    g.fillStyle = cBlau; g.beginPath();
+    g.moveTo(rx + Math.cos(ra) * 12, ry + Math.sin(ra) * 12);
+    g.lineTo(rx + Math.cos(ra + 2.5) * 10, ry + Math.sin(ra + 2.5) * 10);
+    g.lineTo(rx + Math.cos(ra - 2.5) * 10, ry + Math.sin(ra - 2.5) * 10);
+    g.closePath(); g.fill();
   }
 
   // Norden: Pfeil nach oben mit „N" darüber
@@ -3766,8 +3888,7 @@ function planDraw() {
   g.fillText(G.formatDistance(balken), 16, H - 32);
 
   $('planSub').textContent = 'ohne Internet · Ausschnitt ' + G.formatDistance(plan.spanne) +
-    ' · rote Linie = Luftlinie, kein Weg';
-  planWegBand();
+    (plan.mitte ? ' · verschoben — „Zentrieren" holt den Standort zurück' : ' · rote Linie = Luftlinie, kein Weg');
 }
 
 // Runde Schrittweite für Ringe und Maßstab
