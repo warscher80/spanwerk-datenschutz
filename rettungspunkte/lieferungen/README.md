@@ -1,4 +1,4 @@
-# Lieferordner der Rettungspunkte-App
+# Lieferordner der LinePoint-App
 
 Hier legt der Projektleiter das ZIP einer Baustelle ab — genau die Datei, die
 die App am PC unter **Verwaltung → Baustelle weitergeben → „Als Datei sichern"**
