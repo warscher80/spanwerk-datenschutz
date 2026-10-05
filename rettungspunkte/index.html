@@ -9,11 +9,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Rettungspunkte">
+<meta name="apple-mobile-web-app-title" content="LinePoint">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23e2001a'/%3E%3Cpath d='M12 20s5.5-4.6 5.5-9a5.5 5.5 0 1 0-11 0c0 4.4 5.5 9 5.5 9z' fill='none' stroke='white' stroke-width='1.8'/%3E%3Cpath d='M12 7.6v5M9.5 10h5' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
-<title>Rettungspunkte</title>
+<title>LinePoint</title>
 <style>
   /* ================= SPIE-Farbsystem =================
      Ein Satz Variablen für beide Modi. Rot ist Marke UND Notruf — damit der
@@ -826,7 +826,7 @@
     </svg>
   </div>
   <div class="hgrow">
-    <h1 class="brand">Rettungs<small>punkte</small></h1>
+    <h1 class="brand">Line<small>Point</small></h1>
     <button class="tag tagbtn" id="headTag" onclick="baustellenWaehler()"
             aria-label="Baustelle wechseln"><span class="tagtext">Notfall-Standort für die Baustelle</span></button>
   </div>
@@ -1481,11 +1481,12 @@
 <script>
 'use strict';
 /* =========================================================================
-   Rettungspunkte — Notfall-Standort-App
+   LinePoint — Rettungspunkte, Zuwegung und Mastakte für den Freileitungsbau
+   (Arbeitstitel bis 0.37.1: „Rettungspunkte")
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.37.1';
+var VERSION = '0.38.0';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -2325,12 +2326,12 @@ function howtoHtml(kind) {
     if (p === 'ios') {
       return '<b>Standortfreigabe erteilen</b>' +
         '<ol><li>iPhone-<b>Einstellungen</b> öffnen</li><li><b>Datenschutz &amp; Sicherheit → Ortungsdienste</b> einschalten</li>' +
-        '<li>In der Liste <b>Rettungspunkte</b> wählen</li><li><b>Beim Verwenden der App</b> aktivieren</li>' +
+        '<li>In der Liste <b>LinePoint</b> wählen</li><li><b>Beim Verwenden der App</b> aktivieren</li>' +
         '<li><b>Genauer Standort</b> einschalten</li></ol>';
     }
     if (p === 'android') {
       return '<b>Standortfreigabe erteilen</b>' +
-        '<ol><li>Android-<b>Einstellungen → Apps → Rettungspunkte</b></li><li><b>Berechtigungen → Standort</b></li>' +
+        '<ol><li>Android-<b>Einstellungen → Apps → LinePoint</b></li><li><b>Berechtigungen → Standort</b></li>' +
         '<li><b>Beim Verwenden der App zulassen</b></li><li><b>Genauen Standort verwenden</b> einschalten</li></ol>';
     }
     return '<b>Standortfreigabe erteilen</b><ol><li>Im Browser links neben der Adresse auf das Schloss-Symbol tippen</li>' +
@@ -4299,8 +4300,8 @@ function scanFehler(e) {
   var text;
   if (name === 'NotAllowedError' || name === 'SecurityError') {
     text = '<b>Die Kamera ist nicht erlaubt.</b> ' +
-      'Am iPhone: Einstellungen → Rettungspunkte → Kamera. ' +
-      'Bei Android: Einstellungen → Apps → Rettungspunkte → Berechtigungen → Kamera. ' +
+      'Am iPhone: Einstellungen → LinePoint → Kamera. ' +
+      'Bei Android: Einstellungen → Apps → LinePoint → Berechtigungen → Kamera. ' +
       'Im Browser: auf das Schloss neben der Adresse tippen.';
   } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
     text = '<b>Keine Kamera gefunden.</b> Das Gerät meldet keine nutzbare Kamera.';
@@ -8585,7 +8586,7 @@ function paketVeroeffentlichen() {
     var pfad = z.ordner + paket.name;
     return githubAnfrage(z, pfad).then(function (alt) {
       return githubAnfrage(z, pfad, { method: 'PUT', body: {
-        message: 'Rettungspunkte: ' + titel + ' gesendet', branch: z.zweig,
+        message: 'LinePoint: ' + titel + ' gesendet', branch: z.zweig,
         content: bytesZuBase64(new Uint8Array(puffer)), sha: alt && alt.sha ? alt.sha : undefined } });
     });
   }).then(function () {
@@ -8605,7 +8606,7 @@ function paketVeroeffentlichen() {
       liste = liste.filter(function (u) { return !(u && u.id === id); }).concat([eintrag]);
       var text = JSON.stringify(liste, null, 2) + '\n';
       return githubAnfrage(z, pfad, { method: 'PUT', body: {
-        message: 'Rettungspunkte: Lieferliste — ' + titel, branch: z.zweig,
+        message: 'LinePoint: Lieferliste — ' + titel, branch: z.zweig,
         content: bytesZuBase64(new TextEncoder().encode(text)), sha: alt && alt.sha ? alt.sha : undefined } });
     });
   }).then(function () {

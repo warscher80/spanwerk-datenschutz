@@ -1,7 +1,7 @@
 {
-  "name": "Rettungspunkte",
-  "short_name": "Rettungspunkte",
-  "description": "Nächster Rettungspunkt, Notrufnummern und Koordinaten für die Baustelle — funktioniert offline.",
+  "name": "LinePoint",
+  "short_name": "LinePoint",
+  "description": "Rettungspunkte, Zuwegung und Mastakte für den Freileitungsbau — funktioniert offline.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

@@ -1,4 +1,4 @@
-/* sw.js — Service Worker der Rettungspunkte-App.
+/* sw.js — Service Worker der LinePoint-App (vormals „Rettungspunkte").
 
    Zweck: Die App muss nach vollständigem Schließen auch im Flugmodus wieder
    starten. Dafür werden Programm und Baustellendaten vorab gespeichert.
@@ -10,7 +10,7 @@
    Der Pfad ist bewusst relativ: Die App läuft unter
    /spanwerk-datenschutz/rettungspunkte/ und muss auch dort funktionieren. */
 
-var CACHE = 'rettungspunkte-edcbae71';
+var CACHE = 'rettungspunkte-1780aec1';
 
 // Ohne diese Dateien ist die App im Einsatz nicht brauchbar.
 var PFLICHT = [
