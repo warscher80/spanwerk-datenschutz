@@ -1486,7 +1486,7 @@
    Single-File-Web-App, offline, ohne Backend.  Geo-Mathematik: geo.js
    ========================================================================= */
 
-var VERSION = '0.38.1';
+var VERSION = '0.38.2';
 var G = window.SpieGeo;
 
 /* =========================================================================
@@ -3818,6 +3818,16 @@ function planDraw() {
   // Rettungspunkte — groß, mit Nummer. Der nächste ist der nächste zum
   // STANDORT (nicht zur Mitte der Ansicht); sichtbar ist, was nahe der Mitte liegt.
   var liste = G.nearest(ofKind('rp'), meLat, meLon);
+  var sichtbareRp = liste.filter(function (p, i) {
+    return i === 0 || G.distance(lat0, lon0, p.lat, p.lon) <= sicht;
+  });
+  /* Die Kreise der Punkte gelten für die Beschriftung als belegt — sonst
+     legt sich „Rettungspunkt 0 · 75 km" quer über die Punkte 6 und 7, wenn
+     der Text nach links klappen muss. */
+  sichtbareRp.forEach(function (p) {
+    var q = xy(p.lat, p.lon);
+    belegt.push({ x: q[0] - 16, y: q[1] + 6, w: 32 });
+  });
   liste.forEach(function (p, i) {
     if (i > 0 && G.distance(lat0, lon0, p.lat, p.lon) > sicht) return;
     var q = xy(p.lat, p.lon);
@@ -3831,7 +3841,11 @@ function planDraw() {
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(nr != null ? nr : '•', q[0], q[1] + 0.5);
     g.textAlign = 'start'; g.textBaseline = 'alphabetic';
-    if (naechster) beschrifte(G.shortLabel(p) + ' · ' + G.formatDistance(p.dist), q[0] + 14, q[1], cTxt, 13);
+    if (naechster) {
+      // der eigene Kreis zählt nicht als Hindernis
+      belegt = belegt.filter(function (b) { return !(b.x === q[0] - 16 && b.y === q[1] + 6); });
+      beschrifte(G.shortLabel(p) + ' · ' + G.formatDistance(p.dist), q[0] + 14, q[1], cTxt, 13);
+    }
   });
 
   // Eigene Position
@@ -6259,8 +6273,11 @@ function planWegBand() {
       ' von der Achse · ' + wegKurz(lage.name);
   } else {
     el.className = 'planweg ab';
+    /* Aus der Karte heißen die Wege oft alle nur „Zuwegungen" (der Ordner im
+       KML). Dann sagt das Band nicht „bis ‚Zuwegungen'", sondern was gemeint ist. */
+    var generisch = /^(zuwegung|zuwegungen|weg|wege|zufahrt|zufahrten)$/i.test(String(lage.name || '').trim());
     el.textContent = 'Nicht auf der Zuwegung · ' + G.formatDistance(lage.dist) +
-      ' bis „' + wegKurz(lage.name) + '"';
+      (generisch ? ' bis zur nächsten Zuwegung' : ' bis „' + wegKurz(lage.name) + '"');
   }
 }
 
