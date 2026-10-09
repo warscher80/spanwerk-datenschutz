@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#e8920c">
 <title>Sommerfest Kassa</title>
-<link rel="icon" href="sommerfest-logo.png">
-<link rel="apple-touch-icon" href="sommerfest-logo.png">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sommerfest Kassa">
@@ -264,6 +264,24 @@
     text-transform:uppercase; letter-spacing:.5px}
   #bothBox .kv span:last-child{color:var(--green-d)}
 
+  /* Karte/Namen-Editor */
+  .btn-edit{background:#0f7d8c; color:#fff}
+  #admin .sub{margin-bottom:12px}
+  .edrow{display:flex; gap:6px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line)}
+  .edrow .ed-name{flex:1 1 auto; min-width:0; font-size:14px; padding:8px; border:1px solid var(--line);
+    border-radius:8px; background:var(--card); color:var(--ink)}
+  .edrow .ed-price{width:74px; flex:0 0 auto; font-size:14px; padding:8px 6px; border:1px solid var(--line);
+    border-radius:8px; text-align:right; background:var(--card); color:var(--ink)}
+  .edrow .ed-pf{display:flex; align-items:center; gap:3px; font-size:12px; color:var(--muted);
+    white-space:nowrap; flex:0 0 auto}
+  .edrow .ed-pf input{width:18px; height:18px}
+  .edrow .ed-del{width:36px; height:36px; flex:0 0 auto; border:1px solid var(--line); border-radius:8px;
+    background:var(--card); color:var(--red); font-size:16px; cursor:pointer}
+  .ed-add{margin-top:10px; width:100%; border:1px dashed var(--muted); background:var(--card);
+    color:var(--ink); border-radius:10px; padding:10px; font-size:14px; font-weight:700; cursor:pointer}
+  .ed-add:active{background:var(--bg)}
+  #admin .sheet{max-width:560px}
+
   /* Statistik-Bericht (empfangen, zum Speichern) */
   .report{position:fixed; inset:0; z-index:30; background:#2a2f36; display:none;
     align-items:flex-start; justify-content:center; overflow:auto; padding:14px}
@@ -401,6 +419,9 @@
       <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
     </div>
     <div class="mbtns" style="margin-top:8px">
+      <button class="btn-edit" id="btnEdit">⚙️ Karte &amp; Namen bearbeiten</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
       <button class="btn-club" id="btnClub">🔁 Verein wechseln</button>
     </div>
   </div>
@@ -415,6 +436,34 @@
     <div id="qrbox"></div>
     <div class="c3" id="qrinfo" style="margin-top:8px"></div>
     <div class="mbtns"><button class="btn-close" id="qrClose">Schließen</button></div>
+  </div>
+</div>
+
+<div class="modal" id="admin">
+  <div class="sheet">
+    <h2>⚙️ Karte &amp; Namen bearbeiten</h2>
+    <div class="sub">Preise, Artikel und Vereinsname ändern. Gilt nur für diesen Verein auf diesem Gerät. Bereits kassierte Summen bleiben unverändert.</div>
+    <div class="wg">
+      <label>Vereinsname (Anzeige)</label>
+      <input id="edClubName" type="text" maxlength="24" placeholder="z. B. FSGL">
+    </div>
+    <div class="itemstat">
+      <h3>Speisen</h3>
+      <div id="edSpeisen"></div>
+      <button class="ed-add" data-cat="speisen">+ Speise hinzufügen</button>
+    </div>
+    <div class="itemstat">
+      <h3>Getränke</h3>
+      <div id="edGetraenke"></div>
+      <button class="ed-add" data-cat="getraenke">+ Getränk hinzufügen</button>
+    </div>
+    <div class="mbtns">
+      <button class="btn-close" id="edCancel">Abbrechen</button>
+      <button class="btn-day" id="edSave">✔ Speichern</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-reset" id="edReset">Auf Standard-Karte zurücksetzen</button>
+    </div>
   </div>
 </div>
 
@@ -577,17 +626,16 @@ if(!CLUB){
 else {
 
 const CLUBCFG = CLUBS[CLUB];
-(function(){                                    // Logo + Vereinsname in den Kopf
+(function(){                                    // Logo in den Kopf (Name folgt nach applyClubName)
   const img = document.querySelector('header .logo');
   if(img){ img.src = CLUBCFG.logo; img.alt = CLUBCFG.name; img.classList.add('logo-'+CLUB); }
-  const nm = document.getElementById('clubName'); if(nm) nm.textContent = CLUBCFG.name;
 })();
 
-const MENU = CLUBCFG.menu;
-MENU.forEach(m=> m.c = Math.round(m.price*100));       // Preis in Cent
-const MENU_IDS = new Set(MENU.map(m=>m.id));
+let MENU = [];               // wird nach den Hilfsfunktionen aufgebaut (Standard ODER bearbeitet)
+let MENU_IDS = new Set();
 
 // ---- App-Hilfsfunktionen (Speicher pro Verein getrennt) -------------------
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function centsFromInput(s){                             // "12,50" / "12.5" -> 1250 | NaN
   s = (s==null?'':String(s)).trim().replace(',', '.');
   if(s==='') return NaN;
@@ -609,6 +657,46 @@ function store(key, val){
   catch(e){ storageFail(); }
 }
 function load(key, def){ try{ const r=localStorage.getItem(key+'_'+CLUB); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
+
+// ---- Karte (Speisen/Getränke) + Vereinsname: Standard ODER bearbeitet ------
+function genId(){ return 'x'+Math.random().toString(36).slice(2,7)+Date.now().toString(36).slice(-4); }
+function baseMenu(){ return CLUBCFG.menu.map(m=>({ id:m.id, name:m.name, c:Math.round(m.price*100),
+  pfand:!!m.pfand, cat:(m.cat==='speisen'?'speisen':'getraenke') })); }
+function sanitizeMenu(arr){                              // bereinigt eine (evtl. bearbeitete) Karte
+  if(!Array.isArray(arr)) return null;
+  const out=[], seen=new Set();
+  for(const m of arr){
+    if(!m || typeof m!=='object') continue;
+    let id=(typeof m.id==='string' && m.id.trim())?m.id.trim():genId();
+    while(seen.has(id)) id=genId(); seen.add(id);
+    let name=(typeof m.name==='string'?m.name:'').replace(/\s+/g,' ').trim().slice(0,40) || 'Artikel';
+    let c=Math.round(+m.c); if(!isFinite(c)||c<0) c=0;
+    const cat=(m.cat==='speisen')?'speisen':'getraenke';
+    const pfand=(cat==='getraenke') && !!m.pfand;        // Pfand nur bei Getränken
+    out.push({id,name,c,pfand,cat});
+  }
+  return out;
+}
+function buildMenu(){
+  const s = sanitizeMenu(load('kassa_menu', null));
+  MENU = (s && s.length) ? s : baseMenu();
+  MENU_IDS = new Set(MENU.map(m=>m.id));
+  rememberNames();
+}
+function saveMenu(){ store('kassa_menu', MENU.map(m=>({id:m.id,name:m.name,c:m.c,pfand:m.pfand,cat:m.cat}))); }
+function resetMenu(){ try{ localStorage.removeItem('kassa_menu_'+CLUB); }catch(e){} buildMenu(); }
+
+// Name-Register: merkt Artikelnamen, damit die Statistik auch umbenannte/gelöschte Artikel zeigt
+let nameReg = (function(){ const d=load('kassa_names',{}); return (d && typeof d==='object' && !Array.isArray(d))?d:{}; })();
+function rememberNames(){ let ch=false; MENU.forEach(m=>{ if(nameReg[m.id]!==m.name){ nameReg[m.id]=m.name; ch=true; } }); if(ch) store('kassa_names', nameReg); }
+function itemName(id){ const m=byId(id); if(m) return m.name; return (nameReg && nameReg[id]) || id; }
+
+// Vereinsname (Standard ODER bearbeitet) – nur Anzeige, CLUB-Schlüssel bleibt gleich
+function clubName(){ const n=load('kassa_cname',''); return (typeof n==='string' && n.trim())?n.trim():CLUBCFG.name; }
+function applyClubName(){ const nm=document.getElementById('clubName'); if(nm) nm.textContent=clubName(); }
+
+buildMenu();
+applyClubName();
 
 // ---- Zustand (laufende Bestellung) ----------------------------------------
 let cart = {};        // id -> menge
@@ -640,7 +728,7 @@ function buildGrid(cat, el){
     b.className='item'; b.dataset.id=m.id;
     b.innerHTML =
       `<span class="cnt"></span>
-       <span class="name">${m.name}</span>
+       <span class="name">${esc(m.name)}</span>
        <span class="price">${eur(m.c)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
     attachItem(b, m.id);
     el.appendChild(b);
@@ -744,7 +832,7 @@ function render(){
       const lineC = m.c*q + (m.pfand?PFAND_C*q:0);
       const row = document.createElement('div'); row.className='row';
       row.innerHTML =
-        `<div class="lbl">${m.name}<br><small>${eur(m.c)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
+        `<div class="lbl">${esc(m.name)}<br><small>${eur(m.c)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
          <div class="qtybtns">
            <button data-d="${id}">−</button>
            <span class="q">${q}</span>
@@ -792,10 +880,10 @@ function updateCounter(){
   const drinks = MENU.filter(m=> m.cat==='getraenke' && (counter[m.id]||0)>0);
   const foods  = MENU.filter(m=> m.cat==='speisen'   && (counter[m.id]||0)>0);
   if(!drinks.length && !foods.length){ el.innerHTML = '<span class="none">Zähler bei 0 – noch nichts gezählt</span>'; return; }
-  let html = drinks.map(m=>`<span class="chip">${cName(m)} <b>×${counter[m.id]}</b></span>`).join('');
+  let html = drinks.map(m=>`<span class="chip">${esc(cName(m))} <b>×${counter[m.id]}</b></span>`).join('');
   if(drinks.length){ let dt=0; drinks.forEach(m=>dt+=counter[m.id]);
     html += `<span class="chip sum">Getränke gesamt <b>${dt}</b></span>`; }
-  html += foods.map(m=>`<span class="chip food">${cName(m)} <b>×${counter[m.id]}</b></span>`).join('');
+  html += foods.map(m=>`<span class="chip food">${esc(cName(m))} <b>×${counter[m.id]}</b></span>`).join('');
   el.innerHTML = html;
 }
 
@@ -939,10 +1027,12 @@ function showDay(){
   rows+=`<div class="ir gesamt"><span>Gesamt (alle Tage)</span><span>${eur(cashOf(g))}</span></div>`;
   document.getElementById('dDays').innerHTML = rows;
 
-  // Artikel gesamt
-  const entries = MENU.filter(m=>g.items[m.id]>0);
-  document.getElementById('dItems').innerHTML = entries.length
-    ? entries.map(m=>`<div class="ir"><span>${m.name}</span><span>${g.items[m.id]}×</span></div>`).join('')
+  // Artikel gesamt (Menü-Reihenfolge, dann evtl. gelöschte/umbenannte aus der Historie)
+  const soldIds = [];
+  MENU.forEach(m=>{ if(g.items[m.id]>0) soldIds.push(m.id); });
+  Object.keys(g.items).forEach(id=>{ if(g.items[id]>0 && !MENU_IDS.has(id)) soldIds.push(id); });
+  document.getElementById('dItems').innerHTML = soldIds.length
+    ? soldIds.map(id=>`<div class="ir"><span>${esc(itemName(id))}</span><span>${g.items[id]}×</span></div>`).join('')
     : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
 
   // Gesamt über mehrere Tablets (nur wenn welche empfangen wurden)
@@ -950,7 +1040,7 @@ function showDay(){
   if(impCount() > 0){
     const mine  = cashOf(g);
     const other = cashOf(impSum());
-    document.getElementById('bothTitle').textContent = CLUBCFG.name + ' gesamt (Haupt + weitere Tablets)';
+    document.getElementById('bothTitle').textContent = clubName() + ' gesamt (Haupt + weitere Tablets)';
     document.getElementById('bMain').textContent  = eur(mine);
     document.getElementById('bDevs').textContent  = impCount();
     document.getElementById('bOther').textContent = eur(other);
@@ -1045,7 +1135,79 @@ document.getElementById('btnClub').onclick = ()=>{
   }
 };
 
-// ---- QR: gemeinsame Anzeige (false = konnte nicht erstellt werden) ---------
+// ---- Karte & Namen bearbeiten (Editor) ------------------------------------
+function rebuildCard(){                                    // nach Änderungen alles neu aufbauen
+  buildGrid('speisen',  document.getElementById('gridSpeisen'));
+  buildGrid('getraenke',document.getElementById('gridGetraenke'));
+  applyClubName(); render(); updateCounter();
+}
+function edRow(item, cat){                                 // eine Editor-Zeile bauen
+  const r = document.createElement('div'); r.className='edrow';
+  r.dataset.id = item ? item.id : '';
+  r.dataset.cat = cat;
+  const priceVal = item ? String(item.c/100) : '';
+  const pf = cat==='getraenke'
+    ? `<label class="ed-pf"><input type="checkbox" ${item && item.pfand?'checked':(item?'':'checked')}> Pfand</label>` : '';
+  r.innerHTML =
+    `<input class="ed-name" type="text" maxlength="40" placeholder="Name" value="${item?esc(item.name):''}">
+     <input class="ed-price" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0,00" value="${priceVal}">
+     ${pf}
+     <button class="ed-del" title="Löschen" aria-label="Löschen">🗑</button>`;
+  r.querySelector('.ed-del').onclick = ()=> r.remove();
+  return r;
+}
+function renderAdmin(){
+  document.getElementById('edClubName').value = clubName();
+  const es = document.getElementById('edSpeisen');   es.innerHTML='';
+  const eg = document.getElementById('edGetraenke'); eg.innerHTML='';
+  MENU.filter(m=>m.cat==='speisen'  ).forEach(m=> es.appendChild(edRow(m,'speisen')));
+  MENU.filter(m=>m.cat==='getraenke').forEach(m=> eg.appendChild(edRow(m,'getraenke')));
+}
+document.getElementById('btnEdit').onclick = ()=>{        // aus der (PIN-geschützten) Auswertung
+  renderAdmin();
+  document.getElementById('admin').classList.add('open');
+};
+document.querySelectorAll('#admin .ed-add').forEach(btn=> btn.onclick = ()=>{
+  const cat = btn.dataset.cat;
+  const cont = document.getElementById(cat==='speisen'?'edSpeisen':'edGetraenke');
+  const row = edRow(null, cat); cont.appendChild(row);
+  const nm = row.querySelector('.ed-name'); if(nm) nm.focus();
+});
+document.getElementById('edCancel').onclick = ()=> document.getElementById('admin').classList.remove('open');
+document.getElementById('admin').addEventListener('click', e=>{
+  if(e.target.id==='admin') document.getElementById('admin').classList.remove('open');
+});
+document.getElementById('edReset').onclick = ()=>{
+  if(confirm('Karte auf die Standard-Artikel und -Preise zurücksetzen?\nDein bearbeiteter Vereinsname bleibt erhalten.\nBereits kassierte Summen bleiben unverändert.')){
+    resetMenu(); rebuildCard(); renderAdmin();
+  }
+};
+document.getElementById('edSave').onclick = ()=>{
+  const rows = Array.from(document.querySelectorAll('#admin .edrow'));
+  const menu = [];
+  for(const r of rows){
+    const name = (r.querySelector('.ed-name').value||'').replace(/\s+/g,' ').trim();
+    if(!name) continue;                                    // leere Zeilen überspringen
+    const pc = centsFromInput(r.querySelector('.ed-price').value);
+    const c = (isNaN(pc)||pc<0) ? 0 : pc;
+    const cat = r.dataset.cat==='speisen' ? 'speisen' : 'getraenke';
+    const pfEl = r.querySelector('.ed-pf input');
+    const pfand = cat==='getraenke' && !!(pfEl && pfEl.checked);
+    menu.push({ id: r.dataset.id || genId(), name: name.slice(0,40), c, pfand, cat });
+  }
+  if(!menu.length){ alert('Es muss mindestens ein Artikel übrig bleiben.'); return; }
+  // Vereinsname speichern/zurücksetzen
+  const cn = (document.getElementById('edClubName').value||'').replace(/\s+/g,' ').trim().slice(0,24);
+  if(cn && cn!==CLUBCFG.name) store('kassa_cname', cn);
+  else { try{ localStorage.removeItem('kassa_cname_'+CLUB); }catch(e){} }
+  // Karte speichern
+  MENU = sanitizeMenu(menu);
+  MENU_IDS = new Set(MENU.map(m=>m.id));
+  saveMenu(); rememberNames();
+  rebuildCard();
+  document.getElementById('admin').classList.remove('open');
+  alert('Gespeichert ✓');
+};
 function showQr(url, title, sub, info){
   if(typeof qrcode==='undefined') return false;          // Bibliothek fehlt (offline erster Start)
   try{
@@ -1061,9 +1223,11 @@ function showQr(url, title, sub, info){
 // gemeinsame Statistik-Daten (für QR und für das lokale Bild)
 function statsPayload(){
   const g = gesamt();
-  const it = MENU.filter(m=>g.items[m.id]>0).map(m=>({ n:m.name, q:g.items[m.id] }));
+  const it = [];
+  MENU.forEach(m=>{ if(g.items[m.id]>0) it.push({ n:m.name, q:g.items[m.id] }); });
+  Object.keys(g.items).forEach(id=>{ if(g.items[id]>0 && !MENU_IDS.has(id)) it.push({ n:itemName(id), q:g.items[id] }); });
   const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
-  return { v:2, club:CLUBCFG.name, t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
+  return { v:2, club:clubName(), t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
 }
 
 // ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
@@ -1085,7 +1249,7 @@ document.getElementById('btnSend').onclick = makeTransfer;
 // ---- QR: dieses Tablet an das Haupt-Tablet senden (nur Summe) -------------
 function makeMerge(){
   const g = gesamt();
-  const payload = { v:3, club:CLUBCFG.name, dev:DEVID, t:heute(),
+  const payload = { v:3, club:CLUB, cn:clubName(), dev:DEVID, t:heute(),
     w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count };
   const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
   const ok = showQr(url, '📲 An Haupt-Tablet senden',
@@ -1195,8 +1359,10 @@ function handleMergeUrl(){
   let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
   try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}
   if(!p || p.v!==3 || !p.dev){ alert('QR nicht lesbar.'); return; }
-  if(p.club && p.club!==CLUBCFG.name){
-    alert('Dieser QR gehört zu „'+p.club+'".\nDieses Tablet ist auf „'+CLUBCFG.name+'" eingestellt.'); return; }
+  // Verein abgleichen über den festen Schlüssel (p.club = 'fsgl'/'scl'); ältere Codes nutzen den Namen
+  const sameClub = (p.club===CLUB) || (p.club===CLUBCFG.name) || (p.cn && p.cn===clubName());
+  if(p.club && !sameClub){
+    alert('Dieser QR gehört zu einem anderen Verein („'+(p.cn||p.club)+'").\nDieses Tablet ist „'+clubName()+'".'); return; }
   if(p.dev===DEVID){ alert('Das ist der QR dieses Tablets selbst.'); return; }
   const pin = prompt('PIN für Übernahme:');
   if(pin===null) return;
@@ -1206,16 +1372,18 @@ function handleMergeUrl(){
     pb:Math.round(+p.pb||0), c:Math.max(0,Math.round(+p.c||0)),
     t:(typeof p.t==='string'?p.t:'') };
   saveImp();
-  alert((neu?'Tablet übernommen ✓':'Tablet aktualisiert ✓')+'\n'+CLUBCFG.name+
+  alert((neu?'Tablet übernommen ✓':'Tablet aktualisiert ✓')+'\n'+clubName()+
     ' zeigt jetzt die Gesamtsumme aller Tablets.');
   showDay();
 }
 handleMergeUrl();
 
 // interner Zugriff (nur für Tests/Diagnose – enthält keine Geheimnisse)
-try{ window.KASSA = { CLUB, CLUBCFG, MENU, MENU_IDS, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
+try{ window.KASSA = { CLUB, CLUBCFG, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
   totals, recordSale, render, gesamt, cashOf, leer, saveDay, saveFest, saveCounter, updateCounter,
-  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay, statsPayload, totalsPayloadTest:totals,
+  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay, statsPayload,
+  esc, itemName, clubName, applyClubName, buildMenu, saveMenu, resetMenu, rebuildCard, genId, sanitizeMenu, baseMenu,
+  get MENU(){return MENU}, get MENU_IDS(){return MENU_IDS},
   get cart(){return cart}, set cart(v){cart=v},
   get pfandBack(){return pfandBack}, set pfandBack(v){pfandBack=v},
   get day(){return day}, set day(v){day=v},

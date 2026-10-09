@@ -573,6 +573,144 @@ const resetState = page => page.evaluate(() => {
     await ctx.close();
   }
 
+  // ================= 21. Editor: Karte & Namen bearbeiten =================
+  {
+    group('Editor – Artikel/Preise/Vereinsname bearbeiten');
+    const { ctx, page, dlg } = await freshPage(browser, 'fsgl');
+    dlg.confirm = true; dlg.prompt = '1234';
+    await page.evaluate(() => { window.KASSA.resetMenu(); window.KASSA.rebuildCard(); });
+
+    // (a) Neues Getränk hinzufügen
+    let r = await page.evaluate(() => {
+      document.getElementById('btnEdit').click();
+      document.querySelector('#admin .ed-add[data-cat="getraenke"]').click();
+      const rows = document.querySelectorAll('#edGetraenke .edrow');
+      const row = rows[rows.length - 1];
+      row.querySelector('.ed-name').value = 'Testbowl';
+      row.querySelector('.ed-price').value = '5';
+      // Pfand ist bei neuem Getränk standardmäßig an
+      document.getElementById('edSave').click();
+      const K = window.KASSA;
+      const it = K.MENU.find(m => m.name === 'Testbowl');
+      const btn = !!document.querySelector('button.item .name');
+      let total = null;
+      if (it) { K.cart = { [it.id]: 1 }; total = K.totals(); K.cart = {}; }
+      return { found: !!it, c: it && it.c, pfand: it && it.pfand, cat: it && it.cat, total,
+        inGrid: Array.from(document.querySelectorAll('#gridGetraenke .name')).some(n => n.textContent === 'Testbowl') };
+    });
+    ok(r.found, 'neues Getränk gespeichert'); eq(r.c, 500, 'Preis 5,00 € übernommen');
+    eq(r.pfand, true, 'neues Getränk hat Pfand'); eq(r.cat, 'getraenke', 'Kategorie Getränk');
+    ok(r.inGrid, 'neues Getränk erscheint im Raster');
+    eq(r.total, { wareC: 500, pfandC: 200, totalC: 700 }, 'verkaufbar: 5,00 € + 2 € Pfand = 7,00 €');
+
+    // (b) Preis eines bestehenden Artikels ändern
+    r = await page.evaluate(() => {
+      document.getElementById('btnEdit').click();
+      const row = document.querySelector('#edSpeisen .edrow');            // erste Speise (Chilli)
+      const id = row.dataset.id;
+      row.querySelector('.ed-price').value = '10';
+      document.getElementById('edSave').click();
+      return { id, c: window.KASSA.byId(window.KASSA.MENU.find(m => m.cat === 'speisen').id).c };
+    });
+    eq(r.c, 1000, 'geänderter Preis 10,00 € wirksam');
+
+    // (c) Vereinsname ändern
+    r = await page.evaluate(() => {
+      document.getElementById('btnEdit').click();
+      document.getElementById('edClubName').value = 'Testverein';
+      document.getElementById('edSave').click();
+      return { name: window.KASSA.clubName(), header: document.getElementById('clubName').textContent,
+        qrClub: window.KASSA.statsPayload().club };
+    });
+    eq(r.name, 'Testverein', 'Vereinsname geändert');
+    eq(r.header, 'Testverein', 'Kopfzeile zeigt neuen Namen');
+    eq(r.qrClub, 'Testverein', 'QR-Statistik nutzt neuen Namen');
+    await ctx.close();
+  }
+
+  // ================= 22. Editor: Löschen, Historie, Reset, Persistenz =====
+  {
+    group('Editor – Löschen/Historie/Reset/Persistenz');
+    const { ctx, page, dlg } = await freshPage(browser, 'fsgl');
+    dlg.confirm = true; dlg.prompt = '1234';
+    await page.evaluate(() => { window.KASSA.resetMenu(); window.KASSA.rebuildCard(); window.KASSA.day = window.KASSA.leer(); window.KASSA.archive = []; });
+
+    // Artikel verkaufen, dann löschen -> Historie zeigt den Namen weiter
+    const r = await page.evaluate(() => {
+      const K = window.KASSA;
+      const bl = K.MENU.find(m => m.id === 'bl');          // Berliner Luft
+      const soldName = bl.name;
+      K.cart = { bl: 2 }; document.getElementById('btnNew').click();   // verkauft
+      // löschen
+      document.getElementById('btnEdit').click();
+      const row = document.querySelector('#edGetraenke .edrow[data-id="bl"]');
+      row.querySelector('.ed-del').click();
+      document.getElementById('edSave').click();
+      const stillInMenu = !!K.byId('bl');
+      const histName = K.itemName('bl');
+      // Statistik zeigt den gelöschten Artikel noch
+      K.showDay();
+      const inStats = Array.from(document.querySelectorAll('#dItems .ir span'))
+        .some(s => s.textContent === soldName);
+      return { stillInMenu, histName, soldName, inStats };
+    });
+    eq(r.stillInMenu, false, 'gelöschter Artikel ist aus der Karte weg');
+    eq(r.histName, r.soldName, 'Name bleibt für die Historie erhalten');
+    ok(r.inStats, 'verkaufter, dann gelöschter Artikel erscheint weiter in der Statistik');
+
+    // Reset auf Standard
+    const rr = await page.evaluate(() => {
+      document.getElementById('btnEdit').click();
+      document.getElementById('edReset').click();     // confirm -> accept
+      document.getElementById('edCancel').click();
+      return { len: window.KASSA.MENU.length, hasBl: !!window.KASSA.byId('bl') };
+    });
+    eq(rr.len, 18, 'Reset stellt FSGL-Standard (18 Artikel) wieder her');
+    ok(rr.hasBl, 'Standard-Artikel nach Reset wieder da');
+
+    // Persistenz: Custom-Karte übersteht Neuladen
+    await page.evaluate(() => {
+      const K = window.KASSA;
+      document.getElementById('btnEdit').click();
+      document.querySelector('#admin .ed-add[data-cat="speisen"]').click();
+      const rows = document.querySelectorAll('#edSpeisen .edrow');
+      const row = rows[rows.length - 1];
+      row.querySelector('.ed-name').value = 'Pommes';
+      row.querySelector('.ed-price').value = '3.5';
+      document.getElementById('edSave').click();
+    });
+    await page.reload(); await page.waitForFunction(() => window.KASSA && window.KASSA.CLUBCFG);
+    const pers = await page.evaluate(() => { const p = window.KASSA.MENU.find(m => m.name === 'Pommes'); return p ? p.c : null; });
+    eq(pers, 350, 'bearbeitete Karte bleibt nach Neuladen erhalten (Pommes 3,50 €)');
+    await ctx.close();
+  }
+
+  // ================= 23. Sicherheit: Artikelname wird escaped (kein XSS) ==
+  {
+    group('Sicherheit – Artikelname wird escaped');
+    const { ctx, page, dlg } = await freshPage(browser, 'fsgl');
+    dlg.confirm = true; dlg.prompt = '1234';
+    await page.evaluate(() => { window.KASSA.resetMenu(); window.KASSA.rebuildCard(); });
+    const r = await page.evaluate(() => {
+      document.getElementById('btnEdit').click();
+      document.querySelector('#admin .ed-add[data-cat="getraenke"]').click();
+      const rows = document.querySelectorAll('#edGetraenke .edrow');
+      const row = rows[rows.length - 1];
+      const payload = '<img src=x onerror=1>';
+      row.querySelector('.ed-name').value = payload;
+      row.querySelector('.ed-price').value = '1';
+      document.getElementById('edSave').click();
+      // In keinem Raster darf ein echtes <img> injiziert worden sein
+      const injected = document.querySelector('#gridGetraenke .name img');
+      const textShown = Array.from(document.querySelectorAll('#gridGetraenke .name'))
+        .some(n => n.textContent === payload);
+      return { injected: !!injected, textShown };
+    });
+    eq(r.injected, false, 'kein echtes <img> durch Artikelname injiziert (XSS verhindert)');
+    ok(r.textShown, 'Sonderzeichen werden als Text angezeigt');
+    await ctx.close();
+  }
+
   // ================= Ergebnis =============================================
   await browser.close();
   console.log(`\n==================  ${pass} bestanden · ${fail} fehlgeschlagen  ==================`);
