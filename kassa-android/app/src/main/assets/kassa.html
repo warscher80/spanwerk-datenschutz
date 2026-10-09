@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#e8920c">
+<title>Sommerfest Kassa</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sommerfest Kassa">
+<style>
+  :root{
+    --orange:#e8920c; --orange-d:#c9760a;
+    --bg:#f4f5f7; --card:#fff; --line:#e3e6ea;
+    --ink:#1a2330; --muted:#6b7585;
+    --green:#1f9d55; --green-d:#198047;
+    --red:#d64545;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding:0 0 296px; line-height:1.4;
+  }
+  header{
+    background:var(--orange); color:#fff;
+    padding:7px 16px; position:sticky; top:0; z-index:5;
+    box-shadow:0 2px 6px rgba(0,0,0,.12);
+  }
+  header .hwrap{max-width:1000px; margin:0 auto;
+    display:flex; align-items:center; gap:8px}
+  header .side{flex:1 1 0; min-width:0; display:flex; align-items:center}
+  header .side.right{justify-content:flex-end}
+  header .logo{width:118px; height:118px; border-radius:14px; flex:0 0 auto;
+    object-fit:contain; background:transparent}
+  header .clubname{font-size:.6em; font-weight:800; opacity:.95; vertical-align:middle;
+    background:rgba(255,255,255,.22); border:1px solid rgba(255,255,255,.5);
+    border-radius:8px; padding:1px 8px; margin-left:4px; white-space:nowrap}
+  header .htext{flex:0 1 auto; text-align:center; line-height:1.1}
+  header h1{margin:0; font-size:26px; line-height:1.05}
+  header .by{display:block; font-size:13px; opacity:.95; font-weight:600; margin-top:2px}
+  header .by #egg{user-select:none; -webkit-user-select:none; cursor:default}
+  header .hint{margin:6px 0 0; text-align:center; font-size:12px; opacity:.92; color:#fff}
+  header .testinfo{margin:5px 0 0; text-align:center; font-size:11px; color:#fff; opacity:.75}
+  /* Live-Getränkezähler (heute verkauft) */
+  .dcount{max-width:1000px; margin:7px auto 0; display:flex; flex-wrap:wrap;
+    gap:6px; justify-content:center; align-items:center}
+  .dcount .chip{background:rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.45);
+    border-radius:20px; padding:3px 10px; font-size:13px; font-weight:600; white-space:nowrap}
+  .dcount .chip b{font-weight:800; margin-left:2px}
+  .dcount .chip.sum{background:rgba(0,0,0,.16); border-color:rgba(0,0,0,.18)}
+  .dcount .none{font-size:12px; opacity:.85}
+  .wrap{max-width:680px; margin:0 auto; padding:14px}
+  h2.sec{font-size:14px; text-transform:uppercase; letter-spacing:.5px;
+    color:var(--muted); margin:18px 0 8px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  @media(min-width:560px){.grid{grid-template-columns:1fr 1fr 1fr}}
+  /* Tablets / größere Bildschirme: mehr Spalten + breiteres Layout */
+  @media(min-width:820px){
+    .wrap{max-width:980px}
+    .grid{grid-template-columns:repeat(4,1fr); gap:12px}
+    button.item{min-height:88px}
+    button.item .name{font-size:15px}
+    button.item .price{font-size:16px}
+    .foot .inner{max-width:980px}
+    .total .t2{font-size:34px}
+    header h1{font-size:34px}
+    header .by{font-size:15px}
+    header .logo{width:150px; height:150px}
+  }
+  /* schmale Handys: Logo links (größer), Titel mittig, Tagessumme-Knopf darunter */
+  @media(max-width:559px){
+    header{position:relative}
+    header .hwrap{flex-direction:column; align-items:center; gap:4px}
+    header .side.left{position:absolute; left:12px; top:8px}
+    header .htext{order:1}
+    header .side.right{order:2; margin-top:4px}
+    header h1{font-size:21px}
+    header .by{font-size:12px}
+    header .logo{width:92px; height:92px}
+  }
+  /* Tablets (genug Höhe): großes Logo links, vertikal über die volle Kopfhöhe zentriert */
+  @media(min-width:560px) and (min-height:620px){
+    header{position:relative; display:flex; flex-direction:column; justify-content:center;
+      min-height:196px; padding:10px 216px}
+    header .hwrap{display:block; width:100%}
+    header .htext{display:block; text-align:center}
+    header h1{font-size:33px}
+    header .by{font-size:15px}
+    header .side.left{position:absolute; left:28px; top:50%; transform:translateY(-50%); flex:none; display:block}
+    header .side.right{position:absolute; right:16px; top:50%; transform:translateY(-50%); flex:none}
+    header .logo{width:176px; height:176px}
+  }
+  /* Querformat mit wenig Höhe (z. B. Handy quer): unten kompakt nebeneinander */
+  @media(orientation:landscape) and (max-height:600px){
+    body{padding-bottom:118px}
+    header{padding:5px 16px}
+    header .hint{display:none}
+    .foot{padding:6px 14px env(safe-area-inset-bottom)}
+    .foot .inner{display:grid; grid-template-columns:auto 1fr;
+      column-gap:18px; row-gap:5px; align-items:center; max-width:980px}
+    .lines{grid-column:1; grid-row:1; gap:14px}
+    .total{grid-column:1; grid-row:2; margin:0; gap:10px}
+    .total .t2{font-size:24px}
+    .change{grid-column:2; grid-row:1; margin:0}
+    .quickcash{display:none}
+    .actions{grid-column:2; grid-row:2}
+    .actions button{padding:10px 8px}
+  }
+  button.item{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:14px; padding:12px 10px; text-align:left;
+    cursor:pointer; min-height:74px; position:relative;
+    display:flex; flex-direction:column; justify-content:space-between;
+    transition:transform .05s, box-shadow .1s;
+  }
+  button.item:active{transform:scale(.96); box-shadow:0 0 0 3px rgba(232,146,12,.25)}
+  button.item .name{font-size:14px; font-weight:600; line-height:1.25}
+  button.item .price{font-size:15px; font-weight:700; color:var(--orange-d); margin-top:6px}
+  button.item .pfand{font-size:11px; color:var(--muted); font-weight:500}
+  button.item .cnt{
+    position:absolute; top:-8px; right:-8px; min-width:24px; height:24px;
+    background:var(--green); color:#fff; border-radius:12px; font-size:13px;
+    font-weight:700; display:none; align-items:center; justify-content:center;
+    padding:0 6px; box-shadow:0 1px 4px rgba(0,0,0,.2);
+  }
+  button.item.has .cnt{display:flex}
+  button.item.has{border-color:var(--green); background:#f1fbf4}
+
+  /* Bestellung Liste */
+  .order{margin-top:6px}
+  .row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line)}
+  .row .lbl{flex:1; font-size:14px}
+  .row .lbl small{color:var(--muted)}
+  .qtybtns{display:flex; align-items:center; gap:8px}
+  .qtybtns button{
+    width:34px; height:34px; border-radius:9px; border:1px solid var(--line);
+    background:var(--card); font-size:20px; font-weight:700; cursor:pointer; color:var(--ink);
+  }
+  .qtybtns button:active{background:var(--bg)}
+  .qtybtns .q{min-width:22px; text-align:center; font-weight:700}
+  .row .sum{width:64px; text-align:right; font-weight:600; font-size:14px}
+  .empty{color:var(--muted); text-align:center; padding:24px 0; font-size:14px}
+
+  /* Footer / Summe */
+  .foot{
+    position:fixed; left:0; right:0; bottom:0; background:var(--card);
+    border-top:1px solid var(--line); box-shadow:0 -3px 12px rgba(0,0,0,.08);
+    padding:10px 14px env(safe-area-inset-bottom); z-index:6;
+  }
+  .foot .inner{max-width:680px; margin:0 auto}
+  .lines{font-size:13px; color:var(--muted); display:flex; justify-content:space-between}
+  .total{display:flex; justify-content:space-between; align-items:baseline; margin:2px 0 8px}
+  .total .t1{font-size:16px; font-weight:600}
+  .total .t2{font-size:30px; font-weight:800; color:var(--orange-d)}
+  .change{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+  .change label{font-size:13px; color:var(--muted)}
+  .change input{
+    flex:1; font-size:18px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:10px; text-align:right; min-width:0;
+    background:var(--card); color:var(--ink);
+  }
+  .change .ret{font-size:15px; font-weight:700; white-space:nowrap}
+  .change .ret b{color:var(--green-d)}
+  /* Gegeben-Schnelltasten */
+  .quickcash{display:flex; gap:5px; margin-bottom:8px}
+  .quickcash button{flex:1; min-width:0; height:56px; padding:0; border:1px solid var(--line);
+    background:var(--card); border-radius:11px; font-weight:800; cursor:pointer; color:var(--ink)}
+  .quickcash .qc-clear{flex:0 0 46px; color:var(--red); font-size:22px}
+  .quickcash .qc-clear:active{background:var(--bg)}
+  /* Geldschein-Knöpfe als kleine Banknoten */
+  .quickcash .note{padding:2px; border:none; background:transparent}
+  .quickcash .note svg{width:100%; height:100%; display:block; filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+  .quickcash .note:active{filter:brightness(.9)}
+  .actions{display:flex; gap:8px}
+  .actions button{
+    flex:1; border:none; border-radius:12px; padding:13px 8px;
+    font-size:15px; font-weight:700; cursor:pointer; color:#fff;
+  }
+  .btn-pfand{background:#5b6573}
+  .btn-pfand:active{background:#454e5a}
+  .btn-new{background:var(--green)}
+  .btn-new:active{background:var(--green-d)}
+  .hint{font-size:12px; color:var(--muted); margin-top:10px; text-align:center}
+
+  /* Tagessumme-Button im Header */
+  header .tagbtn{background:rgba(255,255,255,.22); color:#fff;
+    border:1px solid rgba(255,255,255,.55); border-radius:9px; padding:6px 11px;
+    font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap}
+  header .tagbtn:active{background:rgba(255,255,255,.38)}
+
+  /* Auswertungs-Fenster */
+  .modal{position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:20;
+    display:none; align-items:flex-start; justify-content:center; padding:18px; overflow:auto}
+  .modal.open{display:flex}
+  .sheet{background:var(--card); border-radius:16px; max-width:480px; width:100%;
+    padding:18px; box-shadow:0 12px 40px rgba(0,0,0,.3); margin:auto}
+  .sheet h2{margin:0 0 2px; font-size:20px}
+  .sheet .sub{color:var(--muted); font-size:13px; margin-bottom:14px}
+  .cash{background:#f1fbf4; border:1px solid var(--green); border-radius:12px;
+    padding:12px 14px; text-align:center; margin-bottom:14px}
+  .cash .c1{font-size:13px; color:var(--muted)}
+  .cash .c2{font-size:30px; font-weight:800; color:var(--green-d)}
+  .cash .c3{font-size:12px; color:var(--muted); margin-top:4px}
+  .wg{display:flex; align-items:center; gap:8px; margin-bottom:12px}
+  .wg label{font-size:14px; color:var(--ink); flex:1; font-weight:600}
+  .wg input{width:120px; font-size:16px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:10px; text-align:right}
+  .kv{display:flex; justify-content:space-between; padding:7px 0;
+    border-bottom:1px solid var(--line); font-size:14px}
+  .kv span:last-child{font-weight:700}
+  .itemstat{margin-top:14px}
+  .itemstat h3{font-size:13px; margin:0 0 4px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px}
+  .itemstat .ir{display:flex; justify-content:space-between; font-size:14px; padding:3px 0}
+  .mbtns{display:flex; gap:8px; margin-top:18px}
+  .mbtns button{flex:1; border:none; border-radius:11px; padding:12px;
+    font-size:14px; font-weight:700; cursor:pointer}
+  .btn-close{background:#e7eaee; color:var(--ink)}
+  .btn-day{background:var(--green); color:#fff}
+  .btn-reset{background:#fff; color:var(--red); border:1px solid var(--red)}
+  .daysum .ir.today{font-weight:700}
+  .daysum .ir.gesamt{border-top:2px solid var(--line); margin-top:4px;
+    padding-top:6px; font-weight:800; font-size:15px}
+
+  /* Abend-Modus (dunkel) */
+  header .iconbtn{background:rgba(255,255,255,.22); color:#fff; line-height:1;
+    border:1px solid rgba(255,255,255,.55); border-radius:9px; padding:6px 9px;
+    font-size:15px; cursor:pointer}
+  header .iconbtn:active{background:rgba(255,255,255,.38)}
+  header .side.right{gap:6px}
+  .dcount .chip.food{border-style:dashed}
+  body.dark{
+    --bg:#14181e; --card:#1e252d; --line:#333d48; --ink:#e9edf2; --muted:#9aa6b3; --orange-d:#f0a020;
+  }
+  body.dark .cash{background:#16301f; border-color:#1f6b3f}
+  body.dark .item.has{background:#173021}
+  body.dark .btn-close{background:#2c343d; color:var(--ink)}
+  body.dark .btn-reset{background:var(--card)}
+
+  /* Feier-Animation (Bier-Meilenstein) */
+  .party{position:fixed; inset:0; z-index:40; display:none; pointer-events:none;
+    align-items:center; justify-content:center}
+  .party.show{display:flex}
+  .party .msg{background:rgba(0,0,0,.82); color:#fff; padding:18px 26px; border-radius:18px;
+    font-size:22px; font-weight:800; text-align:center; max-width:80vw;
+    box-shadow:0 10px 40px rgba(0,0,0,.45); animation:pop .35s ease}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .confetti{position:fixed; top:-24px; font-size:22px; z-index:39; pointer-events:none;
+    will-change:transform; animation:fall linear forwards}
+  @keyframes fall{0%{transform:translateY(-30px) rotate(0)}100%{transform:translateY(106vh) rotate(540deg)}}
+
+  /* QR-Übertragung */
+  #qrbox{display:flex; justify-content:center; margin:12px 0}
+  #qrbox svg{width:min(300px,78vw); height:auto; background:#fff; padding:8px; border-radius:10px}
+  .btn-send{background:#2d6cdf; color:#fff}
+  .btn-merge{background:#6a3fb0; color:#fff}
+  .btn-cntreset{background:#5b6573; color:#fff}
+  #bothBox{margin-top:14px; border-top:2px solid var(--line); padding-top:10px}
+  #bothBox h3{font-size:13px; margin:0 0 6px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px}
+  #bothBox .kv span:last-child{color:var(--green-d)}
+
+  /* Karte/Namen-Editor */
+  .btn-edit{background:#0f7d8c; color:#fff}
+  #admin .sub{margin-bottom:12px}
+  .edrow{display:flex; gap:6px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line)}
+  .edrow .ed-name{flex:1 1 auto; min-width:0; font-size:14px; padding:8px; border:1px solid var(--line);
+    border-radius:8px; background:var(--card); color:var(--ink)}
+  .edrow .ed-price{width:74px; flex:0 0 auto; font-size:14px; padding:8px 6px; border:1px solid var(--line);
+    border-radius:8px; text-align:right; background:var(--card); color:var(--ink)}
+  .edrow .ed-pf{display:flex; align-items:center; gap:3px; font-size:12px; color:var(--muted);
+    white-space:nowrap; flex:0 0 auto}
+  .edrow .ed-pf input{width:18px; height:18px}
+  .edrow .ed-del{width:36px; height:36px; flex:0 0 auto; border:1px solid var(--line); border-radius:8px;
+    background:var(--card); color:var(--red); font-size:16px; cursor:pointer}
+  .ed-add{margin-top:10px; width:100%; border:1px dashed var(--muted); background:var(--card);
+    color:var(--ink); border-radius:10px; padding:10px; font-size:14px; font-weight:700; cursor:pointer}
+  .ed-add:active{background:var(--bg)}
+  #admin .sheet{max-width:560px}
+
+  /* Statistik-Bericht (empfangen, zum Speichern) */
+  .report{position:fixed; inset:0; z-index:30; background:#2a2f36; display:none;
+    align-items:flex-start; justify-content:center; overflow:auto; padding:14px}
+  .report.open{display:flex}
+  .rsheet{max-width:560px; width:100%; margin:auto}
+  .rscroll{text-align:center}
+  .report img{width:100%; height:auto; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .rhint{color:#dfe3e8; font-size:13px; text-align:center; margin:10px 0 4px}
+  .rbtns{display:flex; gap:8px; margin-top:8px; position:sticky; bottom:0; padding-bottom:6px}
+  .rbtns button{flex:1; border:none; border-radius:11px; padding:14px; font-size:15px;
+    font-weight:700; cursor:pointer}
+  #reportSave{background:var(--green); color:#fff}
+  #reportClose{background:#e7eaee; color:#23262b}
+
+  /* Vereins-Auswahl (Picker) */
+  .picker{position:fixed; inset:0; z-index:50; background:var(--orange); display:none;
+    align-items:center; justify-content:center; padding:20px}
+  .picker.open{display:flex}
+  .picker .pcard{background:#fff; border-radius:18px; padding:26px 22px; max-width:540px;
+    width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .picker h2{margin:0 0 6px; font-size:24px; color:var(--ink)}
+  .picker p{margin:0 0 20px; color:var(--muted); font-size:15px}
+  .picker .pclubs{display:flex; gap:14px; flex-wrap:wrap; justify-content:center}
+  .picker .pclubs button{flex:1 1 190px; min-width:160px; background:#f4f5f7;
+    border:2px solid var(--line); border-radius:16px; padding:20px 12px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:12px}
+  .picker .pclubs button:active{background:#e9ebee}
+  .picker .pclubs img{height:76px; width:auto; max-width:92%; object-fit:contain}
+  .picker .pclubs span{font-size:21px; font-weight:800; color:var(--ink)}
+  .btn-club{background:#5b6573; color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="side left">
+      <img class="logo" src="sommerfest-logo.png" alt="Sommerfest Lienz 2026">
+    </div>
+    <div class="htext">
+      <h1>Sommerfest Kassa <span class="clubname" id="clubName"></span></h1>
+      <span class="by">Kassiersystem à la <span id="egg">Nico</span> Warscher</span>
+    </div>
+    <div class="side right">
+      <button class="tagbtn" id="btnTag">📊 Tagessumme</button>
+      <button class="iconbtn" id="btnDark" title="Abend-Modus" aria-label="Abend-Modus">🌙</button>
+    </div>
+  </div>
+  <p class="hint">Tippen → Betrag ablesen → kassieren · lange drücken = ×5 · Pfand 2&nbsp;€ pro Becher automatisch.</p>
+  <div class="dcount" id="dcount"></div>
+  <div class="testinfo">Testphase endet am 10.08.2026</div>
+</header>
+
+<div class="wrap">
+  <h2 class="sec">Speisen</h2>
+  <div class="grid" id="gridSpeisen"></div>
+
+  <h2 class="sec">Getränke <span style="text-transform:none;font-weight:400">(inkl. 2&nbsp;€ Pfand)</span></h2>
+  <div class="grid" id="gridGetraenke"></div>
+
+  <h2 class="sec">Bestellung</h2>
+  <div class="order" id="order"></div>
+</div>
+
+<div class="foot">
+  <div class="inner">
+    <div class="lines">
+      <span id="lWare">Ware: 0,00 €</span>
+      <span id="lPfand">Pfand: 0,00 €</span>
+    </div>
+    <div class="total">
+      <span class="t1">Zu kassieren</span>
+      <span class="t2" id="totalOut">0,00 €</span>
+    </div>
+    <div class="change">
+      <label>Gegeben</label>
+      <input id="given" type="number" inputmode="decimal" placeholder="z. B. 20" step="0.5">
+      <span class="ret" id="retOut"></span>
+    </div>
+    <div class="quickcash" id="quickcash">
+      <button data-cash="clear" class="qc-clear" title="Löschen">C</button>
+    </div>
+    <div class="actions">
+      <button class="btn-pfand" id="btnPfandBack">↩︎ Becher retour (−2 €)</button>
+      <button class="btn-new" id="btnNew">✓ Kassiert / Neu</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h2>📊 Auswertung</h2>
+    <div class="sub">nur dieses Gerät</div>
+    <div class="wg">
+      <label>Wechselgeld Start (heute)</label>
+      <input id="startCash" type="number" inputmode="decimal" step="10" placeholder="0">
+    </div>
+    <div class="cash">
+      <div class="c1">In der Lade jetzt (soll)</div>
+      <div class="c2" id="dDrawer">0,00 €</div>
+      <div class="c3" id="dDrawerCalc"></div>
+    </div>
+    <div class="itemstat">
+      <h3>Tage – Einnahmen (ohne Wechselgeld)</h3>
+      <div class="daysum" id="dDays"></div>
+    </div>
+    <div class="kv"><span>Umsatz Ware (gesamt)</span><span id="dWare">0,00 €</span></div>
+    <div class="kv"><span>Pfand erhalten</span><span id="dPfandOut">0,00 €</span></div>
+    <div class="kv"><span>Pfand zurück</span><span id="dPfandBack">0,00 €</span></div>
+    <div class="kv"><span>Becher noch draußen</span><span id="dCups">0</span></div>
+    <div class="kv"><span>Verkäufe gesamt</span><span id="dCount">0</span></div>
+    <div class="itemstat">
+      <h3>Verkaufte Artikel (gesamt)</h3>
+      <div id="dItems"></div>
+    </div>
+    <div id="bothBox" style="display:none">
+      <h3 id="bothTitle">🔗 Gesamt (Haupt + weitere Tablets)</h3>
+      <div class="kv"><span>Dieses Tablet</span><span id="bMain">0,00 €</span></div>
+      <div class="kv"><span>Weitere Tablets (<span id="bDevs">0</span>)</span><span id="bOther">0,00 €</span></div>
+      <div class="kv"><span><b id="bTot">Gesamt (beide)</b></span><span id="bCash"><b>0,00 €</b></span></div>
+    </div>
+    <div class="mbtns">
+      <button class="btn-close" id="btnClose">Schließen</button>
+      <button class="btn-day" id="btnCloseDay">✔ Tag abschließen</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-send" id="btnSend">📤 Statistik als QR (aufs Handy)</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-merge" id="btnMerge">📲 An Haupt-Tablet senden (QR)</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-cntreset" id="btnCntReset">🔄 Getränke-/Speisezähler auf 0</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-reset" id="btnReset">Alles (Fest) zurücksetzen</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-edit" id="btnEdit">⚙️ Karte &amp; Namen bearbeiten</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-club" id="btnClub">🔁 Verein wechseln</button>
+    </div>
+  </div>
+</div>
+
+<div class="party" id="party"><div class="msg" id="partyMsg"></div></div>
+
+<div class="modal" id="qrmodal">
+  <div class="sheet" style="text-align:center">
+    <h2 id="qrTitle">📤 Statistik senden</h2>
+    <div class="sub" id="qrSub">Mit dem Handy scannen → Statistik öffnet sich zum Speichern</div>
+    <div id="qrbox"></div>
+    <div class="c3" id="qrinfo" style="margin-top:8px"></div>
+    <div class="mbtns"><button class="btn-close" id="qrClose">Schließen</button></div>
+  </div>
+</div>
+
+<div class="modal" id="admin">
+  <div class="sheet">
+    <h2>⚙️ Karte &amp; Namen bearbeiten</h2>
+    <div class="sub">Preise, Artikel und Vereinsname ändern. Gilt nur für diesen Verein auf diesem Gerät. Bereits kassierte Summen bleiben unverändert.</div>
+    <div class="wg">
+      <label>Vereinsname (Anzeige)</label>
+      <input id="edClubName" type="text" maxlength="24" placeholder="z. B. FSGL">
+    </div>
+    <div class="itemstat">
+      <h3>Speisen</h3>
+      <div id="edSpeisen"></div>
+      <button class="ed-add" data-cat="speisen">+ Speise hinzufügen</button>
+    </div>
+    <div class="itemstat">
+      <h3>Getränke</h3>
+      <div id="edGetraenke"></div>
+      <button class="ed-add" data-cat="getraenke">+ Getränk hinzufügen</button>
+    </div>
+    <div class="mbtns">
+      <button class="btn-close" id="edCancel">Abbrechen</button>
+      <button class="btn-day" id="edSave">✔ Speichern</button>
+    </div>
+    <div class="mbtns" style="margin-top:8px">
+      <button class="btn-reset" id="edReset">Auf Standard-Karte zurücksetzen</button>
+    </div>
+  </div>
+</div>
+
+<div class="report" id="report">
+  <div class="rsheet">
+    <div class="rscroll"><img id="reportImg" alt="Statistik"></div>
+    <div class="rhint">Tipp: lange auf das Bild drücken → „Bild sichern“ (Foto-App)</div>
+    <div class="rbtns">
+      <button id="reportSave">📥 Speichern</button>
+      <button id="reportClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div class="picker" id="picker">
+  <div class="pcard">
+    <h2>Verein wählen</h2>
+    <p>Bitte deinen Verein auswählen und den Vereins-Code eingeben.</p>
+    <div class="pclubs">
+      <button data-club="fsgl"><img src="fsgl-logo.svg" alt="FSGL"><span>FSGL</span></button>
+      <button data-club="scl"><img src="scl-logo.png" alt="SCL"><span>SCL</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="qrcode.js"></script>
+<script>
+// ---- Kern: Cent-Rechnung + QR-Bericht (funktioniert auch OHNE Vereinswahl) -
+const PFAND_C = 200;                 // 2,00 € Pfand in Cent
+function eur(c){                      // Cent -> "1234,50 €"
+  c = Math.round(c);
+  const neg = c < 0; c = Math.abs(c);
+  const e = Math.floor(c/100), r = c % 100;
+  return (neg?'−':'') + e + ',' + (r<10?'0':'') + r + ' €';
+}
+function b64urlEncode(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
+
+// ---- Empfangene Statistik (QR gescannt) als speicherbares Bild ------------
+function renderReportCanvas(p){
+  const items = Array.isArray(p.it) ? p.it : [];
+  const days  = Array.isArray(p.days) ? p.days : [];
+  const W = 760, S = 2, M = 36, RH = 30;
+  let H = 150 + 36 + (days.length+1)*RH + 30 + 34 + 6*RH + 30 + 34 + items.length*RH + 50;
+  const c = document.createElement('canvas'); c.width = W*S; c.height = H*S;
+  const x = c.getContext('2d'); x.scale(S,S);
+  x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+  x.fillStyle = '#e8920c'; x.fillRect(0,0,W,110);
+  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
+  x.font = '800 30px Arial,sans-serif'; x.fillText('Sommerfest Lienz 2026'+(p.club?' · '+p.club:''), M, 46);
+  x.font = '700 19px Arial,sans-serif'; x.fillText('Kassa-Statistik · erstellt '+(p.t||''), M, 78);
+  x.font = '600 15px Arial,sans-serif'; x.fillText('Kassiersystem à la Nico Warscher', M, 99);
+  const ck = n => eur(n);
+  const sep = y => { x.strokeStyle = '#e3e6ea'; x.lineWidth = 1; x.beginPath(); x.moveTo(M,y); x.lineTo(W-M,y); x.stroke(); };
+  const head = (t,y) => { x.fillStyle = '#6b7585'; x.font = '700 14px Arial'; x.fillText(t.toUpperCase(), M, y); };
+  const row = (l,r,y,bold) => {
+    x.fillStyle = '#1a2330'; x.font = (bold?'800 ':'600 ')+'18px Arial';
+    x.textAlign = 'left';  x.fillText(l, M, y);
+    x.textAlign = 'right'; x.fillText(r, W-M, y); x.textAlign = 'left';
+  };
+  let y = 150;
+  head('Einnahmen pro Tag', y); y += 26;
+  days.forEach((d,i)=>{ row('Tag '+(i+1)+(d.s?' · '+d.s:''), ck(+d.cash||0), y); y += RH; sep(y-RH+6); });
+  row('Gesamt (alle Tage)', ck(p.w+p.po-p.pb), y, true); y += RH + 22;
+  head('Übersicht', y); y += 26;
+  row('Einnahmen gesamt', ck(p.w+p.po-p.pb), y, true); y += RH;
+  row('Umsatz Ware', ck(p.w), y); y += RH;
+  row('Pfand erhalten', ck(p.po), y); y += RH;
+  row('Pfand zurück', ck(p.pb), y); y += RH;
+  row('Becher noch draußen', Math.max(0,Math.round((p.po-p.pb)/PFAND_C))+' Becher', y); y += RH;
+  row('Verkäufe gesamt', String(p.c||0), y); y += RH + 22;
+  head('Verkaufte Artikel', y); y += 26;
+  items.forEach(it=>{ row(String(it.n||''), (+it.q||0)+'×', y); y += RH; });
+  return c;
+}
+let reportDataUrl = '';
+function showReport(p){
+  let canvas; try{ canvas = renderReportCanvas(p); reportDataUrl = canvas.toDataURL('image/png'); }
+  catch(e){ alert('Bericht konnte nicht erstellt werden.'); return; }
+  document.getElementById('reportImg').src = reportDataUrl;
+  document.getElementById('report').classList.add('open');
+}
+document.getElementById('reportClose').onclick = ()=>document.getElementById('report').classList.remove('open');
+document.getElementById('reportSave').onclick = ()=>{
+  if(!reportDataUrl) return;
+  try{ const a=document.createElement('a'); a.href=reportDataUrl; a.download='sommerfest-statistik.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ alert('Zum Speichern: lange auf das Bild drücken → „Bild sichern“.'); }
+};
+function handleReportUrl(){
+  const m = (location.hash||'').match(/^#r=(.+)$/);
+  if(!m) return false;
+  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
+  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}
+  if(!p || p.v!==2) return false;
+  p.w=+p.w||0; p.po=+p.po||0; p.pb=+p.pb||0; p.c=+p.c||0;
+  p.it = Array.isArray(p.it)?p.it:[]; p.days = Array.isArray(p.days)?p.days:[];
+  showReport(p); return true;
+}
+
+if(handleReportUrl()){ /* Nur die empfangene Statistik zeigen – keine App/Vereinswahl */ }
+else {
+
+// ===== Vereins-Auswahl (Code-geschützt) ====================================
+const CLUBS = {
+  fsgl: { name:'FSGL', code:'1989', logo:'fsgl-logo.svg', menu:[
+    {id:'chilli',  name:'Chilli sin carne',          price:8.50, pfand:false, cat:'speisen'},
+    {id:'wurst',   name:'Bauernwurst + Schwarzbrot', price:7.00, pfand:false, cat:'speisen'},
+    {id:'brezen',  name:'Laugenbrezen',              price:2.50, pfand:false, cat:'speisen'},
+    {id:'b50',     name:'Gösser Bier 0,5 l',         price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'b30',     name:'Gösser Bier 0,3 l',         price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'ws50',    name:'Weißer Spritzer 0,5 l',     price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'ws30',    name:'Weißer Spritzer 0,3 l',     price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'sv50',    name:'Spritzer Var. 0,5 l',       price:5.00, pfand:true,  cat:'getraenke'},
+    {id:'sv30',    name:'Spritzer Var. 0,3 l',       price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'gt',      name:'Gin Tonic 0,2 l',           price:7.50, pfand:true,  cat:'getraenke'},
+    {id:'vs',      name:'Vodka Soda 0,2 l',          price:6.00, pfand:true,  cat:'getraenke'},
+    {id:'bl',      name:'Berliner Luft',             price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'cola',    name:'Cola 0,3 l',                price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'eistee',  name:'Eistee 0,3 l',              price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'mineral', name:'Mineral 0,3 l',             price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'redbull', name:'Red Bull',                  price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'holler50',name:'Hollundersaft 0,5 l',       price:2.50, pfand:true,  cat:'getraenke'},
+    {id:'holler30',name:'Hollundersaft 0,3 l',       price:1.50, pfand:true,  cat:'getraenke'}
+  ]},
+  scl: { name:'SCL', code:'1610', logo:'scl-emblem.png', menu:[
+    {id:'schlipf',    name:'Schlipfkrapfen',          price:9.00, pfand:false, cat:'speisen'},
+    {id:'verhackert', name:'Verhackertes Brot',       price:4.50, pfand:false, cat:'speisen'},
+    {id:'bier30',   name:'Bier/Radler 0,3 l',        price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'bier50',   name:'Bier/Radler 0,5 l',        price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'sclws30',  name:'Weißer Spritzer 0,3 l',    price:3.50, pfand:true,  cat:'getraenke'},
+    {id:'sclws50',  name:'Weißer Spritzer 0,5 l',    price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'afrei',    name:'Alkoholfrei 0,3 l',        price:3.00, pfand:true,  cat:'getraenke'},
+    {id:'sclholl30',name:'Hollersaft 0,3 l',         price:1.50, pfand:true,  cat:'getraenke'},
+    {id:'sclholl50',name:'Hollersaft 0,5 l',         price:2.50, pfand:true,  cat:'getraenke'},
+    {id:'soda',     name:'Aufpreis Soda',            price:0.50, pfand:false, cat:'getraenke'},
+    {id:'hspritz',  name:'Holler Spritz 0,3 l',      price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'prosecco', name:'Prosecco 0,3 l',           price:4.00, pfand:true,  cat:'getraenke'},
+    {id:'sommerbowl',name:'SommerBowl',              price:4.50, pfand:true,  cat:'getraenke'},
+    {id:'schnaps',  name:'Schifahrer 2cl',           price:2.50, pfand:false, cat:'getraenke'}
+  ]}
+};
+let CLUB = (function(){ try{ const c=localStorage.getItem('kassa_club'); return CLUBS[c]?c:null; }catch(e){ return null; } })();
+
+if(!CLUB){
+  // Auswahl-Bildschirm: Verein wählen + Code eingeben
+  const ov = document.getElementById('picker');
+  if(ov){
+    ov.classList.add('open');
+    ov.querySelectorAll('[data-club]').forEach(btn=> btn.addEventListener('click', ()=>{
+      const c = btn.dataset.club;
+      const code = prompt(CLUBS[c].name + ' – Code eingeben:');
+      if(code===null) return;
+      if(String(code).trim() !== CLUBS[c].code){ alert('Falscher Code.'); return; }
+      try{ localStorage.setItem('kassa_club', c); }catch(e){}
+      location.reload();
+    }));
+  }
+}
+else {
+
+const CLUBCFG = CLUBS[CLUB];
+(function(){                                    // Logo in den Kopf (Name folgt nach applyClubName)
+  const img = document.querySelector('header .logo');
+  if(img){ img.src = CLUBCFG.logo; img.alt = CLUBCFG.name; img.classList.add('logo-'+CLUB); }
+})();
+
+let MENU = [];               // wird nach den Hilfsfunktionen aufgebaut (Standard ODER bearbeitet)
+let MENU_IDS = new Set();
+
+// ---- App-Hilfsfunktionen (Speicher pro Verein getrennt) -------------------
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function centsFromInput(s){                             // "12,50" / "12.5" -> 1250 | NaN
+  s = (s==null?'':String(s)).trim().replace(',', '.');
+  if(s==='') return NaN;
+  const f = parseFloat(s);
+  if(!isFinite(f)) return NaN;
+  return Math.round(f*100);
+}
+const byId = id => MENU.find(m=>m.id===id);
+let storageWarned = false;
+function storageFail(){                                 // Speichern fehlgeschlagen -> einmalig klar warnen
+  if(storageWarned) return; storageWarned = true;
+  try{ alert('⚠️ ACHTUNG: Zahlen konnten NICHT gespeichert werden!\n\n'
+    + 'Möglicher Grund: Speicher voll oder Privat-/Inkognito-Modus.\n'
+    + 'Bitte NICHT im Privat-Modus kassieren und Speicher freigeben.\n'
+    + 'Notiere die aktuellen Summen sicherheitshalber von Hand.'); }catch(e){}
+}
+function store(key, val){
+  try{ localStorage.setItem(key+'_'+CLUB, JSON.stringify(val)); }
+  catch(e){ storageFail(); }
+}
+function load(key, def){ try{ const r=localStorage.getItem(key+'_'+CLUB); return r==null?def:JSON.parse(r); }catch(e){ return def; } }
+
+// ---- Karte (Speisen/Getränke) + Vereinsname: Standard ODER bearbeitet ------
+function genId(){ return 'x'+Math.random().toString(36).slice(2,7)+Date.now().toString(36).slice(-4); }
+function baseMenu(){ return CLUBCFG.menu.map(m=>({ id:m.id, name:m.name, c:Math.round(m.price*100),
+  pfand:!!m.pfand, cat:(m.cat==='speisen'?'speisen':'getraenke') })); }
+function sanitizeMenu(arr){                              // bereinigt eine (evtl. bearbeitete) Karte
+  if(!Array.isArray(arr)) return null;
+  const out=[], seen=new Set();
+  for(const m of arr){
+    if(!m || typeof m!=='object') continue;
+    let id=(typeof m.id==='string' && m.id.trim())?m.id.trim():genId();
+    while(seen.has(id)) id=genId(); seen.add(id);
+    let name=(typeof m.name==='string'?m.name:'').replace(/\s+/g,' ').trim().slice(0,40) || 'Artikel';
+    let c=Math.round(+m.c); if(!isFinite(c)||c<0) c=0;
+    const cat=(m.cat==='speisen')?'speisen':'getraenke';
+    const pfand=(cat==='getraenke') && !!m.pfand;        // Pfand nur bei Getränken
+    out.push({id,name,c,pfand,cat});
+  }
+  return out;
+}
+function buildMenu(){
+  const s = sanitizeMenu(load('kassa_menu', null));
+  MENU = (s && s.length) ? s : baseMenu();
+  MENU_IDS = new Set(MENU.map(m=>m.id));
+  rememberNames();
+}
+function saveMenu(){ store('kassa_menu', MENU.map(m=>({id:m.id,name:m.name,c:m.c,pfand:m.pfand,cat:m.cat}))); }
+function resetMenu(){ try{ localStorage.removeItem('kassa_menu_'+CLUB); }catch(e){} buildMenu(); }
+
+// Name-Register: merkt Artikelnamen, damit die Statistik auch umbenannte/gelöschte Artikel zeigt
+let nameReg = (function(){ const d=load('kassa_names',{}); return (d && typeof d==='object' && !Array.isArray(d))?d:{}; })();
+function rememberNames(){ let ch=false; MENU.forEach(m=>{ if(nameReg[m.id]!==m.name){ nameReg[m.id]=m.name; ch=true; } }); if(ch) store('kassa_names', nameReg); }
+function itemName(id){ const m=byId(id); if(m) return m.name; return (nameReg && nameReg[id]) || id; }
+
+// Vereinsname (Standard ODER bearbeitet) – nur Anzeige, CLUB-Schlüssel bleibt gleich
+function clubName(){ const n=load('kassa_cname',''); return (typeof n==='string' && n.trim())?n.trim():CLUBCFG.name; }
+function applyClubName(){ const nm=document.getElementById('clubName'); if(nm) nm.textContent=clubName(); }
+
+buildMenu();
+applyClubName();
+
+// ---- Zustand (laufende Bestellung) ----------------------------------------
+let cart = {};        // id -> menge
+let pfandBack = 0;    // Anzahl retournierter Becher (Pfand zurück)
+(function(){
+  const s = load('kassa2', {});
+  if(s && typeof s.cart==='object' && s.cart){
+    for(const id in s.cart){ const q=parseInt(s.cart[id],10);
+      if(MENU_IDS.has(id) && q>0) cart[id]=q; }       // nur gültige Artikel
+  }
+  pfandBack = Math.max(0, parseInt(s && s.pfandBack,10) || 0);
+})();
+function save(){ store('kassa2', {cart, pfandBack}); }
+
+// zentrale, EINZIGE Summenberechnung (alles in Cent)
+function totals(){
+  let wareC=0, pfandC=0;
+  for(const id in cart){ const m=byId(id), q=cart[id]; if(!m) continue;
+    wareC += m.c*q; if(m.pfand) pfandC += PFAND_C*q; }
+  pfandC -= pfandBack*PFAND_C;
+  return { wareC, pfandC, totalC: wareC+pfandC };
+}
+
+// ---- Buttons rendern ------------------------------------------------------
+function buildGrid(cat, el){
+  el.innerHTML = '';
+  MENU.filter(m=>m.cat===cat).forEach(m=>{
+    const b = document.createElement('button');
+    b.className='item'; b.dataset.id=m.id;
+    b.innerHTML =
+      `<span class="cnt"></span>
+       <span class="name">${esc(m.name)}</span>
+       <span class="price">${eur(m.c)}${m.pfand?' <span class="pfand">+2&nbsp;€</span>':''}</span>`;
+    attachItem(b, m.id);
+    el.appendChild(b);
+  });
+}
+// Klick = +1, langer Druck (≈550 ms) = +5 (große Runden)
+function attachItem(b, id){
+  let timer=null, long=false;
+  const start = ()=>{ long=false; timer=setTimeout(()=>{ long=true; addMany(id,5);
+    if(navigator.vibrate) try{ navigator.vibrate(30); }catch(e){} }, 550); };
+  const cancel = ()=>{ if(timer){ clearTimeout(timer); timer=null; } };
+  b.addEventListener('pointerdown', start);
+  b.addEventListener('pointerup', cancel);
+  b.addEventListener('pointerleave', cancel);
+  b.addEventListener('pointercancel', cancel);
+  b.addEventListener('contextmenu', e=>e.preventDefault());
+  b.addEventListener('click', ()=>{ if(long){ long=false; return; } add(id); });
+}
+buildGrid('speisen',  document.getElementById('gridSpeisen'));
+buildGrid('getraenke',document.getElementById('gridGetraenke'));
+
+// Gegeben-Schnelltasten als Münzen (1/2 €) und banknotenähnliche Scheine (Euro-Farben)
+const NOTES = [
+  {v:1,   coin:true, ring:'#cda434', center:'#d9dce0', ink:'#2b2300'},
+  {v:2,   coin:true, ring:'#cfd2d6', center:'#cda434', ink:'#2b2300'},
+  {v:5,   bg:'#9fa3a9', lt:'#dfe1e4', ink:'#23262b'},
+  {v:10,  bg:'#b23b30', lt:'#dd7d72', ink:'#ffffff'},
+  {v:20,  bg:'#2f6fb0', lt:'#7aa6d6', ink:'#ffffff'},
+  {v:50,  bg:'#d9851f', lt:'#f0b766', ink:'#ffffff'},
+  {v:100, bg:'#2e9e5b', lt:'#79c79b', ink:'#ffffff'}
+];
+function coinSvg(n){
+  const v=n.v, ring=n.ring, center=n.center, ink=n.ink;
+  return `<svg viewBox="0 0 54 54" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="27" cy="27" r="25" fill="${ring}" stroke="rgba(0,0,0,.32)"/>
+    <circle cx="27" cy="27" r="17.5" fill="${center}" stroke="rgba(0,0,0,.18)"/>
+    <text x="27" y="34.5" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="19" fill="${ink}">${v}€</text>
+  </svg>`;
+}
+function star(cx, cy, r, fill, op){
+  let p='';
+  for(let i=0;i<10;i++){ const rr=i%2?r*0.45:r; const a=-Math.PI/2+i*Math.PI/5;
+    p += (cx+rr*Math.cos(a)).toFixed(2)+','+(cy+rr*Math.sin(a)).toFixed(2)+' '; }
+  return `<polygon points="${p.trim()}" fill="${fill}" fill-opacity="${op}"/>`;
+}
+function noteSvg(n){
+  if(n.coin) return coinSvg(n);
+  const v=n.v, bg=n.bg, lt=n.lt, ink=n.ink;
+  let stars=''; const cx=18, cy=11, R=7.5;
+  for(let k=0;k<5;k++){ const a=-Math.PI*0.78 + k*(Math.PI*0.56/4);
+    stars += star(cx+R*Math.cos(a), cy+R*Math.sin(a), 1.05, ink, .9); }
+  const arch = x => `<path d="M${x} 41 V27 a4.2 4.2 0 0 1 8.4 0 V41 Z" fill="${ink}" fill-opacity=".13"/>`;
+  return `<svg viewBox="0 0 84 54" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="g${v}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${lt}"/><stop offset="1" stop-color="${bg}"/></linearGradient></defs>
+    <rect x="1" y="1" width="82" height="52" rx="6" fill="url(#g${v})" stroke="rgba(0,0,0,.32)"/>
+    <rect x="4" y="4" width="76" height="46" rx="4" fill="none" stroke="${ink}" stroke-opacity=".45"/>
+    <rect x="5.6" y="5.6" width="72.8" height="42.8" rx="3" fill="none" stroke="${ink}" stroke-opacity=".18"/>
+    ${arch(47)}${arch(55)}${arch(63)}
+    <rect x="70" y="3.5" width="9.5" height="47" fill="${ink}" fill-opacity=".12"/>
+    ${stars}
+    <text x="8" y="41" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="25" fill="${ink}">${v}</text>
+    <text x="8.5" y="49.5" font-family="Arial" font-weight="700" font-size="6.5" letter-spacing="1.4" fill="${ink}" fill-opacity=".9">EURO</text>
+    <text x="71.5" y="46" font-family="Arial" font-weight="800" font-size="11" fill="${ink}" fill-opacity=".95">€</text>
+    <text x="70" y="13" font-family="Arial" font-weight="800" font-size="9" fill="${ink}" fill-opacity=".92">${v}</text>
+  </svg>`;
+}
+(function buildNotes(){
+  const cont = document.getElementById('quickcash');
+  const clear = cont.querySelector('.qc-clear');
+  NOTES.forEach(n=>{
+    const b = document.createElement('button');
+    b.className = 'note'; b.dataset.cash = String(n.v); b.setAttribute('aria-label', n.v+' Euro');
+    b.innerHTML = noteSvg(n);
+    cont.insertBefore(b, clear);
+  });
+})();
+
+function add(id){ addMany(id,1); }
+function addMany(id,n){ if(!MENU_IDS.has(id)) return; cart[id]=(cart[id]||0)+n; render(); }
+function dec(id){ if(cart[id]){ cart[id]--; if(cart[id]<=0) delete cart[id]; render(); } }
+
+// ---- Bestellliste + Summen ------------------------------------------------
+function render(){
+  // Button-Zähler
+  document.querySelectorAll('button.item').forEach(b=>{
+    const c = cart[b.dataset.id]||0;
+    b.classList.toggle('has', c>0);
+    b.querySelector('.cnt').textContent = c;
+  });
+
+  // Liste
+  const order = document.getElementById('order');
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0){
+    order.innerHTML = '<div class="empty">Noch nichts gewählt – einfach oben antippen.</div>';
+  } else {
+    order.innerHTML = '';
+    ids.forEach(id=>{
+      const m = byId(id), q = cart[id];
+      const lineC = m.c*q + (m.pfand?PFAND_C*q:0);
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML =
+        `<div class="lbl">${esc(m.name)}<br><small>${eur(m.c)}${m.pfand?' + 2&nbsp;€ Pfand':''}</small></div>
+         <div class="qtybtns">
+           <button data-d="${id}">−</button>
+           <span class="q">${q}</span>
+           <button data-a="${id}">+</button>
+         </div>
+         <div class="sum">${eur(lineC)}</div>`;
+      order.appendChild(row);
+    });
+    if(pfandBack>0){
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML =
+        `<div class="lbl">Becher retour<br><small>${pfandBack} × −2&nbsp;€ Pfand</small></div>
+         <div class="qtybtns">
+           <button data-pb="dec">−</button>
+           <span class="q">${pfandBack}</span>
+           <button data-pb="inc">+</button>
+         </div>
+         <div class="sum">−${eur(pfandBack*PFAND_C)}</div>`;
+      order.appendChild(row);
+    }
+    order.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>add(b.dataset.a));
+    order.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>dec(b.dataset.d));
+    order.querySelectorAll('[data-pb]').forEach(b=>b.onclick=()=>{
+      pfandBack += (b.dataset.pb==='inc'?1:-1); if(pfandBack<0)pfandBack=0; render();
+    });
+  }
+
+  // Summen (eine Quelle der Wahrheit)
+  const t = totals();
+  document.getElementById('lWare').textContent    = 'Ware: '+eur(t.wareC);
+  document.getElementById('lPfand').textContent   = 'Pfand: '+eur(t.pfandC);
+  document.getElementById('totalOut').textContent = eur(t.totalC);
+  updateChange(t.totalC);
+  updateCounter();
+  save();
+}
+
+// ---- Live-Getränkezähler (heute verkauft, dieses Gerät) -------------------
+function cName(m){                                   // kurzer Chip-Name
+  return m.name.replace('Gösser ','').replace('Hollundersaft','Holler')
+               .replace('Spritzer Var.','Spritzer V.').replace(' + Schwarzbrot','').replace(' l','');
+}
+function updateCounter(){
+  const el = document.getElementById('dcount'); if(!el) return;
+  const drinks = MENU.filter(m=> m.cat==='getraenke' && (counter[m.id]||0)>0);
+  const foods  = MENU.filter(m=> m.cat==='speisen'   && (counter[m.id]||0)>0);
+  if(!drinks.length && !foods.length){ el.innerHTML = '<span class="none">Zähler bei 0 – noch nichts gezählt</span>'; return; }
+  let html = drinks.map(m=>`<span class="chip">${esc(cName(m))} <b>×${counter[m.id]}</b></span>`).join('');
+  if(drinks.length){ let dt=0; drinks.forEach(m=>dt+=counter[m.id]);
+    html += `<span class="chip sum">Getränke gesamt <b>${dt}</b></span>`; }
+  html += foods.map(m=>`<span class="chip food">${esc(cName(m))} <b>×${counter[m.id]}</b></span>`).join('');
+  el.innerHTML = html;
+}
+
+// ---- Rückgeld -------------------------------------------------------------
+function updateChange(totalC){
+  const out = document.getElementById('retOut');
+  const g = centsFromInput(document.getElementById('given').value);
+  if(!isNaN(g) && g>0){
+    const r = g-totalC;
+    out.innerHTML = r>=0 ? 'Rückgeld <b>'+eur(r)+'</b>'
+                         : '<span style="color:var(--red)">fehlen '+eur(-r)+'</span>';
+  } else { out.textContent=''; }
+}
+document.getElementById('given').addEventListener('input', ()=> updateChange(totals().totalC));
+
+// Gegeben-Schnelltasten: +5/+10/+20/+50/+100 aufaddieren, C löscht
+function addGiven(euros){
+  const inp = document.getElementById('given');
+  const cur = centsFromInput(inp.value);
+  const base = isNaN(cur) ? 0 : cur;
+  inp.value = String((base + euros*100)/100);
+  updateChange(totals().totalC);
+}
+document.querySelectorAll('.quickcash [data-cash]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const v = b.dataset.cash;
+    if(v==='clear'){ document.getElementById('given').value=''; updateChange(totals().totalC); }
+    else addGiven(parseInt(v,10));
+  });
+});
+
+// ---- Kasse: heutiger Tag + abgeschlossene Tage (nur DIESES Gerät) ----------
+// Alle Geld-Felder in Cent (Ganzzahl).
+const leer = ()=>({ware:0, pfandOut:0, pfandBack:0, count:0, items:{}, start:'', startCash:0});
+function sane(d){                                       // geladene Tagesdaten absichern
+  const x = leer();
+  if(d && typeof d==='object'){
+    x.ware=Math.round(+d.ware||0); x.pfandOut=Math.round(+d.pfandOut||0);
+    x.pfandBack=Math.round(+d.pfandBack||0); x.count=Math.max(0,Math.round(+d.count||0));
+    x.start=typeof d.start==='string'?d.start:''; x.startCash=Math.max(0,Math.round(+d.startCash||0));
+    if(d.items && typeof d.items==='object'){ for(const id in d.items){ const q=Math.round(+d.items[id]||0); if(q>0) x.items[id]=q; } }
+  }
+  return x;
+}
+let day = sane(load('kassa_tag2', null));               // aktuell laufender Tag
+let archive = [];                                       // abgeschlossene Tage
+{ const a = load('kassa_fest2', []); if(Array.isArray(a)) archive = a.map(sane); }
+function saveDay(){ store('kassa_tag2', day); }
+function saveFest(){ store('kassa_fest2', archive); }
+const cashOf = d => d.ware + d.pfandOut - d.pfandBack;
+function heute(){ try{ return new Date().toLocaleDateString('de-AT'); }catch(e){ return ''; } }
+
+// separater Getränke-/Speisezähler (nur Anzeige oben, unabhängig zurücksetzbar)
+let counter = (function(){ const d=load('kassa_cnt',{}), o={};
+  if(d&&typeof d==='object'){ for(const id in d){ if(MENU_IDS.has(id)){ const q=Math.round(+d[id]||0); if(q>0) o[id]=q; } } }
+  return o; })();
+function saveCounter(){ store('kassa_cnt', counter); }
+
+// ---- Geräte-ID (für 2-Tablet-Zusammenführung) -----------------------------
+let DEVID = (function(){ try{
+  let d = localStorage.getItem('kassa_devid');
+  if(!d){ d = 't' + Date.now().toString(36) + Math.floor(Math.random()*1e8).toString(36);
+    localStorage.setItem('kassa_devid', d); }
+  return d;
+}catch(e){ return 't0'; } })();
+
+// empfangene Zahlen anderer Tablets (nur Summe – Kassen bleiben getrennt)
+let imported = (function(){ const d=load('kassa_imp',{devices:{}}), o={devices:{}};
+  if(d && typeof d==='object' && d.devices && typeof d.devices==='object'){
+    for(const id in d.devices){ const x=d.devices[id];
+      if(x && typeof x==='object'){
+        o.devices[id] = { w:Math.round(+x.w||0), po:Math.round(+x.po||0),
+          pb:Math.round(+x.pb||0), c:Math.max(0,Math.round(+x.c||0)),
+          t:(typeof x.t==='string'?x.t:'') };
+      } }
+  }
+  return o; })();
+function saveImp(){ store('kassa_imp', imported); }
+const impCount = () => Object.keys(imported.devices).length;
+function impSum(){ let w=0,po=0,pb=0,c=0;
+  for(const id in imported.devices){ const x=imported.devices[id];
+    w+=x.w; po+=x.po; pb+=x.pb; c+=x.c; }
+  return { ware:w, pfandOut:po, pfandBack:pb, count:c };
+}
+
+// aktuellen Verkauf in den heutigen Tag buchen (beim "Kassiert / Neu")
+const MILESTONE = 100;                                 // Feier alle 100 Getränke
+function drinkTotalToday(){ let n=0; for(const m of MENU){ if(m.cat==='getraenke') n+=counter[m.id]||0; } return n; }
+function recordSale(){
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0) return;          // nichts zu buchen
+  const prevDrinks = drinkTotalToday();
+  let wareC=0, pfandOutC=0;
+  ids.forEach(id=>{ const m=byId(id), q=cart[id]; if(!m) return;
+    wareC += m.c*q; if(m.pfand) pfandOutC += PFAND_C*q;
+    day.items[id]=(day.items[id]||0)+q;
+    counter[id]=(counter[id]||0)+q; });
+  saveCounter();
+  if(!day.start) day.start = heute();
+  day.ware     += wareC;
+  day.pfandOut += pfandOutC;
+  day.pfandBack+= pfandBack*PFAND_C;
+  day.count    += 1;
+  saveDay();
+  const nowDrinks = drinkTotalToday();
+  if(Math.floor(nowDrinks/MILESTONE) > Math.floor(prevDrinks/MILESTONE))
+    party(Math.floor(nowDrinks/MILESTONE)*MILESTONE);
+}
+
+// Summe über alle Tage (Archiv + heute)
+function gesamt(){
+  const g = leer();
+  archive.concat([day]).forEach(d=>{
+    g.ware+=d.ware; g.pfandOut+=d.pfandOut; g.pfandBack+=d.pfandBack; g.count+=d.count;
+    Object.keys(d.items||{}).forEach(id=>g.items[id]=(g.items[id]||0)+d.items[id]);
+  });
+  return g;
+}
+
+function showDay(){
+  const g = gesamt();
+  // In der Lade jetzt = Wechselgeld (heute) + Einnahmen (heute, bar)
+  const wg = day.startCash || 0;
+  const einnHeute = cashOf(day);
+  document.getElementById('startCash').value = wg ? String(wg/100) : '';
+  document.getElementById('dDrawer').textContent = eur(wg + einnHeute);
+  document.getElementById('dDrawerCalc').textContent =
+    'Wechselgeld '+eur(wg)+' + Einnahmen heute '+eur(einnHeute);
+  document.getElementById('dWare').textContent      = eur(g.ware);
+  document.getElementById('dPfandOut').textContent  = eur(g.pfandOut);
+  document.getElementById('dPfandBack').textContent = eur(g.pfandBack);
+  document.getElementById('dCups').textContent      = Math.max(0, Math.round((g.pfandOut-g.pfandBack)/PFAND_C))+' Becher';
+  document.getElementById('dCount').textContent     = g.count;
+
+  // Tage-Liste: jeder abgeschlossene Tag + heute + Gesamt
+  let rows='';
+  archive.forEach((d,i)=>{
+    rows+=`<div class="ir"><span>Tag ${i+1}${d.start?(' · '+d.start):''}</span><span>${eur(cashOf(d))}</span></div>`;
+  });
+  rows+=`<div class="ir today"><span>Heute (läuft)${day.start?(' · '+day.start):''}</span><span>${eur(cashOf(day))}</span></div>`;
+  rows+=`<div class="ir gesamt"><span>Gesamt (alle Tage)</span><span>${eur(cashOf(g))}</span></div>`;
+  document.getElementById('dDays').innerHTML = rows;
+
+  // Artikel gesamt (Menü-Reihenfolge, dann evtl. gelöschte/umbenannte aus der Historie)
+  const soldIds = [];
+  MENU.forEach(m=>{ if(g.items[m.id]>0) soldIds.push(m.id); });
+  Object.keys(g.items).forEach(id=>{ if(g.items[id]>0 && !MENU_IDS.has(id)) soldIds.push(id); });
+  document.getElementById('dItems').innerHTML = soldIds.length
+    ? soldIds.map(id=>`<div class="ir"><span>${esc(itemName(id))}</span><span>${g.items[id]}×</span></div>`).join('')
+    : '<div class="ir"><span>noch nichts verkauft</span><span></span></div>';
+
+  // Gesamt über mehrere Tablets (nur wenn welche empfangen wurden)
+  const box = document.getElementById('bothBox');
+  if(impCount() > 0){
+    const mine  = cashOf(g);
+    const other = cashOf(impSum());
+    document.getElementById('bothTitle').textContent = clubName() + ' gesamt (Haupt + weitere Tablets)';
+    document.getElementById('bMain').textContent  = eur(mine);
+    document.getElementById('bDevs').textContent  = impCount();
+    document.getElementById('bOther').textContent = eur(other);
+    document.getElementById('bCash').innerHTML    = '<b>'+eur(mine+other)+'</b>';
+    box.style.display = '';
+  } else {
+    box.style.display = 'none';
+  }
+
+  document.getElementById('modal').classList.add('open');
+}
+
+let TAG_PIN = (function(){ try{ return localStorage.getItem('kassa_pin')||'1234'; }catch(e){ return '1234'; } })();
+document.getElementById('btnTag').onclick = ()=>{
+  const pin = prompt('PIN für Auswertung:');   // jedes Mal abfragen
+  if(pin===null) return;                       // abgebrochen
+  if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
+  showDay();
+};
+
+// ---- Easteregg: 3× schnell auf "Nico" tippen -> PIN ändern -----------------
+let eggClicks=0, eggTimer=null;
+document.getElementById('egg').addEventListener('click', ()=>{
+  eggClicks++;
+  clearTimeout(eggTimer);
+  eggTimer = setTimeout(()=>{ eggClicks=0; }, 1200);   // 3 Taps innerhalb 1,2 s
+  if(eggClicks>=3){
+    eggClicks=0; clearTimeout(eggTimer);
+    const cur = prompt('🔓 Geheimmenü – aktuellen PIN eingeben:');
+    if(cur===null) return;
+    if(cur!==TAG_PIN){ alert('Falscher PIN.'); return; }
+    const neu = prompt('Neuen PIN festlegen (4 Ziffern):', TAG_PIN);
+    if(neu===null) return;
+    const v = (neu||'').trim();
+    if(!/^\d{4}$/.test(v)){ alert('Bitte genau 4 Ziffern eingeben.'); return; }
+    TAG_PIN = v;
+    try{ localStorage.setItem('kassa_pin', v); }catch(e){}
+    alert('PIN geändert ✓  Neuer PIN: '+v);
+  }
+});
+// Wechselgeld-Start eingeben/ändern (in Cent gespeichert)
+document.getElementById('startCash').addEventListener('input', e=>{
+  const c = centsFromInput(e.target.value);
+  day.startCash = (isNaN(c)||c<0) ? 0 : c;
+  saveDay();
+  const einnHeute = cashOf(day);
+  document.getElementById('dDrawer').textContent = eur(day.startCash + einnHeute);
+  document.getElementById('dDrawerCalc').textContent =
+    'Wechselgeld '+eur(day.startCash)+' + Einnahmen heute '+eur(einnHeute);
+});
+document.getElementById('btnClose').onclick = ()=>document.getElementById('modal').classList.remove('open');
+document.getElementById('modal').addEventListener('click', e=>{
+  if(e.target.id==='modal') document.getElementById('modal').classList.remove('open');
+});
+// Tag abschließen -> ins Archiv legen, neuen Tag starten (Gesamt bleibt erhalten)
+document.getElementById('btnCloseDay').onclick = ()=>{
+  if(day.count===0){ alert('Heute wurde noch nichts verkauft.'); return; }
+  if(confirm('Heutigen Tag abschließen und neuen Tag starten?\nDie Summe bleibt im Gesamt erhalten.')){
+    const wgUebertrag = day.startCash || 0;   // gleiches Wechselgeld als Vorschlag für morgen
+    archive.push(Object.assign(leer(), day, {items:Object.assign({}, day.items)}));
+    day = leer();
+    day.startCash = wgUebertrag;
+    counter = {};                             // neuer Tag -> Zähler startet bei 0
+    saveFest(); saveDay(); saveCounter(); updateCounter(); showDay();
+  }
+};
+// Getränke-/Speisezähler zurücksetzen (Geld & Statistik bleiben erhalten)
+document.getElementById('btnCntReset').onclick = ()=>{
+  if(confirm('Getränke-/Speisezähler auf 0 setzen?\nGeld-Summen und die Artikel-Statistik bleiben erhalten.')){
+    counter = {}; saveCounter(); updateCounter();
+  }
+};
+// Komplettes Fest (alle Tage) auf 0 setzen
+document.getElementById('btnReset').onclick = ()=>{
+  const g = gesamt();
+  // Vor dem endgültigen Löschen eine Sicherung anbieten
+  if(g.count>0 && confirm('Vor dem Löschen die aktuelle Statistik als Bild sichern?\n\n'
+      + 'OK = zuerst sichern (danach nochmal auf „Zurücksetzen“ tippen)\n'
+      + 'Abbrechen = direkt weiter zum Zurücksetzen')){
+    showReport(statsPayload()); return;                  // erst sichern – es wird noch NICHTS gelöscht
+  }
+  if(confirm('ALLES (alle Tage) dieses Geräts auf 0 setzen?\nDas kann nicht rückgängig gemacht werden.')){
+    archive=[]; day=leer(); counter={}; imported={devices:{}};
+    saveFest(); saveDay(); saveCounter(); saveImp(); updateCounter(); showDay();
+  }
+};
+// Verein wechseln (Code des anderen Vereins nötig)
+document.getElementById('btnClub').onclick = ()=>{
+  if(confirm('Verein wechseln?\nDanach musst du den Code des anderen Vereins eingeben.\nDie Zahlen dieses Vereins bleiben gespeichert.')){
+    try{ localStorage.removeItem('kassa_club'); }catch(e){}
+    location.reload();
+  }
+};
+
+// ---- Karte & Namen bearbeiten (Editor) ------------------------------------
+function rebuildCard(){                                    // nach Änderungen alles neu aufbauen
+  buildGrid('speisen',  document.getElementById('gridSpeisen'));
+  buildGrid('getraenke',document.getElementById('gridGetraenke'));
+  applyClubName(); render(); updateCounter();
+}
+function edRow(item, cat){                                 // eine Editor-Zeile bauen
+  const r = document.createElement('div'); r.className='edrow';
+  r.dataset.id = item ? item.id : '';
+  r.dataset.cat = cat;
+  const priceVal = item ? String(item.c/100) : '';
+  const pf = cat==='getraenke'
+    ? `<label class="ed-pf"><input type="checkbox" ${item && item.pfand?'checked':(item?'':'checked')}> Pfand</label>` : '';
+  r.innerHTML =
+    `<input class="ed-name" type="text" maxlength="40" placeholder="Name" value="${item?esc(item.name):''}">
+     <input class="ed-price" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0,00" value="${priceVal}">
+     ${pf}
+     <button class="ed-del" title="Löschen" aria-label="Löschen">🗑</button>`;
+  r.querySelector('.ed-del').onclick = ()=> r.remove();
+  return r;
+}
+function renderAdmin(){
+  document.getElementById('edClubName').value = clubName();
+  const es = document.getElementById('edSpeisen');   es.innerHTML='';
+  const eg = document.getElementById('edGetraenke'); eg.innerHTML='';
+  MENU.filter(m=>m.cat==='speisen'  ).forEach(m=> es.appendChild(edRow(m,'speisen')));
+  MENU.filter(m=>m.cat==='getraenke').forEach(m=> eg.appendChild(edRow(m,'getraenke')));
+}
+document.getElementById('btnEdit').onclick = ()=>{        // aus der (PIN-geschützten) Auswertung
+  renderAdmin();
+  document.getElementById('admin').classList.add('open');
+};
+document.querySelectorAll('#admin .ed-add').forEach(btn=> btn.onclick = ()=>{
+  const cat = btn.dataset.cat;
+  const cont = document.getElementById(cat==='speisen'?'edSpeisen':'edGetraenke');
+  const row = edRow(null, cat); cont.appendChild(row);
+  const nm = row.querySelector('.ed-name'); if(nm) nm.focus();
+});
+document.getElementById('edCancel').onclick = ()=> document.getElementById('admin').classList.remove('open');
+document.getElementById('admin').addEventListener('click', e=>{
+  if(e.target.id==='admin') document.getElementById('admin').classList.remove('open');
+});
+document.getElementById('edReset').onclick = ()=>{
+  if(confirm('Karte auf die Standard-Artikel und -Preise zurücksetzen?\nDein bearbeiteter Vereinsname bleibt erhalten.\nBereits kassierte Summen bleiben unverändert.')){
+    resetMenu(); rebuildCard(); renderAdmin();
+  }
+};
+document.getElementById('edSave').onclick = ()=>{
+  const rows = Array.from(document.querySelectorAll('#admin .edrow'));
+  const menu = [];
+  for(const r of rows){
+    const name = (r.querySelector('.ed-name').value||'').replace(/\s+/g,' ').trim();
+    if(!name) continue;                                    // leere Zeilen überspringen
+    const pc = centsFromInput(r.querySelector('.ed-price').value);
+    const c = (isNaN(pc)||pc<0) ? 0 : pc;
+    const cat = r.dataset.cat==='speisen' ? 'speisen' : 'getraenke';
+    const pfEl = r.querySelector('.ed-pf input');
+    const pfand = cat==='getraenke' && !!(pfEl && pfEl.checked);
+    menu.push({ id: r.dataset.id || genId(), name: name.slice(0,40), c, pfand, cat });
+  }
+  if(!menu.length){ alert('Es muss mindestens ein Artikel übrig bleiben.'); return; }
+  // Vereinsname speichern/zurücksetzen
+  const cn = (document.getElementById('edClubName').value||'').replace(/\s+/g,' ').trim().slice(0,24);
+  if(cn && cn!==CLUBCFG.name) store('kassa_cname', cn);
+  else { try{ localStorage.removeItem('kassa_cname_'+CLUB); }catch(e){} }
+  // Karte speichern
+  MENU = sanitizeMenu(menu);
+  MENU_IDS = new Set(MENU.map(m=>m.id));
+  saveMenu(); rememberNames();
+  rebuildCard();
+  document.getElementById('admin').classList.remove('open');
+  alert('Gespeichert ✓');
+};
+function showQr(url, title, sub, info){
+  if(typeof qrcode==='undefined') return false;          // Bibliothek fehlt (offline erster Start)
+  try{
+    const qr = qrcode(0,'L'); qr.addData(url); qr.make();
+    document.getElementById('qrbox').innerHTML = qr.createSvgTag({cellSize:4, margin:2, scalable:true});
+  }catch(e){ return false; }                             // zu viele Daten
+  document.getElementById('qrTitle').textContent = title;
+  document.getElementById('qrSub').textContent   = sub;
+  document.getElementById('qrinfo').textContent  = info;
+  document.getElementById('qrmodal').classList.add('open');
+  return true;
+}
+// gemeinsame Statistik-Daten (für QR und für das lokale Bild)
+function statsPayload(){
+  const g = gesamt();
+  const it = [];
+  MENU.forEach(m=>{ if(g.items[m.id]>0) it.push({ n:m.name, q:g.items[m.id] }); });
+  Object.keys(g.items).forEach(id=>{ if(g.items[id]>0 && !MENU_IDS.has(id)) it.push({ n:itemName(id), q:g.items[id] }); });
+  const days = archive.concat([day]).map(d=>({ s:d.start||'', cash:cashOf(d), n:d.count }));
+  return { v:2, club:clubName(), t:heute(), w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count, it, days };
+}
+
+// ---- QR: Statistik aufs Handy senden (zum Speichern) ----------------------
+function makeTransfer(){
+  const payload = statsPayload();
+  const url = location.href.split('#')[0] + '#r=' + b64urlEncode(JSON.stringify(payload));
+  const ok = showQr(url, '📤 Statistik senden', 'Mit dem Handy scannen → Statistik öffnet sich zum Speichern',
+    payload.c+' Verkäufe · '+eur(payload.w+payload.po-payload.pb)+' Einnahmen');
+  if(!ok){
+    // Zuverlässige Alternative: Statistik direkt auf DIESEM Gerät als Bild (kein Datenverlust)
+    if(confirm('QR gerade nicht möglich (zu viele Daten oder Internet fehlt).\n\n'
+      + 'Stattdessen die Statistik hier direkt als Bild anzeigen (zum Speichern)?')){
+      showReport(payload);
+    }
+  }
+}
+document.getElementById('btnSend').onclick = makeTransfer;
+
+// ---- QR: dieses Tablet an das Haupt-Tablet senden (nur Summe) -------------
+function makeMerge(){
+  const g = gesamt();
+  const payload = { v:3, club:CLUB, cn:clubName(), dev:DEVID, t:heute(),
+    w:g.ware, po:g.pfandOut, pb:g.pfandBack, c:g.count };
+  const url = location.href.split('#')[0] + '#m=' + b64urlEncode(JSON.stringify(payload));
+  const ok = showQr(url, '📲 An Haupt-Tablet senden',
+    'Das Haupt-Tablet scannt diesen Code → die Zahlen werden dort zur Gesamtsumme addiert.',
+    g.count+' Verkäufe · '+eur(cashOf(g))+' auf diesem Tablet');
+  if(!ok) alert('QR-Funktion nicht verfügbar.\nBitte die App einmal mit Internet öffnen, damit der QR-Code geladen wird.');
+}
+document.getElementById('btnMerge').onclick = makeMerge;
+document.getElementById('qrClose').onclick = ()=>document.getElementById('qrmodal').classList.remove('open');
+document.getElementById('qrmodal').addEventListener('click', e=>{
+  if(e.target.id==='qrmodal') document.getElementById('qrmodal').classList.remove('open');
+});
+
+// (Statistik-Bericht wird oben – vereinsunabhängig – gezeichnet und angezeigt)
+
+// ---- Aktionen -------------------------------------------------------------
+document.getElementById('btnPfandBack').onclick = ()=>{ pfandBack++; render(); };
+let saleBusy = false;                                    // Schutz gegen doppeltes Antippen
+document.getElementById('btnNew').onclick = ()=>{
+  if(saleBusy) return;                                   // zweiter (Doppel-)Tap wird ignoriert
+  const ids = Object.keys(cart);
+  if(ids.length===0 && pfandBack===0) return;            // leere Bestellung: nichts buchen (leise)
+  const t = totals();
+  const givenRaw = document.getElementById('given').value;
+  const g = centsFromInput(givenRaw);
+  // Betrag eingetragen, aber zu wenig -> warnen und NICHT buchen
+  if(String(givenRaw).trim()!=='' && !isNaN(g) && t.totalC>0 && g < t.totalC){
+    alert('Zu wenig gegeben.\nGegeben: '+eur(g)+'\nZu kassieren: '+eur(t.totalC)+'\nEs fehlen noch '+eur(t.totalC-g)+'.');
+    return;                                              // Buchung verhindert
+  }
+  saleBusy = true;
+  try{
+    recordSale();                                        // genau einmal buchen
+    cart={}; pfandBack=0; document.getElementById('given').value=''; render();
+    // Warenkorb ist jetzt leer -> ein sofort folgender Doppel-Tap bucht nichts mehr
+  } finally {
+    saleBusy = false;                                    // Re-Entry-Schutz sofort freigeben
+  }
+};
+
+// ---- Abend-Modus (dunkel) --------------------------------------------------
+const DARK_KEY = 'kassa_dark';
+function applyDark(on){
+  document.body.classList.toggle('dark', on);
+  const b = document.getElementById('btnDark'); if(b) b.textContent = on ? '☀️' : '🌙';
+  const meta = document.querySelector('meta[name=theme-color]');
+  if(meta) meta.setAttribute('content', on ? '#14181e' : '#e8920c');
+}
+let dark = false; try{ dark = localStorage.getItem(DARK_KEY)==='1'; }catch(e){}
+applyDark(dark);
+document.getElementById('btnDark').onclick = ()=>{
+  dark = !dark; try{ localStorage.setItem(DARK_KEY, dark?'1':'0'); }catch(e){}
+  applyDark(dark);
+};
+
+// ---- Feier-Animation bei Bier-Meilenstein 🎉 ------------------------------
+function party(n){
+  const MSGS = [
+    `🍺 ${n} Getränke – Prost! 🎉`,
+    `🎉 ${n} verkauft – ihr seid Maschinen!`,
+    `🍻 ${n}er-Marke geknackt! Weiter zapfen!`,
+    `🍺 ${n}! Auf das Sommerfest! 🌺`,
+    `🔥 ${n} Getränke – die Hütte brennt!`
+  ];
+  const p = document.getElementById('party');
+  document.getElementById('partyMsg').textContent = MSGS[Math.floor(Math.random()*MSGS.length)];
+  p.classList.add('show');
+  const EMO = ['🍺','🎉','🍻','🌺','✨','🥨'];
+  for(let k=0;k<26;k++){
+    const s = document.createElement('div'); s.className = 'confetti';
+    s.textContent = EMO[Math.floor(Math.random()*EMO.length)];
+    s.style.left = (Math.random()*100)+'vw';
+    s.style.animationDuration = (1.2+Math.random()*1.4)+'s';
+    s.style.animationDelay = (Math.random()*0.3)+'s';
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 3000);
+  }
+  setTimeout(()=>p.classList.remove('show'), 2200);
+  if(navigator.vibrate) try{ navigator.vibrate([40,40,90]); }catch(e){}
+}
+
+// ---- Offline-Betrieb: Service Worker (lädt auch ohne Netz) -----------------
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+
+// ---- Bildschirm wach halten (Tablet geht nicht in Standby) -----------------
+let wakeLock = null;
+async function ensureWake(){
+  try{
+    if(!('wakeLock' in navigator)) return;
+    if(wakeLock) return;                                  // schon aktiv
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
+  }catch(e){ wakeLock = null; }                           // z. B. ohne HTTPS/Geste – App läuft normal weiter
+}
+document.addEventListener('visibilitychange', ()=>{       // beim Zurückkehren neu anfordern
+  if(document.visibilityState==='visible') ensureWake();
+});
+window.addEventListener('pointerdown', ensureWake);       // spätestens bei erster Berührung aktivieren
+ensureWake();
+
+// ---- Haupt-Tablet: QR eines anderen Tablets einlesen (nur Summe) ----------
+function handleMergeUrl(){
+  const m = (location.hash||'').match(/^#m=(.+)$/);
+  if(!m) return;
+  let p=null; try{ p = JSON.parse(b64urlDecode(m[1])); }catch(e){}
+  try{ history.replaceState(null,'', location.href.split('#')[0]); }catch(e){}
+  if(!p || p.v!==3 || !p.dev){ alert('QR nicht lesbar.'); return; }
+  // Verein abgleichen über den festen Schlüssel (p.club = 'fsgl'/'scl'); ältere Codes nutzen den Namen
+  const sameClub = (p.club===CLUB) || (p.club===CLUBCFG.name) || (p.cn && p.cn===clubName());
+  if(p.club && !sameClub){
+    alert('Dieser QR gehört zu einem anderen Verein („'+(p.cn||p.club)+'").\nDieses Tablet ist „'+clubName()+'".'); return; }
+  if(p.dev===DEVID){ alert('Das ist der QR dieses Tablets selbst.'); return; }
+  const pin = prompt('PIN für Übernahme:');
+  if(pin===null) return;
+  if(pin!==TAG_PIN){ alert('Falscher PIN.'); return; }
+  const neu = !imported.devices[p.dev];
+  imported.devices[p.dev] = { w:Math.round(+p.w||0), po:Math.round(+p.po||0),
+    pb:Math.round(+p.pb||0), c:Math.max(0,Math.round(+p.c||0)),
+    t:(typeof p.t==='string'?p.t:'') };
+  saveImp();
+  alert((neu?'Tablet übernommen ✓':'Tablet aktualisiert ✓')+'\n'+clubName()+
+    ' zeigt jetzt die Gesamtsumme aller Tablets.');
+  showDay();
+}
+handleMergeUrl();
+
+// interner Zugriff (nur für Tests/Diagnose – enthält keine Geheimnisse)
+try{ window.KASSA = { CLUB, CLUBCFG, byId, eur, centsFromInput, b64urlEncode, b64urlDecode,
+  totals, recordSale, render, gesamt, cashOf, leer, saveDay, saveFest, saveCounter, updateCounter,
+  DEVID, saveImp, impCount, impSum, makeMerge, makeTransfer, handleMergeUrl, showDay, statsPayload,
+  esc, itemName, clubName, applyClubName, buildMenu, saveMenu, resetMenu, rebuildCard, genId, sanitizeMenu, baseMenu,
+  get MENU(){return MENU}, get MENU_IDS(){return MENU_IDS},
+  get cart(){return cart}, set cart(v){cart=v},
+  get pfandBack(){return pfandBack}, set pfandBack(v){pfandBack=v},
+  get day(){return day}, set day(v){day=v},
+  get archive(){return archive}, set archive(v){archive=v},
+  get counter(){return counter}, set counter(v){counter=v},
+  get imported(){return imported}, set imported(v){imported=v} }; }catch(e){}
+
+render();
+
+}   // Ende: Verein gewählt
+}   // Ende: kein empfangener QR-Bericht
+</script>
+</body>
+</html>
