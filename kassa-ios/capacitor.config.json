@@ -1,0 +1,6 @@
+{
+  "appId": "at.spanwerk.kassiersystem",
+  "appName": "Kassiersystem",
+  "webDir": "www",
+  "server": { "iosScheme": "app" }
+}
