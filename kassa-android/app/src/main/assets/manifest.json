@@ -1,6 +1,6 @@
 {
-  "name": "Sommerfest Kassa",
-  "short_name": "Kassa",
+  "name": "Kassiersystem",
+  "short_name": "Kassiersystem",
   "id": "/spanwerk-datenschutz/kassa.html",
   "start_url": "./kassa.html",
   "scope": "./",

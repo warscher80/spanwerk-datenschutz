@@ -3,7 +3,7 @@
    - kassa.html: network-first (frische Version wenn online, Cache wenn offline)
    - Logo/Manifest: cache-first
    Greift NUR auf die Kassa-Dateien zu, lässt alles andere unangetastet. */
-const CACHE = 'kassa-v6';
+const CACHE = 'kassa-v7';
 const ASSETS = ['./kassa.html', './sommerfest-logo.png', './manifest.json', './qrcode.js',
                 './fsgl-logo.svg', './scl-logo.png', './scl-emblem.png',
                 './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
