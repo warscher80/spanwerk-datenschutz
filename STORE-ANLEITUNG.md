@@ -43,16 +43,21 @@ Signatur-Fingerprint (SHA-256), falls Play danach fragt:
 
 ---
 
-## B) Apple App Store (braucht einen Mac)
+## B) Apple App Store (Projekt ist fertig – nur Mac-Schritte offen)
 
-Für iOS kann ich hier **keinen Build erzeugen** (Apple-Builds gehen nur am Mac mit Xcode).
-Weg:
+Das **komplette iOS-Projekt liegt bereits im Ordner `kassa-ios/`** (Capacitor/Xcode,
+WKWebView-Hülle, App-Name „Kassiersystem", Bundle-ID `at.spanwerk.kassiersystem`,
+iPhone + iPad, eigenes Icon). Apple erlaubt Bauen/Signieren/Upload aber **nur am Mac
+mit Xcode und deinem Apple-Konto** – das kann ich hier nicht ausführen.
 
-1. **PWABuilder** (https://www.pwabuilder.com) → URL
-   `https://warscher80.github.io/spanwerk-datenschutz/kassa.html` → **Package For Stores → iOS**.
-2. Projekt **am Mac in Xcode** öffnen, **Team/Bundle-ID** setzen, Build erstellen.
-3. Über **Xcode/Transporter** nach **App Store Connect** hochladen; Screenshots
-   (iPhone **und** iPad), Datenschutz-URL, Datenschutz-Fragebogen (keine Erfassung).
+Am Mac (Details + Befehle in `kassa-ios/README.md`):
+1. `cd kassa-ios && npm install && npx cap sync ios`
+2. `open ios/App/App.xcworkspace`
+3. Target **App → Signing & Capabilities** → dein **Team** wählen.
+4. App in **App Store Connect** anlegen (Bundle-ID `at.spanwerk.kassiersystem`, Name „Kassiersystem").
+5. **Product → Archive → Distribute App → App Store Connect → Upload** (oder TestFlight).
+6. Store-Eintrag: Beschreibung, Screenshots (iPhone + iPad, `store/`), Datenschutz-URL,
+   Datenschutz-Fragebogen → keine Datenerfassung.
 
 > ⚠️ Apple lehnt reine „Web-Apps" teils nach Regel 4.2 ab. Mildern über Betonung des
 > Offline-Betriebs; Alternativen: **TestFlight** (intern), Apple Business/Custom Apps,
