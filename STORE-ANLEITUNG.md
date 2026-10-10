@@ -4,13 +4,13 @@ Die Kasse gibt es in zwei Formen:
 1. **Web-App (PWA)** unter `https://warscher80.github.io/spanwerk-datenschutz/kassa.html`
    – installierbar über „Zum Home-Bildschirm", offline, selbst-aktualisierend.
 2. **Native Android-App** (`kassa-android/`) – als **fertige Dateien schon gebaut**:
-   - `Sommerfest-Kassa-1.0.apk` → direkt auf Android installieren (Sideload)
-   - `Sommerfest-Kassa-1.0.aab` → in der **Google Play Console** hochladen
+   - `Kassiersystem-1.0.apk` → direkt auf Android installieren (Sideload)
+   - `Kassiersystem-1.0.aab` → in der **Google Play Console** hochladen
 
 Beide liegen im Projektwurzelverzeichnis und sind über GitHub herunterladbar.
 
 Store-Eintrag (für beide Stores):
-- **Name:** Sommerfest Kassa
+- **Name:** Kassiersystem
 - **Kurzbeschreibung:** Kassiersystem für Vereinsfeste – Speisen, Getränke, Pfand, Auswertung.
 - **Kategorie:** Business / Produktivität
 - **Datenschutz-URL:** `https://warscher80.github.io/spanwerk-datenschutz/datenschutz.html`
@@ -24,18 +24,18 @@ Store-Eintrag (für beide Stores):
 Die native App ist bereits gebaut und signiert (`at.spanwerk.sommerfestkassa`, v1.0).
 Du musst sie nur in deinem Play-Konto hochladen:
 
-1. **Play Console** → *App erstellen* → Name „Sommerfest Kassa", App, kostenlos.
+1. **Play Console** → *App erstellen* → Name „Kassiersystem", App, kostenlos.
 2. **Play App Signing** aktiviert lassen (empfohlen) – Google verwaltet den
    Verteil-Schlüssel, die vorhandene Signatur dient als Upload-Key.
 3. **Release → Interner Test** (nur eure Tablets, nicht öffentlich) → *Neues Release* →
-   `Sommerfest-Kassa-1.0.aab` **hochladen**.
+   `Kassiersystem-1.0.aab` **hochladen**.
 4. Store-Eintrag ausfüllen: Beschreibung (oben), **Screenshots** aus `store/`,
    **Datenschutz-URL** (oben).
 5. **Fragebögen:** Inhaltseinstufung + **Daten-Sicherheit** → „keine Datenerfassung".
    (Die App hat keine Internet-Berechtigung.)
 6. Zum internen Test **freigeben** → Test-Link an die Tablets schicken, installieren.
 
-> Direkt-Variante ohne Play: `Sommerfest-Kassa-1.0.apk` auf dem Tablet öffnen
+> Direkt-Variante ohne Play: `Kassiersystem-1.0.apk` auf dem Tablet öffnen
 > (Quelle „Unbekannte Apps" erlauben) → installiert sofort.
 
 Signatur-Fingerprint (SHA-256), falls Play danach fragt:
