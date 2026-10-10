@@ -1,0 +1,44 @@
+name: iOS Build-Test (ohne Signatur)
+
+# Prüft auf einem macOS-Server, ob die iOS-App sauber kompiliert
+# (Capacitor-Sync, Pods, Xcode-Build für den Simulator – OHNE Signatur/Apple-Schlüssel).
+# Dient dazu, Bau-Fehler vorab zu finden, bevor der echte TestFlight-Upload läuft.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Web-/Capacitor-Abhängigkeiten
+        working-directory: kassa-ios
+        run: |
+          npm install
+          npx cap sync ios
+
+      - name: Pods installieren
+        working-directory: kassa-ios/ios/App
+        run: pod install
+
+      - name: Für Simulator bauen (ohne Signatur)
+        working-directory: kassa-ios/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
