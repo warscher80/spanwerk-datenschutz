@@ -1,0 +1,56 @@
+name: iOS → TestFlight (Kassiersystem)
+
+# Baut die iOS-App auf einem macOS-Server von GitHub, signiert sie automatisch
+# über den App-Store-Connect-API-Schlüssel und lädt sie zu TestFlight hoch.
+# KEIN eigener Mac nötig.
+#
+# Benötigte GitHub-Secrets (Settings → Secrets and variables → Actions):
+#   ASC_KEY_ID       – Key-ID des App-Store-Connect-API-Schlüssels
+#   ASC_ISSUER_ID    – Issuer-ID (steht über der Schlüssel-Liste)
+#   ASC_API_KEY_P8   – kompletter Inhalt der heruntergeladenen .p8-Datei
+#   APPLE_TEAM_ID    – deine 10-stellige Apple Team ID (Developer → Membership)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Web-/Capacitor-Abhängigkeiten
+        working-directory: kassa-ios
+        run: |
+          npm install
+          npx cap sync ios
+
+      - name: Ruby/Fastlane einrichten
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Fastlane + CocoaPods installieren
+        run: |
+          gem install fastlane -N
+          gem install cocoapods -N
+
+      - name: Pods installieren
+        working-directory: kassa-ios/ios/App
+        run: pod install
+
+      - name: Bauen, signieren & zu TestFlight hochladen
+        working-directory: kassa-ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: fastlane ios beta
