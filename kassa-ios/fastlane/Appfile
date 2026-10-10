@@ -1,0 +1,4 @@
+app_identifier("at.spanwerk.kassiersystem")
+for_platform(:ios) do
+  team_id(ENV["APPLE_TEAM_ID"]) if ENV["APPLE_TEAM_ID"]
+end
