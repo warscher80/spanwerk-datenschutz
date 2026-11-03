@@ -228,6 +228,7 @@
 
   var state={activeId:null,projects:[]};
   var ticker=null;
+  var notifActId=null, nativeGuard=false;   // Kopplung an die Android-Benachrichtigung
 
   function $(id){return document.getElementById(id);}
   function genId(){return 'id'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);}
@@ -260,6 +261,45 @@
     var r=findRunning();
     if(r){ r.act.sec=elapsed(r.act); r.act.startedAt=null; }
   }
+
+  /* ---- Kopplung an die Android-Benachrichtigung (nur in der App vorhanden) ---- */
+  function notifAct(){
+    if(!notifActId) return null;
+    for(var i=0;i<state.projects.length;i++){
+      var p=state.projects[i];
+      for(var j=0;j<p.activities.length;j++) if(p.activities[j].id===notifActId) return {proj:p,act:p.activities[j]};
+    }
+    return null;
+  }
+  function nativeSync(){
+    if(nativeGuard) return;
+    try{
+      if(!(window.AndroidTimer && AndroidTimer.setState)) return;
+      var r=notifAct();
+      if(!r){ AndroidTimer.setState(false,false,'','',0); return; }
+      var running=!!r.act.startedAt;
+      // laufend: Basis-Zeitstempel (ms); pausiert: eingefrorene Sekunden
+      var value = running ? (r.act.startedAt - r.act.sec*1000) : elapsed(r.act);
+      AndroidTimer.setState(true, running, r.act.name, r.proj.name||'', value);
+    }catch(e){}
+  }
+  // Von der Benachrichtigung aufgerufen (Pause/Weiter): Zustand umschalten.
+  window.__nativeToggle=function(){
+    if(!notifActId) return;
+    nativeGuard=true;            // Rueckkopplung vermeiden – der Dienst hat sich schon aktualisiert
+    try{ startAct(notifActId); }catch(e){}
+    nativeGuard=false;
+  };
+  // Von der Benachrichtigung aufgerufen (Stopp): anhalten, Zeit behalten, Anzeige entfernen.
+  window.__nativeStop=function(){
+    nativeGuard=true;
+    try{
+      var r=notifAct();
+      if(r && r.act.startedAt){ r.act.sec=elapsed(r.act); r.act.startedAt=null; }
+      notifActId=null; save(); render();
+    }catch(e){}
+    nativeGuard=false;
+  };
 
   function newProject(name){
     var p={id:genId(),name:name,client:'',note:'',rate:'',createdAt:now(),
@@ -304,7 +344,7 @@
     if(!a) return;
     askTime('Zeit für „'+a.name+'" (Std. / Min.)', elapsed(a), function(sec){
       a.sec=sec; a.startedAt=null;   // ggf. laufende Uhr anhalten und auf den Wert setzen
-      save(); render();
+      save(); render(); nativeSync();
     });
   }
 
@@ -319,15 +359,17 @@
     } else {
       stopRunning();          // nur eine Tätigkeit gleichzeitig
       target.startedAt=now();
+      notifActId=target.id;   // diese Tätigkeit in der Benachrichtigung zeigen
     }
-    save(); render();
+    save(); render(); nativeSync();
   }
   function resetAct(actId){
     var p=activeProj(); if(!p) return;
     var a=null;
     for(var i=0;i<p.activities.length;i++) if(p.activities[i].id===actId) a=p.activities[i];
     if(!a) return;
-    var apply=function(){ a.sec=0; a.startedAt=null; save(); render(); };
+    var apply=function(){ a.sec=0; a.startedAt=null;
+      if(notifActId===actId) notifActId=null; save(); render(); nativeSync(); };
     if(elapsed(a)>0) askConfirm('Zeit für „'+a.name+'" auf 0 setzen?',apply); else apply();
   }
   function removeAct(actId){
@@ -337,7 +379,8 @@
     if(!a) return;
     var apply=function(){
       p.activities=p.activities.filter(function(x){return x.id!==actId;});
-      save(); render();
+      if(notifActId===actId) notifActId=null;
+      save(); render(); nativeSync();
     };
     if(elapsed(a)>0) askConfirm('„'+a.name+'" inkl. erfasster Zeit entfernen?',apply); else apply();
   }
@@ -564,9 +607,10 @@
   $('delProjBtn').addEventListener('click',function(){
     var p=activeProj(); if(!p) return;
     askConfirm('Auftrag „'+(p.name||'ohne Name')+'" mit allen erfassten Zeiten löschen?',function(){
+      if(p.activities.some(function(a){return a.id===notifActId;})) notifActId=null;
       state.projects=state.projects.filter(function(x){return x.id!==p.id;});
       state.activeId=state.projects.length?state.projects[0].id:null;
-      save(); render();
+      save(); render(); nativeSync();
     });
   });
   $('addActBtn').addEventListener('click',function(){ addAct($('newActInput').value); $('newActInput').value=''; });
@@ -589,7 +633,9 @@
   load();
   if(state.projects.length===0){ newProject('Treppe (Beispiel)'); save(); }
   if(!activeProj() && state.projects.length) state.activeId=state.projects[0].id;
+  var _run=findRunning(); if(_run) notifActId=_run.act.id;   // laufende Uhr nach Neustart weiterzeigen
   render();
+  nativeSync();
 })();
 </script>
 </body>

@@ -1,7 +1,7 @@
 /* Service Worker für die iPhone/PWA-Web-App: macht die App offline nutzbar.
    Bei jeder neuen App-Version die CACHE-Version hochzählen (v1 -> v2 ...),
    damit die neue index.html sicher ausgeliefert wird. */
-const CACHE = 'zeiterfassung-v1';
+const CACHE = 'zeiterfassung-v2';
 const ASSETS = [
   './',
   './index.html',
